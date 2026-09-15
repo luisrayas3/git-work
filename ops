@@ -1,1 +1,1 @@
-{"author":{"id":"7674679dac9170669f752d932f8b5955b1d55717359e13b1c1e687003c7bb99f"},"ops":[{"type":1,"timestamp":1789489387,"nonce":"v8zHeraVopFKIYOQn7Esr0rVcD4=","title":"Reshape the CLI from bug to issue","message":"Align issue subcommands with the 0.10.x namespaced CLI (the git bug bug ... pattern).","files":null}]}
+{"author":{"id":"7674679dac9170669f752d932f8b5955b1d55717359e13b1c1e687003c7bb99f"},"ops":[{"type":5,"timestamp":1789489387,"nonce":"pBQSnTtYMtB2aW731B1aA8NPl8w=","added":["area:cli","phase:3-app-reshape","prio:med"],"removed":null}]}
