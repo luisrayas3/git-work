@@ -1,0 +1,1 @@
+{"author":{"id":"7674679dac9170669f752d932f8b5955b1d55717359e13b1c1e687003c7bb99f"},"ops":[{"type":1,"timestamp":1789489388,"nonce":"g03D8+NbZcUyQ16IhgGR09UjESE=","title":"Selection-to-reference bridge (TUI to chat)","message":"Pin the TUI-selected issue id so an external chat session can reference it without retyping.","files":null}]}
