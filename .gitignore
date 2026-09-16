@@ -1,4 +1,5 @@
-git-bug
+/git-bug
+/git-work
 !/misc/completion/bash/git-bug
 !/misc/completion/fish/git-bug
 !/misc/completion/powershell/git-bug
