@@ -75,6 +75,10 @@ Forms below are verified against 0.10.x.
 Gotchas, hardened from use:
 
 - `ls` is not a command; the list is the bare `git work bug`.
+- `git work user new` fails with `missing key user.name` when `user.*`
+  comes from a git config `[include]`/`[includeIf]`
+  (upstream #1475, our `68abc13`).
+  Until fixed, pass `-n <name> -e <email> --non-interactive`.
 - Only one process may hold the store at a time
   (pid lock at `.git/git-bug/lock`).
   `termui` and `webui` hold it while open, so quit them first.
@@ -83,19 +87,48 @@ Gotchas, hardened from use:
   it publishes the tracker to `origin`.
 - `termui` and `webui` need a real TTY; a human runs them, not the agent.
 
+## Direction (decided 2026-09-17)
+
+Four target workflows drive every design call:
+(1) roadmapping — initiatives/epics on a quarter-scale Gantt with resourcing, AI-assisted;
+(2) weekly status report generated from the op log;
+(3) in-person sync on a live, edit-heavy kanban;
+(4) doing work — my tasks, pick one, link PRs, agents own subtasks (1 subtask ↔ 1 PR).
+
+Settled calls (details live in the referenced issues):
+
+- `git work issue *` is **plumbing, agent-first**: JSON out by default,
+  RFC 6902 JSON Patch in (`e8d6426`).
+  `git work flow *` is porcelain, one verb per workflow (`b511c63`).
+- Schema is *just configurable enough* to represent both Jira's and
+  Linear's native models: fixed field kinds, configurable values;
+  parent is a cardinality-1 relation (`bb9e89e`, `c090f9b`, `59fed1c`).
+- Concurrency: no daemon. Lock-free readers, a short write lock,
+  ref→hash staleness diff, a ref watcher for live views (`d35de2e`, `d591cb3`, `63c68d1`).
+  Bleve is dropped; search is a non-goal (`3500366`).
+- Entity namespace becomes `refs/issues` (`be69e67`); Go package names stay `bug`
+  so upstream fixes to `cache/` and `bridge/` still cherry-pick.
+- Jira sync is bidirectional and **Jira is canonical**: 3-way per field,
+  Jira wins on double-edit (`3c6d07a`). This repo dogfoods without Jira.
+- TUI: Bubble Tea rewrite later (`84dfbde`). GUI: extend the inherited webui;
+  a framework rethink is parked (`867db1a`).
+
 ## Label taxonomy
 
 git-bug is flat (no epics, priority, or dates),
-so structure is simulated with labels.
-Replacing these with first-class schema is the product itself
-(issues `1adfc5c` schema, `72d751d` hierarchy and dependencies).
+so structure is simulated with labels until the schema work lands
+(`bb9e89e` schema engine, `c090f9b` relations).
 
 | Prefix | Values |
 | --- | --- |
-| `phase:` | `0-bootstrap` `1-issue-model` `2-bridge` `3-app-reshape` `4-harness` `5-roadmap` |
-| `area:` | `core` `issue-model` `bridge` `cli` `tui` `mcp` `infra` |
+| `phase:` | `0-bootstrap` `1-concurrency` `2-issue-model` `3-jira-sync` `4-flows` `5-surfaces` |
+| `area:` | `core` `issue-model` `bridge` `cli` `tui` `gui` `mcp` `infra` |
 | `type:` | `spike` `decision` (omit for ordinary tasks) |
 | `prio:` | `high` `med` `low` |
+
+Phases are ordered by dependency, not calendar:
+concurrency precedes the model because agent + TUI coexistence
+and the mutate path both rest on it.
 
 ## Working conventions
 
