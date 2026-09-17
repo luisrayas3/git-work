@@ -95,9 +95,11 @@ func LoadBackend(env *Env) func(*cobra.Command, []string) error {
 	}
 }
 
-// LoadBackendEnsureUser is the same as LoadBackend, but also ensure that the user has configured
-// an identity. Use this pre-run function when an error after using the configured user won't
-// do.
+// LoadBackendEnsureUser is the same as LoadBackend,
+// but also ensures that a user identity is set,
+// bootstrapping one from git's user.name/user.email if needed
+// (see cache.RepoCache.EnsureUserIdentity).
+// Use this pre-run function when an error after using the configured user won't do.
 func LoadBackendEnsureUser(env *Env) func(*cobra.Command, []string) error {
 	return func(cmd *cobra.Command, args []string) error {
 		err := LoadBackend(env)(cmd, args)
@@ -105,9 +107,17 @@ func LoadBackendEnsureUser(env *Env) func(*cobra.Command, []string) error {
 			return err
 		}
 
-		_, err = identity.GetUserIdentity(env.Repo)
+		i, source, err := env.Backend.EnsureUserIdentity()
 		if err != nil {
 			return err
+		}
+		switch source {
+		case cache.UserIdentityAdopted:
+			env.Err.Printf("Adopted identity %s (%s <%s>) matching git user.email\n",
+				i.Id().Human(), i.Name(), i.Email())
+		case cache.UserIdentityCreated:
+			env.Err.Printf("Created identity %s (%s <%s>) from git user.name/user.email\n",
+				i.Id().Human(), i.Name(), i.Email())
 		}
 
 		return nil

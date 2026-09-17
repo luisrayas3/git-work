@@ -75,6 +75,11 @@ Forms below are verified against 0.10.x.
 Gotchas, hardened from use:
 
 - `ls` is not a command; the list is the bare `git work bug`.
+- No `user new` needed:
+  the first mutating command sets your identity from git's `user.name`/`user.email`,
+  adopting an existing identity with that email or creating one
+  (`cache.RepoCache.EnsureUserIdentity`, our `828c228`).
+  `user new`/`user adopt` remain as overrides.
 - Config reads go through the `git` CLI
   (package `gitconfig`, wired in `execenv.LoadRepo`)
   because go-git ignores `[include]`/`[includeIf]`
@@ -96,7 +101,8 @@ Four target workflows drive every design call:
 (1) roadmapping — initiatives/epics on a quarter-scale Gantt with resourcing, AI-assisted;
 (2) weekly status report generated from the op log;
 (3) in-person sync on a live, edit-heavy kanban;
-(4) doing work — my tasks, pick one, link PRs, agents own subtasks (1 subtask ↔ 1 PR).
+(4) doing work — my tasks, pick one, link PRs, agents own subtasks (1 subtask ↔ 1 PR);
+(5) sprint planning — cross-project allocation, re-prioritizing and grooming for the next iteration.
 
 Settled calls (details live in the referenced issues):
 
@@ -106,6 +112,7 @@ Settled calls (details live in the referenced issues):
 - Schema is *just configurable enough* to represent both Jira's and
   Linear's native models: fixed field kinds, configurable values;
   parent is a cardinality-1 relation (`bb9e89e`, `c090f9b`, `59fed1c`).
+  Iterations (sprints/cycles) are leaning first-class entity, not a text field (`aba17f4`).
 - Concurrency: no daemon. Lock-free readers, a short write lock,
   ref→hash staleness diff, a ref watcher for live views (`d35de2e`, `d591cb3`, `63c68d1`).
   Bleve is dropped; search is a non-goal (`3500366`).
