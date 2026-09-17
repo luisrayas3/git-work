@@ -75,10 +75,13 @@ Forms below are verified against 0.10.x.
 Gotchas, hardened from use:
 
 - `ls` is not a command; the list is the bare `git work bug`.
-- `git work user new` fails with `missing key user.name` when `user.*`
-  comes from a git config `[include]`/`[includeIf]`
+- Config reads go through the `git` CLI
+  (package `gitconfig`, wired in `execenv.LoadRepo`)
+  because go-git ignores `[include]`/`[includeIf]`
   (upstream #1475, our `68abc13`).
-  Until fixed, pass `-n <name> -e <email> --non-interactive`.
+  `git` must be on `PATH`;
+  without it, reads fall back to go-git
+  and included `user.*` is invisible.
 - Only one process may hold the store at a time
   (pid lock at `.git/git-bug/lock`).
   `termui` and `webui` hold it while open, so quit them first.

@@ -10,6 +10,7 @@ import (
 
 	"github.com/git-bug/git-bug/cache"
 	"github.com/git-bug/git-bug/entities/identity"
+	"github.com/git-bug/git-bug/gitconfig"
 	"github.com/git-bug/git-bug/repository"
 	"github.com/git-bug/git-bug/util/interrupt"
 )
@@ -25,13 +26,17 @@ func LoadRepo(env *Env) func(*cobra.Command, []string) error {
 		// Note: we are not loading clocks here because we assume that LoadRepo is only used
 		//  when we don't manipulate entities, or as a child call of LoadBackend which will
 		//  read all clocks anyway.
-		env.Repo, err = repository.OpenGoGitRepo(cwd, gitBugNamespace, nil)
+		repo, err := repository.OpenGoGitRepo(cwd, gitBugNamespace, nil)
 		if err == repository.ErrNotARepo {
 			return fmt.Errorf("%s must be run from within a git Repo", RootCommandName)
 		}
 		if err != nil {
 			return err
 		}
+
+		// go-git does not evaluate [include]/[includeIf],
+		// so route config reads through the git CLI (see package gitconfig).
+		env.Repo = gitconfig.WrapRepo(repo, cwd)
 
 		return nil
 	}
