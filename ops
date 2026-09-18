@@ -1,1 +1,1 @@
-{"author":{"id":"a3a282966ced55effb4560271fcd98e13241af24ea76b00ec76a0f18154bc8ee"},"ops":[{"type":5,"timestamp":1789661308,"nonce":"q37JB3Gt4rVt1KCIj0kc8WUuG3c=","added":["phase:1-concurrency","area:core","prio:med"],"removed":null}]}
+{"author":{"id":"a3a282966ced55effb4560271fcd98e13241af24ea76b00ec76a0f18154bc8ee"},"ops":[{"type":5,"timestamp":1789760334,"nonce":"/QfxGkWiQT722grTmt0oIkMfDQc=","added":["type:task","story:e68d62b"],"removed":null}]}
