@@ -1,1 +1,1 @@
-{"author":{"id":"a3a282966ced55effb4560271fcd98e13241af24ea76b00ec76a0f18154bc8ee"},"ops":[{"type":5,"timestamp":1789760337,"nonce":"Xjzhd0ZIZ5ejmupDjLwMsS35Fm8=","added":["type:task","story:a6b0d39"],"removed":null}]}
+{"author":{"id":"a3a282966ced55effb4560271fcd98e13241af24ea76b00ec76a0f18154bc8ee"},"ops":[{"type":2,"timestamp":1789760337,"nonce":"0z6Kbsx1E6WWPVJjVYaBQjgyFNE=","title":"Task: GraphQL: expose fields, relations, schema","was":"GraphQL: expose fields, relations, schema"}]}
