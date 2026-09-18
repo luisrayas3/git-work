@@ -1,1 +1,1 @@
-{"author":{"id":"a3a282966ced55effb4560271fcd98e13241af24ea76b00ec76a0f18154bc8ee"},"ops":[{"type":5,"timestamp":1789760329,"nonce":"gPAEbrqFJvJRPSZp+QItLXji4eA=","added":["type:task","story:bc14d4d"],"removed":null}]}
+{"author":{"id":"a3a282966ced55effb4560271fcd98e13241af24ea76b00ec76a0f18154bc8ee"},"ops":[{"type":2,"timestamp":1789760329,"nonce":"NfWpJ9Xk13YvW5RKU05o6KZ+D1A=","title":"Task: Auto-create identity from git config on first mutation","was":"Auto-create identity from git config on first mutation"}]}
