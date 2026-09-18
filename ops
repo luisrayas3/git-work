@@ -1,1 +1,1 @@
-{"author":{"id":"a3a282966ced55effb4560271fcd98e13241af24ea76b00ec76a0f18154bc8ee"},"ops":[{"type":5,"timestamp":1789760330,"nonce":"gY0TqNpbSnSxFCjM1J1fU/i1VsU=","added":["type:task","story:f6a60bd"],"removed":null}]}
+{"author":{"id":"a3a282966ced55effb4560271fcd98e13241af24ea76b00ec76a0f18154bc8ee"},"ops":[{"type":2,"timestamp":1789760330,"nonce":"VNQpBFCPGAU62Qa4LJ2Pb7nX1VY=","title":"Task: Rename entity namespace refs/bugs -\u003e refs/issues, typename issue","was":"Rename entity namespace refs/bugs -\u003e refs/issues, typename issue"}]}
