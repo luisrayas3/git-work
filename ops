@@ -1,1 +1,1 @@
-{"author":{"id":"a3a282966ced55effb4560271fcd98e13241af24ea76b00ec76a0f18154bc8ee"},"ops":[{"type":5,"timestamp":1789760344,"nonce":"/aTW685L2/JJQiqRCfI3ibF5YsM=","added":["type:task","story:f32ea71"],"removed":null}]}
+{"author":{"id":"a3a282966ced55effb4560271fcd98e13241af24ea76b00ec76a0f18154bc8ee"},"ops":[{"type":2,"timestamp":1789760344,"nonce":"U3vKnC07PdGuHP/j3ePwj5tfhqc=","title":"Task: Webui: live kanban board with keyboard editing","was":"Webui: live kanban board with keyboard editing"}]}
