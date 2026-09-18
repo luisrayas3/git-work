@@ -1,1 +1,1 @@
-{"author":{"id":"a3a282966ced55effb4560271fcd98e13241af24ea76b00ec76a0f18154bc8ee"},"ops":[{"type":5,"timestamp":1789760343,"nonce":"W3Ny0Eu1Gr7iiDeU2RQlxtdzUnw=","added":["type:task","story:58e95ff"],"removed":null}]}
+{"author":{"id":"a3a282966ced55effb4560271fcd98e13241af24ea76b00ec76a0f18154bc8ee"},"ops":[{"type":2,"timestamp":1789760343,"nonce":"7rMp8n+8EUs/zAqYmaWzKuEohn8=","title":"Task: Webui: status report view","was":"Webui: status report view"}]}
