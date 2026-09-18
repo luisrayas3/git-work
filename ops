@@ -1,1 +1,1 @@
-{"author":{"id":"a3a282966ced55effb4560271fcd98e13241af24ea76b00ec76a0f18154bc8ee"},"ops":[{"type":5,"timestamp":1789760335,"nonce":"dDgtjB327W2S92CAlMGlQMuRd2Q=","added":["type:task","story:6555e36"],"removed":null}]}
+{"author":{"id":"a3a282966ced55effb4560271fcd98e13241af24ea76b00ec76a0f18154bc8ee"},"ops":[{"type":2,"timestamp":1789760335,"nonce":"MkpQczduqI7MToMVbCLJ4f6+494=","title":"Task: Schema engine: field kinds, values, categories, validation","was":"Schema engine: field kinds, values, categories, validation"}]}
