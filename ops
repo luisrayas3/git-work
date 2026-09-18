@@ -1,1 +1,1 @@
-{"author":{"id":"a3a282966ced55effb4560271fcd98e13241af24ea76b00ec76a0f18154bc8ee"},"ops":[{"type":5,"timestamp":1789760341,"nonce":"Y76qcwHThoVzHZp78R35ENg8giY=","added":["type:task","story:17e1d0a"],"removed":null}]}
+{"author":{"id":"a3a282966ced55effb4560271fcd98e13241af24ea76b00ec76a0f18154bc8ee"},"ops":[{"type":2,"timestamp":1789760341,"nonce":"aqPFR0Byzf3/KFmgB25t5UqoIvI=","title":"Task: flow breakdown: decompose a task into PR-sized subtasks","was":"flow breakdown: decompose a task into PR-sized subtasks"}]}
