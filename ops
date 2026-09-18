@@ -1,1 +1,1 @@
-{"author":{"id":"a3a282966ced55effb4560271fcd98e13241af24ea76b00ec76a0f18154bc8ee"},"ops":[{"type":5,"timestamp":1789760342,"nonce":"qteTgvvNmfSzBGJ0VIG4dyvo1Ac=","added":["type:task","story:58e95ff"],"removed":null}]}
+{"author":{"id":"a3a282966ced55effb4560271fcd98e13241af24ea76b00ec76a0f18154bc8ee"},"ops":[{"type":2,"timestamp":1789760342,"nonce":"CsRw6ceOiPWGr2ZPZlDL7xBU9ls=","title":"Task: flow report: weekly status markdown from the op log","was":"flow report: weekly status markdown from the op log"}]}
