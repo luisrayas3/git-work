@@ -131,10 +131,17 @@ so structure is simulated with labels until the schema work lands
 
 | Prefix | Values |
 | --- | --- |
+| `type:` | `story` `task` `decision` |
+| `story:` | 7-char id of the parent story (on tasks and decisions) |
 | `phase:` | `0-bootstrap` `1-concurrency` `2-issue-model` `3-jira-sync` `4-flows` `5-surfaces` |
 | `area:` | `core` `issue-model` `bridge` `cli` `tui` `gui` `mcp` `infra` |
-| `type:` | `spike` `decision` (omit for ordinary tasks) |
 | `prio:` | `high` `med` `low` |
+
+Two levels for now: **stories** (outcomes, roughly one per workflow) contain
+**tasks** and **decisions**. Titles carry the level for easy scanning:
+`Story: …`, `Task: …`, `Decision: …`.
+A story's body lists its tasks; `git work bug --label story:<id>` lists them live.
+Stories carry `type:story` and an `area:`, not a phase.
 
 Phases are ordered by dependency, not calendar:
 concurrency precedes the model because agent + TUI coexistence
