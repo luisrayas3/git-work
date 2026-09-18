@@ -1,1 +1,1 @@
-{"author":{"id":"a3a282966ced55effb4560271fcd98e13241af24ea76b00ec76a0f18154bc8ee"},"ops":[{"type":5,"timestamp":1789760337,"nonce":"CPtJPs2WBIrIOR6Wk9CPH60liO4=","added":["type:task","story:a6b0d39"],"removed":null}]}
+{"author":{"id":"a3a282966ced55effb4560271fcd98e13241af24ea76b00ec76a0f18154bc8ee"},"ops":[{"type":2,"timestamp":1789760337,"nonce":"n5x6UZhzsCnFsljjJxjiVCZGUzU=","title":"Task: Accept external keys (Jira key) as issue aliases everywhere","was":"Accept external keys (Jira key) as issue aliases everywhere"}]}
