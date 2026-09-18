@@ -1,1 +1,1 @@
-{"author":{"id":"a3a282966ced55effb4560271fcd98e13241af24ea76b00ec76a0f18154bc8ee"},"ops":[{"type":4,"timestamp":1789678401,"nonce":"yUBnLLCYmAE0BtJwRV2fMNSI9Tg=","status":2}]}
+{"author":{"id":"a3a282966ced55effb4560271fcd98e13241af24ea76b00ec76a0f18154bc8ee"},"ops":[{"type":5,"timestamp":1789760329,"nonce":"ImC4Mpx/qQkZJBfVukfUcYG0D/U=","added":["type:task","story:bc14d4d"],"removed":null}]}
