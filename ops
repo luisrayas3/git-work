@@ -1,1 +1,1 @@
-{"author":{"id":"a3a282966ced55effb4560271fcd98e13241af24ea76b00ec76a0f18154bc8ee"},"ops":[{"type":5,"timestamp":1789760335,"nonce":"rI24Y+l83F2mHiVA8dFOn0/JDcc=","added":["type:task","story:6555e36"],"removed":null}]}
+{"author":{"id":"a3a282966ced55effb4560271fcd98e13241af24ea76b00ec76a0f18154bc8ee"},"ops":[{"type":2,"timestamp":1789760336,"nonce":"or1vpnuABQvdVMJb2j8l2CLstw0=","title":"Task: Ship jira and linear schema presets; both models representable","was":"Ship jira and linear schema presets; both models representable"}]}
