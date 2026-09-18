@@ -1,1 +1,1 @@
-{"author":{"id":"a3a282966ced55effb4560271fcd98e13241af24ea76b00ec76a0f18154bc8ee"},"ops":[{"type":5,"timestamp":1789760339,"nonce":"z77GIPDolxvekKor4X8sQHGGDms=","added":["type:task","story:8ade811"],"removed":null}]}
+{"author":{"id":"a3a282966ced55effb4560271fcd98e13241af24ea76b00ec76a0f18154bc8ee"},"ops":[{"type":2,"timestamp":1789760339,"nonce":"eW3UePfYbfdY3p6ZfTg/pbYsFK4=","title":"Task: git work sync [--watch]: one command, both directions, backoff","was":"git work sync [--watch]: one command, both directions, backoff"}]}
