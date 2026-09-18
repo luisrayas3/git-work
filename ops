@@ -1,1 +1,1 @@
-{"author":{"id":"a3a282966ced55effb4560271fcd98e13241af24ea76b00ec76a0f18154bc8ee"},"ops":[{"type":5,"timestamp":1789760341,"nonce":"LhgFjW6dOaK3sXGb1AJ2YW+AkMw=","added":["type:task","story:17e1d0a"],"removed":null}]}
+{"author":{"id":"a3a282966ced55effb4560271fcd98e13241af24ea76b00ec76a0f18154bc8ee"},"ops":[{"type":2,"timestamp":1789760341,"nonce":"JT4kSY2IIlbuWVC4v9g6WnnZBsI=","title":"Task: flow pr: attach the current branch's PR, transition on open/merge","was":"flow pr: attach the current branch's PR, transition on open/merge"}]}
