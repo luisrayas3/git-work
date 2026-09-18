@@ -1,1 +1,1 @@
-{"author":{"id":"a3a282966ced55effb4560271fcd98e13241af24ea76b00ec76a0f18154bc8ee"},"ops":[{"type":5,"timestamp":1789760333,"nonce":"nks47ZjPmov5vYZG9aaiqEBl0cY=","added":["type:task","story:e68d62b"],"removed":null}]}
+{"author":{"id":"a3a282966ced55effb4560271fcd98e13241af24ea76b00ec76a0f18154bc8ee"},"ops":[{"type":2,"timestamp":1789760333,"nonce":"gWjSpCSpYaeRwsO88TohEJGI3Jc=","title":"Task: Mutations re-read the entity under the write lock (same-issue conflicts)","was":"Mutations re-read the entity under the write lock (same-issue conflicts)"}]}
