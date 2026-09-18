@@ -1,1 +1,1 @@
-{"author":{"id":"a3a282966ced55effb4560271fcd98e13241af24ea76b00ec76a0f18154bc8ee"},"ops":[{"type":5,"timestamp":1789661310,"nonce":"hxjuR3RWhNjUOv30NmTVm9UAacw=","added":["phase:3-jira-sync","area:bridge","prio:med"],"removed":null}]}
+{"author":{"id":"a3a282966ced55effb4560271fcd98e13241af24ea76b00ec76a0f18154bc8ee"},"ops":[{"type":5,"timestamp":1789760339,"nonce":"z77GIPDolxvekKor4X8sQHGGDms=","added":["type:task","story:8ade811"],"removed":null}]}
