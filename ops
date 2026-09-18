@@ -1,1 +1,1 @@
-{"author":{"id":"a3a282966ced55effb4560271fcd98e13241af24ea76b00ec76a0f18154bc8ee"},"ops":[{"type":5,"timestamp":1789760332,"nonce":"hvHzavwYAHwcoX7bPtnfdhv5cwc=","added":["type:task","story:e68d62b"],"removed":null}]}
+{"author":{"id":"a3a282966ced55effb4560271fcd98e13241af24ea76b00ec76a0f18154bc8ee"},"ops":[{"type":2,"timestamp":1789760332,"nonce":"VcENWKdgq5Qy0wHpQNzZoSG0nQI=","title":"Task: Investigate: demonstrate lost ops with two concurrent writers","was":"Spike: demonstrate lost ops with two concurrent writers"}]}
