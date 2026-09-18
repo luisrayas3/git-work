@@ -1,1 +1,1 @@
-{"author":{"id":"a3a282966ced55effb4560271fcd98e13241af24ea76b00ec76a0f18154bc8ee"},"ops":[{"type":5,"timestamp":1789760333,"nonce":"W7A8TqnPrV9xZ3KUEuixQuzY+CA=","added":["type:task","story:e68d62b"],"removed":null}]}
+{"author":{"id":"a3a282966ced55effb4560271fcd98e13241af24ea76b00ec76a0f18154bc8ee"},"ops":[{"type":2,"timestamp":1789760333,"nonce":"utdSZF/27U2X7prlPx05pvKHGjY=","title":"Task: Live invalidation: watch refs and emit entity events cross-process","was":"Live invalidation: watch refs and emit entity events cross-process"}]}
