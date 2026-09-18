@@ -1,1 +1,1 @@
-{"author":{"id":"a3a282966ced55effb4560271fcd98e13241af24ea76b00ec76a0f18154bc8ee"},"ops":[{"type":5,"timestamp":1789760337,"nonce":"XC+zLfXsx/tulzggTU3F697BRxQ=","added":["type:task","story:a6b0d39"],"removed":null}]}
+{"author":{"id":"a3a282966ced55effb4560271fcd98e13241af24ea76b00ec76a0f18154bc8ee"},"ops":[{"type":2,"timestamp":1789760337,"nonce":"bLpw3cRiSAjBou3IaYy2x78YUmQ=","title":"Task: Query language: schema fields, relations, sort by field","was":"Query language: schema fields, relations, sort by field"}]}
