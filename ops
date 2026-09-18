@@ -1,1 +1,1 @@
-{"author":{"id":"a3a282966ced55effb4560271fcd98e13241af24ea76b00ec76a0f18154bc8ee"},"ops":[{"type":5,"timestamp":1789760335,"nonce":"kjkNVYE8lFvv6Q3KNTUiBWtweXw=","added":["type:task","story:6555e36"],"removed":null}]}
+{"author":{"id":"a3a282966ced55effb4560271fcd98e13241af24ea76b00ec76a0f18154bc8ee"},"ops":[{"type":2,"timestamp":1789760335,"nonce":"FRSOa7jVnXDos4MVRdNMIt2NU1o=","title":"Task: Typed relations with inverses and cardinality; parent is a relation","was":"Typed relations with inverses and cardinality; parent is a relation"}]}
