@@ -1,1 +1,1 @@
-{"author":{"id":"a3a282966ced55effb4560271fcd98e13241af24ea76b00ec76a0f18154bc8ee"},"ops":[{"type":5,"timestamp":1789760333,"nonce":"4+KNYPjtdwJg9BMMO1MKhyM+5Lc=","added":["type:task","story:e68d62b"],"removed":null}]}
+{"author":{"id":"a3a282966ced55effb4560271fcd98e13241af24ea76b00ec76a0f18154bc8ee"},"ops":[{"type":2,"timestamp":1789760333,"nonce":"YAwIliKRpA7kW35iDpL14nCeij8=","title":"Task: Cache staleness detection: persist ref-\u003ehash map, re-read only changed entities","was":"Cache staleness detection: persist ref-\u003ehash map, re-read only changed entities"}]}
