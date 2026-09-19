@@ -6,7 +6,6 @@ import (
 	"github.com/git-bug/git-bug/repository"
 )
 
-const lockfile = "lock"
 const defaultRepoName = "__default"
 
 // MultiRepoCache is the root cache, holding multiple RepoCache.

@@ -43,8 +43,14 @@ func (i *IdentityCache) Mutate(repo repository.RepoClock, f func(*identity.Mutat
 }
 
 func (i *IdentityCache) Commit() error {
+	unlock, err := lockWrite(i.repo)
+	if err != nil {
+		return err
+	}
+	defer unlock()
+
 	i.mu.Lock()
-	err := i.Identity.Commit(i.repo)
+	err = i.Identity.Commit(i.repo)
 	i.mu.Unlock()
 	if err != nil {
 		return err
@@ -53,8 +59,14 @@ func (i *IdentityCache) Commit() error {
 }
 
 func (i *IdentityCache) CommitAsNeeded() error {
+	unlock, err := lockWrite(i.repo)
+	if err != nil {
+		return err
+	}
+	defer unlock()
+
 	i.mu.Lock()
-	err := i.Identity.CommitAsNeeded(i.repo)
+	err = i.Identity.CommitAsNeeded(i.repo)
 	i.mu.Unlock()
 	if err != nil {
 		return err

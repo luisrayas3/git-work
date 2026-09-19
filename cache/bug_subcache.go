@@ -23,7 +23,10 @@ func NewRepoCacheBug(repo repository.ClockedRepo,
 	getUserIdentity getUserIdentityFunc) *RepoCacheBug {
 
 	makeCached := func(b *bug.Bug, entityUpdated func(id entity.Id) error) *BugCache {
-		return NewBugCache(b, repo, getUserIdentity, entityUpdated)
+		reload := func() (*bug.Bug, error) {
+			return bug.ReadWithResolver(repo, resolvers(), b.Id())
+		}
+		return NewBugCache(b, repo, getUserIdentity, entityUpdated, reload)
 	}
 
 	actions := Actions[*bug.Bug]{
@@ -248,7 +251,15 @@ func (c *RepoCacheBug) NewRaw(author identity.Interface, unixTime int64, title s
 		return nil, nil, err
 	}
 
+	// A new entity has no ref yet, so there is nothing to rebase onto — but
+	// Commit increments the lamport clocks, which is a read-modify-write on a
+	// file two processes must not interleave.
+	unlock, err := lockWrite(c.repo)
+	if err != nil {
+		return nil, nil, err
+	}
 	err = b.Commit(c.repo)
+	unlock()
 	if err != nil {
 		return nil, nil, err
 	}

@@ -17,6 +17,11 @@ type CachedEntityBase[SnapT dag.Snapshot, OpT dag.Operation] struct {
 	entityUpdated   func(id entity.Id) error
 	getUserIdentity getUserIdentityFunc
 
+	// reload reads this entity from git again, wrapped the same way this one
+	// is. Injected by the subcache, which is the only place that knows the
+	// concrete entity type. See rebaseStaged.
+	reload func() (dag.Interface[SnapT, OpT], error)
+
 	mu     sync.RWMutex
 	entity dag.Interface[SnapT, OpT]
 }
@@ -69,25 +74,70 @@ func (e *CachedEntityBase[SnapT, OpT]) Validate() error {
 }
 
 func (e *CachedEntityBase[SnapT, OpT]) Commit() error {
-	e.mu.Lock()
-	err := e.entity.Commit(e.repo)
+	unlock, err := lockWrite(e.repo)
 	if err != nil {
+		return err
+	}
+	defer unlock()
+
+	e.mu.Lock()
+	if err := e.rebaseStaged(); err != nil {
 		e.mu.Unlock()
 		return err
 	}
+	err = e.entity.Commit(e.repo)
 	e.mu.Unlock()
+	if err != nil {
+		return err
+	}
 	return e.notifyUpdated()
 }
 
 func (e *CachedEntityBase[SnapT, OpT]) CommitAsNeeded() error {
-	e.mu.Lock()
-	err := e.entity.CommitAsNeeded(e.repo)
+	if !e.NeedCommit() {
+		return nil
+	}
+	return e.Commit()
+}
+
+// rebaseStaged re-reads the entity and replays the staged operations onto it,
+// so that the commit about to happen is parented on the current tip.
+//
+// This is the half of the concurrency fix that the write lock alone cannot
+// give. dag.Entity.Commit finishes with an unconditional UpdateRef, so a
+// commit built on a tip that has moved erases whoever moved it, with no error
+// to anyone — see TestConcurrentWritersLoseOperations. entity/dag and
+// repository are upstream's by contract, so a compare-and-swap ref update is
+// not available; re-reading inside the lock makes the update a fast-forward in
+// fact instead.
+//
+// Callers must hold both the write lock and e.mu.
+func (e *CachedEntityBase[SnapT, OpT]) rebaseStaged() error {
+	if e.reload == nil {
+		return nil
+	}
+
+	staged, ok := e.entity.(stagedOperations[OpT])
+	if !ok {
+		return nil
+	}
+
+	ops := staged.StagedOperations()
+	if len(ops) == 0 {
+		return nil
+	}
+
+	fresh, err := e.reload()
 	if err != nil {
-		e.mu.Unlock()
 		return err
 	}
-	e.mu.Unlock()
-	return e.notifyUpdated()
+
+	for _, op := range ops {
+		fresh.Append(op)
+	}
+	e.entity = fresh
+
+	return nil
 }
 
 func (e *CachedEntityBase[SnapT, OpT]) NeedCommit() bool {

@@ -94,7 +94,12 @@ func (c *RepoCacheIdentity) finishIdentity(i *identity.Identity, metadata map[st
 		i.SetMetadata(key, value)
 	}
 
-	err := i.Commit(c.repo)
+	unlock, err := lockWrite(c.repo)
+	if err != nil {
+		return nil, err
+	}
+	err = i.Commit(c.repo)
+	unlock()
 	if err != nil {
 		return nil, err
 	}

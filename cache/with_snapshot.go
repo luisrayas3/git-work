@@ -9,11 +9,21 @@ import (
 
 var _ dag.Interface[dag.Snapshot, dag.OperationWithApply[dag.Snapshot]] = &withSnapshot[dag.Snapshot, dag.OperationWithApply[dag.Snapshot]]{}
 
+// stagedOperations exposes the operations appended but not yet committed.
+// dag.Entity keeps its staging area private, so the wrapper below records what
+// goes through it — which is everything, since every mutation appends through
+// the cached entity. CachedEntityBase.Commit replays these onto a freshly read
+// entity so the commit lands on the current tip (2a51f66).
+type stagedOperations[OpT dag.Operation] interface {
+	StagedOperations() []OpT
+}
+
 // withSnapshot encapsulate an entity and maintain a snapshot efficiently.
 type withSnapshot[SnapT dag.Snapshot, OpT dag.OperationWithApply[SnapT]] struct {
 	dag.Interface[SnapT, OpT]
-	mu   sync.Mutex
-	snap *SnapT
+	mu     sync.Mutex
+	snap   *SnapT
+	staged []OpT
 }
 
 func (ws *withSnapshot[SnapT, OpT]) Compile() SnapT {
@@ -32,6 +42,7 @@ func (ws *withSnapshot[SnapT, OpT]) Append(op OpT) {
 	defer ws.mu.Unlock()
 
 	ws.Interface.Append(op)
+	ws.staged = append(ws.staged, op)
 
 	if ws.snap == nil {
 		return
@@ -52,5 +63,12 @@ func (ws *withSnapshot[SnapT, OpT]) Commit(repo repository.ClockedRepo) error {
 		return err
 	}
 
+	ws.staged = nil
 	return nil
+}
+
+func (ws *withSnapshot[SnapT, OpT]) StagedOperations() []OpT {
+	ws.mu.Lock()
+	defer ws.mu.Unlock()
+	return append([]OpT(nil), ws.staged...)
 }

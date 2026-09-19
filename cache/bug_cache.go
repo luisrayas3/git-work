@@ -22,13 +22,20 @@ type BugCache struct {
 	CachedEntityBase[*bug.Snapshot, bug.Operation]
 }
 
-func NewBugCache(b *bug.Bug, repo repository.ClockedRepo, getUserIdentity getUserIdentityFunc, entityUpdated func(id entity.Id) error) *BugCache {
+func NewBugCache(b *bug.Bug, repo repository.ClockedRepo, getUserIdentity getUserIdentityFunc, entityUpdated func(id entity.Id) error, reload func() (*bug.Bug, error)) *BugCache {
 	return &BugCache{
 		CachedEntityBase: CachedEntityBase[*bug.Snapshot, bug.Operation]{
 			repo:            repo,
 			entityUpdated:   entityUpdated,
 			getUserIdentity: getUserIdentity,
 			entity:          &withSnapshot[*bug.Snapshot, bug.Operation]{Interface: b},
+			reload: func() (dag.Interface[*bug.Snapshot, bug.Operation], error) {
+				fresh, err := reload()
+				if err != nil {
+					return nil, err
+				}
+				return &withSnapshot[*bug.Snapshot, bug.Operation]{Interface: fresh}, nil
+			},
 		},
 	}
 }

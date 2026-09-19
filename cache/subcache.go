@@ -403,6 +403,12 @@ func (sc *SubCache[EntityT, ExcerptT, CacheT]) Remove(prefix string) error {
 		return err
 	}
 
+	unlock, err := lockWrite(sc.repo)
+	if err != nil {
+		return err
+	}
+	defer unlock()
+
 	sc.mu.Lock()
 
 	err = sc.actions.Remove(sc.repo, e.Id())
@@ -424,9 +430,15 @@ func (sc *SubCache[EntityT, ExcerptT, CacheT]) Remove(prefix string) error {
 }
 
 func (sc *SubCache[EntityT, ExcerptT, CacheT]) RemoveAll() error {
+	unlock, err := lockWrite(sc.repo)
+	if err != nil {
+		return err
+	}
+	defer unlock()
+
 	sc.mu.Lock()
 
-	err := sc.actions.RemoveAll(sc.repo)
+	err = sc.actions.RemoveAll(sc.repo)
 	if err != nil {
 		sc.mu.Unlock()
 		return err
@@ -463,8 +475,21 @@ func (sc *SubCache[EntityT, ExcerptT, CacheT]) MergeAll(remote string) <-chan en
 	go func() {
 		defer close(out)
 
+		// A merge writes many refs, deep inside upstream's MergeAll, with no
+		// seam to lock each one. So the lock is held for the whole merge. That
+		// is the one place a writer holds it for longer than a single
+		// operation; a pull is a bulk write and treating it as one is both
+		// simpler and safer than interleaving it with other writers.
+		unlock, err := lockWrite(sc.repo)
+		if err != nil {
+			out <- entity.NewMergeError(err, "")
+			return
+		}
+		defer unlock()
+
 		// the author is only needed for merge commits, so a user identity is optional
 		user, err := sc.getUserIdentity()
+
 		if err != nil && !errors.Is(err, identity.ErrNoIdentitySet) {
 			out <- entity.NewMergeError(err, "")
 			return
