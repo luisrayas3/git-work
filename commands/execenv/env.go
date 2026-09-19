@@ -14,9 +14,9 @@ import (
 	"github.com/git-bug/git-bug/repository"
 )
 
-const RootCommandName = "git-bug"
+const RootCommandName = "git-work"
 
-const gitBugNamespace = "git-bug"
+const gitWorkNamespace = "git-work"
 
 // Env is the environment of a command
 type Env struct {

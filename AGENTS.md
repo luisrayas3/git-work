@@ -92,7 +92,7 @@ Gotchas, hardened from use:
   `git` must be on `PATH`;
   without it the repo is unwrapped and go-git's behaviour returns.
 - Only one process may hold the store at a time
-  (pid lock at `.git/git-bug/lock`).
+  (pid lock at `.git/git-work/lock`).
   `termui` and `webui` hold it while open, so quit them first.
   `already locked by … pid N` with a dead pid N is a stale lock, safe to remove.
 - Do not `git work push` without explicit intent;

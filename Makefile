@@ -45,7 +45,7 @@ migrate/issues-namespace:
 clean-local-issues:
 	git for-each-ref refs/issues/ | cut -f 2 | $(XARGS) -n 1 git update-ref -d
 	git for-each-ref refs/remotes/origin/issues/ | cut -f 2 | $(XARGS) -n 1 git update-ref -d
-	rm -f .git/git-bug/cache/issues
+	rm -f .git/git-work/cache/issues
 
 .PHONY: clean-remote-issues
 clean-remote-issues:
@@ -55,7 +55,7 @@ clean-remote-issues:
 clean-local-identities:
 	git for-each-ref refs/identities/ | cut -f 2 | $(XARGS) -n 1 git update-ref -d
 	git for-each-ref refs/remotes/origin/identities/ | cut -f 2 | $(XARGS) -n 1 git update-ref -d
-	rm -f .git/git-bug/cache/identities
+	rm -f .git/git-work/cache/identities
 
 .PHONY: clean-remote-identities
 clean-remote-identities:

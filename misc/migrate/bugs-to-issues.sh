@@ -1,9 +1,10 @@
 #!/bin/sh
 # //misc/migrate:bugs-to-issues.sh
 #
-# One-shot migration for the entity namespace rename in be69e67:
-# refs/bugs/* -> refs/issues/*. Run it once per clone, from anywhere inside
-# the repository, with `make migrate/issues-namespace`.
+# One-shot migration for the fork-foundations renames: the entity namespace
+# refs/bugs/* -> refs/issues/* (be69e67), and the local storage directory
+# .git/git-bug -> .git/git-work that came with it. Run it once per clone, from
+# anywhere inside the repository, with `make migrate/issues-namespace`.
 #
 # This is safe to run because an entity's id does not depend on the namespace:
 # the id is the create operation's id, derived from that operation's serialized
@@ -15,9 +16,19 @@
 
 set -eu
 
-storage=".git/git-bug"   # local storage; //commands/execenv:env.go gitBugNamespace
+old_storage=".git/git-bug"
+storage=".git/git-work"   # //commands/execenv:env.go gitWorkNamespace
 
 cd "$(git rev-parse --show-toplevel)"
+
+# 0. the local storage directory moved with the root command rename. it holds
+#    only derived state — cache, clocks, indexes, selection, lock — but moving
+#    it rather than dropping it preserves the lamport clocks, which would
+#    otherwise have to be re-witnessed from every entity.
+if [ -d "$old_storage" ] && [ ! -d "$storage" ]; then
+	mv "$old_storage" "$storage"
+	echo "moved $old_storage to $storage"
+fi
 
 # 1. a held lock means termui, webui or another command is open on the store,
 #    and would write through the old namespace behind our back.
