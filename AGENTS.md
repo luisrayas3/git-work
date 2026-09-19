@@ -80,13 +80,17 @@ Gotchas, hardened from use:
   adopting an existing identity with that email or creating one
   (`cache.RepoCache.EnsureUserIdentity`, our `828c228`).
   `user new`/`user adopt` remain as overrides.
-- Config reads go through the `git` CLI
-  (package `gitconfig`, wired in `execenv.LoadRepo`)
-  because go-git ignores `[include]`/`[includeIf]`
-  (upstream #1475, our `68abc13`).
+- Config reads and remote transport go through the `git` CLI
+  (package `gitcli`, wired in `execenv.LoadRepo`),
+  because go-git reimplements git's environment incompletely:
+  it ignores `[include]`/`[includeIf]`
+  (upstream #1475, our `68abc13`)
+  and authenticates to remotes with ssh-agent alone,
+  ignoring `~/.ssh/config` and the default identity files
+  (our `0ce996c`).
+  Local object access stays on go-git.
   `git` must be on `PATH`;
-  without it, reads fall back to go-git
-  and included `user.*` is invisible.
+  without it the repo is unwrapped and go-git's behaviour returns.
 - Only one process may hold the store at a time
   (pid lock at `.git/git-bug/lock`).
   `termui` and `webui` hold it while open, so quit them first.
@@ -151,6 +155,10 @@ and the mutate path both rest on it.
 
 - Read the upstream package you build on before changing app-layer callers;
   never touch the pristine seven.
+- go-git's gaps belong in `gitcli`, never in `repository`:
+  where go-git reimplements git's own environment
+  (config, transport, credentials) and gets it wrong,
+  add an exec-backed override to that decorator.
 - On finishing a task, close its issue (`git work bug status close <id>`)
   and reference the id in the commit message.
 - Keep this guide accurate:

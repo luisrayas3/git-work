@@ -1,21 +1,7 @@
-// Package gitconfig provides a repository.ClockedRepo decorator
-// whose configuration reads go through the git CLI instead of go-git.
-//
-// go-git (as of v5.19) does not evaluate `[include]` or `[includeIf]` sections,
-// so any value that lives behind one
-// — commonly user.name and user.email in a per-machine or per-directory include —
-// is invisible to a plain repository.GoGitRepo (upstream git-bug #1475).
-// `git config` is the only implementation
-// that evaluates gitdir:/onbranch:/hasconfig: conditions exactly as git itself does,
-// so reads shell out to it.
-// Writes keep going through go-git.
-package gitconfig
+package gitcli
 
 import (
-	"bytes"
-	"errors"
 	"fmt"
-	"os/exec"
 	"strconv"
 	"strings"
 	"time"
@@ -53,40 +39,17 @@ var _ repository.ConfigRead = &reader{}
 
 // reader implements repository.ConfigRead by invoking `git config`.
 type reader struct {
-	// dir is a path inside the repository (working tree or git dir);
-	// git resolves the actual repository from it,
-	// so worktrees and bare repositories behave the way git expects.
-	dir   string
+	git   runner
 	scope scope
 }
 
-// git runs `git config` with the reader's scope and the given arguments.
-// It returns stdout, the process exit code,
-// and a non-nil error only for failures other than a non-zero exit
-// (git config uses exit 1 to signal "no such key",
-// which callers interpret themselves).
-func (r *reader) git(args ...string) ([]byte, int, error) {
-	full := append([]string{"-C", r.dir, "config"}, r.scope.flag()...)
-	full = append(full, args...)
-
-	cmd := exec.Command("git", full...)
-	var stderr bytes.Buffer
-	cmd.Stderr = &stderr
-
-	out, err := cmd.Output()
-	if err == nil {
-		return out, 0, nil
-	}
-
-	var exitErr *exec.ExitError
-	if errors.As(err, &exitErr) {
-		msg := strings.TrimSpace(stderr.String())
-		if msg == "" {
-			return out, exitErr.ExitCode(), nil
-		}
-		return out, exitErr.ExitCode(), fmt.Errorf("git config: %s", msg)
-	}
-	return nil, -1, fmt.Errorf("git config: %w", err)
+// config runs `git config` with the reader's scope and the given arguments.
+// It returns stdout and the process exit code;
+// `git config` uses exit 1 to signal "no such key",
+// which callers interpret themselves.
+func (r *reader) config(args ...string) ([]byte, int, error) {
+	full := append([]string{"config"}, r.scope.flag()...)
+	return r.git.output(append(full, args...)...)
 }
 
 // values returns every value git reports for key in the reader's scope,
@@ -102,7 +65,7 @@ func (r *reader) values(key string, extra ...string) ([]string, error) {
 
 	args := append([]string{"-z", "--show-scope", "--get-all"}, extra...)
 	args = append(args, key)
-	out, code, err := r.git(args...)
+	out, code, err := r.config(args...)
 	if err != nil {
 		return nil, err
 	}
@@ -152,7 +115,7 @@ func (r *reader) single(key string, extra ...string) (string, error) {
 }
 
 func (r *reader) ReadAll(keyPrefix string) (map[string]string, error) {
-	out, code, err := r.git("-z", "--list")
+	out, code, err := r.config("-z", "--list")
 	if err != nil {
 		return nil, err
 	}

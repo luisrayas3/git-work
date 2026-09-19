@@ -10,7 +10,7 @@ import (
 
 	"github.com/git-bug/git-bug/cache"
 	"github.com/git-bug/git-bug/entities/identity"
-	"github.com/git-bug/git-bug/gitconfig"
+	"github.com/git-bug/git-bug/gitcli"
 	"github.com/git-bug/git-bug/repository"
 	"github.com/git-bug/git-bug/util/interrupt"
 )
@@ -34,9 +34,11 @@ func LoadRepo(env *Env) func(*cobra.Command, []string) error {
 			return err
 		}
 
-		// go-git does not evaluate [include]/[includeIf],
-		// so route config reads through the git CLI (see package gitconfig).
-		env.Repo = gitconfig.WrapRepo(repo, cwd)
+		// go-git reimplements git's environment incompletely — it ignores
+		// [include]/[includeIf] and authenticates to remotes with ssh-agent
+		// alone — so config reads and remote transport run through the git
+		// CLI instead (see package gitcli).
+		env.Repo = gitcli.WrapRepo(repo, cwd)
 
 		return nil
 	}

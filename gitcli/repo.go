@@ -1,4 +1,4 @@
-package gitconfig
+package gitcli
 
 import (
 	"errors"
@@ -12,7 +12,8 @@ import (
 var _ repository.ClockedRepo = &repo{}
 
 // repo decorates a repository.ClockedRepo
-// so that every configuration read is evaluated by the git CLI.
+// so that configuration reads and remote transport run through the git CLI,
+// while every other operation stays on the wrapped implementation.
 // Go embedding does not virtualize method calls,
 // so every inherited method that reads config internally
 // (GetUserName, GetUserEmail, GetCoreEditor, GetRemotes)
@@ -20,24 +21,24 @@ var _ repository.ClockedRepo = &repo{}
 // otherwise they would silently keep using go-git's view.
 type repo struct {
 	repository.ClockedRepo
-	dir string
+	git runner
 }
 
-// WrapRepo returns r with configuration reads routed through `git config`,
-// run from dir (any path inside the repository).
+// WrapRepo returns r with configuration reads and remote transport
+// routed through the git CLI, run from dir (any path inside the repository).
 // If no git binary is on PATH,
-// r is returned unchanged and go-git's include-less reads remain.
+// r is returned unchanged and go-git's own behaviour remains.
 func WrapRepo(r repository.ClockedRepo, dir string) repository.ClockedRepo {
 	if _, err := exec.LookPath("git"); err != nil {
 		return r
 	}
-	return &repo{ClockedRepo: r, dir: dir}
+	return &repo{ClockedRepo: r, git: runner{dir: dir}}
 }
 
 // LocalConfig give access to the repository scoped configuration
 func (r *repo) LocalConfig() repository.Config {
 	return &config{
-		ConfigRead:  &reader{dir: r.dir, scope: scopeLocal},
+		ConfigRead:  &reader{git: r.git, scope: scopeLocal},
 		ConfigWrite: r.ClockedRepo.LocalConfig(),
 	}
 }
@@ -45,14 +46,14 @@ func (r *repo) LocalConfig() repository.Config {
 // GlobalConfig give access to the global scoped configuration
 func (r *repo) GlobalConfig() repository.Config {
 	return &config{
-		ConfigRead:  &reader{dir: r.dir, scope: scopeGlobal},
+		ConfigRead:  &reader{git: r.git, scope: scopeGlobal},
 		ConfigWrite: r.ClockedRepo.GlobalConfig(),
 	}
 }
 
 // AnyConfig give access to a merged local/global configuration
 func (r *repo) AnyConfig() repository.ConfigRead {
-	return &reader{dir: r.dir, scope: scopeAny}
+	return &reader{git: r.git, scope: scopeAny}
 }
 
 // GetUserName returns the name the user has used to configure git
@@ -102,8 +103,8 @@ func (r *repo) GetCoreEditor() (string, error) {
 // GetRemotes returns the configured remotes repositories.
 // Like repository.GoGitRepo, the first URL of each remote is returned.
 func (r *repo) GetRemotes() (map[string]string, error) {
-	rd := &reader{dir: r.dir, scope: scopeAny}
-	out, code, err := rd.git("-z", "--get-regexp", `^remote\..*\.url$`)
+	rd := &reader{git: r.git, scope: scopeAny}
+	out, code, err := rd.config("-z", "--get-regexp", `^remote\..*\.url$`)
 	if err != nil {
 		return nil, err
 	}

@@ -1,8 +1,7 @@
-package gitconfig
+package gitcli
 
 import (
 	"os"
-	"os/exec"
 	"path/filepath"
 	"testing"
 
@@ -11,17 +10,13 @@ import (
 	"github.com/git-bug/git-bug/repository"
 )
 
-// setup creates a test repo with user.* removed from its local config
-// and isolates the process from the developer's own global/system git config,
+// setup creates a test repo with user.* removed from its local config,
+// isolated from the developer's own global/system git config,
 // so that only what the test writes is visible.
 func setup(t *testing.T) (raw repository.TestedRepo, wrapped repository.ClockedRepo, dir, home string) {
 	t.Helper()
 
-	home = t.TempDir()
-	t.Setenv("HOME", home)
-	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, ".config"))
-	t.Setenv("GIT_CONFIG_GLOBAL", filepath.Join(home, ".gitconfig"))
-	t.Setenv("GIT_CONFIG_NOSYSTEM", "1")
+	home = isolateGit(t)
 
 	raw = repository.CreateGoGitTestRepo(t, false)
 	dir = raw.GetLocalRemote()
@@ -36,18 +31,6 @@ func setup(t *testing.T) (raw repository.TestedRepo, wrapped repository.ClockedR
 	require.IsType(t, &repo{}, wrapped, "git must be on PATH for these tests")
 
 	return raw, wrapped, dir, home
-}
-
-func writeFile(t *testing.T, path, content string) {
-	t.Helper()
-	require.NoError(t, os.WriteFile(path, []byte(content), 0o600))
-}
-
-func gitConfig(t *testing.T, dir string, args ...string) {
-	t.Helper()
-	cmd := exec.Command("git", append([]string{"-C", dir, "config"}, args...)...)
-	out, err := cmd.CombinedOutput()
-	require.NoError(t, err, string(out))
 }
 
 func TestInclude(t *testing.T) {
