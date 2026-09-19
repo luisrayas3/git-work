@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/gob"
 	"fmt"
+	"os"
 	"path/filepath"
 	"sync"
 
@@ -160,7 +161,13 @@ func (sc *SubCache[EntityT, ExcerptT, CacheT]) write() error {
 		return err
 	}
 
-	f, err := sc.repo.LocalStorage().Create(filepath.Join("cache", sc.namespace))
+	// Write to a sibling and rename over the real file, so that a crash or a
+	// kill mid-write leaves the previous cache intact rather than a truncated
+	// gob that fails to decode and forces a full rebuild (f39878f).
+	final := filepath.Join("cache", sc.namespace)
+	tmp := final + ".new"
+
+	f, err := sc.repo.LocalStorage().Create(tmp)
 	if err != nil {
 		return err
 	}
@@ -171,7 +178,23 @@ func (sc *SubCache[EntityT, ExcerptT, CacheT]) write() error {
 		return err
 	}
 
-	return f.Close()
+	err = f.Close()
+	if err != nil {
+		return err
+	}
+
+	// POSIX rename is atomic and replaces the destination. Windows refuses to
+	// replace, so fall back to removing first — a window that only exists
+	// there, and only between two writers, which the write lock excludes.
+	err = sc.repo.LocalStorage().Rename(tmp, final)
+	if err != nil {
+		if err := sc.repo.LocalStorage().Remove(final); err != nil && !os.IsNotExist(err) {
+			return err
+		}
+		return sc.repo.LocalStorage().Rename(tmp, final)
+	}
+
+	return nil
 }
 
 func (sc *SubCache[EntityT, ExcerptT, CacheT]) Build() <-chan BuildEvent {
