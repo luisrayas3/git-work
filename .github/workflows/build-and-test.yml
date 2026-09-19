@@ -14,8 +14,8 @@ on:
 
 concurrency:
   # github.workflow is part of the group because concurrency groups are
-  # repo-wide: without it a push to trunk would share a group with
-  # //.github/workflows:trunk.yml and the two would cancel each other.
+  # repo-wide: without it a push to trunk would share a group with any other
+  # workflow triggering on the same ref and the two would cancel each other.
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
@@ -23,115 +23,41 @@ permissions:
   contents: read
 
 jobs:
+  # CLI-only. The webui is behind the "webui" build tag (see //webui:assets.go)
+  # and is not ours again until the kanban work in story f32ea71, so this needs
+  # no pnpm, no Node and no Playwright. The bridge tests skip themselves when
+  # their tokens are unset, so this needs no secrets either.
   with-go:
     strategy:
       matrix:
+        # 1.26 is the version //AGENTS.md requires; 1.27 is //:.tool-versions
+        # and catches the next toolchain before it lands on us.
         go-version: [1.26.x, 1.27.x]
-        platform: [ubuntu-latest, macos-latest, windows-latest]
+        platform: [ubuntu-latest, macos-latest]
     runs-on: ${{ matrix.platform }}
     steps:
       - name: Check out code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - name: Set up pnpm
-        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
-        with:
-          package_json_file: webui/package.json
-
-      - name: Set up Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version: 22
-          cache: pnpm
-          cache-dependency-path: webui/pnpm-lock.yaml
 
       - name: Set up Go ${{ matrix.go-version }}
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: ${{ matrix.go-version }}
 
-      - name: Install webui dependencies
-        run: pnpm install
-        working-directory: webui
-
       - name: Build
-        run: make
+        run: go build ./...
+
+      - name: Vet
+        run: go vet ./...
 
       - name: Test
-        run: make test
-        env:
-          GITHUB_USER: ${{ env.TEST_USER_GITHUB }}
-          GITHUB_TOKEN: ${{ secrets.TEST_TOKEN_GITHUB }}
-          GITHUB_TOKEN_PRIVATE: ${{ secrets._GITHUB_TOKEN_PRIVATE }}
-          GITHUB_TOKEN_PUBLIC: ${{ secrets._GITHUB_TOKEN_PUBLIC }}
-          GITLAB_API_TOKEN: ${{ secrets.GITLAB_API_TOKEN }}
-          GITLAB_PROJECT_ID: ${{ secrets.GITLAB_PROJECT_ID }}
-
-  with-node:
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: webui
-    steps:
-      - name: Check out code
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - name: Set up pnpm
-        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
-        with:
-          package_json_file: webui/package.json
-
-      - name: Set up Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version: 22
-          cache: pnpm
-          cache-dependency-path: webui/pnpm-lock.yaml
-
-      - name: Install
-        run: pnpm install
-
-      - name: Cache Playwright browsers
-        id: playwright-cache
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ~/.cache/ms-playwright
-          key: playwright-chromium-${{ hashFiles('webui/pnpm-lock.yaml') }}
-
-      - name: Install Playwright browsers
-        run: pnpm exec playwright install --with-deps chromium
-        if: steps.playwright-cache.outputs.cache-hit != 'true'
-
-      - name: Install Playwright system deps
-        run: pnpm exec playwright install-deps chromium
-        if: steps.playwright-cache.outputs.cache-hit == 'true'
-
-      - name: Check
-        run: pnpm run check
-
-      - name: Build
-        run: pnpm run build
-
-      - name: Test
-        run: pnpm run test
+        run: go test ./...
 
   lint:
     runs-on: ubuntu-latest
     steps:
       - name: Check out code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - name: Set up pnpm
-        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
-        with:
-          package_json_file: webui/package.json
-
-      - name: Set up Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version: 22
-          cache: pnpm
-          cache-dependency-path: webui/pnpm-lock.yaml
 
       - name: Set up Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
@@ -141,14 +67,13 @@ jobs:
       - name: Check formatting
         run: test -z "$(gofmt -l .)"
 
-      # the man pages in //doc:man and the shell completions in
-      # //misc:completion are generated from the cobra command tree and
-      # committed, so the release archives can ship them without a generate
-      # step. regenerate them here and fail if the result differs from what is
-      # committed. the webui build is needed first because //doc:generate.go
-      # pulls in //commands, which pulls in //webui and its //go:embed.
+      # the man pages in //doc:man, the markdown in //doc:md and the shell
+      # completions in //misc:completion are generated from the cobra command
+      # tree and committed, so the release archives can ship them without a
+      # generate step. regenerate them here and fail if the result differs from
+      # what is committed. no webui build is needed first: //webui:assets.go is
+      # behind a build tag, so //doc:generate.go compiles without the assets.
       - name: Check generated files are up to date
         run: |
-          make build-webui
           go generate
           git diff --exit-code -- doc/man doc/md misc/completion

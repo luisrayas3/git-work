@@ -12,36 +12,19 @@ on:
     - cron: '0 12 * * 6'
 
 permissions:
-  security-events: write
+  contents: read
 
 jobs:
-  codeql:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 2
-
-      - name: Initialize CodeQL
-        uses: github/codeql-action/init@b96794f015dfd88f77b49b1c93e0fa7110f94c63 # v4.38.0
-        with:
-          languages: go, javascript
-
-      - name: Autobuild
-        uses: github/codeql-action/autobuild@b96794f015dfd88f77b49b1c93e0fa7110f94c63 # v4.38.0
-
-      - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@b96794f015dfd88f77b49b1c93e0fa7110f94c63 # v4.38.0
-
   # Dependabot already opens a pull request when a dependency has a known
   # vulnerability; govulncheck adds the part dependabot cannot do, which is
   # deciding whether the vulnerable code is actually reachable from this
   # module. Same check as `make secure`, pinned to the version in //:go.mod.
+  #
+  # Upstream also ran CodeQL here. It is dropped: this fork's own code is a
+  # thin layer over an upstream that CodeQL already scans, and the minutes buy
+  # more elsewhere.
   govulncheck:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
     steps:
       - name: Check out code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
