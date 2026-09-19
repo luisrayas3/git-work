@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 
 	"github.com/pkg/errors"
@@ -60,6 +61,12 @@ type SubCache[EntityT entity.Interface, ExcerptT Excerpt, CacheT CacheEntity] st
 	cached   map[entity.Id]CacheT
 	lru      lruIdCache
 
+	// refs records, per entity, the ref hash its excerpt was built from. It is
+	// what makes the cache verifiable instead of merely trusted: on load, the
+	// difference against the refs on disk says exactly which entities have to
+	// be read again (d591cb3).
+	refs map[entity.Id]repository.Hash
+
 	muObservers sync.RWMutex
 	observers   map[Observer]string // observer --> repo name
 }
@@ -85,6 +92,7 @@ func NewSubCache[EntityT entity.Interface, ExcerptT Excerpt, CacheT CacheEntity]
 		maxLoaded:       maxLoaded,
 		excerpts:        make(map[entity.Id]ExcerptT),
 		cached:          make(map[entity.Id]CacheT),
+		refs:            make(map[entity.Id]repository.Hash),
 		lru:             newLRUIdCache(),
 	}
 }
@@ -96,31 +104,35 @@ func (sc *SubCache[EntityT, ExcerptT, CacheT]) Typename() string {
 // Load will try to read from the disk the entity cache file
 func (sc *SubCache[EntityT, ExcerptT, CacheT]) Load() error {
 	sc.mu.Lock()
-	defer sc.mu.Unlock()
 
 	f, err := sc.repo.LocalStorage().Open(filepath.Join("cache", sc.namespace))
 	if err != nil {
+		sc.mu.Unlock()
 		return err
 	}
 
 	aux := struct {
 		Version  uint
 		Excerpts map[entity.Id]ExcerptT
+		Refs     map[entity.Id]repository.Hash
 	}{}
 
 	decoder := gob.NewDecoder(f)
 	err = decoder.Decode(&aux)
 	if err != nil {
 		_ = f.Close()
+		sc.mu.Unlock()
 		return err
 	}
 
 	err = f.Close()
 	if err != nil {
+		sc.mu.Unlock()
 		return err
 	}
 
 	if aux.Version != sc.version {
+		sc.mu.Unlock()
 		return fmt.Errorf("unknown %s cache format version %v", sc.namespace, aux.Version)
 	}
 
@@ -131,12 +143,109 @@ func (sc *SubCache[EntityT, ExcerptT, CacheT]) Load() error {
 	}
 
 	sc.excerpts = aux.Excerpts
+	sc.refs = aux.Refs
+	if sc.refs == nil {
+		// a cache written before the hashes were recorded: every entity looks
+		// changed, so this upgrades itself through the same diff.
+		sc.refs = make(map[entity.Id]repository.Hash)
+	}
 
-	// Nothing here checks the excerpts against the refs they were built from,
-	// so a cache written by another process, or left behind by a fetch, is
-	// indistinguishable from a current one. That is what d591cb3 fixes.
+	changed, err := sc.refreshFromRefs()
+	sc.mu.Unlock()
+	if err != nil {
+		return err
+	}
+
+	if changed {
+		// Persist what we just learned, so the next open has less to do. Two
+		// processes racing here both write a coherent file and the rename
+		// picks one; whichever loses is corrected by the same diff next time.
+		return sc.write()
+	}
 
 	return nil
+}
+
+// refreshFromRefs reconciles the loaded excerpts with the refs on disk and
+// reports whether anything moved. A cache written by another process, or left
+// behind by a fetch, differs from the refs; only the entities whose hash
+// changed are read again.
+//
+// Callers must hold sc.mu.
+func (sc *SubCache[EntityT, ExcerptT, CacheT]) refreshFromRefs() (bool, error) {
+	current, err := sc.currentRefs()
+	if err != nil {
+		return false, err
+	}
+
+	changed := false
+
+	for id, hash := range current {
+		if known, ok := sc.refs[id]; ok && known == hash {
+			continue
+		}
+
+		e, err := sc.actions.ReadWithResolver(sc.repo, sc.resolvers(), id)
+		if err != nil {
+			return changed, err
+		}
+
+		cached := sc.makeCached(e, sc.entityUpdated)
+		sc.excerpts[id] = sc.makeExcerpt(cached)
+		sc.refs[id] = hash
+		delete(sc.cached, id)
+		sc.lru.Remove(id)
+		changed = true
+	}
+
+	for id := range sc.excerpts {
+		if _, ok := current[id]; ok {
+			continue
+		}
+		delete(sc.excerpts, id)
+		delete(sc.cached, id)
+		delete(sc.refs, id)
+		sc.lru.Remove(id)
+		changed = true
+	}
+
+	return changed, nil
+}
+
+// currentRefs reads the hash of every entity ref in this subcache's namespace.
+func (sc *SubCache[EntityT, ExcerptT, CacheT]) currentRefs() (map[entity.Id]repository.Hash, error) {
+	prefix := fmt.Sprintf("refs/%s/", sc.namespace)
+
+	refs, err := sc.repo.ListRefs(prefix)
+	if err != nil {
+		return nil, err
+	}
+
+	out := make(map[entity.Id]repository.Hash, len(refs))
+	for _, ref := range refs {
+		hash, err := sc.repo.ResolveRef(ref)
+		if err != nil {
+			return nil, err
+		}
+		out[entity.Id(strings.TrimPrefix(ref, prefix))] = hash
+	}
+
+	return out, nil
+}
+
+// noteRef records the current hash of an entity's ref, after that entity has
+// been written or re-read.
+//
+// Callers must hold sc.mu.
+func (sc *SubCache[EntityT, ExcerptT, CacheT]) noteRef(id entity.Id) {
+	hash, err := sc.repo.ResolveRef(fmt.Sprintf("refs/%s/%s", sc.namespace, id.String()))
+	if err != nil {
+		// the ref is gone or unreadable: forget what we knew, so the next load
+		// treats this entity as changed rather than trusting a stale hash.
+		delete(sc.refs, id)
+		return
+	}
+	sc.refs[id] = hash
 }
 
 // Write will serialize on disk the entity cache file
@@ -149,9 +258,11 @@ func (sc *SubCache[EntityT, ExcerptT, CacheT]) write() error {
 	aux := struct {
 		Version  uint
 		Excerpts map[entity.Id]ExcerptT
+		Refs     map[entity.Id]repository.Hash
 	}{
 		Version:  sc.version,
 		Excerpts: sc.excerpts,
+		Refs:     sc.refs,
 	}
 
 	encoder := gob.NewEncoder(&data)
@@ -210,6 +321,18 @@ func (sc *SubCache[EntityT, ExcerptT, CacheT]) Build() <-chan BuildEvent {
 
 		sc.excerpts = make(map[entity.Id]ExcerptT)
 
+		// one listing, rather than a lookup per entity, to record what each
+		// excerpt was built from
+		refs, err := sc.currentRefs()
+		if err != nil {
+			out <- BuildEvent{
+				Typename: sc.typename,
+				Err:      err,
+			}
+			return
+		}
+		sc.refs = refs
+
 		allEntities := sc.actions.ReadAllWithResolver(sc.repo, sc.resolvers())
 
 		for e := range allEntities {
@@ -234,7 +357,7 @@ func (sc *SubCache[EntityT, ExcerptT, CacheT]) Build() <-chan BuildEvent {
 			}
 		}
 
-		err := sc.write()
+		err = sc.write()
 		if err != nil {
 			out <- BuildEvent{
 				Typename: sc.typename,
@@ -442,6 +565,7 @@ func (sc *SubCache[EntityT, ExcerptT, CacheT]) Remove(prefix string) error {
 
 	delete(sc.cached, e.Id())
 	delete(sc.excerpts, e.Id())
+	delete(sc.refs, e.Id())
 	sc.lru.Remove(e.Id())
 
 	sc.mu.Unlock()
@@ -476,6 +600,7 @@ func (sc *SubCache[EntityT, ExcerptT, CacheT]) RemoveAll() error {
 	}
 	for id, _ := range sc.excerpts {
 		delete(sc.excerpts, id)
+		delete(sc.refs, id)
 		ids[id] = struct{}{}
 	}
 
@@ -539,6 +664,7 @@ func (sc *SubCache[EntityT, ExcerptT, CacheT]) MergeAll(remote string) <-chan en
 				sc.excerpts[result.Id] = sc.makeExcerpt(cached)
 				// might as well keep them in memory
 				sc.cached[result.Id] = cached
+				sc.noteRef(result.Id)
 				sc.mu.Unlock()
 				sc.notifyObservers(EntityEventCreated, result.Id)
 
@@ -551,6 +677,7 @@ func (sc *SubCache[EntityT, ExcerptT, CacheT]) MergeAll(remote string) <-chan en
 				sc.excerpts[result.Id] = sc.makeExcerpt(cached)
 				// might as well keep them in memory
 				sc.cached[result.Id] = cached
+				sc.noteRef(result.Id)
 				sc.mu.Unlock()
 				sc.notifyObservers(EntityEventUpdated, result.Id)
 			}
@@ -602,6 +729,7 @@ func (sc *SubCache[EntityT, ExcerptT, CacheT]) updateExcerpt(id entity.Id) error
 	}
 	sc.lru.Get(id)
 	sc.excerpts[id] = sc.makeExcerpt(e)
+	sc.noteRef(id)
 	sc.mu.Unlock()
 
 	return sc.write()
