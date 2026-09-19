@@ -150,13 +150,13 @@ func (sc *SubCache[EntityT, ExcerptT, CacheT]) Load() error {
 		sc.refs = make(map[entity.Id]repository.Hash)
 	}
 
-	changed, err := sc.refreshFromRefs()
+	res, err := sc.refreshFromRefs()
 	sc.mu.Unlock()
 	if err != nil {
 		return err
 	}
 
-	if changed {
+	if !res.empty() {
 		// Persist what we just learned, so the next open has less to do. Two
 		// processes racing here both write a coherent file and the rename
 		// picks one; whichever loses is corrected by the same diff next time.
@@ -172,13 +172,13 @@ func (sc *SubCache[EntityT, ExcerptT, CacheT]) Load() error {
 // changed are read again.
 //
 // Callers must hold sc.mu.
-func (sc *SubCache[EntityT, ExcerptT, CacheT]) refreshFromRefs() (bool, error) {
+func (sc *SubCache[EntityT, ExcerptT, CacheT]) refreshFromRefs() (refreshResult, error) {
+	var res refreshResult
+
 	current, err := sc.currentRefs()
 	if err != nil {
-		return false, err
+		return res, err
 	}
-
-	changed := false
 
 	for id, hash := range current {
 		if known, ok := sc.refs[id]; ok && known == hash {
@@ -187,15 +187,22 @@ func (sc *SubCache[EntityT, ExcerptT, CacheT]) refreshFromRefs() (bool, error) {
 
 		e, err := sc.actions.ReadWithResolver(sc.repo, sc.resolvers(), id)
 		if err != nil {
-			return changed, err
+			return res, err
 		}
+
+		_, known := sc.excerpts[id]
 
 		cached := sc.makeCached(e, sc.entityUpdated)
 		sc.excerpts[id] = sc.makeExcerpt(cached)
 		sc.refs[id] = hash
 		delete(sc.cached, id)
 		sc.lru.Remove(id)
-		changed = true
+
+		if known {
+			res.updated = append(res.updated, id)
+		} else {
+			res.created = append(res.created, id)
+		}
 	}
 
 	for id := range sc.excerpts {
@@ -206,10 +213,49 @@ func (sc *SubCache[EntityT, ExcerptT, CacheT]) refreshFromRefs() (bool, error) {
 		delete(sc.cached, id)
 		delete(sc.refs, id)
 		sc.lru.Remove(id)
-		changed = true
+		res.removed = append(res.removed, id)
 	}
 
-	return changed, nil
+	return res, nil
+}
+
+// refreshResult says which entities a reconciliation against the refs moved.
+type refreshResult struct {
+	created []entity.Id
+	updated []entity.Id
+	removed []entity.Id
+}
+
+func (r refreshResult) empty() bool {
+	return len(r.created)+len(r.updated)+len(r.removed) == 0
+}
+
+// Refresh reconciles this subcache with the refs and tells the observers what
+// another process changed. It is what turns a ref moving under an open TUI
+// into the same event a local edit produces (63c68d1).
+func (sc *SubCache[EntityT, ExcerptT, CacheT]) Refresh() error {
+	sc.mu.Lock()
+	res, err := sc.refreshFromRefs()
+	sc.mu.Unlock()
+	if err != nil {
+		return err
+	}
+
+	if res.empty() {
+		return nil
+	}
+
+	for _, id := range res.created {
+		sc.notifyObservers(EntityEventCreated, id)
+	}
+	for _, id := range res.updated {
+		sc.notifyObservers(EntityEventUpdated, id)
+	}
+	for _, id := range res.removed {
+		sc.notifyObservers(EntityEventRemoved, id)
+	}
+
+	return sc.write()
 }
 
 // currentRefs reads the hash of every entity ref in this subcache's namespace.

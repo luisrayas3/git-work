@@ -126,6 +126,17 @@ first and then compiles it in.`)
 }
 
 func runWebUI(env *execenv.Env, opts webUIOptions) error {
+	// The web UI stays open while agents and other people write from short
+	// CLI calls, so watch the refs and let the GraphQL subscriptions carry
+	// what changes (63c68d1). A watcher that cannot start is not worth
+	// refusing to serve over: the UI is merely not live.
+	stopWatch, err := env.Backend.Watch()
+	if err != nil {
+		env.Err.Printf("not watching for changes from other processes: %v\n", err)
+	} else {
+		defer stopWatch()
+	}
+
 	router, closeRoutes, err := setupRoutes(env, opts)
 	if err != nil {
 		return err

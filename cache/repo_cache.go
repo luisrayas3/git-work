@@ -29,6 +29,7 @@ var _ repository.RepoKeyring = &RepoCache{}
 type cacheMgmt interface {
 	Typename() string
 	Load() error
+	Refresh() error
 	Build() <-chan BuildEvent
 	SetCacheSize(size int)
 	RemoveAll() error
