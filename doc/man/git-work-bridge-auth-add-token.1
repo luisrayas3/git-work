@@ -1,0 +1,34 @@
+.nh
+.TH "GIT-BUG" "1" "Apr 2019" "Generated from git-bug's source code" ""
+
+.SH NAME
+git-work-bridge-auth-add-token - Store a new token
+
+
+.SH SYNOPSIS
+\fBgit-work bridge auth add-token [TOKEN] [flags]\fP
+
+
+.SH DESCRIPTION
+Store a new token
+
+
+.SH OPTIONS
+\fB-t\fP, \fB--target\fP=""
+	The target of the bridge. Valid values are [github,gitlab,jira,launchpad-preview]
+
+.PP
+\fB-l\fP, \fB--login\fP=""
+	The login in the remote bug-tracker
+
+.PP
+\fB-u\fP, \fB--user\fP=""
+	The user to add the token to. Default is the current user
+
+.PP
+\fB-h\fP, \fB--help\fP[=false]
+	help for add-token
+
+
+.SH SEE ALSO
+\fBgit-work-bridge-auth(1)\fP

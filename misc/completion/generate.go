@@ -12,6 +12,11 @@ import (
 	"github.com/git-bug/git-bug/commands"
 )
 
+// gitSubcommand is the name git dispatches to this binary under: the
+// `git-work` on PATH makes `git work` work, so git's completion looks for a
+// _git_work function.
+const gitSubcommand = "work"
+
 func main() {
 	fmt.Println("Generating completion files ...")
 
@@ -45,16 +50,21 @@ func genBash(root *cobra.Command) error {
 	if err != nil {
 		return err
 	}
-	f, err := os.Create(filepath.Join(cwd, "misc", "completion", "bash", "git-bug"))
+	f, err := os.Create(filepath.Join(cwd, "misc", "completion", "bash", root.Name()))
 	if err != nil {
 		return err
 	}
 	defer f.Close()
 
-	const patch = `
-# Custom bash code to connect the git completion for "git bug" to the
-# git-bug completion for "git-bug"
-_git_bug() {
+	// git's own completion dispatches `git work <tab>` to a _git_work
+	// function, which does not exist: cobra generates completion for the
+	// standalone binary. This bridges the two by rewriting the word array
+	// ("git", "work", ...) into (root.Name(), ...) before handing off to
+	// cobra's generated helpers, which are themselves named after the root.
+	patch := fmt.Sprintf(`
+# Custom bash code to connect the git completion for "git %[2]s" to the
+# %[1]s completion for "%[1]s"
+_git_%[2]s() {
     local cur prev words cword split
 
     COMPREPLY=()
@@ -64,37 +74,36 @@ _git_bug() {
     if declare -F _init_completion >/dev/null 2>&1; then
         _init_completion -n "=:" || return
     else
-        __git-bug_init_completion -n "=:" || return
+        __%[1]s_init_completion -n "=:" || return
     fi
 
     # START PATCH
-    # replace in the array ("git","bug", ...) to ("git-bug", ...) and adjust the index in cword
-    words=("git-bug" "${words[@]:2}")
+    # replace in the array ("git","%[2]s", ...) to ("%[1]s", ...) and adjust the index in cword
+    words=("%[1]s" "${words[@]:2}")
     cword=$(($cword-1))
     # END PATCH
 
-    __git-bug_debug
-    __git-bug_debug "========= starting completion logic =========="
-    __git-bug_debug "cur is ${cur}, words[*] is ${words[*]}, #words[@] is ${#words[@]}, cword is $cword"
+    __%[1]s_debug
+    __%[1]s_debug "========= starting completion logic =========="
+    __%[1]s_debug "cur is ${cur}, words[*] is ${words[*]}, #words[@] is ${#words[@]}, cword is $cword"
 
     # The user could have moved the cursor backwards on the command-line.
     # We need to trigger completion from the $cword location, so we need
     # to truncate the command-line ($words) up to the $cword location.
     words=("${words[@]:0:$cword+1}")
-    __git-bug_debug "Truncated words[*]: ${words[*]},"
+    __%[1]s_debug "Truncated words[*]: ${words[*]},"
 
     local out directive
-    __git-bug_get_completion_results
-    __git-bug_process_completion_results
+    __%[1]s_get_completion_results
+    __%[1]s_process_completion_results
 }
-`
+`, root.Name(), gitSubcommand)
+
 	err = root.GenBashCompletionV2(f, true)
 	if err != nil {
 		return err
 	}
 
-	// Custom bash code to connect the git completion for "git bug" to the
-	// git-bug completion for "git-bug"
 	_, err = f.WriteString(patch)
 
 	return err
@@ -105,7 +114,7 @@ func genFish(root *cobra.Command) error {
 	if err != nil {
 		return err
 	}
-	dir := filepath.Join(cwd, "misc", "completion", "fish", "git-bug")
+	dir := filepath.Join(cwd, "misc", "completion", "fish", root.Name())
 	return root.GenFishCompletionFile(dir, true)
 }
 
@@ -114,7 +123,7 @@ func genPowerShell(root *cobra.Command) error {
 	if err != nil {
 		return err
 	}
-	path := filepath.Join(cwd, "misc", "completion", "powershell", "git-bug")
+	path := filepath.Join(cwd, "misc", "completion", "powershell", root.Name())
 	return root.GenPowerShellCompletionFile(path)
 }
 
@@ -123,6 +132,6 @@ func genZsh(root *cobra.Command) error {
 	if err != nil {
 		return err
 	}
-	path := filepath.Join(cwd, "misc", "completion", "zsh", "git-bug")
+	path := filepath.Join(cwd, "misc", "completion", "zsh", root.Name())
 	return root.GenZshCompletionFile(path)
 }

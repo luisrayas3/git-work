@@ -1,0 +1,22 @@
+## git-work issue new
+
+Create a new issue
+
+```
+git-work issue new [flags]
+```
+
+### Options
+
+```
+  -t, --title string      Provide a title to describe the issue
+  -m, --message string    Provide a message to describe the issue
+  -F, --file string       Take the message from the given file. Use - to read the message from the standard input
+      --non-interactive   Do not ask for user input
+  -h, --help              help for new
+```
+
+### SEE ALSO
+
+* [git-work issue](git-work_issue.md)	 - List issues
+
