@@ -192,7 +192,14 @@ and revisit if it ever bites.
   a daemon and without a full cache rebuild;
 - a pull touching 3 of N issues re-reads 3;
 - `kill -9` during a cache write leaves a loadable cache;
-- bleve is gone from `go.mod` and the index directory is no longer created.
+- no index directory is created, and nothing in `cache/` touches bleve.
+
+  Note the correction: bleve cannot leave `go.mod`. `repository/index_bleve.go`
+  implements the pristine `RepoIndex` interface with it, so the dependency
+  survives as dead weight until someone decides that deleting it is worth a
+  pristine-package edit. What this story actually removes is the *use*: the
+  on-disk index, the writes during build, and the doc-count heuristic that was
+  `Load`'s only consistency check.
 
 ## Risks
 

@@ -42,14 +42,6 @@ func (o *observer) EntityEvent(event EntityEventType, _ string, typename string,
 func TestCache(t *testing.T) {
 	repo := repository.CreateGoGitTestRepo(t, false)
 
-	indexCount := func(t testing.TB, name string) uint64 {
-		t.Helper()
-		idx, err := repo.GetIndex(name)
-		require.NoError(t, err)
-		count, err := idx.DocCount()
-		require.NoError(t, err)
-		return count
-	}
 	assertOberserverEvent := func(obs observer, created, updated, removed int) {
 		t.Helper()
 		require.Len(t, obs.created, created)
@@ -88,8 +80,6 @@ func TestCache(t *testing.T) {
 	require.Len(t, cache.Identities().AllIds(), 2)
 	require.Len(t, cache.identities.excerpts, 2)
 	require.Len(t, cache.identities.cached, 2)
-	require.Equal(t, uint64(2), indexCount(t, identity.Namespace))
-	require.Equal(t, uint64(0), indexCount(t, bug.Namespace))
 
 	// Create a bug
 	bug1, _, err := cache.Bugs().New("title", "message")
@@ -98,7 +88,7 @@ func TestCache(t *testing.T) {
 	assertOberserverEvent(obsBug, 1, 0, 0)
 
 	// It's possible to create two identical bugs
-	bug2, _, err := cache.Bugs().New("title", "marker")
+	bug2, _, err := cache.Bugs().New("marker title", "message")
 	require.NoError(t, err)
 	assertOberserverEvent(obsIdentity, 2, 0, 0)
 	assertOberserverEvent(obsBug, 2, 0, 0)
@@ -110,8 +100,6 @@ func TestCache(t *testing.T) {
 	require.Len(t, cache.Bugs().AllIds(), 2)
 	require.Len(t, cache.bugs.excerpts, 2)
 	require.Len(t, cache.bugs.cached, 2)
-	require.Equal(t, uint64(2), indexCount(t, identity.Namespace))
-	require.Equal(t, uint64(2), indexCount(t, bug.Namespace))
 
 	// Resolving
 	_, err = cache.Identities().Resolve(iden1.Id())
@@ -135,7 +123,7 @@ func TestCache(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, res, 2)
 
-	q, err = query.Parse("status:open marker") // full-text search
+	q, err = query.Parse("status:open marker") // text search, titles only (3500366)
 	require.NoError(t, err)
 	res, err = cache.Bugs().Query(q)
 	require.NoError(t, err)
@@ -165,8 +153,6 @@ func TestCache(t *testing.T) {
 	require.Len(t, cache.bugs.excerpts, 2)
 	require.Len(t, cache.identities.cached, 0)
 	require.Len(t, cache.identities.excerpts, 2)
-	require.Equal(t, uint64(2), indexCount(t, identity.Namespace))
-	require.Equal(t, uint64(2), indexCount(t, bug.Namespace))
 
 	// Resolving load from the disk
 	_, err = cache.Identities().Resolve(iden1.Id())
@@ -187,8 +173,6 @@ func TestCache(t *testing.T) {
 	require.Len(t, cache.bugs.excerpts, 2)
 	require.Len(t, cache.identities.cached, 1)
 	require.Len(t, cache.identities.excerpts, 2)
-	require.Equal(t, uint64(2), indexCount(t, identity.Namespace))
-	require.Equal(t, uint64(2), indexCount(t, bug.Namespace))
 
 	// Remove + RemoveAll
 	err = cache.Identities().Remove(iden1.Id().String()[:10])
@@ -203,8 +187,6 @@ func TestCache(t *testing.T) {
 	require.Len(t, cache.bugs.excerpts, 1)
 	require.Len(t, cache.identities.cached, 0)
 	require.Len(t, cache.identities.excerpts, 1)
-	require.Equal(t, uint64(1), indexCount(t, identity.Namespace))
-	require.Equal(t, uint64(1), indexCount(t, bug.Namespace))
 
 	_, err = cache.Identities().New("René Descartes", "rene@descartes.fr")
 	require.NoError(t, err)
@@ -223,8 +205,6 @@ func TestCache(t *testing.T) {
 	require.Len(t, cache.bugs.excerpts, 0)
 	require.Len(t, cache.identities.cached, 0)
 	require.Len(t, cache.identities.excerpts, 0)
-	require.Equal(t, uint64(0), indexCount(t, identity.Namespace))
-	require.Equal(t, uint64(0), indexCount(t, bug.Namespace))
 
 	// Close
 	require.NoError(t, cache.Close())

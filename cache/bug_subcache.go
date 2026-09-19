@@ -3,6 +3,7 @@ package cache
 import (
 	"errors"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/git-bug/git-bug/entities/bug"
@@ -25,16 +26,6 @@ func NewRepoCacheBug(repo repository.ClockedRepo,
 		return NewBugCache(b, repo, getUserIdentity, entityUpdated)
 	}
 
-	makeIndexData := func(b *BugCache) []string {
-		snap := b.Snapshot()
-		var res []string
-		for _, comment := range snap.Comments {
-			res = append(res, comment.Message)
-		}
-		res = append(res, snap.Title)
-		return res
-	}
-
 	actions := Actions[*bug.Bug]{
 		ReadWithResolver:    bug.ReadWithResolver,
 		ReadAllWithResolver: bug.ReadAllWithResolver,
@@ -45,7 +36,7 @@ func NewRepoCacheBug(repo repository.ClockedRepo,
 
 	sc := NewSubCache[*bug.Bug, *BugExcerpt, *BugCache](
 		repo, resolvers, getUserIdentity,
-		makeCached, NewBugExcerpt, makeIndexData, actions,
+		makeCached, NewBugExcerpt, actions,
 		bug.Typename, bug.Namespace,
 		formatVersion, defaultMaxLoadedBugs,
 	)
@@ -109,6 +100,22 @@ func (c *RepoCacheBug) ResolveComment(prefix string) (*BugCache, entity.Combined
 	return matchingBug, matchingCommentId, nil
 }
 
+// excerptMatchesTerms reports whether every term appears, case-insensitively,
+// in the excerpt's title or one of its labels.
+func excerptMatchesTerms(excerpt *BugExcerpt, terms []string) bool {
+	haystack := strings.ToLower(excerpt.Title)
+	for _, label := range excerpt.Labels {
+		haystack += "\x00" + strings.ToLower(label.String())
+	}
+
+	for _, term := range terms {
+		if !strings.Contains(haystack, strings.ToLower(term)) {
+			return false
+		}
+	}
+	return true
+}
+
 // Query return the id of all Bug matching the given Query
 func (c *RepoCacheBug) Query(q *query.Query) ([]entity.Id, error) {
 	c.mu.RLock()
@@ -124,21 +131,20 @@ func (c *RepoCacheBug) Query(q *query.Query) ([]entity.Id, error) {
 	var foundBySearch map[entity.Id]*BugExcerpt
 
 	if q.Search != nil {
+		// Text search is a substring match over the excerpts held in memory:
+		// title and labels, case-insensitively, every term having to match.
+		//
+		// It used to be a bleve index over titles *and comment bodies*, which
+		// meant a second on-disk structure to keep coherent with the excerpts
+		// for a capability //AGENTS.md calls a non-goal (3500366). Searching by
+		// something said in a comment is the deliberate loss; searching by
+		// title is what the workflows actually do.
 		foundBySearch = map[entity.Id]*BugExcerpt{}
 
-		index, err := c.repo.GetIndex(bug.Namespace)
-		if err != nil {
-			return nil, err
-		}
-
-		res, err := index.Search(q.Search)
-		if err != nil {
-			return nil, err
-		}
-
-		for _, hit := range res {
-			id := entity.Id(hit)
-			foundBySearch[id] = c.excerpts[id]
+		for id, excerpt := range c.excerpts {
+			if excerptMatchesTerms(excerpt, q.Search) {
+				foundBySearch[id] = excerpt
+			}
 		}
 	} else {
 		foundBySearch = c.excerpts

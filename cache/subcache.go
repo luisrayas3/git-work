@@ -47,7 +47,6 @@ type SubCache[EntityT entity.Interface, ExcerptT Excerpt, CacheT CacheEntity] st
 	getUserIdentity getUserIdentityFunc
 	makeCached      func(entity EntityT, entityUpdated func(id entity.Id) error) CacheT
 	makeExcerpt     func(CacheT) ExcerptT
-	makeIndexData   func(CacheT) []string
 	actions         Actions[EntityT]
 
 	typename  string
@@ -69,7 +68,6 @@ func NewSubCache[EntityT entity.Interface, ExcerptT Excerpt, CacheT CacheEntity]
 	resolvers func() entity.Resolvers, getUserIdentity getUserIdentityFunc,
 	makeCached func(entity EntityT, entityUpdated func(id entity.Id) error) CacheT,
 	makeExcerpt func(CacheT) ExcerptT,
-	makeIndexData func(CacheT) []string,
 	actions Actions[EntityT],
 	typename, namespace string,
 	version uint, maxLoaded int) *SubCache[EntityT, ExcerptT, CacheT] {
@@ -79,7 +77,6 @@ func NewSubCache[EntityT entity.Interface, ExcerptT Excerpt, CacheT CacheEntity]
 		getUserIdentity: getUserIdentity,
 		makeCached:      makeCached,
 		makeExcerpt:     makeExcerpt,
-		makeIndexData:   makeIndexData,
 		actions:         actions,
 		typename:        typename,
 		namespace:       namespace,
@@ -134,21 +131,9 @@ func (sc *SubCache[EntityT, ExcerptT, CacheT]) Load() error {
 
 	sc.excerpts = aux.Excerpts
 
-	index, err := sc.repo.GetIndex(sc.namespace)
-	if err != nil {
-		return err
-	}
-
-	// simple heuristic to detect a mismatch between the index and the entities
-	count, err := index.DocCount()
-	if err != nil {
-		return err
-	}
-	if count != uint64(len(sc.excerpts)) {
-		return fmt.Errorf("count mismatch between bleve and %s excerpts", sc.namespace)
-	}
-
-	// TODO: find a way to check lamport clocks
+	// Nothing here checks the excerpts against the refs they were built from,
+	// so a cache written by another process, or left behind by a fetch, is
+	// indistinguishable from a current one. That is what d591cb3 fixes.
 
 	return nil
 }
@@ -190,27 +175,6 @@ func (sc *SubCache[EntityT, ExcerptT, CacheT]) write() error {
 }
 
 func (sc *SubCache[EntityT, ExcerptT, CacheT]) Build() <-chan BuildEvent {
-	// value chosen experimentally as giving the fasted indexing, while
-	// not driving the cache size on disk too high.
-	//
-	// | batchCount | bugIndex (MB) | idIndex (kB) | time (s) |
-	// |:----------:|:-------------:|:------------:|:--------:|
-	// |     10     |      24       |      84      |   1,59   |
-	// |     30     |      26       |      84      |  1,388   |
-	// |     50     |      26       |      84      |   1,44   |
-	// |     60     |      26       |      80      |  1,377   |
-	// |     68     |      27       |      80      |  1,385   |
-	// |     75     |      26       |      84      |   1,32   |
-	// |     80     |      26       |      80      |   1,37   |
-	// |     85     |      27       |      80      |  1,317   |
-	// |    100     |      26       |      80      |  1,455   |
-	// |    150     |      26       |      80      |  2,066   |
-	// |    200     |      28       |      80      |  2,885   |
-	// |    250     |      30       |      72      |  3,555   |
-	// |    300     |      31       |      72      |  4,787   |
-	// |    500     |      23       |      72      |   5,4    |
-	const maxBatchCount = 75
-
 	out := make(chan BuildEvent)
 
 	go func() {
@@ -224,28 +188,6 @@ func (sc *SubCache[EntityT, ExcerptT, CacheT]) Build() <-chan BuildEvent {
 		sc.excerpts = make(map[entity.Id]ExcerptT)
 
 		allEntities := sc.actions.ReadAllWithResolver(sc.repo, sc.resolvers())
-
-		index, err := sc.repo.GetIndex(sc.namespace)
-		if err != nil {
-			out <- BuildEvent{
-				Typename: sc.typename,
-				Err:      err,
-			}
-			return
-		}
-
-		// wipe the index just to be sure
-		err = index.Clear()
-		if err != nil {
-			out <- BuildEvent{
-				Typename: sc.typename,
-				Err:      err,
-			}
-			return
-		}
-
-		indexer, indexEnd := index.IndexBatch()
-		var batchCount int
 
 		for e := range allEntities {
 			if e.Err != nil {
@@ -261,30 +203,6 @@ func (sc *SubCache[EntityT, ExcerptT, CacheT]) Build() <-chan BuildEvent {
 			// might as well keep them in memory
 			sc.cached[e.Entity.Id()] = cached
 
-			indexData := sc.makeIndexData(cached)
-			if err := indexer(e.Entity.Id().String(), indexData); err != nil {
-				out <- BuildEvent{
-					Typename: sc.typename,
-					Err:      err,
-				}
-				return
-			}
-
-			batchCount++
-			if batchCount >= maxBatchCount {
-				err = indexEnd()
-				if err != nil {
-					out <- BuildEvent{
-						Typename: sc.typename,
-						Err:      err,
-					}
-					return
-				}
-
-				indexer, indexEnd = index.IndexBatch()
-				batchCount = 0
-			}
-
 			out <- BuildEvent{
 				Typename: sc.typename,
 				Event:    BuildEventProgress,
@@ -293,18 +211,7 @@ func (sc *SubCache[EntityT, ExcerptT, CacheT]) Build() <-chan BuildEvent {
 			}
 		}
 
-		if batchCount > 0 {
-			err = indexEnd()
-			if err != nil {
-				out <- BuildEvent{
-					Typename: sc.typename,
-					Err:      err,
-				}
-				return
-			}
-		}
-
-		err = sc.write()
+		err := sc.write()
 		if err != nil {
 			out <- BuildEvent{
 				Typename: sc.typename,
@@ -479,7 +386,7 @@ func (sc *SubCache[EntityT, ExcerptT, CacheT]) add(e EntityT) (CacheT, error) {
 	sc.evictIfNeeded()
 
 	// force the write of the excerpt
-	err := sc.updateExcerptAndIndex(e.Id())
+	err := sc.updateExcerpt(e.Id())
 	if err != nil {
 		return *new(CacheT), err
 	}
@@ -508,17 +415,7 @@ func (sc *SubCache[EntityT, ExcerptT, CacheT]) Remove(prefix string) error {
 	delete(sc.excerpts, e.Id())
 	sc.lru.Remove(e.Id())
 
-	index, err := sc.repo.GetIndex(sc.namespace)
-	if err != nil {
-		sc.mu.Unlock()
-		return err
-	}
-
-	err = index.Remove(e.Id().String())
 	sc.mu.Unlock()
-	if err != nil {
-		return err
-	}
 
 	// defer to notify after the release of the mutex
 	defer sc.notifyObservers(EntityEventRemoved, e.Id())
@@ -547,17 +444,7 @@ func (sc *SubCache[EntityT, ExcerptT, CacheT]) RemoveAll() error {
 		ids[id] = struct{}{}
 	}
 
-	index, err := sc.repo.GetIndex(sc.namespace)
-	if err != nil {
-		sc.mu.Unlock()
-		return err
-	}
-
-	err = index.Clear()
 	sc.mu.Unlock()
-	if err != nil {
-		return err
-	}
 
 	// defer to notify after the release of the mutex
 	defer func() {
@@ -640,7 +527,7 @@ func (sc *SubCache[EntityT, ExcerptT, CacheT]) GetNamespace() string {
 // entityUpdated is a callback to trigger when the excerpt of an entity changed
 func (sc *SubCache[EntityT, ExcerptT, CacheT]) entityUpdated(id entity.Id) error {
 	sc.notifyObservers(EntityEventUpdated, id)
-	return sc.updateExcerptAndIndex(id)
+	return sc.updateExcerpt(id)
 }
 
 // notifyObservers notifies all the observers when something happening for an entity
@@ -652,7 +539,7 @@ func (sc *SubCache[EntityT, ExcerptT, CacheT]) notifyObservers(event EntityEvent
 	sc.muObservers.RUnlock()
 }
 
-func (sc *SubCache[EntityT, ExcerptT, CacheT]) updateExcerptAndIndex(id entity.Id) error {
+func (sc *SubCache[EntityT, ExcerptT, CacheT]) updateExcerpt(id entity.Id) error {
 	sc.mu.Lock()
 	e, ok := sc.cached[id]
 	if !ok {
@@ -668,16 +555,6 @@ func (sc *SubCache[EntityT, ExcerptT, CacheT]) updateExcerptAndIndex(id entity.I
 	sc.lru.Get(id)
 	sc.excerpts[id] = sc.makeExcerpt(e)
 	sc.mu.Unlock()
-
-	index, err := sc.repo.GetIndex(sc.namespace)
-	if err != nil {
-		return err
-	}
-
-	err = index.IndexOne(e.Id().String(), sc.makeIndexData(e))
-	if err != nil {
-		return err
-	}
 
 	return sc.write()
 }

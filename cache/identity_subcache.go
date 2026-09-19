@@ -18,11 +18,6 @@ func NewRepoCacheIdentity(repo repository.ClockedRepo,
 		return NewIdentityCache(i, repo, entityUpdated)
 	}
 
-	makeIndex := func(i *IdentityCache) []string {
-		// no indexing
-		return nil
-	}
-
 	// TODO: this is terribly ugly, but we are currently stuck with the fact that identities are NOT using the fancy dag framework.
 	//   This lead to various complication here and there to handle entities generically, and avoid large code duplication.
 	//   TL;DR: something has to give, and this is the less ugly solution I found. This "normalize" identities as just another "dag framework"
@@ -46,7 +41,7 @@ func NewRepoCacheIdentity(repo repository.ClockedRepo,
 
 	sc := NewSubCache[*identity.Identity, *IdentityExcerpt, *IdentityCache](
 		repo, resolvers, getUserIdentity,
-		makeCached, NewIdentityExcerpt, makeIndex, actions,
+		makeCached, NewIdentityExcerpt, actions,
 		identity.Typename, identity.Namespace,
 		formatVersion, defaultMaxLoadedBugs,
 	)
