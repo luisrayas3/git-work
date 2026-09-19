@@ -10,8 +10,8 @@ import (
 
 func newBugCommentCommand(env *execenv.Env) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:     "comment [BUG_ID]",
-		Short:   "List a bug's comments",
+		Use:     "comment [ISSUE_ID]",
+		Short:   "List an issue's comments",
 		PreRunE: execenv.LoadBackend(env),
 		RunE: execenv.CloseBackend(env, func(cmd *cobra.Command, args []string) error {
 			return runBugComment(env, args)

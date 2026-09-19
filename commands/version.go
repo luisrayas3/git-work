@@ -19,7 +19,7 @@ func newVersionCommand(env *execenv.Env) *cobra.Command {
 	return &cobra.Command{
 		Use:     "version",
 		Short:   "Print version information",
-		Example: "git bug version",
+		Example: "git work version",
 		Long: `
 Print version information.
 

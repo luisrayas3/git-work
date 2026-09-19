@@ -8,8 +8,8 @@ import (
 
 func newBugStatusCommand(env *execenv.Env) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:     "status [BUG_ID]",
-		Short:   "Display the status of a bug",
+		Use:     "status [ISSUE_ID]",
+		Short:   "Display the status of an issue",
 		PreRunE: execenv.LoadBackend(env),
 		RunE: execenv.CloseBackend(env, func(cmd *cobra.Command, args []string) error {
 			return runBugStatus(env, args)

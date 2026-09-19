@@ -11,7 +11,7 @@ import (
 func TestBugRm(t *testing.T) {
 	env, bugID := testenv.NewTestEnvAndBug(t)
 
-	exp := "bug " + bugID.Human() + " removed\n"
+	exp := "issue " + bugID.Human() + " removed\n"
 
 	require.NoError(t, runBugRm(env, []string{bugID.Human()}))
 	require.Equal(t, exp, env.Out.String())

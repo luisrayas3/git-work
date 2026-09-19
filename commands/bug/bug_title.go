@@ -8,8 +8,8 @@ import (
 
 func newBugTitleCommand(env *execenv.Env) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:     "title [BUG_ID]",
-		Short:   "Display the title of a bug",
+		Use:     "title [ISSUE_ID]",
+		Short:   "Display the title of an issue",
 		PreRunE: execenv.LoadBackend(env),
 		RunE: execenv.CloseBackend(env, func(cmd *cobra.Command, args []string) error {
 			return runBugTitle(env, args)

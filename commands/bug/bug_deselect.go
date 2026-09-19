@@ -11,11 +11,11 @@ import (
 func newBugDeselectCommand(env *execenv.Env) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "deselect",
-		Short: "Clear the implicitly selected bug",
-		Example: `git bug select 2f15
-git bug comment
-git bug status
-git bug deselect
+		Short: "Clear the implicitly selected issue",
+		Example: `git work issue select 2f15
+git work issue comment
+git work issue status
+git work issue deselect
 `,
 		PreRunE: execenv.LoadBackend(env),
 		RunE: execenv.CloseBackend(env, func(cmd *cobra.Command, args []string) error {

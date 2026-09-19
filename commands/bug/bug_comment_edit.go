@@ -18,7 +18,7 @@ func newBugCommentEditCommand(env *execenv.Env) *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:     "edit [COMMENT_ID]",
-		Short:   "Edit an existing comment on a bug",
+		Short:   "Edit an existing comment on an issue",
 		Args:    cobra.ExactArgs(1),
 		PreRunE: execenv.LoadBackendEnsureUser(env),
 		RunE: execenv.CloseBackend(env, func(cmd *cobra.Command, args []string) error {

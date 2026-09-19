@@ -6,7 +6,7 @@ evolving into a project-management tool
 with **Jira as a first-class sync backend**.
 
 We **dogfood**:
-this project's own tasks live in its own git-bug store (`refs/bugs/*`),
+this project's own tasks live in its own git-bug store (`refs/issues/*`),
 managed with the locally-built `git work`.
 
 ## The pristine-library boundary (read first)
@@ -54,27 +54,27 @@ go build -o git-work .
 ## Operating the tracker
 
 The CLI is namespaced;
-task commands live under `git work bug`
-(this becomes `git work issue`/`work` as the entity is reshaped).
+task commands live under `git work issue`
+(`bug` remains as an alias while the CLI is reshaped; `be69e67`).
 Forms below are verified against 0.10.x.
 
 | Action | Command |
 | --- | --- |
-| List all | `git work bug` |
-| Filter | `git work bug --label phase:2-bridge` · `--status open` |
-| Query | `git work bug status:open sort:edit-desc` · `git work bug "text"` |
-| Create | `git work bug new -t "Title" -m "Body"` → `<id> created` |
-| Show | `git work bug show <id>` |
-| Add label(s) | `git work bug label new <id> <label> [<label>…]` |
-| Remove label | `git work bug label rm <id> <label>` |
-| Close / reopen | `git work bug status close <id>` · `status open <id>` |
-| Comment | `git work bug comment new <id> -m "…"` |
-| Sync | `git work push` · `git work pull` (writes/reads `refs/bugs/*`) |
+| List all | `git work issue` |
+| Filter | `git work issue --label phase:2-bridge` · `--status open` |
+| Query | `git work issue status:open sort:edit-desc` · `git work issue "text"` |
+| Create | `git work issue new -t "Title" -m "Body"` → `<id> created` |
+| Show | `git work issue show <id>` |
+| Add label(s) | `git work issue label new <id> <label> [<label>…]` |
+| Remove label | `git work issue label rm <id> <label>` |
+| Close / reopen | `git work issue status close <id>` · `status open <id>` |
+| Comment | `git work issue comment new <id> -m "…"` |
+| Sync | `git work push` · `git work pull` (writes/reads `refs/issues/*`) |
 | Interactive | `git work termui` (TTY) · `git work webui` (webui build) |
 
 Gotchas, hardened from use:
 
-- `ls` is not a command; the list is the bare `git work bug`.
+- `ls` is not a command; the list is the bare `git work issue`.
 - No `user new` needed:
   the first mutating command sets your identity from git's `user.name`/`user.email`,
   adopting an existing identity with that email or creating one
@@ -144,7 +144,7 @@ so structure is simulated with labels until the schema work lands
 Two levels for now: **stories** (outcomes, roughly one per workflow) contain
 **tasks** and **decisions**. Titles carry the level for easy scanning:
 `Story: …`, `Task: …`, `Decision: …`.
-A story's body lists its tasks; `git work bug --label story:<id>` lists them live.
+A story's body lists its tasks; `git work issue --label story:<id>` lists them live.
 Stories carry `type:story` and an `area:`, not a phase.
 
 Phases are ordered by dependency, not calendar:
@@ -159,7 +159,7 @@ and the mutate path both rest on it.
   where go-git reimplements git's own environment
   (config, transport, credentials) and gets it wrong,
   add an exec-backed override to that decorator.
-- On finishing a task, close its issue (`git work bug status close <id>`)
+- On finishing a task, close its issue (`git work issue status close <id>`)
   and reference the id in the commit message.
 - Keep this guide accurate:
   if a CLI form or convention changes, update it in the same change.

@@ -40,8 +40,8 @@ func newBridgePullCommand(env *execenv.Env) *cobra.Command {
 	flags := cmd.Flags()
 	flags.SortFlags = false
 
-	flags.BoolVarP(&options.noResume, "no-resume", "n", false, "force importing all bugs")
-	flags.StringVarP(&options.importSince, "since", "s", "", "import only bugs updated after the given date (ex: \"200h\" or \"june 2 2019\")")
+	flags.BoolVarP(&options.noResume, "no-resume", "n", false, "force importing all issues")
+	flags.StringVarP(&options.importSince, "since", "s", "", "import only issues updated after the given date (ex: \"200h\" or \"june 2 2019\")")
 
 	return cmd
 }

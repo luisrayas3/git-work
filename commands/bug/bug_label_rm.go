@@ -9,8 +9,8 @@ import (
 
 func newBugLabelRmCommand(env *execenv.Env) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:     "rm [BUG_ID] LABEL...",
-		Short:   "Remove a label from a bug",
+		Use:     "rm [ISSUE_ID] LABEL...",
+		Short:   "Remove a label from an issue",
 		PreRunE: execenv.LoadBackend(env),
 		RunE: execenv.CloseBackend(env, func(cmd *cobra.Command, args []string) error {
 			return runBugLabelRm(env, args)

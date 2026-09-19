@@ -8,8 +8,8 @@ import (
 
 func newBugStatusCloseCommand(env *execenv.Env) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:     "close [BUG_ID]",
-		Short:   "Mark a bug as closed",
+		Use:     "close [ISSUE_ID]",
+		Short:   "Mark an issue as closed",
 		PreRunE: execenv.LoadBackendEnsureUser(env),
 		RunE: execenv.CloseBackend(env, func(cmd *cobra.Command, args []string) error {
 			return runBugStatusClose(env, args)

@@ -66,7 +66,7 @@ Enter token: 87cf5c03b64029f18ea5f9ca5679daa08ccbd700
 Successfully configured bridge: default
 
 # For GitHub
-git bug bridge new \
+git work bridge new \
     --name=default \
     --target=github \
     --owner=example-owner
@@ -74,13 +74,13 @@ git bug bridge new \
     --token=$TOKEN
 
 # For Launchpad
-git bug bridge new \
+git work bridge new \
     --name=default \
     --target=launchpad-preview \
     --url=https://bugs.launchpad.net/ubuntu/
 
 # For Gitlab
-git bug bridge new \
+git work bridge new \
     --name=default \
     --target=gitlab \
     --url=https://github.com/example-org/example-repo \

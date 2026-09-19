@@ -17,8 +17,8 @@ func newBugTitleEditCommand(env *execenv.Env) *cobra.Command {
 	options := bugTitleEditOptions{}
 
 	cmd := &cobra.Command{
-		Use:     "edit [BUG_ID]",
-		Short:   "Edit a title of a bug",
+		Use:     "edit [ISSUE_ID]",
+		Short:   "Edit a title of an issue",
 		PreRunE: execenv.LoadBackendEnsureUser(env),
 		RunE: execenv.CloseBackend(env, func(cmd *cobra.Command, args []string) error {
 			return runBugTitleEdit(env, options, args)

@@ -23,8 +23,8 @@ func newBugShowCommand(env *execenv.Env) *cobra.Command {
 	options := bugShowOptions{}
 
 	cmd := &cobra.Command{
-		Use:     "show [BUG_ID]",
-		Short:   "Display the details of a bug",
+		Use:     "show [ISSUE_ID]",
+		Short:   "Display the details of an issue",
 		PreRunE: execenv.LoadBackend(env),
 		RunE: execenv.CloseBackend(env, func(cmd *cobra.Command, args []string) error {
 			return runBugShow(env, options, args)
@@ -55,7 +55,7 @@ func runBugShow(env *execenv.Env, opts bugShowOptions, args []string) error {
 	snap := b.Snapshot()
 
 	if len(snap.Comments) == 0 {
-		return errors.New("invalid bug: no comment")
+		return errors.New("invalid issue: no comment")
 	}
 
 	if opts.fields != "" {

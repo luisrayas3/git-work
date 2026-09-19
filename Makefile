@@ -37,21 +37,25 @@ secure:
 test:
 	go test -v -bench=. ./...
 
-.PHONY: clean-local-bugs
-clean-local-bugs:
-	git for-each-ref refs/bugs/ | cut -f 2 | $(XARGS) -n 1 git update-ref -d
-	git for-each-ref refs/remotes/origin/bugs/ | cut -f 2 | $(XARGS) -n 1 git update-ref -d
-	rm -f .git/git-bug/bug-cache
+.PHONY: migrate/issues-namespace
+migrate/issues-namespace:
+	./misc/migrate/bugs-to-issues.sh
 
-.PHONY: clean-remote-bugs
-clean-remote-bugs:
-	git ls-remote origin "refs/bugs/*" | cut -f 2 | $(XARGS) git push origin -d
+.PHONY: clean-local-issues
+clean-local-issues:
+	git for-each-ref refs/issues/ | cut -f 2 | $(XARGS) -n 1 git update-ref -d
+	git for-each-ref refs/remotes/origin/issues/ | cut -f 2 | $(XARGS) -n 1 git update-ref -d
+	rm -f .git/git-bug/cache/issues
+
+.PHONY: clean-remote-issues
+clean-remote-issues:
+	git ls-remote origin "refs/issues/*" | cut -f 2 | $(XARGS) git push origin -d
 
 .PHONY: clean-local-identities
 clean-local-identities:
 	git for-each-ref refs/identities/ | cut -f 2 | $(XARGS) -n 1 git update-ref -d
 	git for-each-ref refs/remotes/origin/identities/ | cut -f 2 | $(XARGS) -n 1 git update-ref -d
-	rm -f .git/git-bug/identity-cache
+	rm -f .git/git-bug/cache/identities
 
 .PHONY: clean-remote-identities
 clean-remote-identities:

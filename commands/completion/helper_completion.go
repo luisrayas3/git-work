@@ -124,8 +124,8 @@ func Label(env *execenv.Env) ValidArgsFunction {
 func Ls(env *execenv.Env) ValidArgsFunction {
 	return func(cmd *cobra.Command, args []string, toComplete string) (completions []string, directives cobra.ShellCompDirective) {
 		if strings.HasPrefix(toComplete, "status:") {
-			completions = append(completions, "status:open\tOpen bugs")
-			completions = append(completions, "status:closed\tClosed bugs")
+			completions = append(completions, "status:open\tOpen issues")
+			completions = append(completions, "status:closed\tClosed issues")
 			return completions, cobra.ShellCompDirectiveDefault
 		}
 
@@ -190,7 +190,7 @@ func Ls(env *execenv.Env) ValidArgsFunction {
 			"actor:\tFilter by actor",
 			"author:\tFilter by author",
 			"label:\tFilter by label",
-			"no:\tExclude bugs by label",
+			"no:\tExclude issues by label",
 			"participant:\tFilter by participant",
 			"status:\tFilter by open/close status",
 			"title:\tFilter by title",

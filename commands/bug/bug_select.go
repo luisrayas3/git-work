@@ -17,20 +17,20 @@ func ResolveSelected(repo *cache.RepoCache, args []string) (*cache.BugCache, []s
 
 func newBugSelectCommand(env *execenv.Env) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "select BUG_ID",
-		Short: "Select a bug for implicit use in future commands",
-		Example: `git bug select 2f15
-git bug comment
-git bug status
+		Use:   "select ISSUE_ID",
+		Short: "Select an issue for implicit use in future commands",
+		Example: `git work issue select 2f15
+git work issue comment
+git work issue status
 `,
-		Long: `Select a bug for implicit use in future commands.
+		Long: `Select an issue for implicit use in future commands.
 
-This command allows you to omit any bug ID argument, for example:
-  git bug show
+This command allows you to omit any issue ID argument, for example:
+  git work issue show
 instead of
-  git bug show 2f153ca
+  git work issue show 2f153ca
 
-The complementary command is "git bug deselect" performing the opposite operation.
+The complementary command is "git work issue deselect" performing the opposite operation.
 `,
 		PreRunE: execenv.LoadBackend(env),
 		RunE: execenv.CloseBackend(env, func(cmd *cobra.Command, args []string) error {
@@ -44,7 +44,7 @@ The complementary command is "git bug deselect" performing the opposite operatio
 
 func runBugSelect(env *execenv.Env, args []string) error {
 	if len(args) == 0 {
-		return errors.New("a bug id must be provided")
+		return errors.New("an issue id must be provided")
 	}
 
 	prefix := args[0]
@@ -59,7 +59,7 @@ func runBugSelect(env *execenv.Env, args []string) error {
 		return err
 	}
 
-	env.Out.Printf("selected bug %s: %s\n", b.Id().Human(), b.Snapshot().Title)
+	env.Out.Printf("selected issue %s: %s\n", b.Id().Human(), b.Snapshot().Title)
 
 	return nil
 }

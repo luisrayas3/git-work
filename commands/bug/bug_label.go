@@ -8,8 +8,8 @@ import (
 
 func newBugLabelCommand(env *execenv.Env) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:     "label [BUG_ID]",
-		Short:   "Display labels of a bug",
+		Use:     "label [ISSUE_ID]",
+		Short:   "Display labels of an issue",
 		PreRunE: execenv.LoadBackend(env),
 		RunE: execenv.CloseBackend(env, func(cmd *cobra.Command, args []string) error {
 			return runBugLabel(env, args)
