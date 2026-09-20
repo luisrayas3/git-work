@@ -1,0 +1,275 @@
+# Story: Configurable schema for Jira and Linear (`6555e36`)
+
+**Outcome:** hierarchy, statuses with categories, priority, estimate, dates,
+assignee, typed relations and iterations are all config, with `jira` and
+`linear` presets proving both native models fit. Tooling keys off
+kinds/categories, never names.
+
+**Tasks:** `7c90fbd` where the schema lives · `bb9e89e` schema engine ·
+`5b09ee1` SetField op · `c090f9b` typed relations · `59fed1c` presets ·
+`aba17f4` iterations.
+
+**Status:** design, awaiting approval.
+
+## What the code says
+
+Four findings. The first contradicts a task's stated plan, so it comes first.
+
+**1. Do not bump `formatVersion`. It would orphan the store, and it buys
+nothing.**
+
+`5b09ee1` says "new dag op type, formatVersion bump". The bump is the part to
+drop. Each operation pack records its format version as a tree entry, and the
+reader rejects any mismatch outright — `operation_pack.go:233`,
+`if version != def.FormatVersion { return NewErrInvalidFormat(...) }`. There is
+no range, no upgrade path: bumping 4→5 makes every pack already written
+unreadable, which is all 74 of our issues. Teaching the reader to accept both
+means editing `entity/dag`, which is pristine.
+
+And it is unnecessary, because adding an operation type is already compatible
+in both directions. An unrecognized type falls through
+`operationUnmarshaler`'s `default` to `dag.UnknownOperation`, which applies as
+a no-op, skips validation, and re-marshals its original bytes verbatim
+(`entity/dag/op_unknown.go`). So a new binary reads old packs natively, and an
+old binary reading a `SetField` op ignores it and preserves it rather than
+corrupting it. Format versions are for changes that break that property. This
+one does not.
+
+**2. Removing `common.Status` is a 23-file, 10-package change with a UI tail.**
+
+`common.Status` reaches `entities/bug` (6 files), `api/graphql` (5),
+`query` (3), `cache` (2), all three bridges (5), `termui`, and `commands/bug`.
+It is a GraphQL enum with hand-written `MarshalGQL`, and 27 webui TypeScript
+files mention status. `5b09ee1` says open/closed "goes away"; doing that in one
+change means touching every one of those at once, including a frontend nobody
+has looked at yet.
+
+**3. The read surfaces are `Snapshot`, `BugExcerpt` and `query`.**
+`bug.Snapshot` has `Status`, `Title`, `Labels`, `Comments`, actors, timeline.
+`BugExcerpt` mirrors the queryable subset, and `query.Parse` maps `status:open`
+through `common.StatusFromString`. Anything that becomes a schema field has to
+appear in all three, or it is invisible to filtering and to every UI.
+
+**4. Our own tracker encodes its schema as labels, and nothing owns undoing
+that.** The `type:`/`story:`/`phase:`/`area:`/`prio:` taxonomy in AGENTS.md
+exists precisely because git-bug is flat. Once fields exist, those labels are
+a duplicate model that will drift. No task covers the migration — see Gaps.
+
+## Decisions
+
+### D1 — The schema lives in a git ref, not the worktree (`7c90fbd`)
+
+`7c90fbd` offers a worktree file (leaning) or a CRDT entity. I want to argue
+for a third: **a plain blob in a dedicated ref, `refs/work/config`, written
+under the write lock, with ordinary git commit history.**
+
+The decisive argument against the worktree is not the one in the task. It is
+that **the schema has an automated writer.** `69b7be0` maps schema to Jira
+fields, and Jira is canonical: when someone adds a status in Jira, sync wants
+to update our schema. An automated writer cannot commit to the worktree — which
+branch, and what does it do with a dirty tree or a detached HEAD? Refs have no
+such problem, which is exactly why the tracker itself lives in them.
+
+The task's own stated downside is real too, and sharper than it sounds: a
+worktree schema means checking out a branch from before the schema changed
+silently changes how your issues are interpreted, and a bare clone has no
+schema at all.
+
+Against the CRDT entity: it is not free. Config edits become operations needing
+their own op types, and the merge semantics the task calls "awkward" are
+awkward in a specific way — a status list is an ordered set where concurrent
+edits want intent ("insert after"), not last-writer-wins per key. Meanwhile
+Jira sync would write ops on every reconciliation, so the audit log we bought
+fills with machine noise.
+
+The ref gives most of the entity's benefits for none of that cost. A ref is a
+commit chain, so `git log refs/work/config` is the audit trail, `git show` is
+the diff, and push/pull carry it with the tracker. Concurrent edits from two
+clones surface as a non-fast-forward on push — visible and manual, which for a
+document edited a few times a year is the right amount of ceremony.
+
+Reviewability, the worktree's real advantage, comes back as
+`git work schema export > schema.yaml` / `git work schema import schema.yaml`:
+edit and review the file however you like, including in a PR, then import it.
+
+**Format:** YAML, one document, with a `version` key of its own for evolving
+the schema *language* — separate from the entity format version in finding 1.
+
+### D2 — Add op types, keep every existing one
+
+`SetFieldOp` and `AddRelationOp`/`RemoveRelationOp` join the existing codes in
+`entities/bug/operation.go`. `CreateOp`, `SetTitleOp`, `AddCommentOp`,
+`EditCommentOp`, `LabelChangeOp`, `SetStatusOp`, `SetMetadataOp` all stay,
+readable forever.
+
+**Values are stored by stable id, never by display name.** A status is
+`{id: "in-review", name: "In Review", category: started}` in the schema, and an
+op stores `in-review`. Renaming it in Jira then changes one line of config
+instead of requiring history to be rewritten — which, with content-addressed
+operations, it cannot be.
+
+Field kinds, fixed as `bb9e89e` specifies, plus the two this design adds:
+
+| Kind | Used by | Value in the op |
+| --- | --- | --- |
+| `enum-with-category` | status | value id |
+| `ordinal-enum` | priority | value id |
+| `text` | free text fields | string |
+| `number` | estimate, story points | float64 |
+| `date` | start, target, due | RFC 3339 |
+| `identity` | assignee | `entity.Id` of an identity |
+| `relation` | parent, blocks, … | see D4 |
+| `iteration` | sprint, cycle | `entity.Id` of an iteration (D5) |
+
+Categories are fixed and closed: `backlog`, `unstarted`, `started`,
+`completed`, `canceled`. Every tool keys off these.
+
+### D3 — Status becomes a field, in two steps, with the old op as its past
+
+`SetStatusOp` is not deleted and not migrated. It is **reinterpreted**: when
+compiling a snapshot, a `SetStatusOperation` sets the status field to the
+schema's designated open or closed value. Our 74 issues keep working with no
+data migration, and the compatibility shim is perhaps thirty lines in a package
+we own.
+
+Given finding 2, the removal is staged:
+
+1. **Field model underneath, projection on top.** `Snapshot.Fields` and
+   `BugExcerpt.Fields` land; `Snapshot.Status` stays as a derived value —
+   `closed` when the status field's category is `completed` or `canceled`,
+   `open` otherwise. GraphQL, the webui, the bridges and `status:open` keep
+   working untouched, because from where they sit nothing changed.
+2. **Callers move to categories** one surface at a time, and `Snapshot.Status`
+   is deleted when the last one is gone.
+
+Step 2 is not this story's to finish. The webui half belongs with `f32ea71`,
+which rewrites those views anyway; doing it now means editing code that is
+about to be replaced.
+
+This is the one place I am proposing to deliver less than the task's words
+(`5b09ee1`: "`common.Status` open/closed goes away"). The model change is
+complete; the cleanup is sequenced behind it.
+
+### D4 — Relations store one side; the inverse is derived (`c090f9b`)
+
+`AddRelation{type, target}` on the issue that "owns" the statement, per
+AGENTS.md: no multi-entity commit, so nothing is written to the other side.
+
+The inverse lives in the cache. `BugExcerpt` carries its relations, all
+excerpts are in memory, so "children of X" is a scan of the excerpt map built
+into a reverse index at load and maintained incrementally on update. This is
+also why D1's schema needs the relation *types* before the cache can index
+them.
+
+- **Cardinality** is enforced at write time only: setting a second parent
+  replaces the first (it is `replace`, not `add`, in JSON-Patch terms).
+- **Dangling targets render.** An id pointing at an issue that was removed, or
+  not yet pulled, shows as the short id, not an error and not a crash. With
+  eventually-consistent cross-entity links this is a normal state, not a
+  corruption.
+- **Allowed-parent rules** come from the type list: the schema declares an
+  ordered list of issue types, and which types may parent which. That is the
+  whole of hierarchy — Linear's Initiative > Project > Issue > sub-issue and
+  Jira's Initiative > Epic > Story/Task > Sub-task are both just config.
+
+### D5 — Iterations are a first-class entity (`aba17f4`)
+
+Following the task's own second comment: sprint planning needs dates,
+membership, capacity and carry-over, which an opaque text field cannot carry.
+
+A new entity in its own namespace, `refs/iterations`, on the same `dag`
+machinery and the same `SubCache` as issues, with ops `Create`, `SetDates`,
+`SetCapacity`, `SetState`. Issues reference it through a cardinality-1
+relation of kind `iteration`. Jira sprints and Linear cycles both map onto it.
+
+The consequence to state plainly: **closing an iteration is not atomic.**
+Marking it closed and moving N unfinished issues to the next one is N+1
+commits, and a crash halfway leaves some issues moved. The order that makes
+that recoverable is: create the next iteration, move the issues, then close the
+old one — so the intermediate state is "some issues already in the next
+sprint", which reads correctly and is idempotent to retry. A close that
+happened first would leave issues stranded in a closed iteration.
+
+### D6 — Validate on write, stay lenient on read
+
+A schema is a statement about what may be written now, never about what was
+written before. Operations are immutable and content-addressed, so a schema
+that rejected existing data would make history unreadable — the opposite of
+what a tracker is for.
+
+So: writes are validated and rejected with actionable errors, per `bb9e89e` —
+`status "done" is not in the schema; valid values: todo, in-progress,
+in-review, shipped` — because agents are the main caller and an agent can act
+on that. Reads keep values the schema no longer knows, and surface them as
+unknown rather than dropping them. A field removed from the schema stops being
+settable; it does not vanish from the issues that have it.
+
+### D7 — Presets are embedded, and we dogfood `linear`
+
+`jira.yaml` and `linear.yaml` embedded with `go:embed`, instantiated into
+`refs/work/config` by `git work schema init <preset>`. The round-trip table
+test in `59fed1c` is the acceptance test for the whole engine. This repo runs
+`linear`, since there is no Jira here — and now no Jira sandbox either
+(`de1d8fb` is skipped), so the `jira` preset is written from the REST API
+documentation and stays unverified against a real instance until someone
+creates one.
+
+## Gaps: two tasks that do not exist yet
+
+1. **Migrate our own label taxonomy to fields.** `type:`, `phase:`, `area:`,
+   `prio:` and `story:` become the type field, a phase field, an area field,
+   the priority field and the parent relation. Without this the tracker keeps
+   two models of itself and AGENTS.md documents the wrong one. It is also the
+   best possible test of the engine: 74 real issues, migrated by a script,
+   diffed.
+2. **Implement the iteration entity.** `aba17f4` is a decision task; D5 decides
+   it, but nobody is assigned the entity, ops, subcache and resolver that
+   follow — a chunk comparable to a third of this story.
+
+I'd add both to `6555e36` before starting, rather than discovering them
+mid-flight.
+
+## Order of work
+
+1. `7c90fbd` — the config ref, `schema export`/`import`, and the YAML shape.
+   Everything else reads this.
+2. `bb9e89e` — kinds, values, categories, validation, actionable errors. Pure
+   library, no entity changes, fully testable on its own.
+3. `5b09ee1` — `SetFieldOp`, `Snapshot.Fields`, `BugExcerpt.Fields`, the
+   `SetStatusOp` shim and the derived `Status` projection.
+4. `c090f9b` — relations, the cache's reverse index, hierarchy rules.
+5. New task — migrate this repo's labels to fields; fix AGENTS.md in the same
+   change.
+6. `aba17f4` + new task — the iteration entity.
+7. `59fed1c` — both presets and the round-trip table test, last, because it is
+   the acceptance test for all of the above.
+
+## Done when
+
+- `git work schema export` prints the live schema; editing and importing it
+  changes what issues may say, and `git log refs/work/config` shows who
+  changed what;
+- both presets load, and the `59fed1c` table test round-trips a representative
+  issue set through each;
+- an issue can carry type, status with category, priority, estimate, dates,
+  assignee, a parent and a blocks relation, all schema-driven;
+- `git work issue "status is not a thing"` fails with a message naming the
+  valid values;
+- this repo's own 74 issues are on fields, not labels, and AGENTS.md says so;
+- no operation written before this story is unreadable, and no entity id
+  changed.
+
+## Risks
+
+- **The engine outgrowing "just configurable enough."** Every real tracker's
+  schema system eventually grows formulas and conditional workflows. The fixed
+  kind list and the closed category set are the guard; adding a *kind* should
+  feel like a design decision, adding a *value* should not.
+- **Two models of our own tracker during step 5.** Labels and fields coexist
+  until the migration runs. Keep that window short.
+- **The unverified `jira` preset.** Written from documentation with no sandbox
+  to check it against; expect it to be wrong in small ways until someone points
+  it at a real instance.
+- **Relation indexes and the cache.** The reverse index is memory-only and must
+  be rebuilt by the same `refreshFromRefs` path the watcher drives, or a parent
+  set by another process shows stale children.
