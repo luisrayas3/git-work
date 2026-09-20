@@ -11,6 +11,11 @@ kinds/categories, never names.
 
 **Status:** design, awaiting approval.
 
+**Scope:** one repository is one project, matching the Jira bridge's existing
+"one bridge = one project" assumption. Cross-project sprint planning
+(`cd41e40`) is aggregation across several stores, designed when we get there —
+no project dimension is threaded through fields, queries and UIs now.
+
 ## What the code says
 
 Four findings. The first contradicts a task's stated plan, so it comes first.
@@ -57,43 +62,69 @@ a duplicate model that will drift. No task covers the migration — see Gaps.
 
 ## Decisions
 
-### D1 — The schema lives in a git ref, not the worktree (`7c90fbd`)
+### D1 — The schema is a CRDT entity in `refs/work/*` (`7c90fbd`)
 
-`7c90fbd` offers a worktree file (leaning) or a CRDT entity. I want to argue
-for a third: **a plain blob in a dedicated ref, `refs/work/config`, written
-under the write lock, with ordinary git commit history.**
+Decided: the config entity, not the worktree file and not the plain blob I
+first argued for. Two things settle it.
 
-The decisive argument against the worktree is not the one in the task. It is
-that **the schema has an automated writer.** `69b7be0` maps schema to Jira
-fields, and Jira is canonical: when someone adds a status in Jira, sync wants
-to update our schema. An automated writer cannot commit to the worktree — which
-branch, and what does it do with a dirty tree or a detached HEAD? Refs have no
-such problem, which is exactly why the tracker itself lives in them.
+**The machinery is not paid for by the schema alone.** The flow catalogue
+(`b511c63`) goes in the same place — flows are essentially named aliases, and
+they want exactly what the schema wants: to travel with the tracker rather than
+with a branch, to be editable by several people, and to merge when two of them
+edit different entries. A blob gives last-writer-wins over the whole document,
+so two people adding two different flows means one of them silently loses an
+edit. Per-key operations mean both survive. Amortized across schema *and*
+flows, the op types stop looking like overhead and start looking like the
+point.
 
-The task's own stated downside is real too, and sharper than it sounds: a
-worktree schema means checking out a branch from before the schema changed
-silently changes how your issues are interpreted, and a bare clone has no
-schema at all.
+**And my "Jira sync makes the log noisy" argument was wrong.** A sync that
+writes only when it finds a real difference emits one operation per actual Jira
+configuration change — someone added a status, someone renamed a priority.
+That is not noise, that is precisely the audit trail worth having, with the
+author attached. The noisy version only exists if the sync writes
+unconditionally, which is a bug, not a property of the design. There is one
+real residue: Jira's config endpoints can return unstable ordering, and
+unmapped fields would produce diffs against nothing. So `69b7be0` normalizes
+before comparing — sort by id, ignore what we do not map — which is an
+implementation rule, not an architectural objection.
 
-Against the CRDT entity: it is not free. Config edits become operations needing
-their own op types, and the merge semantics the task calls "awkward" are
-awkward in a specific way — a status list is an ordered set where concurrent
-edits want intent ("insert after"), not last-writer-wins per key. Meanwhile
-Jira sync would write ops on every reconciliation, so the audit log we bought
-fills with machine noise.
+**Ref shape.** Entity ids are content-derived from the create operation, so
+there is no such thing as an entity with the fixed id `schema`. The namespace
+`work` holds config entities at `refs/work/<id>`, each tagged with a kind in
+its create op (`schema`, `flows`). The schema is the singleton of kind
+`schema`, found by listing the namespace.
 
-The ref gives most of the entity's benefits for none of that cost. A ref is a
-commit chain, so `git log refs/work/config` is the audit trail, `git show` is
-the diff, and push/pull carry it with the tracker. Concurrent edits from two
-clones surface as a non-fast-forward on push — visible and manual, which for a
-document edited a few times a year is the right amount of ceremony.
+Two clones that both initialize produce two, which cannot be prevented, only
+handled: the winner is the oldest by creation lamport time, ties broken by
+lowest id, and the loser is *reported* rather than silently ignored. Silent
+selection is how a team ends up with two schemas and no idea why half their
+issues fail validation.
 
-Reviewability, the worktree's real advantage, comes back as
-`git work schema export > schema.yaml` / `git work schema import schema.yaml`:
-edit and review the file however you like, including in a PR, then import it.
+**Operations are per-key**, so concurrent edits to different things both
+survive, and only genuine conflicts on the same key need resolving — which
+dag's existing ordering (lamport time, then op id) already does
+deterministically across clones:
 
-**Format:** YAML, one document, with a `version` key of its own for evolving
-the schema *language* — separate from the entity format version in finding 1.
+```
+DefineField{key, kind, attrs}          RemoveField{key}
+SetFieldAttr{key, attr, value}
+AddEnumValue{field, id, name, attrs}   RemoveEnumValue{field, id}
+DefineRelationType{key, inverse, cardinality}
+DefineIssueType{id, name, rank, allowedParents}
+DefineFlow{name, definition}           RemoveFlow{name}
+```
+
+**Order inside an enum is an attribute, not a position.** Priority values carry
+an explicit ordinal and issue types an explicit rank, with ties broken by value
+id. List positions would have two concurrent inserts fighting over index 3;
+attributes make that a non-event.
+
+**Review still happens on a file.** `git work schema export > schema.yaml`,
+edit it, `git work schema import schema.yaml` — and import does not overwrite
+anything. It diffs the desired document against the current schema and emits
+the minimal set of operations. That is the same `reconcile(desired, current)`
+function the Jira sync calls, which is the second time this design gets to use
+one mechanism twice.
 
 ### D2 — Add op types, keep every existing one
 
@@ -207,7 +238,7 @@ settable; it does not vanish from the issues that have it.
 ### D7 — Presets are embedded, and we dogfood `linear`
 
 `jira.yaml` and `linear.yaml` embedded with `go:embed`, instantiated into
-`refs/work/config` by `git work schema init <preset>`. The round-trip table
+the schema entity by `git work schema init <preset>`. The round-trip table
 test in `59fed1c` is the acceptance test for the whole engine. This repo runs
 `linear`, since there is no Jira here — and now no Jira sandbox either
 (`de1d8fb` is skipped), so the `jira` preset is written from the REST API
@@ -231,8 +262,9 @@ mid-flight.
 
 ## Order of work
 
-1. `7c90fbd` — the config ref, `schema export`/`import`, and the YAML shape.
-   Everything else reads this.
+1. `7c90fbd` — the config entity (ops, snapshot, subcache, resolver), the
+   YAML shape, and `schema export`/`import` on top of `reconcile`. Everything
+   else reads this, and the flow catalogue will reuse it.
 2. `bb9e89e` — kinds, values, categories, validation, actionable errors. Pure
    library, no entity changes, fully testable on its own.
 3. `5b09ee1` — `SetFieldOp`, `Snapshot.Fields`, `BugExcerpt.Fields`, the
@@ -247,8 +279,8 @@ mid-flight.
 ## Done when
 
 - `git work schema export` prints the live schema; editing and importing it
-  changes what issues may say, and `git log refs/work/config` shows who
-  changed what;
+  emits the minimal operations rather than overwriting, and the entity's own op
+  log shows who changed what, when;
 - both presets load, and the `59fed1c` table test round-trips a representative
   issue set through each;
 - an issue can carry type, status with category, priority, estimate, dates,
@@ -270,6 +302,9 @@ mid-flight.
 - **The unverified `jira` preset.** Written from documentation with no sandbox
   to check it against; expect it to be wrong in small ways until someone points
   it at a real instance.
+- **Config operations are a new entity type to maintain.** Ops, snapshot,
+  subcache and resolver, carried forever. The flow catalogue is what makes that
+  worth it; if flows end up somewhere else, revisit this.
 - **Relation indexes and the cache.** The reverse index is memory-only and must
   be rebuilt by the same `refreshFromRefs` path the watcher drives, or a parent
   set by another process shows stale children.
