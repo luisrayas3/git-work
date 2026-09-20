@@ -149,8 +149,22 @@ Field kinds, fixed as `bb9e89e` specifies, plus the two this design adds:
 | `number` | estimate, story points | float64 |
 | `date` | start, target, due | RFC 3339 |
 | `identity` | assignee | `entity.Id` of an identity |
+| `multi-enum` | components, fix versions, labels | list of value ids |
+| `multi-identity` | reviewers, watchers | list of identity ids |
 | `relation` | parent, blocks, … | see D4 |
 | `iteration` | sprint, cycle | `entity.Id` of an iteration (D5) |
+
+`multi-enum` and `multi-identity` are additions to `bb9e89e`'s list, which is
+single-valued throughout. Without them Jira's components, fix versions and
+every multi-select custom field land in labels, which flattens away which field
+a value came from. `labels` then becomes the built-in instance of `multi-enum`
+rather than a second multi-select mechanism beside it.
+
+Manual **rank** is a third gap, split out as its own decision (`441dcbb`)
+because it is not just a missing kind: two people reordering a board
+concurrently must both keep their drag, which needs a fractional index rather
+than a value the last writer wins. Deciding it late means retrofitting it into
+whatever the kanban built on top.
 
 Categories are fixed and closed: `backlog`, `unstarted`, `started`,
 `completed`, `canceled`. Every tool keys off these.
@@ -293,6 +307,11 @@ mid-flight.
 
 ## Risks
 
+- **Kinds are the expensive thing to get wrong.** A missing *value* is
+  config; a missing *kind* is a schema-language change that every preset and
+  the Jira field mapping have already been written against. That is why
+  `multi-enum`, `multi-identity` and rank are settled here rather than when
+  something needs them.
 - **The engine outgrowing "just configurable enough."** Every real tracker's
   schema system eventually grows formulas and conditional workflows. The fixed
   kind list and the closed category set are the guard; adding a *kind* should
