@@ -116,14 +116,23 @@ Settled calls (details live in the referenced issues):
 - Schema is *just configurable enough* to represent both Jira's and
   Linear's native models: fixed field kinds, configurable values;
   parent is a cardinality-1 relation (`bb9e89e`, `c090f9b`, `59fed1c`).
-  Iterations (sprints/cycles) are leaning first-class entity, not a text field (`aba17f4`).
+  Iterations are a first-class entity, not a text field (`aba17f4`, `87a48c1`).
+  Manual rank is a LexoRank-style fractional index ordered by `(rank, id)`,
+  so concurrent drags both survive (`441dcbb`).
+- Schema, flows, saved views and automation rules all live in **one CRDT config
+  entity** under `refs/work/*`, with per-key ops so concurrent edits to
+  different keys both survive (`7c90fbd`, `3df330f`).
+  Automation has no daemon either: rules fire opportunistically and from live
+  views, with a scheduled backstop, so actions are idempotent (`221b629`).
 - Concurrency: no daemon. Lock-free readers, a short write lock,
   ref→hash staleness diff, a ref watcher for live views (`d35de2e`, `d591cb3`, `63c68d1`).
   Bleve is dropped; search is a non-goal (`3500366`).
 - Entity namespace becomes `refs/issues` (`be69e67`); Go package names stay `bug`
   so upstream fixes to `cache/` and `bridge/` still cherry-pick.
 - Jira sync is bidirectional and **Jira is canonical**: 3-way per field,
-  Jira wins on double-edit (`3c6d07a`). This repo dogfoods without Jira.
+  Jira wins on double-edit (`3c6d07a`).
+  This repo dogfoods the `jira` preset with no Jira instance behind it, because
+  an unverified preset exercised daily beats one exercised never (`59fed1c`).
 - TUI: Bubble Tea rewrite later (`84dfbde`). GUI: extend the inherited webui;
   a framework rethink is parked (`867db1a`).
 
@@ -132,6 +141,8 @@ Settled calls (details live in the referenced issues):
 git-bug is flat (no epics, priority, or dates),
 so structure is simulated with labels until the schema work lands
 (`bb9e89e` schema engine, `c090f9b` relations).
+This whole section is scheduled for deletion: `bf6f392` migrates these labels
+onto real fields and rewrites what you are reading.
 
 | Prefix | Values |
 | --- | --- |

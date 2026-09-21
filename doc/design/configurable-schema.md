@@ -160,11 +160,19 @@ every multi-select custom field land in labels, which flattens away which field
 a value came from. `labels` then becomes the built-in instance of `multi-enum`
 rather than a second multi-select mechanism beside it.
 
-Manual **rank** is a third gap, split out as its own decision (`441dcbb`)
-because it is not just a missing kind: two people reordering a board
-concurrently must both keep their drag, which needs a fractional index rather
-than a value the last writer wins. Deciding it late means retrofitting it into
-whatever the kanban built on top.
+Manual **rank** was a third gap, decided in `441dcbb`: a LexoRank-style
+fractional index. A drag computes a key strictly between its neighbours, so it
+touches one issue and no renumbering happens. The property that makes it
+conflict-free is the sort: **(rank, entity id), never rank alone** — two people
+dragging into the same slot independently derive the same midpoint key, and the
+tie breaks deterministically by id, so both drags survive and every clone
+agrees. The encoding lands with `5b09ee1`; the board that uses it comes with
+`f32ea71`.
+
+A `bool` kind is a likely fourth, pending `4d61ebe` (archived), which leans
+toward archived being a built-in boolean field rather than a status category —
+archiving says whether an issue is still worth looking at, while the category
+set says how the work ended.
 
 Categories are fixed and closed: `backlog`, `unstarted`, `started`,
 `completed`, `canceled`. Every tool keys off these.
@@ -253,11 +261,19 @@ settable; it does not vanish from the issues that have it.
 
 `jira.yaml` and `linear.yaml` embedded with `go:embed`, instantiated into
 the schema entity by `git work schema init <preset>`. The round-trip table
-test in `59fed1c` is the acceptance test for the whole engine. This repo runs
-`linear`, since there is no Jira here — and now no Jira sandbox either
-(`de1d8fb` is skipped), so the `jira` preset is written from the REST API
-documentation and stays unverified against a real instance until someone
-creates one.
+test in `59fed1c` is the acceptance test for the whole engine.
+
+**This repo dogfoods `jira`**, reversing `59fed1c`'s original note. The
+reasoning there — no Jira here, so run `linear` — points the wrong way now that
+the sandbox is skipped (`de1d8fb`): the `jira` preset is written from REST API
+documentation and verified by nothing. Running it here every day against real
+issues is the only check it gets before it meets the company instance. `linear`
+keeps earning its place in the round-trip test, which is where the
+"both models are representable" claim is actually proved.
+
+One mapping needs a call during `bf6f392`: `type:decision` has no native Jira
+issue type, so either the preset carries a custom one or decisions become Task
+plus a marker. `area:` maps onto Components, which exercises `multi-enum`.
 
 ## Gaps: two tasks that do not exist yet
 
