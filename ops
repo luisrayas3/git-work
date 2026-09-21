@@ -1,1 +1,1 @@
-{"author":{"id":"7674679dac9170669f752d932f8b5955b1d55717359e13b1c1e687003c7bb99f"},"ops":[{"type":5,"timestamp":1789489388,"nonce":"B6buiamTK6CoSLOUkN9K9ewD/WU=","added":["area:tui","phase:5-roadmap","prio:med"],"removed":null}]}
+{"author":{"id":"a3a282966ced55effb4560271fcd98e13241af24ea76b00ec76a0f18154bc8ee"},"ops":[{"type":3,"timestamp":1790014274,"nonce":"CtHKcyMRW5BeGJ/RpsyfTV+aAos=","message":"Closed 2026-09-21 in a prune of pre-workshop items. Superseded by 6285d60 (webui Gantt) and a031f5c (flow plan authoring helpers).","files":null}]}
