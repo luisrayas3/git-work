@@ -1,1 +1,1 @@
-{"author":{"id":"a3a282966ced55effb4560271fcd98e13241af24ea76b00ec76a0f18154bc8ee"},"ops":[{"type":3,"timestamp":1790014272,"nonce":"AHLxmRAdNBcnsr901BHIRkvMrME=","message":"Closed 2026-09-21 in a prune of pre-workshop items. Superseded by 0a4390d (spike: Jira Cloud REST v3 / auth against the current client), which asks the same question inside story 8ade811.","files":null}]}
+{"author":{"id":"a3a282966ced55effb4560271fcd98e13241af24ea76b00ec76a0f18154bc8ee"},"ops":[{"type":4,"timestamp":1790014272,"nonce":"Ku5Qe01uAOzYgsWS/dHPbu9Qaqc=","status":2}]}
