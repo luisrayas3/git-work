@@ -164,13 +164,28 @@ and the mutate path both rest on it.
 
 ## Working conventions
 
+- Every story gets a design document at `doc/design/<slug>.md`,
+  approved before any of its code is written,
+  and it records the decisions and their reasoning — not a plan of steps.
+  Design runs a story ahead of implementation.
+  A design that contradicts its tasks says so in the document
+  *and* in a comment on the task, because whoever picks the task up
+  may never read the document.
 - Read the upstream package you build on before changing app-layer callers;
   never touch the pristine seven.
 - go-git's gaps belong in `gitcli`, never in `repository`:
   where go-git reimplements git's own environment
   (config, transport, credentials) and gets it wrong,
   add an exec-backed override to that decorator.
+- Every write goes through `cache/`.
+  The no-lost-operations guarantee rests on the write lock and the re-read
+  inside it (`d35de2e`, `2a51f66`); `dag.Entity.Commit` ends in an
+  unconditional `UpdateRef`, so anything writing `refs/issues/*` from outside
+  — a stray `git update-ref`, a second implementation — silently erases
+  concurrent work. Reads are unrestricted and take no lock.
 - On finishing a task, close its issue (`git work issue status close <id>`)
   and reference the id in the commit message.
+  Decisions get closed too, once the decision and its reasoning are recorded
+  on the issue.
 - Keep this guide accurate:
   if a CLI form or convention changes, update it in the same change.
