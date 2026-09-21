@@ -1,1 +1,1 @@
-{"author":{"id":"7674679dac9170669f752d932f8b5955b1d55717359e13b1c1e687003c7bb99f"},"ops":[{"type":5,"timestamp":1790009552,"nonce":"5XDqRn2JVPHrSmhUpBwygzOYVvE=","added":["type:task","area:gui","phase:5-surfaces","prio:med","story:3df330f"],"removed":null}]}
+{"author":{"id":"a3a282966ced55effb4560271fcd98e13241af24ea76b00ec76a0f18154bc8ee"},"ops":[{"type":2,"timestamp":1790014522,"nonce":"Y3vDwyzuAiyd+V+/KGIy0WBn7hI=","title":"Task: Views and rule activity in the TUI and GUI","was":"Task: Views and rule activity in the TUI and webui"}]}
