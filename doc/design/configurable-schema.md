@@ -5,7 +5,8 @@ assignee, typed relations and iterations are all config, with `jira` and
 `linear` presets proving both native models fit. Tooling keys off
 kinds/categories, never names.
 
-**Tasks:** `7c90fbd` where the schema lives · `bb9e89e` schema engine ·
+**Tasks:** `7c90fbd` where the schema lives · `3556569` the config entity
+(designed in `config-entity.md`) · `bb9e89e` schema engine ·
 `5b09ee1` SetField op · `c090f9b` typed relations · `59fed1c` presets ·
 `aba17f4` iterations.
 
@@ -90,9 +91,11 @@ implementation rule, not an architectural objection.
 
 **Ref shape.** Entity ids are content-derived from the create operation, so
 there is no such thing as an entity with the fixed id `schema`. The namespace
-`work` holds config entities at `refs/work/<id>`, each tagged with a kind in
-its create op (`schema`, `flows`). The schema is the singleton of kind
-`schema`, found by listing the namespace.
+`work` holds **one** config entity at `refs/work/<id>`, found by listing the
+namespace; schema, flows, views and rules are sections of it, not entities of
+their own. (An earlier draft tagged one entity per kind; `config-entity.md`
+E1 says why one is better: views reference fields and rules reference
+statuses, so they want one consistent snapshot.)
 
 Two clones that both initialize produce two, which cannot be prevented, only
 handled: the winner is the oldest by creation lamport time, ties broken by
@@ -103,28 +106,37 @@ issues fail validation.
 **Operations are per-key**, so concurrent edits to different things both
 survive, and only genuine conflicts on the same key need resolving — which
 dag's existing ordering (lamport time, then op id) already does
-deterministically across clones:
+deterministically across clones. The key is a path and the wire carries two
+operations, `SetEntry{path, value}` and `RemoveEntry{path}`; the typed
+vocabulary this draft first listed (`DefineField`, `AddEnumValue`,
+`DefineFlow`, …) is the Go API on top, emitting those two on well-known paths
+(`config-entity.md` E2, E3):
 
 ```
-DefineField{key, kind, attrs}          RemoveField{key}
-SetFieldAttr{key, attr, value}
-AddEnumValue{field, id, name, attrs}   RemoveEnumValue{field, id}
-DefineRelationType{key, inverse, cardinality}
-DefineIssueType{id, name, rank, allowedParents}
-DefineFlow{name, definition}           RemoveFlow{name}
+fields/<key>               fields/<key>/values/<id>
+types/<id>                 relations/<key>
+flows/<name>               views/<name>               rules/<name>
 ```
 
-**Order inside an enum is an attribute, not a position.** Priority values carry
-an explicit ordinal and issue types an explicit rank, with ties broken by value
-id. List positions would have two concurrent inserts fighting over index 3;
-attributes make that a non-event.
+**Order inside an enum is an attribute, not a position.** Enum values and
+issue types both carry an integer `ordinal`, with ties broken by id
+(`config-entity.md` E4; "rank" is the issue field kind from `441dcbb`, so
+types do not also use the word). List positions would have two concurrent
+inserts fighting over index 3; attributes make that a non-event.
 
 **Review still happens on a file.** `git work schema export > schema.yaml`,
 edit it, `git work schema import schema.yaml` — and import does not overwrite
 anything. It diffs the desired document against the current schema and emits
 the minimal set of operations. That is the same `reconcile(desired, current)`
 function the Jira sync calls, which is the second time this design gets to use
-one mechanism twice.
+one mechanism twice. Import computes that diff *inside* the write lock against
+a freshly re-read entity, so it changes exactly what still differs
+(`config-entity.md` E6).
+
+**No entity is not an error.** Every repository today has none; that state
+reads as the embedded `base` preset (`status` open/closed, freeform `labels`),
+compiled in memory and never written, so nothing changes until someone runs
+`git work schema init <preset>` (`config-entity.md` E7).
 
 ### D2 — Add op types, keep every existing one
 
@@ -181,7 +193,8 @@ Categories are fixed and closed: `backlog`, `unstarted`, `started`,
 
 `SetStatusOp` is not deleted and not migrated. It is **reinterpreted**: when
 compiling a snapshot, a `SetStatusOperation` sets the status field to the
-schema's designated open or closed value. Our 74 issues keep working with no
+schema's designated open or closed value — the `on_open` and `on_close`
+attributes of the status field (`config-entity.md` E3). Our 74 issues keep working with no
 data migration, and the compatibility shim is perhaps thirty lines in a package
 we own.
 
@@ -292,9 +305,10 @@ mid-flight.
 
 ## Order of work
 
-1. `7c90fbd` — the config entity (ops, snapshot, subcache, resolver), the
-   YAML shape, and `schema export`/`import` on top of `reconcile`. Everything
-   else reads this, and the flow catalogue will reuse it.
+1. `3556569` — the config entity (ops, snapshot, subcache, resolver), the
+   YAML shape, `schema init`/`export`/`import` on top of `reconcile`, and the
+   `base` fallback; designed in `config-entity.md`. Everything else reads
+   this, and the flow catalogue will reuse it.
 2. `bb9e89e` — kinds, values, categories, validation, actionable errors. Pure
    library, no entity changes, fully testable on its own.
 3. `5b09ee1` — `SetFieldOp`, `Snapshot.Fields`, `BugExcerpt.Fields`, the
