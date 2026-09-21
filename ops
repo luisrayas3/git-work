@@ -1,1 +1,1 @@
-{"author":{"id":"a3a282966ced55effb4560271fcd98e13241af24ea76b00ec76a0f18154bc8ee"},"ops":[{"type":3,"timestamp":1790014273,"nonce":"FKN9cAtmse3t7/K6SBBz8WYLxbY=","message":"Closed 2026-09-21 in a prune of pre-workshop items. Dropped: the bridge registry is inherited unchanged and already pluggable. Nothing to prove until a second backend is wanted.","files":null}]}
+{"author":{"id":"a3a282966ced55effb4560271fcd98e13241af24ea76b00ec76a0f18154bc8ee"},"ops":[{"type":4,"timestamp":1790014273,"nonce":"3jgpWwA7620blUo1SqDcUVmvnjs=","status":2}]}
