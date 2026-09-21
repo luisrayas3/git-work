@@ -1,1 +1,1 @@
-{"author":{"id":"a3a282966ced55effb4560271fcd98e13241af24ea76b00ec76a0f18154bc8ee"},"ops":[{"type":3,"timestamp":1790014273,"nonce":"sA3ymz/Mj/IPbsP7DDcPS64i+C4=","message":"Closed 2026-09-21 in a prune of pre-workshop items. Done and superseded: the namespace rename landed (be69e67); the CLI reshape is e8d6426 (plumbing CLI, JSON in/out).","files":null}]}
+{"author":{"id":"a3a282966ced55effb4560271fcd98e13241af24ea76b00ec76a0f18154bc8ee"},"ops":[{"type":4,"timestamp":1790014274,"nonce":"y+2wepx4LwBPKuBXSZ+c5xu57GE=","status":2}]}
