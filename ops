@@ -1,1 +1,1 @@
-{"author":{"id":"a3a282966ced55effb4560271fcd98e13241af24ea76b00ec76a0f18154bc8ee"},"ops":[{"type":3,"timestamp":1790014272,"nonce":"e8FnZkXP8/PFfuYdrmpifE0eUUE=","message":"Closed 2026-09-21 in a prune of pre-workshop items. Folded into 23eb77f, whose evidence comment records the three triggers for moving from fork to library consumer. No separate decision is pending.","files":null}]}
+{"author":{"id":"a3a282966ced55effb4560271fcd98e13241af24ea76b00ec76a0f18154bc8ee"},"ops":[{"type":4,"timestamp":1790014272,"nonce":"VsSeTunMFl64obOjFZx1nNnAoqY=","status":2}]}
