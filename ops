@@ -1,1 +1,1 @@
-{"author":{"id":"a3a282966ced55effb4560271fcd98e13241af24ea76b00ec76a0f18154bc8ee"},"ops":[{"type":3,"timestamp":1790014273,"nonce":"aPisup7Y1/AI5tP58dimY5Cfm/E=","message":"Closed 2026-09-21 in a prune of pre-workshop items. No longer a task: bridge/ is inherited unchanged (0 lines diverged at 2026-09-19) and phase 3 builds on it as-is. Story 8ade811 owns the bridge work.","files":null}]}
+{"author":{"id":"a3a282966ced55effb4560271fcd98e13241af24ea76b00ec76a0f18154bc8ee"},"ops":[{"type":4,"timestamp":1790014273,"nonce":"USmW3DoTeLkf5vzy230g9EdGiw4=","status":2}]}
