@@ -1,1 +1,1 @@
-{"author":{"id":"a3a282966ced55effb4560271fcd98e13241af24ea76b00ec76a0f18154bc8ee"},"ops":[{"type":3,"timestamp":1790014274,"nonce":"YQTBG+NMe6Xakcd8WAQsC8pWxkI=","message":"Closed 2026-09-21 in a prune of pre-workshop items. Folded into 84dfbde: pinning the TUI selection for an external chat session is a TUI feature, decided when that view is built.","files":null}]}
+{"author":{"id":"a3a282966ced55effb4560271fcd98e13241af24ea76b00ec76a0f18154bc8ee"},"ops":[{"type":4,"timestamp":1790014274,"nonce":"DC2i8yfbhkKfWgUlZaqQwYvHHcw=","status":2}]}
