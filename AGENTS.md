@@ -48,7 +48,8 @@ go build -o git-work .
 #   ~/.local/bin/git-work -> ~/ws/git-work/git-work
 # After code changes, re-run the build above; the symlink tracks it.
 
-# Full build including the web UI (needs pnpm): make build
+# The React webui and its pnpm toolchain are being removed (938434e); until then
+# `make build` still needs pnpm. The Go-only GUI replaces it (867db1a).
 ```
 
 ## Operating the tracker
@@ -70,7 +71,7 @@ Forms below are verified against 0.10.x.
 | Close / reopen | `git work issue status close <id>` · `status open <id>` |
 | Comment | `git work issue comment new <id> -m "…"` |
 | Sync | `git work push` · `git work pull` (writes/reads `refs/issues/*`) |
-| Interactive | `git work termui` (TTY) · `git work webui` (webui build) |
+| Interactive | `git work termui` (TTY) · `git work webui` (webui build); becoming `tui` and `gui` (8b06191) |
 
 Gotchas, hardened from use:
 
@@ -106,10 +107,13 @@ Four target workflows drive every design call:
 (2) weekly status report generated from the op log;
 (3) in-person sync on a live, edit-heavy kanban;
 (4) doing work — my tasks, pick one, link PRs, agents own subtasks (1 subtask ↔ 1 PR);
-(5) sprint planning — cross-project allocation, re-prioritizing and grooming for the next iteration.
+(5) sprint planning — allocating, re-prioritizing and grooming the store's backlog for the next iteration.
 
 Settled calls (details live in the referenced issues):
 
+- **One team, one repository, one Jira project.** There is no project
+  dimension anywhere; "cross-project" in older text meant across epics
+  (`cd41e40`, 2026-09-21).
 - `git work issue *` is **plumbing, agent-first**: JSON out by default,
   RFC 6902 JSON Patch in (`e8d6426`).
   `git work flow *` is porcelain, one verb per workflow (`b511c63`).
@@ -133,8 +137,11 @@ Settled calls (details live in the referenced issues):
   Jira wins on double-edit (`3c6d07a`).
   This repo dogfoods the `jira` preset with no Jira instance behind it, because
   an unverified preset exercised daily beats one exercised never (`59fed1c`).
-- TUI: Bubble Tea rewrite later (`84dfbde`). GUI: extend the inherited webui;
-  a framework rethink is parked (`867db1a`).
+- Surfaces are **Go only**: no JS toolchain in the repo (`867db1a`, 2026-09-21).
+  `git work gui` is server-rendered HTML plus htmx, live over Server-Sent
+  Events from the ref watcher, reading the cache in-process; the React webui,
+  pnpm and (recommended) GraphQL leave (938434e, 8b06191).
+  `git work tui` is the Bubble Tea rewrite (`84dfbde`).
 
 ## Label taxonomy
 

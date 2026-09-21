@@ -11,10 +11,10 @@ kinds/categories, never names.
 
 **Status:** design, awaiting approval.
 
-**Scope:** one repository is one project, matching the Jira bridge's existing
-"one bridge = one project" assumption. Cross-project sprint planning
-(`cd41e40`) is aggregation across several stores, designed when we get there —
-no project dimension is threaded through fields, queries and UIs now.
+**Scope:** one team, one repository, one Jira project, matching the Jira
+bridge's existing "one bridge = one project" assumption. Sprint planning
+(`cd41e40`) draws its pool from this store alone; no project dimension
+exists in fields, queries or UIs, and none is planned.
 
 ## What the code says
 
@@ -257,7 +257,7 @@ on that. Reads keep values the schema no longer knows, and surface them as
 unknown rather than dropping them. A field removed from the schema stops being
 settable; it does not vanish from the issues that have it.
 
-### D7 — Presets are embedded, and we dogfood `linear`
+### D7 — Presets are embedded, and we dogfood `jira`
 
 `jira.yaml` and `linear.yaml` embedded with `go:embed`, instantiated into
 the schema entity by `git work schema init <preset>`. The round-trip table
