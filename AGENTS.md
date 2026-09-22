@@ -24,6 +24,11 @@ All new work goes **above** this line:
 the generalized `issue` entity, the PM schema, bridge changes,
 and the new harness
 (`entities/`, `cache/`, `query/`, `commands/`, `bridge/`, a new TUI).
+`entities/bug` is **ours**, not pristine:
+it becomes `entities/issue` with our own model and operation set,
+and its on-disk format is migrated once rather than kept compatible
+(`f4bac00`, 2026-09-22).
+Cherry-picking upstream fixes into `cache/` and `bridge/` is not a goal.
 If you believe you must edit a pristine package, **stop and flag it** —
 it breaks upstream tracking and is a real architectural decision.
 
@@ -120,19 +125,29 @@ Settled calls (details live in the referenced issues):
 - Schema is *just configurable enough* to represent both Jira's and
   Linear's native models: fixed field kinds, configurable values;
   parent is a cardinality-1 relation (`bb9e89e`, `c090f9b`, `59fed1c`).
-  Iterations are a first-class entity, not a text field (`aba17f4`, `87a48c1`).
+  An issue is a structural core (id, author, comments, timeline,
+  participants, relations) plus a fields map; four fields are built in and
+  unremovable — `title`, `type`, `status`, `archived` — and everything else,
+  labels included, is preset config found by kind and role, never by key
+  (`f4bac00`).
+  Iterations are the same entity in `refs/iterations`, with their own
+  fields; capacity is a field, not first class (`aba17f4`, `87a48c1`).
   Manual rank is a LexoRank-style fractional index ordered by `(rank, id)`,
   so concurrent drags both survive (`441dcbb`).
-- Schema, flows, saved views and automation rules all live in **one CRDT config
-  entity** under `refs/work/*`, with per-key ops so concurrent edits to
-  different keys both survive (`7c90fbd`, `3df330f`).
+- Schema, flows, saved views and automation rules are **config entities**
+  under `refs/config/*`, one per field, type, relation, flow, view or rule,
+  so the entity boundary is the merge unit; inside a field, values are
+  per-item ops, so two people adding two statuses both survive
+  (`7c90fbd`, `3556569`, `3df330f`). Removal is an archive op.
   Automation has no daemon either: rules fire opportunistically and from live
   views, with a scheduled backstop, so actions are idempotent (`221b629`).
 - Concurrency: no daemon. Lock-free readers, a short write lock,
   ref→hash staleness diff, a ref watcher for live views (`d35de2e`, `d591cb3`, `63c68d1`).
   Bleve is dropped; search is a non-goal (`3500366`).
-- Entity namespace becomes `refs/issues` (`be69e67`); Go package names stay `bug`
-  so upstream fixes to `cache/` and `bridge/` still cherry-pick.
+- Entity namespace is `refs/issues` (`be69e67`). The store is **migrated
+  once** to the owned format with entity and comment ids preserved, and
+  `formatVersion` bumps so old binaries refuse it rather than misread it
+  (`f4bac00`, `bf6f392`).
 - Jira sync is bidirectional and **Jira is canonical**: 3-way per field,
   Jira wins on double-edit (`3c6d07a`).
   This repo dogfoods the `jira` preset with no Jira instance behind it, because
