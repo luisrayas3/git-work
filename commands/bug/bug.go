@@ -38,25 +38,25 @@ func NewBugCommand(env *execenv.Env) *cobra.Command {
 	options := bugOptions{}
 
 	cmd := &cobra.Command{
-		Use: "issue [QUERY]",
-		// `bug` stays as an alias through the phases where the CLI is still
-		// being reshaped; see //doc/design:fork-foundations.md.
-		Aliases: []string{"bug"},
-		Short:   "List issues",
+		// `bug` serves the old entity (entities/bug, refs/issues/*) until the
+		// store is migrated to entities/issue (bf6f392); `issue` is the new
+		// tree in //commands/issue. This whole package leaves with the entity.
+		Use:   "bug [QUERY]",
+		Short: "List issues (old format)",
 		Long: `Display a summary of each issue.
 
 You can pass an additional query to filter and order the list. This query can be expressed either with a simple query language, flags, a natural language full text search, or a combination of the aforementioned.`,
 		Example: `List open issues sorted by last edition with a query:
-git work issue status:open sort:edit-desc
+git work bug status:open sort:edit-desc
 
 List closed issues sorted by creation with flags:
-git work issue --status closed --by creation
+git work bug --status closed --by creation
 
 Do a full text search of all issues:
-git work issue "foo bar" baz
+git work bug "foo bar" baz
 
 Use queries, flags, and full text search:
-git work issue status:open --by creation "foo bar" baz
+git work bug status:open --by creation "foo bar" baz
 `,
 		PreRunE: execenv.LoadBackend(env),
 		RunE: execenv.CloseBackend(env, func(cmd *cobra.Command, args []string) error {

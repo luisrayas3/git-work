@@ -7,6 +7,7 @@ import (
 
 	"github.com/git-bug/git-bug/entities/bug"
 	"github.com/git-bug/git-bug/entities/identity"
+	"github.com/git-bug/git-bug/entities/issue"
 	"github.com/git-bug/git-bug/entity"
 	"github.com/git-bug/git-bug/repository"
 	"github.com/git-bug/git-bug/util/multierr"
@@ -65,6 +66,7 @@ type RepoCache struct {
 	resolvers entity.Resolvers
 
 	bugs       *RepoCacheBug
+	issues     *RepoCacheIssue
 	identities *RepoCacheIdentity
 
 	subcaches []cacheMgmt
@@ -96,11 +98,18 @@ func NewNamedRepoCache(r repository.ClockedRepo, name string) (*RepoCache, chan 
 	c.bugs = NewRepoCacheBug(r, c.getResolvers, c.GetUserIdentity)
 	c.subcaches = append(c.subcaches, c.bugs)
 
+	// bugs and issues are peers while the store migrates from one to the
+	// other (f4bac00, bf6f392); entities/bug leaves once it has.
+	c.issues = NewRepoCacheIssue(r, c.getResolvers, c.GetUserIdentity)
+	c.subcaches = append(c.subcaches, c.issues)
+
 	c.resolvers = entity.Resolvers{
 		&IdentityCache{}:   entity.ResolverFunc[*IdentityCache](c.identities.Resolve),
 		&IdentityExcerpt{}: entity.ResolverFunc[*IdentityExcerpt](c.identities.ResolveExcerpt),
 		&BugCache{}:        entity.ResolverFunc[*BugCache](c.bugs.Resolve),
 		&BugExcerpt{}:      entity.ResolverFunc[*BugExcerpt](c.bugs.ResolveExcerpt),
+		&IssueCache{}:      entity.ResolverFunc[*IssueCache](c.issues.Resolve),
+		&IssueExcerpt{}:    entity.ResolverFunc[*IssueExcerpt](c.issues.ResolveExcerpt),
 	}
 
 	// small buffer so that the functions below can emit an event without blocking
@@ -138,6 +147,11 @@ func NewRepoCacheNoEvents(r repository.ClockedRepo) (*RepoCache, error) {
 // Bugs gives access to the Bug entities
 func (c *RepoCache) Bugs() *RepoCacheBug {
 	return c.bugs
+}
+
+// Issues gives access to the Issue entities
+func (c *RepoCache) Issues() *RepoCacheIssue {
+	return c.issues
 }
 
 // Identities gives access to the Identity entities
@@ -203,6 +217,8 @@ func (c *RepoCache) registerObserver(repoName string, typename string, observer 
 	switch typename {
 	case bug.Typename:
 		c.bugs.RegisterObserver(repoName, observer)
+	case issue.Typename:
+		c.issues.RegisterObserver(repoName, observer)
 	case identity.Typename:
 		c.identities.RegisterObserver(repoName, observer)
 	default:

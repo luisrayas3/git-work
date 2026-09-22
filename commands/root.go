@@ -9,6 +9,7 @@ import (
 	"github.com/git-bug/git-bug/commands/bridge"
 	"github.com/git-bug/git-bug/commands/bug"
 	"github.com/git-bug/git-bug/commands/execenv"
+	"github.com/git-bug/git-bug/commands/issue"
 	"github.com/git-bug/git-bug/commands/user"
 )
 
@@ -57,6 +58,7 @@ git remote you are already using to collaborate with other people.
 
 	env := execenv.NewEnv(ctx)
 
+	addCmdWithGroup(issuecmd.NewIssueCommand(env), entityGroup)
 	addCmdWithGroup(bugcmd.NewBugCommand(env), entityGroup)
 	addCmdWithGroup(usercmd.NewUserCommand(env), entityGroup)
 	addCmdWithGroup(newLabelCommand(env), entityGroup)

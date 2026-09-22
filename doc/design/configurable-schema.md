@@ -74,13 +74,13 @@ Once fields exist, those labels are a duplicate model that will drift.
 
 ## Decisions
 
-### D1 — Configuration is CRDT entities under `refs/config/*` (`7c90fbd`)
+### D1 — Configuration is CRDT entities under `refs/work-*` namespaces (`7c90fbd`, `483dbe2`)
 
 Decided: entities, not the worktree file and not a plain blob.
 Two things settle it.
 
 **The machinery is not paid for by the schema alone.**
-The flow catalogue (`b511c63`), saved views (`f37603c`) and rules (`47b8430`)
+The flow catalogue (`b511c63`) and saved views (`f37603c`)
 want exactly what the schema wants:
 to travel with the tracker rather than with a branch,
 to be editable by several people,
@@ -99,8 +99,9 @@ Jira's config endpoints can return unstable ordering,
 so `69b7be0` normalises before comparing.
 
 **Shape.**
-One entity per field, issue type, relation type, flow, view and rule,
-each with a content-derived id at `refs/config/<id>`
+One entity per field, issue type, relation type, flow and view,
+each with a content-derived id under a namespace per kind, `refs/work-schema/<id>` for fields, types and relations,
+`refs/work-views/<id>` and `refs/work-flows/<id>` (`483dbe2`)
 and its kind fixed in its create operation.
 The entity boundary is the coarse merge unit;
 inside a field, enum values are per-item operations,
@@ -137,8 +138,8 @@ Decided instead:
 - The snapshot has a **structural core** and a **fields map**.
   Structural, because it is what the operation log is made of:
   id, author, timestamps, comments, timeline, actors and participants,
-  relations, and the fields map itself.
-  Everything an issue *has* is a field.
+  and the fields map itself.
+  Everything an issue *has* is a field, relations to other issues included.
 - Four fields are **built in**, present in every schema and unremovable,
   because tooling cannot function without them:
   `title` (text), `type`, `status` (enum with category) and `archived` (bool).
@@ -148,10 +149,34 @@ Decided instead:
   assignee, priority, estimate, start and due dates, iteration.
   Labels stop being special and become a freeform `multi-enum` in the presets,
   which is what they are in Jira.
-- Operations: `Create`, `SetField{key, value}`, `AddComment`, `EditComment`,
-  `AddRelation`, `RemoveRelation`, plus dag's `NoOp` and `SetMetadata`.
+- Operations: `Create`, `SetField{key, value}`, `AddValue{key, item}`, `RemoveValue{key, item}`,
+  `AddComment`, `EditComment`, plus dag's `NoOp` and `SetMetadata`.
+  `SetField` replaces a field whole, last writer wins in the dag's order.
+  `AddValue` and `RemoveValue` act on one item of a list-valued field with set semantics,
+  because two people adding two labels, two reviewers or two blocking issues concurrently
+  must both win, which a list-valued `SetField` can not give.
+  git-bug's label change had the same shape for the same reason.
+  A concurrent `SetField` and `AddValue` on one field resolve in lamport order,
+  so a replace that lands last means replace;
+  that is `replace` versus `add` on the array in JSON Patch terms.
   `SetTitleOp`, `SetStatusOp` and `LabelChangeOp` do not exist in the new format.
 - `formatVersion` goes to 5, and the gate in finding 1 refuses old binaries.
+
+**Sequencing (2026-09-22).**
+`entities/issue` is built as a **peer** of `entities/bug`, not a rewrite in place:
+`git work bug` keeps serving the tracker's store while `git work issue` grows,
+so the tracker never stops working during the change,
+and `entities/bug` is deleted only after this repository has migrated.
+The two formats can not share a namespace,
+because the version gate rejects the other's packs,
+so the new entity lives in `refs/work-issues/*`, its final home (`483dbe2`),
+and `entities/bug` took back the typename `bug`
+(in-process only; two subcaches can not share one).
+Entity ids do not depend on the namespace.
+The entity validates shape only
+(keys `^[a-z][a-z0-9_-]*$`, values valid JSON, a title that is a non-empty line and can not be cleared),
+so it does not wait for the schema:
+kind and value checks plug into the cache's write path when `bb9e89e` lands.
 
 **Why the migration is cheap enough to choose.**
 One team, no external clones, and the namespace move already did this once
@@ -165,6 +190,14 @@ and `SetField title` for each `SetTitleOp`,
 with the original author, time and nonce,
 and everyone re-pulls.
 That is `bf6f392`, merged with the label migration it was already doing.
+Two more things the replay has to get right:
+lamport times, which `dag.Entity.Commit` takes from the repository clocks,
+so the packs are replayed in global lamport order
+with the target clocks witnessed to one below each original time;
+and the namespaces: `refs/issues/*` is deleted locally and on origin once replayed,
+and identities move to `refs/work-identities/*` by editing three ref-name constants
+in `entities/identity`, the one listed exception to the pristine seven (`483dbe2`),
+in the same change that deletes `entities/bug`.
 
 **Values are stored by stable id, never by display name.**
 A status is `{id: "in-review", name: "In Review", category: started}` in the schema,
@@ -187,10 +220,12 @@ Field kinds, fixed as `bb9e89e` specifies, plus the additions this design settle
 | `multi-identity` | reviewers, watchers | list of identity ids |
 | `rank` | board and backlog order | LexoRank-style string (`441dcbb`) |
 | `iteration` | sprint, cycle | `entity.Id` of an iteration (D5) |
+| `relation` | parent, and any cardinality-one link | `entity.Id` of an issue (D4) |
+| `multi-relation` | blocks, relates-to | list of issue ids (D4) |
 
 `type` is validated against the type entities rather than a field's values,
 the one special case in the engine.
-Relations are not a kind; they are structural (D4).
+The `multi-*` kinds are the ones `AddValue` and `RemoveValue` apply to.
 
 Manual **rank** (`441dcbb`): a drag computes a key strictly between its neighbours,
 so it touches one issue.
@@ -211,26 +246,42 @@ With D2 none of that exists to keep working:
 the operations are rewritten by the migration,
 `common.Status` is deleted with its 23 files
 as each surface is rewritten by its own story,
-and `status:open` becomes a query-language alias
-for "category is not `completed` or `canceled`" (`3c9c24d`).
+and `status:open` becomes a shorthand of the query language,
+which is jq via gojq over the excerpt JSON (`483dbe2`, `3c9c24d`),
+for "category is not `completed` or `canceled`".
 
 The `open` and `close` verbs survive as porcelain:
 they write `SetField status` with the value the schema names in
 `on_open` and `on_close` on the status field (`config-entity.md` E3).
 
-### D4 — Relations store one side; the inverse is derived (`c090f9b`)
+### D4 — Relations are fields; one side is stored and the inverse is derived (`c090f9b`)
 
-`AddRelation{type, target}` on the issue that "owns" the statement,
+A relation is a field whose kind says the value is an issue id:
+`parent` is a `relation` field set with `SetField`,
+`blocks` a `multi-relation` field edited with `AddValue` and `RemoveValue`.
+The first draft gave relations their own operations and a structural slice on the snapshot,
+on the argument that the target could then be validated as an id
+and inverses derived without the schema.
+Revised 2026-09-22:
+the merge property that argument protected, concurrent adds both surviving,
+is the property every multi-valued field needs,
+so it belongs to the operation set (`AddValue`) and not to relations;
+and target validation and inverse derivation are exactly what
+"found by kind and role" already does for every other field.
+Two operations and a snapshot member disappear, and nothing is lost.
+
+One side is stored, on the issue that "owns" the statement,
 per AGENTS.md:
 no multi-entity commit, so nothing is written to the other side.
 
 The inverse lives in the cache.
-The excerpt carries its relations,
+The excerpt carries its fields,
 all excerpts are in memory,
-so "children of X" is a scan of the excerpt map
+so "children of X" is a scan of the excerpt map over the fields of relation kind,
 built into a reverse index at load and maintained incrementally on update.
-This is why the relation *type* entities have to exist
-before the cache can index them.
+This is why the relation entities have to exist
+before the cache can index them:
+without the schema, a field holding an id is just a string.
 
 - **Cardinality** is enforced at write time only:
   setting a second parent replaces the first
@@ -250,7 +301,7 @@ Sprint planning needs dates, membership, capacity and carry-over,
 which an opaque text field cannot carry;
 `aba17f4` decided on an entity.
 This revision decides *which* entity:
-**the issue entity itself**, instantiated in `refs/iterations`
+**the issue entity itself**, instantiated in `refs/work-iterations`
 through a second `dag.Definition`.
 
 An iteration has a title, fields, comments (the retro lives somewhere),
@@ -312,15 +363,21 @@ so either the preset carries a custom one or decisions become Task plus a marker
 
 ## Order of work
 
-1. `3556569` — the config entities, `schema init`/`export`/`import` on `reconcile`.
-   Everything else reads this.
-2. `bb9e89e` — kinds, roles, built-ins, categories, validation, actionable errors.
-   Pure library.
-3. `5b09ee1` — the owned issue entity: package `issue`, structural core plus fields,
-   `SetField`, relations (`c090f9b` lands inside it or right after),
-   the excerpt and query surfaces of finding 3, `formatVersion` 5.
+1. `5b09ee1` — the owned issue entity as a peer of `entities/bug`:
+   package `issue`, structural core plus fields, `SetField`, `AddValue`/`RemoveValue`
+   (relations are fields, so `c090f9b` is mostly schema work),
+   its cache and its `git work issue` tree, `formatVersion` 5, in `refs/work-issues/*`.
+   First because it needs no schema to validate shape,
+   and because the tracker keeps running on `git work bug` meanwhile.
+   Started 2026-09-22.
+2. `3556569` — the config entities, `schema init`/`export`/`import` on `reconcile`.
+   Everything below reads this.
+3. `bb9e89e` — kinds, roles, built-ins, categories, validation, actionable errors.
+   Pure library, wired into the issue cache's write path.
 4. `bf6f392` — the one-time migration:
-   old operations to new, labels to fields, ids preserved;
+   old operations to new, labels to fields, ids and lamport times preserved;
+   `refs/issues/*` deleted locally and on origin, identities moved to `refs/work-identities/*`;
+   `entities/bug`, `commands/bug` and their cache files deleted;
    `schema init jira` in the same pass; AGENTS.md rewritten.
 5. `87a48c1` — the iteration namespace and its built-ins.
 6. `59fed1c` — both presets and the round-trip table test, last,
@@ -347,6 +404,16 @@ so either the preset carries a custom one or decisions become Task plus a marker
 - D5 made iterations the same entity as issues and capacity a field.
 - The first-class set was named: structural core plus four built-in fields;
   labels demoted to a preset field.
+- Sequencing: `entities/issue` is built as a peer of `entities/bug`,
+  this repository migrates, then `bug` is deleted;
+  the peer lives in `refs/work-issues/*` from the start, and the order of work moved it first.
+- Namespaces carry the `work-` prefix, one per kind, identities included at migration;
+  the query language is jq via gojq over the excerpt JSON;
+  external ids such as Jira keys are immutable aliases in create-op metadata, never entity ids;
+  views are selection plus presentation, flows selection plus actions run on invocation;
+  automation is out of scope, so there are no rules and no triggers (`483dbe2`, `47b8430` closed).
+- Relations lost their own operations and became fields of kind `relation` and `multi-relation`;
+  per-item `AddValue`/`RemoveValue` operations arrived for every multi-valued field (D2, D4).
 
 ## Risks
 
@@ -356,7 +423,7 @@ so either the preset carries a custom one or decisions become Task plus a marker
 - **The engine outgrowing "just configurable enough."**
   The fixed kind list, the closed category set and the closed role set are the guard.
 - **The migration is a flag day.**
-  Every clone re-pulls `refs/issues/*` and `refs/iterations/*`,
+  Every clone re-pulls `refs/work-issues/*` and `refs/work-iterations/*`,
   and an old binary is locked out by design.
   One team makes this an afternoon; do it once, and do it before Jira import (`33148f2`) multiplies the data.
 - **The unverified `jira` preset.**

@@ -1,15 +1,15 @@
 # Config entities (`3556569`)
 
 **Outcome:** every configurable thing in the tracker,
-a field, an issue type, a relation type, a flow, a view, a rule,
-is its own CRDT entity under `refs/config/*`,
+a field, an issue type, a relation type, a flow, a view,
+is its own CRDT entity under a `refs/work-*` namespace,
 so team configuration travels with the tracker,
 merges at the boundary the dag already provides,
 and shows who changed what.
 
 **Serves:** `6555e36` (schema, step 1 of its order of work),
 `17e1d0a` (flows, `b511c63`),
-`3df330f` (views `f37603c`, rules `47b8430`).
+`3df330f` (views `f37603c`).
 `7c90fbd` decided that config is CRDT entities rather than a file;
 this document is the entities themselves.
 
@@ -57,9 +57,16 @@ not a second synchronisation path.
 
 ### E1 — One entity per configurable thing
 
-A field, an issue type, a relation type, a flow, a view and a rule
-are each **one entity**, namespace `config`, ref `refs/config/<id>`,
-with a content-derived id like everything else.
+A field, an issue type, a relation type, a view and a flow
+are each **one entity**, with a content-derived id like everything else,
+in a namespace per kind (`483dbe2`):
+fields, types and relations under `refs/work-schema/<id>`,
+because they form one whole that is imported, exported and reconciled together;
+views under `refs/work-views/<id>`; flows under `refs/work-flows/<id>`.
+One entity type, one `dag.Definition` per namespace, one subcache each;
+the merge tiers run identities, then schema, then issues and iterations, then views and flows.
+Automation is out of scope: a flow runs when invoked and nothing in git-work fires on its own,
+so there is no rule kind, no trigger attribute and no `refs/work-rules` (`47b8430` closed).
 
 This is the dag used as designed.
 The entity boundary is the coarse merge unit:
@@ -100,12 +107,12 @@ and the archived flag.
 Items are the collection a kind carries:
 a field's enum values,
 a type's allowed parents.
-Flows, views and rules carry their document as attributes;
+Flows and views carry their document as attributes;
 their owning tasks say which.
 
 Why generic:
 sections arrive at different times,
-schema in phase 2 and flows, views and rules in phase 4,
+schema in phase 2 and flows and views in phase 4,
 and with kind-specific operations each would be a new op type
 that old binaries read as `dag.UnknownOperation` and skip.
 With generic operations an old binary reads a `view` entity in full,
@@ -134,7 +141,6 @@ type      <id>       name, ordinal, description                   allowed parent
 relation  <key>      name, inverse, cardinality (one|many)        —
 flow      <name>     owned by `b511c63`                           —
 view      <name>     owned by `f37603c`                           —
-rule      <name>     owned by `47b8430`                           —
 ```
 
 Notes on the field attributes:
@@ -160,6 +166,13 @@ A relation entity declares both directions:
 `inverse` is the name the derived side reads as
 (`parent` reads as `child` from the other side, `blocks` as `blocked-by`),
 never a key an issue can write (`configurable-schema.md` D4).
+On the issue, the relation is a field under the relation's key,
+of kind `relation` when the cardinality is one and `multi-relation` otherwise;
+the relation entity is what tells the engine that the string it holds is an issue id.
+
+A field key must also pass the issue entity's structural check,
+`^[a-z][a-z0-9_-]*$`, the stricter of the two slugs;
+the entity's check is frozen, and can only ever be loosened.
 
 Keys and ids are slugs,
 `[a-z0-9][a-z0-9_.-]*`, at most 64 characters.
@@ -243,7 +256,7 @@ per `bb9e89e`:
 - items exist only on kinds that have them;
 - a built-in's kind is not changed and a built-in is not archived;
 - `inverse` names are unique across relation entities and collide with no key;
-- flow, view and rule attributes are checked by a validator their owning package registers;
+- flow and view attributes are checked by a validator their owning package registers;
   a kind with no validator is accepted as written.
 
 Cross-entity references, `allowed_parents` naming a type
@@ -285,7 +298,7 @@ Nothing needs a ref deleted.
 - `MergeAll` runs identities, then config, then issues and iterations.
   Issue merges do not consult the schema (D6),
   so this ordering costs nothing and keeps a door open.
-- `Fetch` and `Push` pick up `refs/config/*` from the subcache list unchanged,
+- `Fetch` and `Push` pick up the `refs/work-*` config namespaces from the subcache list unchanged,
   so `git work push` and `pull` carry configuration with no new code.
 - The ref watcher already refreshes every subcache (`cache/watcher.go:114`),
   so a status someone else adds appears in an open GUI as a new column.
@@ -378,7 +391,7 @@ git work schema log [key]       config operations, rendered by kind and key
 git work schema rm <key>        archive a field, type or relation (E7)
 ```
 
-`flow`, `view` and `rule` commands (`b511c63`, `52a2797`)
+`flow` and `view` commands (`b511c63`, `52a2797`)
 create and edit entities of their kinds through the same `Update`
 and are not part of this task.
 
@@ -404,7 +417,7 @@ commands/schema/   the surface in E10
 
 The first draft (2026-09-21) put everything in one entity
 as a flat map of paths with per-path last-writer-wins and prefix removes,
-arguing that views name fields and rules name statuses
+arguing that views name fields and flows name statuses
 and so want one consistent snapshot.
 Consistency across anything in this store is eventual,
 and a view naming a renamed field dangles either way,
@@ -421,11 +434,11 @@ Many entities need neither.
 
 Recorded on the tasks as well, per the working conventions:
 
-- `configurable-schema.md` D1: many entities under `refs/config/*`, not one under `refs/work/*`;
+- `configurable-schema.md` D1: many entities under `refs/work-schema/*`, `refs/work-views/*` and `refs/work-flows/*`, not one singleton;
   six generic operations, not the enumerated list;
   types carry `ordinal`, not `rank`.
 - `b511c63`, `f37603c`, `47b8430`, `52a2797`:
-  a flow, a view, a rule is an entity of that kind,
+  a flow, a view is an entity of that kind,
   created and edited with the generic operations;
   each owner supplies the attribute set and a validator.
 - `bb9e89e`: built-ins in code with configurable overrides;
@@ -435,7 +448,7 @@ Recorded on the tasks as well, per the working conventions:
 
 ## Done when
 
-- `git work schema init jira` creates one `refs/config/*` entity per field, type and relation,
+- `git work schema init jira` creates one `refs/work-schema/*` entity per field, type and relation,
   and `git work schema` prints the preset back;
 - `schema export | schema import` emits zero operations;
   editing one value and importing emits one;

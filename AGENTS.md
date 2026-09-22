@@ -6,7 +6,8 @@ evolving into a project-management tool
 with **Jira as a first-class sync backend**.
 
 We **dogfood**:
-this project's own tasks live in its own git-bug store (`refs/issues/*`),
+this project's own tasks live in its own git-bug store
+(`refs/issues/*`, moving to `refs/work-issues/*` with `bf6f392`),
 managed with the locally-built `git work`.
 
 ## The pristine-library boundary (read first)
@@ -24,19 +25,24 @@ All new work goes **above** this line:
 the generalized `issue` entity, the PM schema, bridge changes,
 and the new harness
 (`entities/`, `cache/`, `query/`, `commands/`, `bridge/`, a new TUI).
-`entities/bug` is **ours**, not pristine:
-it becomes `entities/issue` with our own model and operation set,
-and its on-disk format is migrated once rather than kept compatible
+`entities/bug` is **ours**, not pristine.
+Its successor `entities/issue` carries our own model and operation set
+and is built as a **peer**: both are live until the store is migrated once
+(`bf6f392`), then `entities/bug` and `commands/bug` are deleted
 (`f4bac00`, 2026-09-22).
 Cherry-picking upstream fixes into `cache/` and `bridge/` is not a goal.
 If you believe you must edit a pristine package, **stop and flag it** —
 it breaks upstream tracking and is a real architectural decision.
+One such decision is on record:
+the migration (`bf6f392`) changes three ref-name constants in `entities/identity`
+so identities live at `refs/work-identities` like every other namespace (`483dbe2`);
+nothing else in the seven is touched.
 
 Design consequence:
 there is **no atomic multi-entity commit**
 (`dag.Entity.Commit` writes one ref).
-Model cross-issue relationships (parent, dependencies) as ops
-that store the other issue's `entity.Id` and resolve via `entity.Resolvers` —
+Model cross-issue relationships (parent, dependencies) as fields
+whose value is the other issue's `entity.Id`, resolved via `entity.Resolvers` —
 eventually-consistent, not transactional.
 This matches Jira's behavior and is sufficient;
 do not add core batch commits.
@@ -59,28 +65,46 @@ go build -o git-work .
 
 ## Operating the tracker
 
-The CLI is namespaced;
-task commands live under `git work issue`
-(`bug` remains as an alias while the CLI is reshaped; `be69e67`).
+The CLI is namespaced, and **two trees coexist** while the store migrates:
+`git work bug` operates on the tracker's current store
+(`refs/issues/*`, old format) and is what the table below uses;
+`git work issue` operates on the new entity
+(`refs/work-issues/*`, empty in this repo until `bf6f392`).
+After the migration the table switches to `issue` and `bug` is deleted.
 Forms below are verified against 0.10.x.
 
 | Action | Command |
 | --- | --- |
-| List all | `git work issue` |
-| Filter | `git work issue --label phase:2-bridge` · `--status open` |
-| Query | `git work issue status:open sort:edit-desc` · `git work issue "text"` |
-| Create | `git work issue new -t "Title" -m "Body"` → `<id> created` |
-| Show | `git work issue show <id>` |
-| Add label(s) | `git work issue label new <id> <label> [<label>…]` |
-| Remove label | `git work issue label rm <id> <label>` |
-| Close / reopen | `git work issue status close <id>` · `status open <id>` |
-| Comment | `git work issue comment new <id> -m "…"` |
-| Sync | `git work push` · `git work pull` (writes/reads `refs/issues/*`) |
+| List all | `git work bug` |
+| Filter | `git work bug --label phase:2-bridge` · `--status open` |
+| Query | `git work bug status:open sort:edit-desc` · `git work bug "text"` |
+| Create | `git work bug new -t "Title" -m "Body"` → `<id> created` |
+| Show | `git work bug show <id>` |
+| Add label(s) | `git work bug label new <id> <label> [<label>…]` |
+| Remove label | `git work bug label rm <id> <label>` |
+| Close / reopen | `git work bug status close <id>` · `status open <id>` |
+| Comment | `git work bug comment new <id> -m "…"` |
+| Sync | `git work push` · `git work pull` (both namespaces) |
 | Interactive | `git work termui` (TTY) · `git work webui` (webui build); becoming `tui` and `gui` (8b06191) |
+
+The new tree, plumbing with explicit ids and no editor
+(the JSON Patch shape of `e8d6426` is still to come):
+
+| Action | Command |
+| --- | --- |
+| Create | `git work issue new -t "Title" -m "Body" --set status=open --set estimate=3` |
+| Show | `git work issue show <id>` · `--format json` |
+| Set a field | `git work issue set <id> <key> <value>` (`null` clears) |
+| Add / remove an item | `git work issue set <id> <key> --add <item>` · `--remove <item>` (set semantics; relations of many cardinality too) |
+| Comment | `git work issue comment new <id> -m "…"` · `comment edit <comment-id> -m "…"` |
+| List | `git work issue [--label x] [--format json]`; `status:` filters wait for the schema |
+
+Values are JSON when they parse as JSON (`3`, `true`, `["a","b"]`, `null`)
+and strings otherwise (`closed`).
 
 Gotchas, hardened from use:
 
-- `ls` is not a command; the list is the bare `git work issue`.
+- `ls` is not a command; the list is the bare `git work bug`.
 - No `user new` needed:
   the first mutating command sets your identity from git's `user.name`/`user.email`,
   adopting an existing identity with that email or creating one
@@ -122,32 +146,43 @@ Settled calls (details live in the referenced issues):
 - `git work issue *` is **plumbing, agent-first**: JSON out by default,
   RFC 6902 JSON Patch in (`e8d6426`).
   `git work flow *` is porcelain, one verb per workflow (`b511c63`).
+- The query language is **jq**, via gojq, over the same JSON `--format json`
+  prints; saved views are jq programs (`483dbe2`, `3c9c24d`).
+  External ids such as Jira keys are immutable **aliases** kept in create-op
+  metadata and accepted wherever an id is; the entity id stays the hash (`483dbe2`).
 - Schema is *just configurable enough* to represent both Jira's and
   Linear's native models: fixed field kinds, configurable values;
   parent is a cardinality-1 relation (`bb9e89e`, `c090f9b`, `59fed1c`).
   An issue is a structural core (id, author, comments, timeline,
-  participants, relations) plus a fields map; four fields are built in and
+  participants) plus a fields map; four fields are built in and
   unremovable — `title`, `type`, `status`, `archived` — and everything else,
   labels included, is preset config found by kind and role, never by key
   (`f4bac00`).
-  Iterations are the same entity in `refs/iterations`, with their own
+  Iterations are the same entity in `refs/work-iterations`, with their own
   fields; capacity is a field, not first class (`aba17f4`, `87a48c1`).
   Manual rank is a LexoRank-style fractional index ordered by `(rank, id)`,
   so concurrent drags both survive (`441dcbb`).
-- Schema, flows, saved views and automation rules are **config entities**
-  under `refs/config/*`, one per field, type, relation, flow, view or rule,
-  so the entity boundary is the merge unit; inside a field, values are
-  per-item ops, so two people adding two statuses both survive
-  (`7c90fbd`, `3556569`, `3df330f`). Removal is an archive op.
-  Automation has no daemon either: rules fire opportunistically and from live
-  views, with a scheduled backstop, so actions are idempotent (`221b629`).
+- Schema, saved views and flows are **config entities**, one per field, type,
+  relation, view or flow, under `refs/work-schema`, `refs/work-views` and
+  `refs/work-flows`, so the entity boundary is the merge unit; inside a field,
+  values are per-item ops, so two people adding two statuses both survive
+  (`7c90fbd`, `3556569`, `3df330f`, `483dbe2`). Removal is an archive op.
+  A view is a selection (jq program plus sort) with a presentation; a flow is a
+  selection with actions, run when someone invokes it (`b511c63`, `f37603c`).
+  **Automation is out of scope**: no daemon, no scheduler, no trigger inside
+  git-work. Anything periodic is an external cron calling the CLI
+  (`47b8430` closed, `483dbe2`).
 - Concurrency: no daemon. Lock-free readers, a short write lock,
   ref→hash staleness diff, a ref watcher for live views (`d35de2e`, `d591cb3`, `63c68d1`).
   Bleve is dropped; search is a non-goal (`3500366`).
-- Entity namespace is `refs/issues` (`be69e67`). The store is **migrated
+- Ref namespaces carry the `work-` prefix: `refs/work-issues`,
+  `work-iterations`, `work-schema`, `work-views`, `work-flows`, and
+  `work-identities` after the migration (`483dbe2`). The store is **migrated
   once** to the owned format with entity and comment ids preserved, and
   `formatVersion` bumps so old binaries refuse it rather than misread it
-  (`f4bac00`, `bf6f392`).
+  (`f4bac00`, `bf6f392`). Until then the tracker sits in `refs/issues` in the
+  old format and the new entity in `refs/work-issues`, because the version
+  gate keeps the two formats out of one namespace.
 - Jira sync is bidirectional and **Jira is canonical**: 3-way per field,
   Jira wins on double-edit (`3c6d07a`).
   This repo dogfoods the `jira` preset with no Jira instance behind it, because
@@ -177,7 +212,7 @@ onto real fields and rewrites what you are reading.
 Two levels for now: **stories** (outcomes, roughly one per workflow) contain
 **tasks** and **decisions**. Titles carry the level for easy scanning:
 `Story: …`, `Task: …`, `Decision: …`.
-A story's body lists its tasks; `git work issue --label story:<id>` lists them live.
+A story's body lists its tasks; `git work bug --label story:<id>` lists them live.
 Stories carry `type:story` and an `area:`, not a phase.
 
 Phases are ordered by dependency, not calendar:
@@ -202,10 +237,10 @@ and the mutate path both rest on it.
 - Every write goes through `cache/`.
   The no-lost-operations guarantee rests on the write lock and the re-read
   inside it (`d35de2e`, `2a51f66`); `dag.Entity.Commit` ends in an
-  unconditional `UpdateRef`, so anything writing `refs/issues/*` from outside
+  unconditional `UpdateRef`, so anything writing the entity refs from outside
   — a stray `git update-ref`, a second implementation — silently erases
   concurrent work. Reads are unrestricted and take no lock.
-- On finishing a task, close its issue (`git work issue status close <id>`)
+- On finishing a task, close its issue (`git work bug status close <id>`)
   and reference the id in the commit message.
   Decisions get closed too, once the decision and its reasoning are recorded
   on the issue.

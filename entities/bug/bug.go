@@ -20,7 +20,10 @@ var _ entity.Interface = &Bug{}
 // 4: with DAG entity framework
 const formatVersion = 4
 
-const Typename = "issue"
+// Typename went back to "bug" when entities/issue arrived as a peer (f4bac00):
+// the typename is in-process only, and two subcaches can not share one.
+// Namespace stays where the data is until the migration (bf6f392).
+const Typename = "bug"
 const Namespace = "issues"
 
 var def = dag.Definition{
