@@ -10,6 +10,7 @@ import (
 
 	"github.com/git-bug/git-bug/commands/execenv"
 	"github.com/git-bug/git-bug/flow/run"
+	"github.com/git-bug/git-bug/view"
 )
 
 // ErrNoRenderer is what --gui and a spec in a terminal both hit today.
@@ -91,12 +92,32 @@ func runFlowRun(env *execenv.Env, opts flowRunOptions, args []string) error {
 
 	switch opts.format {
 	case "json":
-		return env.Out.PrintJSON(value)
+		return printSpecOrJSON(env, raw, value)
 	case "text":
 		return printText(env, value)
 	default:
 		return fmt.Errorf("unknown format %s", opts.format)
 	}
+}
+
+// printSpecOrJSON prints what a flow returned,
+// and prints a spec the way `git work view` prints one.
+//
+// A spec reaching here has been through a `map[string]any`, whose keys marshal
+// alphabetically, so printing the decoded value would put `bindings` before
+// `view` while the view command prints the struct's own order. The two paths
+// build the same spec and must print the same bytes (`52a2797`), so a spec is
+// decoded back into one before it goes out.
+func printSpecOrJSON(env *execenv.Env, raw json.RawMessage, value any) error {
+	if view.IsSpec(value) {
+		spec := &view.Spec{}
+		if err := json.Unmarshal(raw, spec); err != nil {
+			return err
+		}
+		return env.Out.PrintJSON(spec)
+	}
+
+	return env.Out.PrintJSON(value)
 }
 
 // readKwargs reads the optional JSON object of arguments.

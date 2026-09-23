@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/git-bug/git-bug/commands/execenv"
+	viewcmd "github.com/git-bug/git-bug/commands/view"
 )
 
 // runnableFlow creates two issues, edits one and returns a board of them.
@@ -54,6 +55,40 @@ func TestFlowRunJSON(t *testing.T) {
 
 	// the writes really happened, through the cache
 	require.Len(t, env.Backend.Issues().AllIds(), 2)
+}
+
+// TestFlowRunPrintsASpecAsTheViewCommandDoes pins the one contract two
+// printers share: a spec is a spec whichever half of the pipe built it.
+func TestFlowRunPrintsASpecAsTheViewCommandDoes(t *testing.T) {
+	env := newTestEnv(t)
+	importScript(t, env, "kanban.star", runnableFlow)
+
+	env.Out.Reset()
+	require.NoError(t, runFlowRun(env, flowRunOptions{format: "json"}, []string{"kanban"}))
+	fromFlow := env.Out.String()
+	require.True(t, strings.Index(fromFlow, `"view"`) < strings.Index(fromFlow, `"bindings"`),
+		"a spec prints in the struct's order, not the map's")
+
+	// the same items and bindings, through `git work view board`
+	var spec struct {
+		Items []any `json:"items"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(fromFlow), &spec))
+	items, err := json.Marshal(spec.Items)
+	require.NoError(t, err)
+
+	viewEnv := execenv.NewTestEnv(t)
+	_, err = viewEnv.In.(*execenv.TestIn).Write(items)
+	require.NoError(t, err)
+	viewEnv.Out.Reset()
+
+	cmd := viewcmd.NewViewCommand(viewEnv)
+	cmd.SetArgs([]string{"board", `{"columns":"status"}`})
+	cmd.SetOut(viewEnv.Out)
+	cmd.SetErr(viewEnv.Err)
+	require.NoError(t, cmd.Execute())
+
+	require.Equal(t, fromFlow, viewEnv.Out.String())
 }
 
 func TestFlowRunKwargsFromTheArgument(t *testing.T) {
