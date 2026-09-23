@@ -1,0 +1,215 @@
+# The jira preset: Jira's native model as git-work config (59fed1c, D7).
+#
+# This repository dogfoods it with no Jira instance behind it, because an
+# unverified preset exercised daily beats one exercised never: expect it to be
+# wrong in small ways until it meets a real instance.
+#
+# `shared` is authoring only. The YAML parser expands every anchor, and the
+# store holds one entity per (type, field): `task/status` and `epic/status` are
+# two entities that can diverge, which is Jira's own model of per-type field
+# configurations and workflows (e7e58f2).
+preset: jira
+
+shared:
+  # One workflow for every work type. Jira's four states plus a backlog and a
+  # cancellation, so that all five categories are exercised; everything keyed
+  # on "is this done" reads the category, never the name (D2).
+  status: &status
+    kind: enum
+    name: Status
+    description: Where the work stands.
+    values:
+      - {id: backlog,     name: Backlog,     category: backlog}
+      - {id: to-do,       name: To Do,       category: unstarted}
+      - {id: in-progress, name: In Progress, category: started}
+      - {id: in-review,   name: In Review,   category: started}
+      - {id: done,        name: Done,        category: completed}
+      - {id: canceled,    name: Canceled,    category: canceled}
+
+  priority: &priority
+    kind: ordinal-enum
+    name: Priority
+    description: Jira's five priorities, most urgent first.
+    values:
+      - {id: highest, name: Highest}
+      - {id: high,    name: High}
+      - {id: medium,  name: Medium}
+      - {id: low,     name: Low}
+      - {id: lowest,  name: Lowest}
+
+  assignee: &assignee
+    kind: identity
+    name: Assignee
+    description: Who is doing the work.
+
+  # Freeform, because Jira's labels are: anything typed in becomes a label.
+  labels: &labels
+    kind: multi-enum
+    name: Labels
+    description: Free tags; the preset ships none and anything is accepted.
+    freeform: true
+
+  estimate: &estimate
+    kind: number
+    name: Story points
+    description: The estimate a sprint's capacity is measured in.
+
+  due: &due
+    kind: date
+    name: Due date
+
+  rank: &rank
+    kind: rank
+    name: Rank
+    description: Manual board and backlog order, sorted by (rank, id).
+
+  # One side is stored and the inverse is derived (D4): `blocked_by` is what
+  # the other issue reads, never a key an issue writes.
+  blocks: &blocks
+    kind: multi-relation
+    name: Blocks
+    inverse: blocked_by
+
+  sprint: &sprint
+    kind: relation
+    name: Sprint
+    description: The iteration this issue is committed to.
+    inverse: issues
+    target_types: [iteration]
+
+types:
+  initiative:
+    name: Initiative
+    description: A quarter-scale outcome, above epics.
+    fields:
+      status: *status
+      priority: *priority
+      assignee: *assignee
+      labels: *labels
+      due: *due
+      blocks: *blocks
+      rank: *rank
+
+  epic:
+    name: Epic
+    description: A body of work delivered by stories and tasks.
+    fields:
+      status: *status
+      priority: *priority
+      assignee: *assignee
+      labels: *labels
+      estimate: *estimate
+      due: *due
+      parent:
+        kind: relation
+        name: Parent initiative
+        inverse: children
+        target_types: [initiative]
+      blocks: *blocks
+      rank: *rank
+
+  story:
+    name: Story
+    description: A user-facing change, estimated and sprinted.
+    fields:
+      status: *status
+      priority: *priority
+      assignee: *assignee
+      labels: *labels
+      estimate: *estimate
+      due: *due
+      parent:
+        kind: relation
+        name: Epic
+        inverse: children
+        target_types: [epic]
+      iteration: *sprint
+      blocks: *blocks
+      rank: *rank
+
+  task:
+    name: Task
+    description: Work that is not a user-facing story.
+    fields:
+      status: *status
+      priority: *priority
+      assignee: *assignee
+      labels: *labels
+      estimate: *estimate
+      due: *due
+      parent:
+        kind: relation
+        name: Parent
+        inverse: children
+        target_types: [epic, story]
+      iteration: *sprint
+      blocks: *blocks
+      rank: *rank
+
+  bug:
+    name: Bug
+    description: Something that does not work.
+    fields:
+      status: *status
+      priority: *priority
+      assignee: *assignee
+      labels: *labels
+      estimate: *estimate
+      due: *due
+      parent:
+        kind: relation
+        name: Epic
+        inverse: children
+        target_types: [epic]
+      iteration: *sprint
+      blocks: *blocks
+      rank: *rank
+
+  subtask:
+    name: Sub-task
+    description: One unit of a story or a task; an agent owns one, with one PR.
+    fields:
+      status: *status
+      priority: *priority
+      assignee: *assignee
+      labels: *labels
+      estimate: *estimate
+      due: *due
+      parent:
+        kind: relation
+        name: Parent
+        inverse: children
+        target_types: [story, task]
+      iteration: *sprint
+      blocks: *blocks
+      rank: *rank
+
+  # An iteration is an issue type, not a namespace (D5): it has a title,
+  # comments for the retro, and dates and capacity as ordinary fields.
+  iteration:
+    name: Sprint
+    description: A time-boxed iteration; Jira's sprint, Linear's cycle.
+    fields:
+      status:
+        kind: enum
+        name: State
+        description: Jira's sprint states.
+        values:
+          - {id: future, name: Future, category: unstarted}
+          - {id: active, name: Active, category: started}
+          - {id: closed, name: Closed, category: completed}
+      start:
+        kind: date
+        name: Start date
+      end:
+        kind: date
+        name: End date
+      capacity:
+        kind: number
+        name: Capacity
+        description: Story points the team commits to, in the unit estimate uses.
+      rank: *rank
+
+# TODO(59fed1c): the linear preset — Backlog/Todo/In Progress/Done/Canceled
+# statuses, `project` where this has `epic`, `cycle` where this has `iteration`
+# — earns its place in the round-trip table test of that task.
