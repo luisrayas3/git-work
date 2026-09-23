@@ -109,6 +109,34 @@ Every id position takes an id prefix or an alias —
 `git work issue new '{"fields":{"title":"…"},"aliases":{"jira":"PROJ-12"}}'` —
 and a writer prints an id or nothing at all.
 
+**Issue writes are validated against the schema** as soon as one type exists
+(`bb9e89e`): `new` needs a known `type`, a key that is not a field of that type
+is refused naming the ones that are, and a value is checked by kind — an enum
+value against the field's ids, a relation against its `target_types`. Every
+problem is reported at once, and the check happens at planning time, so
+`--dry-run` refuses what a commit would. With no type defined nothing is
+checked, and `--dry-run` says so on stderr.
+
+The schema itself, types and fields under `refs/work-schema`
+(`3556569`, `bb9e89e`, design in `doc/design/config-entity.md`):
+
+| Action | Command |
+| --- | --- |
+| Show | `git work schema` · `--format json` (alias of `export`) |
+| Bootstrap | `git work schema init [jira]` → prints the created ids; refuses if any field exists |
+| Round trip | `git work schema export > schema.yaml` · `git work schema import schema.yaml` (writes only what differs; a no-op when nothing did) |
+| Import a partial file | `git work schema import FILE\|- [--prune] [--dry-run]`; an upsert unless `--prune`, which archives what the file omits |
+| History | `git work schema log [KEY]` · `--format text`; one JSON object per line |
+| Archive / remove | `git work schema archive <key>` (an operation, replicated) · `git work schema rm <key>` (the local ref only) |
+
+A field's KEY is `<type>/<field>`: every field belongs to exactly one type, so
+`task/status` and `epic/status` are two entities (`e7e58f2`). `title`, `type`
+and `archived` are built in on every type and appear in the file only when an
+entity overrides a name or a description. List position is the order — the file
+carries no ordinals — and `shared:` is YAML anchors the parser expands, never
+written back. Keys defined twice by two clones (`E7`) are reported on stderr by
+every schema command.
+
 Flows, the config entities of `refs/work-flows` (`b511c63`, `3556569`).
 A flow is one Starlark function:
 its name is the flow's name, its docstring the description,

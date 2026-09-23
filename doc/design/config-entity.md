@@ -261,7 +261,7 @@ because tooling cannot function without them
 `archived` to know what the default listing hides.
 They are defined in code, in `schema.Builtins`.
 Status is **not** built in (`d56e6f1`):
-it is a preset field of kind `enum-with-category` on every work type,
+it is a preset field of kind `enum` on every work type,
 and behaviour keyed on categories applies where a type has one.
 
 A field entity whose key is a built-in
@@ -377,11 +377,24 @@ and the entity returns on the next pull (E10).
   so `git work push` and `pull` carry configuration with no new code.
 - The ref watcher already refreshes every subcache (`cache/watcher.go:114`),
   so a status someone else adds appears in an open GUI as a new column.
-- `RepoCache.Schema()` compiles the built-ins plus every unarchived type and field entity
-  into one `*schema.Schema`,
-  memoised by the set of config ref hashes,
-  rebuilt on update and refresh.
+- `RepoCache.LoadSchema()` compiles the built-ins plus every unarchived type and field entity
+  into one `*schema.Schema`.
+  It is **not** called `Schema()`:
+  that name is the work-schema subcache's,
+  and the two are different things —
+  the subcache is the entities, the schema is what they mean.
+  Nothing is memoised (implemented 2026-09-23):
+  the excerpts are in memory already and a schema is a few dozen small documents,
+  so compiling on demand is cheaper than a memo
+  that can go stale behind the ref watcher.
+  `schema.Load` takes a `Source`, the one-method interface the subcache satisfies,
+  rather than the cache itself,
+  because the cache validates writes against a schema and so imports `schema`:
+  naming the cache there would close the cycle.
+- `RepoCache.Checker()` is that schema plus the two lookups a value check needs,
+  whether an identity exists and what type an issue is.
   Issue-write validation (`5b09ee1`, `bb9e89e`) calls it from `cache`,
+  at planning time so that `--dry-run` reports what a commit would refuse,
   which keeps `entities/issue` free of any import of `schema` or `config`.
 
 ### E9 — Export, import and `reconcile`
@@ -392,7 +405,7 @@ The document a human edits is a view over the entities:
 preset: jira
 shared:
   status: &status
-    kind: enum-with-category
+    kind: enum
     name: Status
     values:
       - {id: to-do,       name: To Do,       category: unstarted}
@@ -430,6 +443,32 @@ types:
 
 `shared` is authoring only, YAML anchors for the human writing the file;
 the store holds one `status` entity per type.
+
+The shape, as implemented (2026-09-23):
+
+- `types` is a mapping of type key to `{name, description, fields}`,
+  and `fields` a mapping of field key to
+  `{kind, name, description, freeform, inverse, target_types, values}`.
+  `kind` is the only member a field must have.
+  A value is `{id, name, category, description, color}`,
+  and its `id` is what an operation stores.
+  The entity key is the two mapping keys joined, `<type>/<field>`.
+- **Mapping and list position is the order**, at all three levels,
+  so `ordinal` appears nowhere in the file, written or exported.
+  Import reads the order of a mapping
+  by decoding the same node twice, once for its keys and once for its values;
+  goccy expands every alias before handing over a node's bytes,
+  so an anchored field reads exactly as a spelled-out one does.
+- `preset` is informational.
+  Nothing in the store records which preset a schema came from,
+  so import accepts the key and export never writes it,
+  as it never writes `shared`.
+- An unknown key anywhere in the document is an error, never a silent no-op,
+  the rule every document argument follows (`cli-convention.md`).
+- A built-in key may appear, to override its `name` and `description`;
+  its `kind` is code, and a document that changes it is refused (E4).
+  A built-in with no entity is never exported,
+  because importing it back would create an entity that changes nothing.
 
 Flows are authored the same way, one function per file:
 

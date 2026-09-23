@@ -144,7 +144,7 @@ Decided instead:
   because tooling cannot function without them:
   `title` (text), `type` (a type id) and `archived` (bool).
   Status is **not** built in (`d56e6f1`, 2026-09-23):
-  it is a preset field of kind `enum-with-category` on every work type,
+  it is a preset field of kind `enum` on every work type,
   and everything keyed on categories, hiding done work, `status:open`, the weekly report,
   Jira's resolution, applies where a type has one and degrades to "never done" where it does not.
   Archived is the guaranteed default-listing filter (`4d61ebe`):
@@ -218,7 +218,7 @@ Field kinds, fixed as `bb9e89e` specifies, plus the additions this design settle
 | Kind | Used by | Value in the op |
 | --- | --- | --- |
 | `text` | title, free text | string |
-| `enum-with-category` | status | value id |
+| `enum` | status, and any closed list of values | value id |
 | `ordinal-enum` | priority | value id |
 | `bool` | archived | bool |
 | `number` | estimate, story points, capacity | float64 |
@@ -233,6 +233,14 @@ Field kinds, fixed as `bb9e89e` specifies, plus the additions this design settle
 `type` is validated against the type entities rather than a field's values,
 the one special case in the engine.
 The `multi-*` kinds are the ones `AddValue` and `RemoveValue` apply to.
+
+The kind named `enum-with-category` when this was written is just `enum`
+(implemented 2026-09-23):
+a category is a property of a *value*, which every enum value may carry,
+so a second kind for "an enum whose values have categories"
+would have been a kind for a value's optional attribute.
+`ordinal-enum` stays a kind of its own because it says the values are ranked,
+which is a property of the field.
 
 Manual **rank** (`441dcbb`): a drag computes a key strictly between its neighbours,
 so it touches one issue.
