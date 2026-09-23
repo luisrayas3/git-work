@@ -4,6 +4,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/git-bug/git-bug/commands/execenv"
+	"github.com/git-bug/git-bug/host"
 )
 
 func newSchemaRmCommand(env *execenv.Env) *cobra.Command {
@@ -29,10 +30,5 @@ KEY is a type key or a field key, <type>/<field>.`,
 func runSchemaRm(env *execenv.Env, args []string) error {
 	warnDuplicates(env)
 
-	cached, err := resolveKey(env, args[0])
-	if err != nil {
-		return err
-	}
-
-	return env.Backend.Schema().Remove(cached.Id().String())
+	return host.SchemaRm(env.Backend, args[0])
 }

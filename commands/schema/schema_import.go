@@ -4,6 +4,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/git-bug/git-bug/commands/execenv"
+	"github.com/git-bug/git-bug/host"
 	"github.com/git-bug/git-bug/schema"
 )
 
@@ -63,27 +64,18 @@ func runSchemaImport(env *execenv.Env, opts importOptions, args []string) error 
 }
 
 // importDocument is the whole of an import, shared with `schema init`:
-// validate everything, compute what differs, then write it.
+// the host validates, reconciles and writes, and this prints what it returned.
+//
+// The ids created before a failure are printed too, because they are in the
+// store whether the rest of the import landed or not.
 func importDocument(env *execenv.Env, doc *schema.Document, opts importOptions) error {
 	warnDuplicates(env)
 
-	if err := doc.Validate(storeTypeKeys(env)); err != nil {
-		return err
-	}
-
-	current, err := env.Backend.Schema().SchemaEntries()
+	changes, created, err := host.SchemaImport(env.Backend, doc, opts.prune, opts.dryRun)
 	if err != nil {
+		printIds(env, created)
 		return err
 	}
 
-	changes, err := schema.Reconcile(doc, current, opts.prune)
-	if err != nil {
-		return err
-	}
-
-	if opts.dryRun {
-		return printChanges(env, changes)
-	}
-
-	return applyChanges(env, changes)
+	return printImport(env, opts.dryRun, changes, created)
 }

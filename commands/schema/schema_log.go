@@ -7,9 +7,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/git-bug/git-bug/cache"
 	"github.com/git-bug/git-bug/commands/cmdjson"
 	"github.com/git-bug/git-bug/commands/execenv"
+	"github.com/git-bug/git-bug/host"
 	"github.com/git-bug/git-bug/util/colors"
 )
 
@@ -51,34 +51,19 @@ git work schema log task/status`,
 func runSchemaLog(env *execenv.Env, opts logOptions, args []string) error {
 	warnDuplicates(env)
 
-	var entities []*cache.ConfigCache
-
+	key := ""
 	if len(args) == 1 {
-		cached, err := resolveKey(env, args[0])
-		if err != nil {
-			return err
-		}
-		entities = append(entities, cached)
-	} else {
-		for _, excerpt := range env.Backend.Schema().Query(cache.ConfigQuery{IncludeArchived: true}) {
-			cached, err := env.Backend.Schema().Resolve(excerpt.Id())
-			if err != nil {
-				return err
-			}
-			entities = append(entities, cached)
-		}
+		key = args[0]
 	}
 
-	for _, cached := range entities {
-		snap := cached.Snapshot()
-		for _, op := range snap.AllOperations() {
-			entry, err := cmdjson.NewConfigOperation(snap, op)
-			if err != nil {
-				return err
-			}
-			if err := printOperation(env, opts.format, entry); err != nil {
-				return err
-			}
+	entries, err := host.SchemaLog(env.Backend, key)
+	if err != nil {
+		return err
+	}
+
+	for _, entry := range entries {
+		if err := printOperation(env, opts.format, entry); err != nil {
+			return err
 		}
 	}
 

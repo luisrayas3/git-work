@@ -8,10 +8,11 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/git-bug/git-bug/cache"
 	"github.com/git-bug/git-bug/commands/completion"
 	"github.com/git-bug/git-bug/commands/execenv"
 	"github.com/git-bug/git-bug/entities/config"
+	"github.com/git-bug/git-bug/entity"
+	"github.com/git-bug/git-bug/host"
 	"github.com/git-bug/git-bug/schema"
 )
 
@@ -21,34 +22,14 @@ import (
 // entity boundary leaves (E7). The winner is deterministic, and saying so is
 // the difference between a team repairing it and a team losing an edit.
 func warnDuplicates(env *execenv.Env) {
-	for _, excerpt := range env.Backend.Schema().AllDuplicates() {
-		env.Err.Printf("warning: %s %s is defined twice; %s is ignored, archive or import it\n",
-			excerpt.Shape, excerpt.Key, excerpt.Id().Human())
-	}
+	warn(env, host.SchemaDuplicates(env.Backend))
 }
 
-// warnProblems prints what compiling the schema could not make sense of.
-//
-// A read never fails on what was written before (D6), so a dangling target
-// type or an unreadable attribute is said out loud and nothing more.
-func warnProblems(env *execenv.Env, s *schema.Schema) {
-	for _, problem := range s.Problems {
-		env.Err.Printf("warning: %s\n", problem)
+// warn prints what the host said a reader should be told.
+func warn(env *execenv.Env, warnings []string) {
+	for _, warning := range warnings {
+		env.Err.Printf("warning: %s\n", warning)
 	}
-}
-
-// loadSchema is the reader's first step: the live schema, with whatever it
-// could not read and whichever keys are defined twice reported on stderr.
-func loadSchema(env *execenv.Env) (*schema.Schema, error) {
-	warnDuplicates(env)
-
-	s, err := env.Backend.LoadSchema()
-	if err != nil {
-		return nil, err
-	}
-	warnProblems(env, s)
-
-	return s, nil
 }
 
 // readArg returns an argument's file, or standard input when it is "-".
@@ -67,66 +48,24 @@ func readArg(env *execenv.Env, arg string) ([]byte, error) {
 	return data, nil
 }
 
-// applyChanges writes what reconcile computed, one entity at a time.
-//
-// An import that touches five entities is five commits: there is no atomic
-// multi-entity commit in this store, and there does not need to be, because
-// each entity is valid on its own at every step (E9).
-// Only the ids of created entities reach stdout (cli-convention.md).
-func applyChanges(env *execenv.Env, changes []schema.Change) error {
-	for _, change := range changes {
-		if err := applyChange(env, change); err != nil {
-			return fmt.Errorf("%s %s: %w", change.Shape, change.Key, err)
-		}
+// printImport is the end of import and of init: --dry-run prints the changes
+// per entity, as JSON, in the same shape `issue set --dry-run` prints its
+// operations, and a real write prints the ids it created and nothing else
+// (cli-convention.md).
+func printImport(env *execenv.Env, dryRun bool, changes []schema.Change, created []entity.Id) error {
+	if dryRun {
+		return env.Out.PrintJSON(changes)
 	}
+
+	printIds(env, created)
 	return nil
 }
 
-func applyChange(env *execenv.Env, change schema.Change) error {
-	schemaCache := env.Backend.Schema()
-
-	switch change.Action {
-	case schema.ActionCreate:
-		created, _, err := schemaCache.New(change.Shape, change.Key, change.Set)
-		if err != nil {
-			return err
-		}
-		env.Out.Println(created.Id().String())
-		return nil
-
-	case schema.ActionUpdate:
-		cached, err := schemaCache.Resolve(change.Id)
-		if err != nil {
-			return err
-		}
-		// one pack, one commit: a renumbered list of values lands together
-		return cached.Update(change.Set, change.Remove)
-
-	case schema.ActionArchive:
-		cached, err := schemaCache.Resolve(change.Id)
-		if err != nil {
-			return err
-		}
-		if _, err := cached.SetArchived(true); err != nil {
-			return err
-		}
-		return cached.Commit()
-
-	default:
-		return fmt.Errorf("unknown action %s", change.Action)
+// printIds prints the id of each entity that was created, one per line.
+func printIds(env *execenv.Env, created []entity.Id) {
+	for _, id := range created {
+		env.Out.Println(id.String())
 	}
-}
-
-// printChanges is what --dry-run prints: the changes per entity, as JSON,
-// in the same shape `issue set --dry-run` prints its operations.
-func printChanges(env *execenv.Env, changes []schema.Change) error {
-	return env.Out.PrintJSON(changes)
-}
-
-// storeTypeKeys are the types already in the store, which a partial document
-// may name without defining them.
-func storeTypeKeys(env *execenv.Env) []string {
-	return env.Backend.Schema().Keys(config.ShapeType)
 }
 
 // KeyCompletion completes a type or field key.
@@ -149,9 +88,4 @@ func KeyCompletion(env *execenv.Env) completion.ValidArgsFunction {
 
 		return completions, cobra.ShellCompDirectiveNoFileComp
 	}
-}
-
-// resolveKey finds the entity a KEY argument names, type first, field second.
-func resolveKey(env *execenv.Env, key string) (*cache.ConfigCache, error) {
-	return env.Backend.Schema().ResolveSchemaKey(key)
 }

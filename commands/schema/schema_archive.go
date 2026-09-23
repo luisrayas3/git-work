@@ -4,7 +4,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/git-bug/git-bug/commands/execenv"
-	"github.com/git-bug/git-bug/entities/config"
+	"github.com/git-bug/git-bug/host"
 )
 
 func newSchemaArchiveCommand(env *execenv.Env) *cobra.Command {
@@ -34,36 +34,11 @@ before. KEY is a type key or a field key, <type>/<field>.`,
 func runSchemaArchive(env *execenv.Env, args []string) error {
 	warnDuplicates(env)
 
-	cached, err := resolveKey(env, args[0])
-	if err != nil {
-		return err
-	}
+	// Archiving a type leaves its fields behind, and the host names them:
+	// a multi-entity change is not atomic here (AGENTS.md), so nothing else
+	// is archived and the honest thing is to say what is left.
+	warnings, err := host.SchemaArchive(env.Backend, args[0])
+	warn(env, warnings)
 
-	if _, err := cached.SetArchived(true); err != nil {
-		return err
-	}
-	if err := cached.Commit(); err != nil {
-		return err
-	}
-
-	warnOrphanedFields(env, cached.Shape(), cached.Key())
-
-	return nil
-}
-
-// warnOrphanedFields says when archiving a type leaves its fields behind.
-//
-// Nothing is refused and nothing else is archived: a multi-entity change is
-// not atomic here (AGENTS.md), so the honest thing is to name what is left.
-func warnOrphanedFields(env *execenv.Env, shape config.Shape, key string) {
-	if shape != config.ShapeType {
-		return
-	}
-
-	for _, fieldKey := range env.Backend.Schema().Keys(config.ShapeField) {
-		typeKey, _, ok := config.SplitFieldKey(fieldKey)
-		if ok && typeKey == key {
-			env.Err.Printf("warning: field %s is still live on the archived type %s\n", fieldKey, key)
-		}
-	}
+	return err
 }

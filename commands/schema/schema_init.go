@@ -1,15 +1,11 @@
 package schemacmd
 
 import (
-	"fmt"
-	"strings"
-
 	"github.com/spf13/cobra"
 
-	"github.com/git-bug/git-bug/cache"
 	"github.com/git-bug/git-bug/commands/completion"
 	"github.com/git-bug/git-bug/commands/execenv"
-	"github.com/git-bug/git-bug/entities/config"
+	"github.com/git-bug/git-bug/host"
 	"github.com/git-bug/git-bug/schema"
 )
 
@@ -56,23 +52,13 @@ func runSchemaInit(env *execenv.Env, opts initOptions, args []string) error {
 		name = args[0]
 	}
 
-	existing := env.Backend.Schema().Query(cache.ConfigQuery{
-		Shape:           config.ShapeField,
-		IncludeArchived: true,
-	})
-	if len(existing) > 0 {
-		keys := make([]string, 0, len(existing))
-		for _, excerpt := range existing {
-			keys = append(keys, excerpt.Key)
-		}
-		return fmt.Errorf("the schema already has %d fields (%s); export, edit and import it instead",
-			len(existing), strings.Join(keys, ", "))
-	}
+	warnDuplicates(env)
 
-	doc, err := schema.Preset(name)
+	changes, created, err := host.SchemaInit(env.Backend, name, opts.dryRun)
 	if err != nil {
+		printIds(env, created)
 		return err
 	}
 
-	return importDocument(env, doc, importOptions{dryRun: opts.dryRun})
+	return printImport(env, opts.dryRun, changes, created)
 }

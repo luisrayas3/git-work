@@ -6,7 +6,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/git-bug/git-bug/commands/execenv"
-	"github.com/git-bug/git-bug/schema"
+	"github.com/git-bug/git-bug/host"
 )
 
 func newSchemaExportCommand(env *execenv.Env) *cobra.Command {
@@ -37,12 +37,13 @@ git work schema import schema.yaml`,
 }
 
 func runSchemaExport(env *execenv.Env, opts formatOptions) error {
-	s, err := loadSchema(env)
+	doc, warnings, err := host.SchemaExport(env.Backend)
+	warn(env, warnings)
 	if err != nil {
 		return err
 	}
 
-	raw, err := schema.Export(s).Marshal(opts.format)
+	raw, err := doc.Marshal(opts.format)
 	if err != nil {
 		return err
 	}
