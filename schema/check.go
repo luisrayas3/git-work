@@ -184,9 +184,10 @@ func (c *Checker) checkFields(problems *Problems, typeKey string, fields map[str
 			continue
 		}
 		if field.Kind.IsMulti() {
-			items, err := jsonArray(value)
-			if err != nil {
-				problems.add("field %s: %s is a list; %v", key, field.Kind, err)
+			items, ok := jsonArray(value)
+			if !ok {
+				problems.add("field %s: a %s is a list; write a JSON array, not %s",
+					key, field.Kind, brief(value))
 				continue
 			}
 			for _, item := range items {
@@ -207,28 +208,28 @@ func (c *Checker) checkOne(field *Field, kind Kind, value json.RawMessage) error
 	switch kind {
 	case KindText, KindRank:
 		if _, ok := stringValue(value); !ok {
-			return fmt.Errorf("%s is a string", kind)
+			return fmt.Errorf("a string is expected; %s is not one", brief(value))
 		}
 		return nil
 
 	case KindBool:
 		var b bool
 		if err := json.Unmarshal(value, &b); err != nil {
-			return fmt.Errorf("%s is true or false", kind)
+			return fmt.Errorf("true or false is expected; %s is neither", brief(value))
 		}
 		return nil
 
 	case KindNumber:
 		var f float64
 		if err := json.Unmarshal(value, &f); err != nil {
-			return fmt.Errorf("%s is a number", kind)
+			return fmt.Errorf("a number is expected; %s is not one", brief(value))
 		}
 		return nil
 
 	case KindDate:
 		s, ok := stringValue(value)
 		if !ok {
-			return fmt.Errorf("%s is a string", kind)
+			return fmt.Errorf("a date is expected, as a string; %s is not one", brief(value))
 		}
 		if _, err := time.Parse(time.RFC3339, s); err == nil {
 			return nil
@@ -241,7 +242,7 @@ func (c *Checker) checkOne(field *Field, kind Kind, value json.RawMessage) error
 	case KindEnum, KindOrdinalEnum:
 		s, ok := stringValue(value)
 		if !ok {
-			return fmt.Errorf("%s is a value id, as a string", kind)
+			return fmt.Errorf("a value id is expected, as a string; %s is not one", brief(value))
 		}
 		if _, ok := field.Value(s); ok {
 			return nil
@@ -255,7 +256,7 @@ func (c *Checker) checkOne(field *Field, kind Kind, value json.RawMessage) error
 	case KindIdentity:
 		s, ok := stringValue(value)
 		if !ok {
-			return fmt.Errorf("%s is an identity id, as a string", kind)
+			return fmt.Errorf("an identity id is expected, as a string; %s is not one", brief(value))
 		}
 		if c.Resolver == nil {
 			return nil
@@ -268,7 +269,7 @@ func (c *Checker) checkOne(field *Field, kind Kind, value json.RawMessage) error
 	case KindRelation:
 		s, ok := stringValue(value)
 		if !ok {
-			return fmt.Errorf("%s is an issue id, as a string", kind)
+			return fmt.Errorf("an issue id is expected, as a string; %s is not one", brief(value))
 		}
 		if c.Resolver == nil {
 			return nil
@@ -320,12 +321,22 @@ func stringValue(raw json.RawMessage) (string, bool) {
 	return s, true
 }
 
-func jsonArray(raw json.RawMessage) ([]json.RawMessage, error) {
+func jsonArray(raw json.RawMessage) ([]json.RawMessage, bool) {
 	var items []json.RawMessage
 	if err := json.Unmarshal(raw, &items); err != nil {
-		return nil, fmt.Errorf("write a JSON array")
+		return nil, false
 	}
-	return items, nil
+	return items, true
+}
+
+// brief renders a value for an error message, short enough to read.
+func brief(value json.RawMessage) string {
+	const max = 60
+	s := strings.TrimSpace(string(value))
+	if len(s) > max {
+		return s[:max] + "…"
+	}
+	return s
 }
 
 func isNull(raw json.RawMessage) bool {
