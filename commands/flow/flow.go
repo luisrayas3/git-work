@@ -77,6 +77,7 @@ flow's name, its docstring the description and its parameters the arguments
 	cmd.AddCommand(newFlowImportCommand(env))
 	cmd.AddCommand(newFlowLogCommand(env))
 	cmd.AddCommand(newFlowRmCommand(env))
+	cmd.AddCommand(newFlowRunCommand(env))
 
 	return cmd
 }

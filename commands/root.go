@@ -13,6 +13,7 @@ import (
 	"github.com/git-bug/git-bug/commands/issue"
 	schemacmd "github.com/git-bug/git-bug/commands/schema"
 	"github.com/git-bug/git-bug/commands/user"
+	"github.com/git-bug/git-bug/commands/view"
 )
 
 func NewRootCommand(ctx context.Context, version string) *cobra.Command {
@@ -64,6 +65,7 @@ git remote you are already using to collaborate with other people.
 	addCmdWithGroup(schemacmd.NewSchemaCommand(env), entityGroup)
 	addCmdWithGroup(bugcmd.NewBugCommand(env), entityGroup)
 	addCmdWithGroup(flowcmd.NewFlowCommand(env), entityGroup)
+	addCmdWithGroup(viewcmd.NewViewCommand(env), entityGroup)
 	addCmdWithGroup(usercmd.NewUserCommand(env), entityGroup)
 	addCmdWithGroup(newLabelCommand(env), entityGroup)
 
