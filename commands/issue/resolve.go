@@ -1,7 +1,6 @@
 package issuecmd
 
 import (
-	"errors"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -11,17 +10,10 @@ import (
 	"github.com/git-bug/git-bug/commands/execenv"
 )
 
-// resolveIssue reads the issue named by the first argument, an id prefix,
-// and returns the remaining arguments. Plumbing has no implicit selection.
-func resolveIssue(backend *cache.RepoCache, args []string) (*cache.IssueCache, []string, error) {
-	if len(args) == 0 {
-		return nil, nil, errors.New("an issue id is required")
-	}
-	i, err := backend.Issues().ResolvePrefix(args[0])
-	if err != nil {
-		return nil, nil, err
-	}
-	return i, args[1:], nil
+// resolveIssue reads the issue named by an id prefix or by an alias.
+// Plumbing has no implicit selection: every command names its issue.
+func resolveIssue(env *execenv.Env, arg string) (*cache.IssueCache, error) {
+	return env.Backend.Issues().ResolvePrefixOrAlias(arg)
 }
 
 // IssueCompletion complete an issue id

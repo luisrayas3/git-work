@@ -8,9 +8,12 @@ import (
 
 func newIssueRmCommand(env *execenv.Env) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:     "rm ISSUE_ID",
-		Short:   "Remove an existing issue",
-		Long:    "Remove an existing issue from the local repository. Removing an issue that came from a bridge does not remove it on the remote; only the local copy goes.",
+		Use:   "rm ID",
+		Short: "Remove an issue from the local repository",
+		Long: `Remove an issue's local ref. This is local: the issue comes back on the next
+pull, and removing one that came from a bridge does not remove it on the remote.
+The replicated removal is archive.
+ID is an id prefix or an alias.`,
 		Args:    cobra.ExactArgs(1),
 		PreRunE: execenv.LoadBackendEnsureUser(env),
 		RunE: execenv.CloseBackend(env, func(cmd *cobra.Command, args []string) error {
@@ -23,12 +26,10 @@ func newIssueRmCommand(env *execenv.Env) *cobra.Command {
 }
 
 func runIssueRm(env *execenv.Env, args []string) error {
-	err := env.Backend.Issues().Remove(args[0])
+	i, err := resolveIssue(env, args[0])
 	if err != nil {
 		return err
 	}
 
-	env.Out.Printf("issue %s removed\n", args[0])
-
-	return nil
+	return env.Backend.Issues().Remove(i.Id().String())
 }

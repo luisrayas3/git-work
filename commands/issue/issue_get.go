@@ -8,26 +8,30 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/git-bug/git-bug/commands/cmdjson"
-	"github.com/git-bug/git-bug/commands/completion"
 	"github.com/git-bug/git-bug/commands/execenv"
 	"github.com/git-bug/git-bug/entities/issue"
 	"github.com/git-bug/git-bug/util/colors"
 )
 
-type issueShowOptions struct {
+type issueGetOptions struct {
 	format string
 }
 
-func newIssueShowCommand(env *execenv.Env) *cobra.Command {
-	options := issueShowOptions{}
+func newIssueGetCommand(env *execenv.Env) *cobra.Command {
+	options := issueGetOptions{}
 
 	cmd := &cobra.Command{
-		Use:     "show ISSUE_ID",
-		Short:   "Display the details of an issue",
+		Use:   "get ID",
+		Short: "Print one issue whole",
+		Long: `Print the whole issue: its fields, its people and its comments.
+
+get pairs with set at the document level, so there is no per-field getter:
+a field is ` + "`git work issue get ID | jq .fields.status`" + `.
+ID is an id prefix or an alias.`,
 		Args:    cobra.ExactArgs(1),
 		PreRunE: execenv.LoadBackend(env),
 		RunE: execenv.CloseBackend(env, func(cmd *cobra.Command, args []string) error {
-			return runIssueShow(env, options, args)
+			return runIssueGet(env, options, args)
 		}),
 		ValidArgsFunction: IssueCompletion(env),
 	}
@@ -35,15 +39,13 @@ func newIssueShowCommand(env *execenv.Env) *cobra.Command {
 	flags := cmd.Flags()
 	flags.SortFlags = false
 
-	flags.StringVarP(&options.format, "format", "f", "default",
-		"Select the output formatting style. Valid values are [default,json]")
-	cmd.RegisterFlagCompletionFunc("format", completion.From([]string{"default", "json"}))
+	addFormatFlag(cmd, &options.format)
 
 	return cmd
 }
 
-func runIssueShow(env *execenv.Env, opts issueShowOptions, args []string) error {
-	i, _, err := resolveIssue(env.Backend, args)
+func runIssueGet(env *execenv.Env, opts issueGetOptions, args []string) error {
+	i, err := resolveIssue(env, args[0])
 	if err != nil {
 		return err
 	}
@@ -57,14 +59,14 @@ func runIssueShow(env *execenv.Env, opts issueShowOptions, args []string) error 
 	switch opts.format {
 	case "json":
 		return env.Out.PrintJSON(cmdjson.NewIssueSnapshot(snap))
-	case "default":
-		return showDefaultFormatter(env, snap)
+	case "text":
+		return issueTextFormatter(env, snap)
 	default:
 		return fmt.Errorf("unknown format %s", opts.format)
 	}
 }
 
-func showDefaultFormatter(env *execenv.Env, snapshot *issue.Snapshot) error {
+func issueTextFormatter(env *execenv.Env, snapshot *issue.Snapshot) error {
 	status, ok := snapshot.FieldString("status")
 	if !ok {
 		status = "-"

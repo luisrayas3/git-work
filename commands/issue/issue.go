@@ -1,15 +1,16 @@
 // Package issuecmd is the `git work issue` command tree, over entities/issue.
 //
 // It is plumbing (e8d6426): explicit ids, no editor, no implicit selection,
-// values as JSON.
+// JSON in and JSON out, and no sugar flag anywhere.
+// The command map it implements is doc/design/cli-convention.md.
 // The `bug` tree keeps serving the old entity until the store is migrated (bf6f392).
 package issuecmd
 
 import (
+	"encoding/json"
 	"fmt"
-	"strings"
+	"sort"
 
-	text "github.com/MichaelMure/go-term-text"
 	"github.com/spf13/cobra"
 
 	"github.com/git-bug/git-bug/cache"
@@ -17,285 +18,209 @@ import (
 	"github.com/git-bug/git-bug/commands/completion"
 	"github.com/git-bug/git-bug/commands/execenv"
 	"github.com/git-bug/git-bug/entity"
-	"github.com/git-bug/git-bug/query"
+	"github.com/git-bug/git-bug/query/jq"
 	"github.com/git-bug/git-bug/util/colors"
 )
 
-type issueOptions struct {
-	authorQuery         []string
-	metadataQuery       []string
-	participantQuery    []string
-	actorQuery          []string
-	labelQuery          []string
-	titleQuery          []string
-	noQuery             []string
-	sortBy              string
-	sortDirection       string
-	outputFormat        string
-	outputFormatChanged bool
+// defaultProgram is the list you get when you name no program:
+// everything that is not archived, most recently edited first.
+//
+// It is written as a jq program rather than special-cased in Go
+// so that `.` means the whole array and nothing is hidden from it.
+// "mine" would be the better default, but it needs the schema's assignee
+// field to know which one it is, so it waits for the schema (e8d6426).
+const defaultProgram = `map(select(.fields.archived != true))
+	| sort_by(.edit_time.lamport, .edit_time.timestamp)
+	| reverse`
+
+type issueListOptions struct {
+	format string
 }
 
 func NewIssueCommand(env *execenv.Env) *cobra.Command {
-	options := issueOptions{}
+	options := issueListOptions{}
 
 	cmd := &cobra.Command{
-		Use:   "issue [QUERY]",
+		Use:   "issue [PROGRAM]",
 		Short: "List issues",
-		Long: `Display a summary of each issue.
+		Long: `Run a jq program over the issues and print what it emits.
 
-You can pass an additional query to filter and order the list. This query can be expressed either with a simple query language, flags, a text search over the fields, or a combination of the aforementioned.
+The program's input is the array of issue excerpts, the same JSON this command
+prints: one object per issue, with an id, times, an author and a fields map.
+With no program, the list is every unarchived issue, last edited first.
 
-Status filters are not available yet: open and closed are categories of the status field that the schema names.`,
-		Example: `List issues sorted by last edition with a query:
-git work issue sort:edit-desc
+Each emitted value is printed as JSON, one per line when there are several.
+--format text prints one line per issue when the program returned issues, and
+falls back to JSON when it returned anything else.`,
+		Example: `Every issue, in the input's own order:
+git work issue .
 
-List issues with a label, sorted by creation:
-git work issue --label area:core --by creation
+The titles of the issues of one epic:
+git work issue 'map(select(.fields.parent == "6a1b2c3")) | map(.fields.title)'
 
-Do a text search over the fields:
-git work issue "foo bar" baz
+A kanban of what is not done:
+git work issue 'map(select(.fields.status != "done"))' | git work view board '{"columns":"status"}'
 `,
+		Args:    cobra.MaximumNArgs(1),
 		PreRunE: execenv.LoadBackend(env),
 		RunE: execenv.CloseBackend(env, func(cmd *cobra.Command, args []string) error {
-			options.outputFormatChanged = cmd.Flags().Changed("format")
-			return runIssue(env, options, args)
+			return runIssueList(env, options, args)
 		}),
 	}
 
 	flags := cmd.Flags()
 	flags.SortFlags = false
 
-	flags.StringSliceVarP(&options.authorQuery, "author", "a", nil,
-		"Filter by author")
-	cmd.RegisterFlagCompletionFunc("author", completion.UserForQuery(env))
-	flags.StringSliceVarP(&options.metadataQuery, "metadata", "m", nil,
-		"Filter by metadata. Example: jira-key=KEY")
-	flags.StringSliceVarP(&options.participantQuery, "participant", "p", nil,
-		"Filter by participant")
-	cmd.RegisterFlagCompletionFunc("participant", completion.UserForQuery(env))
-	flags.StringSliceVarP(&options.actorQuery, "actor", "A", nil,
-		"Filter by actor")
-	cmd.RegisterFlagCompletionFunc("actor", completion.UserForQuery(env))
-	flags.StringSliceVarP(&options.labelQuery, "label", "l", nil,
-		"Filter by a value of the labels field")
-	flags.StringSliceVarP(&options.titleQuery, "title", "t", nil,
-		"Filter by title")
-	flags.StringSliceVarP(&options.noQuery, "no", "n", nil,
-		"Filter by absence of something. Valid values are [label]")
-	flags.StringVarP(&options.sortBy, "by", "b", "creation",
-		"Sort the results by a characteristic. Valid values are [id,creation,edit]")
-	cmd.RegisterFlagCompletionFunc("by", completion.From([]string{"id", "creation", "edit"}))
-	flags.StringVarP(&options.sortDirection, "direction", "d", "asc",
-		"Select the sorting direction. Valid values are [asc,desc]")
-	cmd.RegisterFlagCompletionFunc("direction", completion.From([]string{"asc", "desc"}))
-	flags.StringVarP(&options.outputFormat, "format", "f", "default",
-		"Select the output formatting style. Valid values are [default,plain,id,json]")
-	cmd.RegisterFlagCompletionFunc("format",
-		completion.From([]string{"default", "plain", "id", "json"}))
+	addFormatFlag(cmd, &options.format)
 
+	cmd.AddCommand(newIssueAddCommand(env))
+	cmd.AddCommand(newIssueArchiveCommand(env))
 	cmd.AddCommand(newIssueCommentCommand(env))
+	cmd.AddCommand(newIssueGetCommand(env))
+	cmd.AddCommand(newIssueLogCommand(env))
 	cmd.AddCommand(newIssueNewCommand(env))
+	cmd.AddCommand(newIssueRemoveCommand(env))
 	cmd.AddCommand(newIssueRmCommand(env))
 	cmd.AddCommand(newIssueSetCommand(env))
-	cmd.AddCommand(newIssueShowCommand(env))
 
 	return cmd
 }
 
-func runIssue(env *execenv.Env, opts issueOptions, args []string) error {
-	var q *query.Query
-	var err error
+// addFormatFlag adds the one output flag every reader has.
+func addFormatFlag(cmd *cobra.Command, format *string) {
+	cmd.Flags().StringVarP(format, "format", "f", "json",
+		"Select the output formatting style. Valid values are [json,text]")
+	cmd.RegisterFlagCompletionFunc("format", completion.From([]string{"json", "text"}))
+}
 
-	if len(args) >= 1 {
-		// either the shell or cobra remove the quotes, we need them back for the query parsing
-		assembled := repairQuery(args)
+func runIssueList(env *execenv.Env, opts issueListOptions, args []string) error {
+	program := defaultProgram
+	if len(args) == 1 {
+		program = args[0]
+	}
 
-		q, err = query.Parse(assembled)
-		if err != nil {
+	input, err := issueListInput(env)
+	if err != nil {
+		return err
+	}
+
+	values, err := jq.Run(program, input)
+	if err != nil {
+		return err
+	}
+
+	switch opts.format {
+	case "json":
+		return printValues(env, values)
+	case "text":
+		if printed, err := printIssueLines(env, values); printed || err != nil {
 			return err
 		}
-	} else {
-		q = query.NewQuery()
+		// Not a list of issues: JSON is the honest answer.
+		return printValues(env, values)
+	default:
+		return fmt.Errorf("unknown format %s", opts.format)
 	}
+}
 
-	err = completeQuery(q, opts)
-	if err != nil {
-		return err
-	}
+// issueListInput is the array a program runs over: every issue as an excerpt,
+// oldest first, so that a program that does not sort still reads the same twice.
+func issueListInput(env *execenv.Env) (any, error) {
+	ids := env.Backend.Issues().AllIds()
 
-	allIds, err := env.Backend.Issues().Query(q)
-	if err != nil {
-		return err
-	}
-
-	excerpts := make([]*cache.IssueExcerpt, len(allIds))
-	for i, id := range allIds {
+	excerpts := make([]*cache.IssueExcerpt, len(ids))
+	for i, id := range ids {
 		excerpt, err := env.Backend.Issues().ResolveExcerpt(id)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		excerpts[i] = excerpt
 	}
+	sort.Sort(cache.IssuesByCreationTime(excerpts))
 
-	switch opts.outputFormat {
-	case "default":
-		if opts.outputFormatChanged || env.Out.IsTerminal() {
-			return issuesDefaultFormatter(env, excerpts)
-		}
-		return issuesPlainFormatter(env, excerpts)
-	case "id":
-		return issuesIDFormatter(env, excerpts)
-	case "plain":
-		return issuesPlainFormatter(env, excerpts)
-	case "json":
-		return issuesJsonFormatter(env, excerpts)
-	default:
-		return fmt.Errorf("unknown format %s", opts.outputFormat)
-	}
-}
-
-func repairQuery(args []string) string {
-	for i, arg := range args {
-		split := strings.Split(arg, ":")
-		for j, s := range split {
-			if strings.Contains(s, " ") {
-				split[j] = fmt.Sprintf("\"%s\"", s)
-			}
-		}
-		args[i] = strings.Join(split, ":")
-	}
-	return strings.Join(args, " ")
-}
-
-// statusOf is the status field as a string, or a dash when unset.
-func statusOf(excerpt *cache.IssueExcerpt) string {
-	if s, ok := excerpt.FieldString("status"); ok {
-		return s
-	}
-	return "-"
-}
-
-func issuesJsonFormatter(env *execenv.Env, excerpts []*cache.IssueExcerpt) error {
 	out := make([]cmdjson.IssueExcerpt, len(excerpts))
 	for i, excerpt := range excerpts {
 		j, err := cmdjson.NewIssueExcerpt(env.Backend, excerpt)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		out[i] = j
 	}
-	return env.Out.PrintJSON(out)
+
+	return jq.Input(out)
 }
 
-func issuesIDFormatter(env *execenv.Env, excerpts []*cache.IssueExcerpt) error {
-	for _, excerpt := range excerpts {
-		env.Out.Println(excerpt.Id().String())
+// printValues prints what a program emitted.
+// One value keeps the indented shape of every other JSON this tool prints;
+// several are one compact value per line, which is what a stream is.
+func printValues(env *execenv.Env, values []any) error {
+	if len(values) == 1 {
+		return env.Out.PrintJSON(values[0])
 	}
-
-	return nil
-}
-
-func issuesDefaultFormatter(env *execenv.Env, excerpts []*cache.IssueExcerpt) error {
-	width := env.Out.Width()
-	widthId := entity.HumanIdLength
-	widthStatus := 10
-	widthComment := 6
-
-	widthRemaining := width -
-		widthId - 1 -
-		widthStatus - 1 -
-		widthComment - 1
-
-	widthTitle := int(float32(widthRemaining-3) * 0.7)
-	if widthTitle < 0 {
-		widthTitle = 0
-	}
-
-	widthRemaining = widthRemaining - widthTitle - 3 - 2
-	widthAuthor := widthRemaining
-
-	for _, excerpt := range excerpts {
-		author, err := env.Backend.Identities().ResolveExcerpt(excerpt.AuthorId)
+	for _, v := range values {
+		raw, err := json.Marshal(v)
 		if err != nil {
 			return err
 		}
+		env.Out.Println(string(raw))
+	}
+	return nil
+}
 
-		titleFmt := text.LeftPadMaxLine(strings.TrimSpace(excerpt.Title()), widthTitle, 0)
-		authorFmt := text.LeftPadMaxLine(author.DisplayName(), widthAuthor, 0)
-		statusFmt := text.LeftPadMaxLine(statusOf(excerpt), widthStatus, 0)
-
-		comments := fmt.Sprintf("%3d 💬", excerpt.LenComments-1)
-		if excerpt.LenComments-1 <= 0 {
-			comments = ""
+// printIssueLines prints one line per issue and reports whether it could:
+// the values have to be issue-shaped, objects with an id and a fields map,
+// either as one array or as a stream of them.
+func printIssueLines(env *execenv.Env, values []any) (bool, error) {
+	items := values
+	if len(values) == 1 {
+		if array, ok := values[0].([]any); ok {
+			items = array
 		}
-		if excerpt.LenComments-1 > 999 {
-			comments = "  ∞ 💬"
-		}
+	}
+	if len(items) == 0 {
+		return false, nil
+	}
 
-		env.Out.Printf("%s\t%s\t%s   %s %s\n",
-			colors.Cyan(excerpt.Id().Human()),
-			colors.Yellow(statusFmt),
-			titleFmt,
-			colors.Magenta(authorFmt),
-			comments,
+	objects := make([]map[string]any, 0, len(items))
+	for _, item := range items {
+		object, ok := item.(map[string]any)
+		if !ok {
+			return false, nil
+		}
+		if _, ok := object["id"].(string); !ok {
+			return false, nil
+		}
+		if _, ok := object["fields"].(map[string]any); !ok {
+			return false, nil
+		}
+		objects = append(objects, object)
+	}
+
+	for _, object := range objects {
+		fields, _ := object["fields"].(map[string]any)
+		env.Out.Printf("%s\t%s\t%s\n",
+			colors.Cyan(humanIdOf(object)),
+			colors.Yellow(stringOr(fields["status"], "-")),
+			stringOr(fields["title"], ""),
 		)
 	}
-	return nil
+	return true, nil
 }
 
-func issuesPlainFormatter(env *execenv.Env, excerpts []*cache.IssueExcerpt) error {
-	for _, excerpt := range excerpts {
-		env.Out.Printf("%s\t%s\t%s\n", excerpt.Id().Human(), statusOf(excerpt), strings.TrimSpace(excerpt.Title()))
+func humanIdOf(object map[string]any) string {
+	if human, ok := object["human_id"].(string); ok {
+		return human
 	}
-	return nil
+	id, _ := object["id"].(string)
+	if len(id) > entity.HumanIdLength {
+		return id[:entity.HumanIdLength]
+	}
+	return id
 }
 
-// Finish the command flags transformation into the query.Query
-func completeQuery(q *query.Query, opts issueOptions) error {
-	q.Author = append(q.Author, opts.authorQuery...)
-	for _, str := range opts.metadataQuery {
-		tokens := strings.Split(str, "=")
-		if len(tokens) < 2 {
-			return fmt.Errorf("no \"=\" in key=value metadata markup")
-		}
-		var pair query.StringPair
-		pair.Key = tokens[0]
-		pair.Value = tokens[1]
-		q.Metadata = append(q.Metadata, pair)
+func stringOr(v any, fallback string) string {
+	if s, ok := v.(string); ok {
+		return s
 	}
-	q.Participant = append(q.Participant, opts.participantQuery...)
-	q.Actor = append(q.Actor, opts.actorQuery...)
-	q.Label = append(q.Label, opts.labelQuery...)
-	q.Title = append(q.Title, opts.titleQuery...)
-
-	for _, no := range opts.noQuery {
-		switch no {
-		case "label":
-			q.NoLabel = true
-		default:
-			return fmt.Errorf("unknown \"no\" filter %s", no)
-		}
-	}
-
-	switch opts.sortBy {
-	case "id":
-		q.OrderBy = query.OrderById
-	case "creation":
-		q.OrderBy = query.OrderByCreation
-	case "edit":
-		q.OrderBy = query.OrderByEdit
-	default:
-		return fmt.Errorf("unknown sort flag %s", opts.sortBy)
-	}
-
-	switch opts.sortDirection {
-	case "asc":
-		q.OrderDirection = query.OrderAscending
-	case "desc":
-		q.OrderDirection = query.OrderDescending
-	default:
-		return fmt.Errorf("unknown sort direction %s", opts.sortDirection)
-	}
-
-	return nil
+	return fallback
 }
