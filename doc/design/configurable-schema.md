@@ -411,7 +411,7 @@ so either the preset carries a custom one or decisions become Task plus a marker
 - both presets load, and the `59fed1c` table test round-trips a representative issue set through each;
 - an issue carries type, status with category, priority, estimate, dates, assignee,
   a parent, a blocks relation and an iteration, all schema-driven;
-- `git work issue patch` with a status not in the schema fails naming the valid values;
+- `git work issue set` with a status not in the schema fails naming the valid values;
 - this repo's issues are on fields, not labels, with their ids unchanged,
   and AGENTS.md says so;
 - an old binary refuses the migrated store instead of misreading it.

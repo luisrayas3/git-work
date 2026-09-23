@@ -144,8 +144,9 @@ Settled calls (details live in the referenced issues):
   dimension anywhere; "cross-project" in older text meant across epics
   (`cd41e40`, 2026-09-21).
 - `git work issue *` is **plumbing, agent-first**: JSON out by default,
-  RFC 6902 JSON Patch in, `new` takes a JSON document only, writers print
-  the id they created and nothing else, no sugar flags (`e8d6426`).
+  `new` takes a JSON document only, `get` returns one, `set`/`add`/`remove`
+  take an object and commit one operation per key (no RFC 6902), writers
+  print the id they created and nothing else, no sugar flags (`e8d6426`).
   `git work flow *` is porcelain, one verb per workflow (`b511c63`).
   The **Starlark host API mirrors the CLI one to one**: module and verb
   names match, a command's arguments are one JSON object of keyword

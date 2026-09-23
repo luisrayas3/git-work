@@ -458,7 +458,7 @@ The host API a script sees **mirrors the command line one to one**
 every `git work <module> <verb>` is a Starlark function
 of the same name under a module of the same name,
 taking the same arguments and returning the JSON the command prints,
-so `git work issue set ID status done` is `issue.set(id, "status", "done")`
+so `git work issue set ID '{"status":"done"}'` is `issue.set(id, status="done")`
 and `git work issue PROGRAM` is `issue.list(program)`.
 Starlark has no positional-only parameters,
 so a command's arguments are one JSON object of keyword arguments,
@@ -521,7 +521,7 @@ a failure on the third leaves two applied,
 which is the same non-atomicity every multi-entity change in this store has
 and reads correctly at every step, since each entity is valid on its own.
 `--dry-run` prints the changes per entity and writes nothing,
-in the same shape `issue patch --dry-run` prints its operations.
+in the same shape `issue set --dry-run` prints its operations.
 
 ### E10 — Commands
 
@@ -539,7 +539,7 @@ git work schema rm KEY                            local ref only; returns on pul
 
 git work flow                                     names, descriptions, arguments
 git work flow run NAME [KWARGS] [--gui] [--format json|text]
-git work flow show NAME                           the script
+git work flow get NAME [--format json|text]       text prints the script
 git work flow import FILE|DIR|-... [--prune] [--dry-run]
 git work flow export NAME > FILE
 git work flow export --all DIR

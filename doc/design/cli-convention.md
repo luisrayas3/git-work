@@ -22,10 +22,22 @@ Decisions are recorded on `e8d6426` (plumbing), `b511c63` (flows),
 - **Arguments are keyword arguments.**
   Starlark has no positional-only parameters,
   so a command that takes a function's arguments takes them as one JSON object,
-  `git work flow run board '{"iteration":"current"}'`.
-  Commands with fixed positionals (`set ID KEY VALUE`) are that object spelled out.
+  `git work flow run board '{"iteration":"current"}'`,
+  `git work issue set ID '{"status":"done","estimate":3}'`.
   Defaults in the signature fill what the object omits;
   an unknown key is an error naming the parameters.
+- **A commit is a list of operations**, and that is the write unit.
+  `set`, `add` and `remove` each take an object and commit one operation per key,
+  of one type: SetField, AddValue, RemoveValue.
+  A mixed commit has no consumer today;
+  if one appears, `patch ID OPS` with the operations in their wire shape
+  is the superset and the three verbs stay as its special cases.
+  RFC 6902 is not used: it is a second grammar over the same three operations
+  and bakes the read shape's paths into the write API (revises `e8d6426`).
+- **`get` pairs with `set`** at the document level:
+  `get ID` returns the whole issue, `set ID FIELDS` writes part of it.
+  There is no per-field getter and no `show`;
+  a field is `get ID | jq .fields.status`.
 - **Writers print ids only.**
   `new` prints the issue id, `comment new` the comment id, one per line,
   nothing else on stdout.
@@ -52,15 +64,14 @@ Decisions are recorded on `e8d6426` (plumbing), `b511c63` (flows),
 ```
 git work issue [PROGRAM] [--format json|text]
 git work issue new DOC|-                        # prints the id
-git work issue show ID
-git work issue set ID KEY VALUE                 # null clears
-git work issue set ID KEY --add ITEM... --remove ITEM...
-git work issue patch ID PATCH|- [--dry-run]     # RFC 6902; one patch op ↔ one CRDT op
-git work issue comment ID
-git work issue comment new ID BODY|-            # prints the comment id
+git work issue get ID
+git work issue set ID FIELDS|- [--dry-run]      # {"key": value, ...}; null clears; one SetField per key, one commit
+git work issue add ID ITEMS|- [--dry-run]       # {"key": [item, ...], ...}; set semantics
+git work issue remove ID ITEMS|- [--dry-run]
+git work issue comment new ISSUE_ID BODY|-      # prints the comment id
 git work issue comment edit COMMENT_ID BODY|-
 git work issue log ID
-git work issue archive ID                       # = set ID archived true
+git work issue archive ID                       # first class on every tree; = set ID '{"archived":true}'
 git work issue rm ID
 
 git work schema [--format yaml|json]
@@ -73,7 +84,7 @@ git work schema rm KEY
 
 git work flow                                   # names, descriptions, arguments
 git work flow run NAME [KWARGS] [--gui] [--format json|text]
-git work flow show NAME                         # the script
+git work flow get NAME [--format json|text]     # text prints the script
 git work flow import FILE|DIR|-... [--prune] [--dry-run]   # one def per file; its name is the flow's
 git work flow export NAME > FILE
 git work flow export --all DIR
@@ -114,12 +125,12 @@ git work issue 'map(select(.fields.status != "done"))' | git work view board '{"
 
 ## Starlark
 
-`issue.list(program)`, `issue.new(doc)`, `issue.show(id)`,
-`issue.set(id, key, value)`, `issue.add(id, key, item)`, `issue.remove(id, key, item)`,
-`issue.patch(id, ops)`, `issue.comment.new(id, body)`, `issue.comment.edit(id, body)`,
+`issue.list(program)`, `issue.new(doc)`, `issue.get(id)`,
+`issue.set(id, **fields)`, `issue.add(id, **items)`, `issue.remove(id, **items)`,
+`issue.comment.new(id, body)`, `issue.comment.edit(id, body)`,
 `issue.log(id)`, `issue.archive(id)`;
 `schema.export()`, `schema.log(key)`;
-`flow.run(name, **kwargs)`;
+`flow.run(name, **kwargs)`, `flow.get(name)`;
 `view.list(items, ...)`, `view.board(items, ...)`, `view.gantt(items, ...)`;
 `me()`.
 Every function returns what the command would print, as a Starlark value.
@@ -128,5 +139,6 @@ Every function returns what the command would print, as a Starlark value.
 
 `git work bug` leaves with the migration (`bf6f392`).
 `tui` as a command: the terminal renderer sits behind `view` and `flow run`.
-`--fields`, `-t`, `-m`, `--set`, `--ARG VALUE`: sugar.
+`--fields`, `-t`, `-m`, `--set`, `--add`/`--remove`, `KEY VALUE`, `--ARG VALUE`: sugar.
+`patch` (RFC 6902), `show`, `comment ID`, `comment show`: a second spelling of `set`/`add`/`remove` and `get`.
 `flows/` as a directory the tool knows: import takes any files.
