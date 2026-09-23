@@ -44,7 +44,15 @@ Decisions are recorded on `e8d6426` (plumbing), `b511c63` (flows),
   Mutators that create nothing print nothing;
   diagnostics go to stderr and the exit status is the result.
 - **`--dry-run`** on every writer that has one prints the operations it would commit.
+- **`new` takes the issue as a document**,
+  `{"fields": {"title": "…", "type": "task"}, "body": "the first comment", "aliases": {"jira": "PROJ-12"}}`,
+  as the argument or on standard input.
+  A title is required and lives in `fields`, like every other property of an issue;
+  an unknown key at the top level is an error, not a silent no-op.
 - **Any `ID` position accepts an alias**, a Jira key for instance (`483dbe2`).
+  An alias is stored as `alias:<name>` metadata on the create operation,
+  the one place in the entity that can never change,
+  and an issue carries as many as it has external systems.
 - **`rm` is local, `archive` is replicated**, on every tree.
   `rm` deletes the local ref and the entity returns on the next pull;
   `archive` is an operation and reaches every clone.

@@ -87,20 +87,27 @@ Forms below are verified against 0.10.x.
 | Sync | `git work push` · `git work pull` (both namespaces) |
 | Interactive | `git work termui` (TTY) · `git work webui` (webui build); becoming `tui` and `gui` (8b06191) |
 
-The new tree, plumbing with explicit ids and no editor
-(the JSON Patch shape of `e8d6426` is still to come):
+The new tree, plumbing with explicit ids, no editor and no sugar flag,
+built to the map in `doc/design/cli-convention.md` (`e8d6426`):
 
 | Action | Command |
 | --- | --- |
-| Create | `git work issue new -t "Title" -m "Body" --set status=open --set estimate=3` |
-| Show | `git work issue show <id>` · `--format json` |
-| Set a field | `git work issue set <id> <key> <value>` (`null` clears) |
-| Add / remove an item | `git work issue set <id> <key> --add <item>` · `--remove <item>` (set semantics; relations of many cardinality too) |
-| Comment | `git work issue comment new <id> -m "…"` · `comment edit <comment-id> -m "…"` |
-| List | `git work issue [--label x] [--format json]`; `status:` filters wait for the schema |
+| List | `git work issue [PROGRAM]` · `--format text`; PROGRAM is a jq program over the array of excerpts, the default being unarchived, last edited first |
+| Create | `git work issue new DOC\|-` → prints the new id |
+| Show | `git work issue get <id>` · `--format text` |
+| Set fields | `git work issue set <id> '{"status":"done","estimate":3}'` (`null` clears; one commit whatever the number of keys) |
+| Add / remove items | `git work issue add <id> '{"labels":["area:core"]}'` · `git work issue remove <id> …` (set semantics; relations of many cardinality too) |
+| Comment | `git work issue comment new <id> BODY\|-` → prints the comment id · `comment edit <comment-id> BODY\|-` |
+| History | `git work issue log <id>` · `--format text` |
+| Archive / remove | `git work issue archive <id>` (an operation, replicated) · `git work issue rm <id>` (the local ref only) |
 
-Values are JSON when they parse as JSON (`3`, `true`, `["a","b"]`, `null`)
-and strings otherwise (`closed`).
+Everything in is JSON, everything out is JSON unless `--format text` is asked for,
+and a document argument is read from standard input when it is `-`.
+`--dry-run` on `set`, `add`, `remove` and `archive`
+prints the operations they would commit and writes nothing.
+Every id position takes an id prefix or an alias —
+`git work issue new '{"fields":{"title":"…"},"aliases":{"jira":"PROJ-12"}}'` —
+and a writer prints an id or nothing at all.
 
 Gotchas, hardened from use:
 
