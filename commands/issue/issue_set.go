@@ -3,9 +3,9 @@ package issuecmd
 import (
 	"github.com/spf13/cobra"
 
-	"github.com/git-bug/git-bug/cache"
 	"github.com/git-bug/git-bug/commands/execenv"
 	"github.com/git-bug/git-bug/entities/issue"
+	"github.com/git-bug/git-bug/host"
 )
 
 // writeOptions are the flags every writer that changes an issue has.
@@ -50,22 +50,17 @@ ID is an id prefix or an alias.`,
 }
 
 func runIssueSet(env *execenv.Env, opts writeOptions, args []string) error {
-	i, err := resolveIssue(env, args[0])
-	if err != nil {
-		return err
-	}
-
 	fields, err := readFields(env, args[1])
 	if err != nil {
 		return err
 	}
 
-	ops, err := i.PlanSetFields(fields)
+	ops, err := host.IssueSet(env.Backend, args[0], fields, opts.dryRun)
 	if err != nil {
 		return err
 	}
 
-	return commitOrPrint(env, i, opts, ops)
+	return printOperations(env, opts, ops)
 }
 
 func newIssueAddCommand(env *execenv.Env) *cobra.Command {
@@ -97,17 +92,17 @@ ID is an id prefix or an alias.`,
 }
 
 func runIssueAdd(env *execenv.Env, opts writeOptions, args []string) error {
-	i, items, err := resolveIssueAndItems(env, args)
+	items, err := readItems(env, args[1])
 	if err != nil {
 		return err
 	}
 
-	ops, err := i.PlanAddValues(items)
+	ops, err := host.IssueAdd(env.Backend, args[0], items, opts.dryRun)
 	if err != nil {
 		return err
 	}
 
-	return commitOrPrint(env, i, opts, ops)
+	return printOperations(env, opts, ops)
 }
 
 func newIssueRemoveCommand(env *execenv.Env) *cobra.Command {
@@ -137,17 +132,17 @@ ID is an id prefix or an alias.`,
 }
 
 func runIssueRemove(env *execenv.Env, opts writeOptions, args []string) error {
-	i, items, err := resolveIssueAndItems(env, args)
+	items, err := readItems(env, args[1])
 	if err != nil {
 		return err
 	}
 
-	ops, err := i.PlanRemoveValues(items)
+	ops, err := host.IssueRemove(env.Backend, args[0], items, opts.dryRun)
 	if err != nil {
 		return err
 	}
 
-	return commitOrPrint(env, i, opts, ops)
+	return printOperations(env, opts, ops)
 }
 
 func newIssueArchiveCommand(env *execenv.Env) *cobra.Command {
@@ -174,55 +169,25 @@ ID is an id prefix or an alias.`,
 }
 
 func runIssueArchive(env *execenv.Env, opts writeOptions, args []string) error {
-	i, err := resolveIssue(env, args[0])
+	ops, err := host.IssueArchive(env.Backend, args[0], opts.dryRun)
 	if err != nil {
 		return err
 	}
 
-	ops, err := i.PlanSetFields(map[string]issue.Value{
-		issue.ArchivedKey: issue.MustValue(true),
-	})
-	if err != nil {
-		return err
-	}
-
-	return commitOrPrint(env, i, opts, ops)
+	return printOperations(env, opts, ops)
 }
 
-// resolveIssueAndItems reads the two arguments add and remove share,
-// resolving each item that names another issue by a prefix.
-func resolveIssueAndItems(env *execenv.Env, args []string) (*cache.IssueCache, map[string][]issue.Value, error) {
-	i, err := resolveIssue(env, args[0])
-	if err != nil {
-		return nil, nil, err
-	}
-
-	items, err := readItems(env, args[1])
-	if err != nil {
-		return nil, nil, err
-	}
-
-	for key, list := range items {
-		for at, item := range list {
-			list[at] = resolveItem(env, key, item)
-		}
-	}
-
-	return i, items, nil
-}
-
-// commitOrPrint is the end of every writer: --dry-run prints the operations in
-// their wire shape and writes nothing, otherwise they land as one commit and
-// nothing is printed.
+// printOperations is the end of every writer: --dry-run prints the operations
+// in their wire shape, and a real write prints nothing at all.
 //
 // The operations reaching here are already checked against the schema, at
 // planning time, so a dry run reports what a commit would refuse (bb9e89e).
-func commitOrPrint(env *execenv.Env, i *cache.IssueCache, opts writeOptions, ops []issue.Operation) error {
+func printOperations(env *execenv.Env, opts writeOptions, ops []issue.Operation) error {
 	if opts.dryRun {
 		warnUnvalidated(env)
 		return env.Out.PrintJSON(ops)
 	}
-	return i.CommitOperations(ops)
+	return nil
 }
 
 // warnUnvalidated says, on stderr, that a dry run checked nothing.

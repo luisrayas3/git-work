@@ -4,6 +4,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/git-bug/git-bug/commands/execenv"
+	"github.com/git-bug/git-bug/host"
 )
 
 func newIssueRmCommand(env *execenv.Env) *cobra.Command {
@@ -26,10 +27,5 @@ ID is an id prefix or an alias.`,
 }
 
 func runIssueRm(env *execenv.Env, args []string) error {
-	i, err := resolveIssue(env, args[0])
-	if err != nil {
-		return err
-	}
-
-	return env.Backend.Issues().Remove(i.Id().String())
+	return host.IssueRm(env.Backend, args[0])
 }

@@ -5,16 +5,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/git-bug/git-bug/cache"
 	"github.com/git-bug/git-bug/commands/completion"
 	"github.com/git-bug/git-bug/commands/execenv"
 )
-
-// resolveIssue reads the issue named by an id prefix or by an alias.
-// Plumbing has no implicit selection: every command names its issue.
-func resolveIssue(env *execenv.Env, arg string) (*cache.IssueCache, error) {
-	return env.Backend.Issues().ResolvePrefixOrAlias(arg)
-}
 
 // IssueCompletion complete an issue id
 func IssueCompletion(env *execenv.Env) completion.ValidArgsFunction {

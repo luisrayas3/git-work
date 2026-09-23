@@ -1,26 +1,11 @@
 package issuecmd
 
 import (
-	"fmt"
-
 	"github.com/spf13/cobra"
 
-	"github.com/git-bug/git-bug/cache"
 	"github.com/git-bug/git-bug/commands/execenv"
-	"github.com/git-bug/git-bug/entities/issue"
-	"github.com/git-bug/git-bug/util/text"
+	"github.com/git-bug/git-bug/host"
 )
-
-// issueDocument is what `new` takes: the issue as a document.
-//
-// Fields carries the whole of what the issue is, title included;
-// body is the first comment, the one an issue always has;
-// aliases are external ids, stored as create-op metadata (483dbe2).
-type issueDocument struct {
-	Fields  map[string]issue.Value `json:"fields"`
-	Body    string                 `json:"body"`
-	Aliases map[string]string      `json:"aliases"`
-}
 
 func newIssueNewCommand(env *execenv.Env) *cobra.Command {
 	cmd := &cobra.Command{
@@ -53,81 +38,17 @@ func runIssueNew(env *execenv.Env, args []string) error {
 		return err
 	}
 
-	var doc issueDocument
+	var doc host.IssueDocument
 	if err := decodeJSON(data, &doc); err != nil {
 		return err
 	}
 
-	title, fields, err := splitTitle(doc.Fields)
+	id, err := host.IssueNew(env.Backend, doc)
 	if err != nil {
 		return err
 	}
 
-	metadata, err := aliasMetadata(doc.Aliases)
-	if err != nil {
-		return err
-	}
-
-	i, _, err := env.Backend.Issues().NewWithMetadata(
-		text.CleanupOneLine(title),
-		text.Cleanup(doc.Body),
-		fields,
-		metadata,
-	)
-	if err != nil {
-		return err
-	}
-
-	env.Out.Println(i.Id().String())
+	env.Out.Println(id.String())
 
 	return nil
-}
-
-// splitTitle takes the title out of the fields map,
-// because the create operation carries it in its own member:
-// that is what keeps an issue's id equal to the bug's it was migrated from (bf6f392).
-func splitTitle(all map[string]issue.Value) (string, map[string]issue.Value, error) {
-	raw, ok := all[issue.TitleKey]
-	if !ok {
-		return "", nil, fmt.Errorf("a title is required, in fields")
-	}
-	if err := issue.ValidateValue(issue.TitleKey, raw); err != nil {
-		return "", nil, err
-	}
-	title, _ := issue.String(raw)
-
-	fields := make(map[string]issue.Value, len(all))
-	for key, value := range all {
-		if key == issue.TitleKey {
-			continue
-		}
-		if err := issue.ValidateKey(key); err != nil {
-			return "", nil, err
-		}
-		if err := issue.ValidateValue(key, value); err != nil {
-			return "", nil, fmt.Errorf("field %s: %w", key, err)
-		}
-		fields[key] = value
-	}
-
-	return title, fields, nil
-}
-
-// aliasMetadata turns the document's aliases into create-op metadata,
-// one `alias:<name>` key each.
-func aliasMetadata(aliases map[string]string) (map[string]string, error) {
-	if len(aliases) == 0 {
-		return nil, nil
-	}
-	metadata := make(map[string]string, len(aliases))
-	for name, value := range aliases {
-		if err := issue.ValidateKey(name); err != nil {
-			return nil, fmt.Errorf("alias: %w", err)
-		}
-		if value == "" {
-			return nil, fmt.Errorf("alias %s is empty", name)
-		}
-		metadata[cache.AliasMetadataPrefix+name] = value
-	}
-	return metadata, nil
 }

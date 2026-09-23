@@ -1,12 +1,10 @@
 package issuecmd
 
 import (
-	"errors"
-
 	"github.com/spf13/cobra"
 
 	"github.com/git-bug/git-bug/commands/execenv"
-	"github.com/git-bug/git-bug/util/text"
+	"github.com/git-bug/git-bug/host"
 )
 
 // newIssueCommentCommand groups the two comment verbs.
@@ -43,26 +41,13 @@ ISSUE_ID is an id prefix or an alias.`,
 }
 
 func runIssueCommentNew(env *execenv.Env, args []string) error {
-	i, err := resolveIssue(env, args[0])
-	if err != nil {
-		return err
-	}
-
 	body, err := readBody(env, args[1])
 	if err != nil {
 		return err
 	}
-	body = text.Cleanup(body)
-	if body == "" {
-		return errors.New("a comment body is required")
-	}
 
-	commentId, _, err := i.AddComment(body)
+	commentId, err := host.IssueCommentNew(env.Backend, args[0], body)
 	if err != nil {
-		return err
-	}
-
-	if err := i.Commit(); err != nil {
 		return err
 	}
 
@@ -87,23 +72,10 @@ COMMENT_ID is the comment's own id, as get and comment new print it.`,
 }
 
 func runIssueCommentEdit(env *execenv.Env, args []string) error {
-	i, commentId, err := env.Backend.Issues().ResolveComment(args[0])
-	if err != nil {
-		return err
-	}
-
 	body, err := readBody(env, args[1])
 	if err != nil {
 		return err
 	}
-	body = text.Cleanup(body)
-	if body == "" {
-		return errors.New("a comment body is required")
-	}
 
-	if _, err := i.EditComment(commentId, body); err != nil {
-		return err
-	}
-
-	return i.Commit()
+	return host.IssueCommentEdit(env.Backend, args[0], body)
 }

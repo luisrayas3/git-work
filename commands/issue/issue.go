@@ -4,34 +4,23 @@
 // JSON in and JSON out, and no sugar flag anywhere.
 // The command map it implements is doc/design/cli-convention.md.
 // The `bug` tree keeps serving the old entity until the store is migrated (bf6f392).
+//
+// Every verb is a call into package `host`, which a flow's script reaches too:
+// this tree parses argv and formats the result, and nothing else.
 package issuecmd
 
 import (
 	"encoding/json"
 	"fmt"
-	"sort"
 
 	"github.com/spf13/cobra"
 
-	"github.com/git-bug/git-bug/cache"
-	"github.com/git-bug/git-bug/commands/cmdjson"
 	"github.com/git-bug/git-bug/commands/completion"
 	"github.com/git-bug/git-bug/commands/execenv"
 	"github.com/git-bug/git-bug/entity"
-	"github.com/git-bug/git-bug/query/jq"
+	"github.com/git-bug/git-bug/host"
 	"github.com/git-bug/git-bug/util/colors"
 )
-
-// defaultProgram is the list you get when you name no program:
-// everything that is not archived, most recently edited first.
-//
-// It is written as a jq program rather than special-cased in Go
-// so that `.` means the whole array and nothing is hidden from it.
-// "mine" would be the better default, but it needs the schema's assignee
-// field to know which one it is, so it waits for the schema (e8d6426).
-const defaultProgram = `map(select(.fields.archived != true))
-	| sort_by(.edit_time.lamport, .edit_time.timestamp)
-	| reverse`
 
 type issueListOptions struct {
 	format string
@@ -94,17 +83,12 @@ func addFormatFlag(cmd *cobra.Command, format *string) {
 }
 
 func runIssueList(env *execenv.Env, opts issueListOptions, args []string) error {
-	program := defaultProgram
+	var program string
 	if len(args) == 1 {
 		program = args[0]
 	}
 
-	input, err := issueListInput(env)
-	if err != nil {
-		return err
-	}
-
-	values, err := jq.Run(program, input)
+	values, err := host.IssueList(env.Backend, program)
 	if err != nil {
 		return err
 	}
@@ -121,33 +105,6 @@ func runIssueList(env *execenv.Env, opts issueListOptions, args []string) error 
 	default:
 		return fmt.Errorf("unknown format %s", opts.format)
 	}
-}
-
-// issueListInput is the array a program runs over: every issue as an excerpt,
-// oldest first, so that a program that does not sort still reads the same twice.
-func issueListInput(env *execenv.Env) (any, error) {
-	ids := env.Backend.Issues().AllIds()
-
-	excerpts := make([]*cache.IssueExcerpt, len(ids))
-	for i, id := range ids {
-		excerpt, err := env.Backend.Issues().ResolveExcerpt(id)
-		if err != nil {
-			return nil, err
-		}
-		excerpts[i] = excerpt
-	}
-	sort.Sort(cache.IssuesByCreationTime(excerpts))
-
-	out := make([]cmdjson.IssueExcerpt, len(excerpts))
-	for i, excerpt := range excerpts {
-		j, err := cmdjson.NewIssueExcerpt(env.Backend, excerpt)
-		if err != nil {
-			return nil, err
-		}
-		out[i] = j
-	}
-
-	return jq.Input(out)
 }
 
 // printValues prints what a program emitted.

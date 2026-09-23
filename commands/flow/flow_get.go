@@ -6,17 +6,8 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/git-bug/git-bug/commands/execenv"
-	"github.com/git-bug/git-bug/flow"
+	"github.com/git-bug/git-bug/host"
 )
-
-// flowDetail is one flow whole: what a listing gives, plus the script and the id.
-type flowDetail struct {
-	Name        string       `json:"name"`
-	Description string       `json:"description"`
-	Params      []paramEntry `json:"params"`
-	Script      string       `json:"script"`
-	Id          string       `json:"id"`
-}
 
 type flowGetOptions struct {
 	format string
@@ -50,37 +41,18 @@ func newFlowGetCommand(env *execenv.Env) *cobra.Command {
 func runFlowGet(env *execenv.Env, opts flowGetOptions, args []string) error {
 	warnDuplicates(env)
 
-	name := args[0]
-
-	excerpt, err := currentExcerpt(env, name)
-	if err != nil {
-		return err
-	}
-
-	script, err := scriptOf(excerpt)
+	detail, warnings, err := host.FlowGet(env.Backend, args[0])
 	if err != nil {
 		return err
 	}
 
 	switch opts.format {
 	case "json":
-		description, _ := excerpt.AttributeString(attrDescription)
-		detail := flowDetail{
-			Name:        name,
-			Description: description,
-			Params:      []paramEntry{},
-			Script:      script,
-			Id:          excerpt.Id().String(),
-		}
-		if def, err := flow.Parse(script); err == nil {
-			detail.Params = paramEntries(def)
-		} else {
-			env.Err.Printf("warning: flow %s does not parse: %v\n", name, err)
-		}
+		warn(env, warnings)
 		return env.Out.PrintJSON(detail)
 	case "text":
 		// verbatim: what comes out has to import back unchanged
-		env.Out.Print(script)
+		env.Out.Print(detail.Script)
 		return nil
 	default:
 		return fmt.Errorf("unknown format %s", opts.format)

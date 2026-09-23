@@ -8,13 +8,13 @@
 // The refs are the runtime source of truth and the `.star` files in a tree are
 // authoring files, so `import` is the only way from one to the other (E1).
 //
-// Running a flow is the runtime's business and lives elsewhere;
-// this tree is the entity's surface: list, get, import, export, log,
-// archive and rm, to the map in doc/design/cli-convention.md.
+// This tree is the entity's surface — list, get, run, import, export, log,
+// archive and rm, to the map in doc/design/cli-convention.md —
+// and it reaches the store through package `host`, as a script does;
+// `flow/run` is the Starlark runtime `run` calls.
 package flowcmd
 
 import (
-	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -24,37 +24,23 @@ import (
 	"github.com/git-bug/git-bug/commands/completion"
 	"github.com/git-bug/git-bug/commands/execenv"
 	"github.com/git-bug/git-bug/entities/config"
-	"github.com/git-bug/git-bug/flow"
+	"github.com/git-bug/git-bug/host"
 )
 
-// The two attributes a flow entity carries (E3).
+// The flow entity's attributes, its listing shape and the parsing behind them
+// live in package host, because a script reaches them too (cli-convention.md).
 const (
-	attrScript      = "script"
-	attrDescription = "description"
+	attrScript      = host.AttrScript
+	attrDescription = host.AttrDescription
 )
 
-// flowEntry is one flow in a listing.
-//
-// Archived is always false in a listing, which hides the archived,
-// and is printed anyway so that a consumer reads one shape
-// whatever the command asked for.
-type flowEntry struct {
-	Name        string       `json:"name"`
-	Description string       `json:"description"`
-	Params      []paramEntry `json:"params"`
-	Archived    bool         `json:"archived"`
-}
-
-// paramEntry is one argument of a flow.
-//
-// A parameter with no default is required,
-// and its default is absent rather than null,
-// because `None` is a default and JSON null is what it prints as.
-type paramEntry struct {
-	Name     string          `json:"name"`
-	Default  json.RawMessage `json:"default,omitempty"`
-	Required bool            `json:"required"`
-}
+// flowEntry is one flow in a listing, paramEntry one of its arguments,
+// and flowDetail one flow whole.
+type (
+	flowEntry  = host.FlowEntry
+	paramEntry = host.FlowParam
+	flowDetail = host.FlowDetail
+)
 
 type flowListOptions struct {
 	format string
@@ -105,10 +91,11 @@ func addFormatFlag(cmd *cobra.Command, format *string) {
 func runFlowList(env *execenv.Env, opts flowListOptions) error {
 	warnDuplicates(env)
 
-	entries, err := listFlows(env)
+	entries, warnings, err := host.FlowList(env.Backend)
 	if err != nil {
 		return err
 	}
+	warn(env, warnings)
 
 	switch opts.format {
 	case "json":
@@ -123,85 +110,24 @@ func runFlowList(env *execenv.Env, opts flowListOptions) error {
 	}
 }
 
-// listFlows returns every unarchived flow, by name.
-//
-// Parsing a handful of small scripts to list their arguments is cheap,
-// and it is the only place the arguments can come from:
-// the description is mirrored into an attribute so that a listing has one,
-// but a signature is not (E2).
-func listFlows(env *execenv.Env) ([]flowEntry, error) {
-	entries := []flowEntry{}
-
-	for _, name := range env.Backend.Flows().Keys(config.ShapeFlow) {
-		excerpt, err := env.Backend.Flows().CurrentExcerpt(config.ShapeFlow, name)
-		if err != nil {
-			return nil, err
-		}
-		entries = append(entries, flowEntryOf(env, name, excerpt))
-	}
-
-	return entries, nil
-}
-
-func flowEntryOf(env *execenv.Env, name string, excerpt *cache.ConfigExcerpt) flowEntry {
-	script, _ := excerpt.AttributeString(attrScript)
-	description, _ := excerpt.AttributeString(attrDescription)
-
-	return flowEntry{
-		Name:        name,
-		Description: description,
-		Params:      paramsOf(env, name, script),
-		Archived:    excerpt.Archived,
-	}
-}
-
-// paramsOf reads a script's parameters, tolerating a script that will not parse.
-//
-// Import refuses one, so this only happens to a flow written by another binary
-// or edited by hand; a listing that failed whole because of one such flow
-// would hide the ones that are fine.
-func paramsOf(env *execenv.Env, name string, script string) []paramEntry {
-	def, err := flow.Parse(script)
-	if err != nil {
-		env.Err.Printf("warning: flow %s does not parse: %v\n", name, err)
-		return []paramEntry{}
-	}
-	return paramEntries(def)
-}
-
-func paramEntries(def *flow.Def) []paramEntry {
-	params := make([]paramEntry, 0, len(def.Params))
-	for _, param := range def.Params {
-		params = append(params, paramEntry{
-			Name:     param.Name,
-			Default:  param.Default,
-			Required: !param.HasDefault,
-		})
-	}
-	return params
-}
-
 // warnDuplicates prints the flows a key silently resolves to one of (E7).
 //
 // Every flow command calls it, because a team that loses an edit this way
 // is never told otherwise.
 func warnDuplicates(env *execenv.Env) {
-	flows := env.Backend.Flows()
-	for _, name := range flows.Keys(config.ShapeFlow) {
-		for _, duplicate := range flows.Duplicates(config.ShapeFlow, name) {
-			env.Err.Printf("warning: flow %s is defined by %s too, which is ignored; archive it to repair\n",
-				name, duplicate.Id().Human())
-		}
+	warn(env, host.FlowWarnings(env.Backend))
+}
+
+// warn prints what a reader should be told about the flows it just read.
+func warn(env *execenv.Env, warnings []string) {
+	for _, warning := range warnings {
+		env.Err.Printf("warning: %s\n", warning)
 	}
 }
 
 // currentExcerpt resolves a flow name to the entity it names (E7).
 func currentExcerpt(env *execenv.Env, name string) (*cache.ConfigExcerpt, error) {
-	excerpt, err := env.Backend.Flows().CurrentExcerpt(config.ShapeFlow, name)
-	if err != nil {
-		return nil, fmt.Errorf("no flow named %s", name)
-	}
-	return excerpt, nil
+	return host.FlowExcerpt(env.Backend, name)
 }
 
 // archivedToo resolves a flow name to its entity, archived or not.
@@ -233,11 +159,7 @@ func current(env *execenv.Env, name string) (*cache.ConfigCache, error) {
 
 // scriptOf returns a flow's source.
 func scriptOf(excerpt *cache.ConfigExcerpt) (string, error) {
-	script, ok := excerpt.AttributeString(attrScript)
-	if !ok {
-		return "", fmt.Errorf("flow %s has no script", excerpt.Key)
-	}
-	return script, nil
+	return host.FlowScript(excerpt)
 }
 
 // FlowCompletion completes a flow name.

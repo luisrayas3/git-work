@@ -6,8 +6,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/git-bug/git-bug/commands/cmdjson"
 	"github.com/git-bug/git-bug/commands/execenv"
+	"github.com/git-bug/git-bug/host"
 	"github.com/git-bug/git-bug/util/colors"
 )
 
@@ -41,19 +41,9 @@ ID is an id prefix or an alias.`,
 }
 
 func runIssueLog(env *execenv.Env, opts issueLogOptions, args []string) error {
-	i, err := resolveIssue(env, args[0])
+	entries, err := host.IssueLog(env.Backend, args[0])
 	if err != nil {
 		return err
-	}
-
-	ops := i.Snapshot().AllOperations()
-	entries := make([]cmdjson.IssueOperation, len(ops))
-	for at, op := range ops {
-		entry, err := cmdjson.NewIssueOperation(op)
-		if err != nil {
-			return err
-		}
-		entries[at] = entry
 	}
 
 	switch opts.format {

@@ -1,15 +1,14 @@
 package issuecmd
 
 import (
-	"errors"
 	"fmt"
 	"strings"
 
 	"github.com/spf13/cobra"
 
-	"github.com/git-bug/git-bug/commands/cmdjson"
 	"github.com/git-bug/git-bug/commands/execenv"
 	"github.com/git-bug/git-bug/entities/issue"
+	"github.com/git-bug/git-bug/host"
 	"github.com/git-bug/git-bug/util/colors"
 )
 
@@ -45,21 +44,20 @@ ID is an id prefix or an alias.`,
 }
 
 func runIssueGet(env *execenv.Env, opts issueGetOptions, args []string) error {
-	i, err := resolveIssue(env, args[0])
-	if err != nil {
-		return err
-	}
-
-	snap := i.Snapshot()
-
-	if len(snap.Comments) == 0 {
-		return errors.New("invalid issue: no comment")
-	}
-
 	switch opts.format {
 	case "json":
-		return env.Out.PrintJSON(cmdjson.NewIssueSnapshot(snap))
+		document, err := host.IssueGet(env.Backend, args[0])
+		if err != nil {
+			return err
+		}
+		return env.Out.PrintJSON(document)
 	case "text":
+		// The text form prints what the JSON projection drops, an author's
+		// email among it, so it reads the snapshot rather than the document.
+		snap, err := host.IssueSnapshot(env.Backend, args[0])
+		if err != nil {
+			return err
+		}
 		return issueTextFormatter(env, snap)
 	default:
 		return fmt.Errorf("unknown format %s", opts.format)
