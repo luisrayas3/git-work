@@ -164,8 +164,10 @@ KWARGS is one JSON object of the flow's arguments,
 defaults from the signature filling what it omits;
 an unknown key is an error naming the parameters.
 A flow's script reaches `issue.*`, `flow.*`, `view.*` and `me()` —
-the same verbs, the same arguments, the same output as the commands —
-and writes through the cache like any command does.
+the same verbs, the same arguments, the same output as the commands,
+because both go through package `host` —
+and writes through the cache, schema check included, like any command does.
+`schema.*` is not bound yet.
 
 Views build a **spec** from items and field bindings; a renderer consumes it,
 and neither renderer exists yet (`84dfbde`, `8b06191`),
