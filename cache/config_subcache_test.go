@@ -218,6 +218,74 @@ func TestConfigCacheQuery(t *testing.T) {
 	require.Len(t, c.Schema().Query(ConfigQuery{Shape: config.ShapeType, Key: "epic"}), 1)
 }
 
+func TestConfigPushPull(t *testing.T) {
+	// Config travels with the tracker, and two clones adding two members of
+	// the same collection both keep theirs: the entity is the coarse merge
+	// unit and one attribute per member is the fine one (E1, E3).
+	repoA, repoB, _ := repository.SetupGoGitReposAndRemote(t)
+
+	cacheA := createTestRepoCacheNoEvents(t, repoA)
+	cacheB := createTestRepoCacheNoEvents(t, repoB)
+
+	reneA, err := cacheA.Identities().New("René Descartes", "rene@descartes.fr")
+	require.NoError(t, err)
+	require.NoError(t, cacheA.SetUserIdentity(reneA))
+
+	_, err = cacheA.Push("origin")
+	require.NoError(t, err)
+	require.NoError(t, cacheB.Pull("origin"))
+
+	reneB, err := cacheB.Identities().Resolve(reneA.Id())
+	require.NoError(t, err)
+	require.NoError(t, cacheB.SetUserIdentity(reneB))
+
+	fieldA, _, err := cacheA.Schema().New(config.ShapeField, "task/status", map[string]config.Value{
+		"kind": config.StringValue("enum-with-category"),
+	})
+	require.NoError(t, err)
+	_, _, err = cacheA.Flows().New(config.ShapeFlow, "board", map[string]config.Value{
+		"script": config.StringValue("def board():\n    pass\n"),
+	})
+	require.NoError(t, err)
+
+	_, err = cacheA.Push("origin")
+	require.NoError(t, err)
+	require.NoError(t, cacheB.Pull("origin"))
+
+	require.Len(t, cacheB.Schema().AllIds(), 1)
+	require.Len(t, cacheB.Flows().AllIds(), 1)
+
+	// each clone adds one value to the same field, offline
+	_, err = fieldA.Set("values/to-do", config.MustValue(map[string]string{"name": "To Do"}))
+	require.NoError(t, err)
+	require.NoError(t, fieldA.Commit())
+
+	fieldB, err := cacheB.Schema().Current(config.ShapeField, "task/status")
+	require.NoError(t, err)
+	_, err = fieldB.Set("values/done", config.MustValue(map[string]string{"name": "Done"}))
+	require.NoError(t, err)
+	require.NoError(t, fieldB.Commit())
+
+	_, err = cacheA.Push("origin")
+	require.NoError(t, err)
+	require.NoError(t, cacheB.Pull("origin"))
+	_, err = cacheB.Push("origin")
+	require.NoError(t, err)
+	require.NoError(t, cacheA.Pull("origin"))
+
+	// Both sides now hold both values, and both say so from the cache: B's
+	// merge diverged, which is the path where the merge used to leave a stale
+	// excerpt behind (see SubCache.MergeAll).
+	for _, c := range []*RepoCache{cacheA, cacheB} {
+		merged, err := c.Schema().Current(config.ShapeField, "task/status")
+		require.NoError(t, err)
+		members := merged.Snapshot().Members("values")
+		require.Len(t, members, 2)
+		require.Contains(t, members, "to-do")
+		require.Contains(t, members, "done")
+	}
+}
+
 func TestConfigNamespacesArePushed(t *testing.T) {
 	// Fetch and Push take their ref prefixes from the subcache list, so the
 	// two config namespaces travel with no code of their own (E8).

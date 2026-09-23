@@ -715,8 +715,20 @@ func (sc *SubCache[EntityT, ExcerptT, CacheT]) MergeAll(remote string) <-chan en
 				sc.notifyObservers(EntityEventCreated, result.Id)
 
 			case entity.MergeStatusUpdated:
-				// TODO: can that result in multiple copy of the same entity?
-				e := result.Entity.(EntityT)
+				// Read the entity back rather than trust the one the merge
+				// returned. On the diverged path (dag's scenario 5) that one
+				// was read *before* the merge commit was written, so it holds
+				// the local history alone: caching it writes an excerpt
+				// missing everything the remote brought, and, since the ref
+				// hash recorded next to it is the merged one, the staleness
+				// diff on the next open sees nothing wrong and the wrong
+				// excerpt survives. entity/dag is upstream's by contract, so
+				// the correction belongs here.
+				e, err := sc.actions.ReadWithResolver(sc.repo, sc.resolvers(), result.Id)
+				if err != nil {
+					out <- entity.NewMergeError(err, result.Id)
+					continue
+				}
 				cached := sc.makeCached(e, sc.entityUpdated)
 
 				sc.mu.Lock()
