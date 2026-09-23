@@ -24,6 +24,16 @@ type Value = json.RawMessage
 // because no tool can show an issue without one.
 const TitleKey = "title"
 
+// ArchivedKey is the field that hides an issue from every default list.
+//
+// Archiving is the replicated removal (cli-convention.md):
+// `git work issue archive ID` is `set ID '{"archived": true}'`,
+// and it is an operation, so it reaches every clone,
+// where `rm` only deletes the local ref.
+// The package knows the key and nothing else about it:
+// what it means is the schema's business.
+const ArchivedKey = "archived"
+
 // MaxValueSize bounds a single value, in bytes of JSON.
 // Long text belongs in comments.
 const MaxValueSize = 64 * 1024

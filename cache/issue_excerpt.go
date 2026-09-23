@@ -2,6 +2,7 @@ package cache
 
 import (
 	"encoding/gob"
+	"strings"
 	"time"
 
 	"github.com/git-bug/git-bug/entities/issue"
@@ -92,6 +93,39 @@ func (e *IssueExcerpt) EditTime() time.Time {
 func (e *IssueExcerpt) Title() string {
 	title, _ := issue.String(e.Fields[issue.TitleKey])
 	return title
+}
+
+// Aliases returns the issue's external ids, by alias name.
+//
+// They live in the create operation's metadata because an alias is immutable:
+// a Jira key names the same issue for as long as both exist,
+// and the entity id stays the hash (483dbe2).
+func (e *IssueExcerpt) Aliases() map[string]string {
+	var aliases map[string]string
+	for key, value := range e.CreateMetadata {
+		name, ok := strings.CutPrefix(key, AliasMetadataPrefix)
+		if !ok {
+			continue
+		}
+		if aliases == nil {
+			aliases = make(map[string]string)
+		}
+		aliases[name] = value
+	}
+	return aliases
+}
+
+// HasAlias reports whether any of the issue's aliases is that external id.
+func (e *IssueExcerpt) HasAlias(alias string) bool {
+	if alias == "" {
+		return false
+	}
+	for key, value := range e.CreateMetadata {
+		if strings.HasPrefix(key, AliasMetadataPrefix) && value == alias {
+			return true
+		}
+	}
+	return false
 }
 
 // FieldString returns a field decoded as a string, and whether it is one.

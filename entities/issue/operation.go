@@ -2,6 +2,7 @@ package issue
 
 import (
 	"encoding/json"
+	"fmt"
 
 	"github.com/git-bug/git-bug/entity"
 	"github.com/git-bug/git-bug/entity/dag"
@@ -31,6 +32,34 @@ const (
 	AddValueOp                      // 10
 	RemoveValueOp                   // 11
 )
+
+// OperationTypeName names an operation type for the outside world.
+//
+// The type code is what the store holds and what an id hashes;
+// the name is what `git work issue log` prints and what a script matches on,
+// so it is kebab-case like every other key on the command line.
+func OperationTypeName(t dag.OperationType) string {
+	switch t {
+	case CreateOp:
+		return "create"
+	case AddCommentOp:
+		return "add-comment"
+	case EditCommentOp:
+		return "edit-comment"
+	case NoOpOp:
+		return "noop"
+	case SetMetadataOp:
+		return "set-metadata"
+	case SetFieldOp:
+		return "set-field"
+	case AddValueOp:
+		return "add-value"
+	case RemoveValueOp:
+		return "remove-value"
+	default:
+		return fmt.Sprintf("unknown-%d", int(t))
+	}
+}
 
 // Operation define the interface to fulfill for an edit operation of an Issue
 type Operation = dag.OperationWithApply[*Snapshot]

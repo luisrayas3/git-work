@@ -5,6 +5,7 @@ import (
 
 	"github.com/git-bug/git-bug/cache"
 	"github.com/git-bug/git-bug/entities/issue"
+	"github.com/git-bug/git-bug/entity/dag"
 )
 
 // fieldsJSON passes the stored values through verbatim.
@@ -70,6 +71,34 @@ func NewIssueComment(comment issue.Comment) IssueComment {
 		Author:  NewIdentity(comment.Author),
 		Message: comment.Message,
 	}
+}
+
+// IssueOperation is one entry of `git work issue log`:
+// what the operation is, who wrote it and when,
+// plus the operation itself in the shape the store holds it.
+type IssueOperation struct {
+	Id       string          `json:"id"`
+	HumanId  string          `json:"human_id"`
+	Type     string          `json:"type"`
+	Author   Identity        `json:"author"`
+	UnixTime int64           `json:"unix_time"`
+	Op       json.RawMessage `json:"op"`
+}
+
+func NewIssueOperation(op dag.Operation) (IssueOperation, error) {
+	raw, err := json.Marshal(op)
+	if err != nil {
+		return IssueOperation{}, err
+	}
+
+	return IssueOperation{
+		Id:       op.Id().String(),
+		HumanId:  op.Id().Human(),
+		Type:     issue.OperationTypeName(op.Type()),
+		Author:   NewIdentity(op.Author()),
+		UnixTime: op.Time().Unix(),
+		Op:       raw,
+	}, nil
 }
 
 type IssueExcerpt struct {

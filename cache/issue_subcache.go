@@ -17,6 +17,13 @@ type RepoCacheIssue struct {
 	*SubCache[*issue.Issue, *IssueExcerpt, *IssueCache]
 }
 
+// AliasMetadataPrefix is the create-op metadata key prefix that holds an
+// issue's external ids: `alias:jira` = "PROJ-12".
+//
+// The create operation is the one immutable place in the entity,
+// which is what an alias has to be (483dbe2).
+const AliasMetadataPrefix = "alias:"
+
 func NewRepoCacheIssue(repo repository.ClockedRepo,
 	resolvers func() entity.Resolvers,
 	getUserIdentity getUserIdentityFunc) *RepoCacheIssue {
@@ -44,6 +51,37 @@ func NewRepoCacheIssue(repo repository.ClockedRepo,
 	)
 
 	return &RepoCacheIssue{SubCache: sc}
+}
+
+// ResolveAlias retrieves the issue carrying the given external id under any
+// alias:<name> key of its create operation. It fails if several match.
+func (c *RepoCacheIssue) ResolveAlias(alias string) (*IssueCache, error) {
+	return c.ResolveMatcher(func(excerpt *IssueExcerpt) bool {
+		return excerpt.HasAlias(alias)
+	})
+}
+
+// ResolvePrefixOrAlias resolves an id prefix, and falls back to an alias when
+// no issue has that prefix: every ID position of the command line takes both
+// (483dbe2), so that a Jira key can be pasted wherever an id fits.
+//
+// An ambiguous alias is an error of its own;
+// anything else reports the id prefix's failure, which is the common case.
+func (c *RepoCacheIssue) ResolvePrefixOrAlias(prefix string) (*IssueCache, error) {
+	i, err := c.ResolvePrefix(prefix)
+	if err == nil {
+		return i, nil
+	}
+
+	i, aliasErr := c.ResolveAlias(prefix)
+	if aliasErr == nil {
+		return i, nil
+	}
+	var multiple *entity.ErrMultipleMatch
+	if errors.As(aliasErr, &multiple) {
+		return nil, aliasErr
+	}
+	return nil, err
 }
 
 // ResolveIssueCreateMetadata retrieve an issue that has the exact given metadata on
@@ -191,6 +229,18 @@ func (c *RepoCacheIssue) Query(q *query.Query) ([]entity.Id, error) {
 // The new issue is written in the repository (commit)
 func (c *RepoCacheIssue) New(title string, message string, fields map[string]issue.Value) (*IssueCache, *issue.CreateOperation, error) {
 	return c.NewWithFiles(title, message, nil, fields)
+}
+
+// NewWithMetadata creates a new issue with metadata on its create operation,
+// which is where aliases live (483dbe2).
+// The new issue is written in the repository (commit)
+func (c *RepoCacheIssue) NewWithMetadata(title string, message string, fields map[string]issue.Value, metadata map[string]string) (*IssueCache, *issue.CreateOperation, error) {
+	author, err := c.getUserIdentity()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return c.NewRaw(author, time.Now().Unix(), title, message, nil, fields, metadata)
 }
 
 // NewWithFiles create a new issue with attached files for the message

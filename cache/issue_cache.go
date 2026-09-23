@@ -1,6 +1,7 @@
 package cache
 
 import (
+	"sort"
 	"time"
 
 	"github.com/git-bug/git-bug/entities/identity"
@@ -83,6 +84,107 @@ func (c *IssueCache) SetFieldRaw(author identity.Interface, unixTime int64, key 
 		return nil, err
 	}
 	return op, c.notifyUpdated()
+}
+
+// PlanSetFields builds the operations that SetFields would commit, one
+// SetFieldOperation per key, in key order, and validates every one of them
+// before returning any.
+//
+// Nothing is appended and nothing is written:
+// this is what a writer's --dry-run prints,
+// and what the same writer commits a moment later.
+func (c *IssueCache) PlanSetFields(fields map[string]issue.Value) ([]issue.Operation, error) {
+	author, err := c.getUserIdentity()
+	if err != nil {
+		return nil, err
+	}
+	unixTime := time.Now().Unix()
+
+	ops := make([]issue.Operation, 0, len(fields))
+	for _, key := range sortedKeys(fields) {
+		op := issue.NewSetFieldOp(author, unixTime, key, fields[key])
+		if err := op.Validate(); err != nil {
+			return nil, err
+		}
+		ops = append(ops, op)
+	}
+	return ops, nil
+}
+
+// PlanAddValues builds the operations that add every item of every key,
+// one AddValueOperation per item, keys in order and items as given.
+func (c *IssueCache) PlanAddValues(items map[string][]issue.Value) ([]issue.Operation, error) {
+	author, err := c.getUserIdentity()
+	if err != nil {
+		return nil, err
+	}
+	unixTime := time.Now().Unix()
+
+	var ops []issue.Operation
+	for _, key := range sortedKeys(items) {
+		for _, item := range items[key] {
+			op := issue.NewAddValueOp(author, unixTime, key, item)
+			if err := op.Validate(); err != nil {
+				return nil, err
+			}
+			ops = append(ops, op)
+		}
+	}
+	return ops, nil
+}
+
+// PlanRemoveValues is PlanAddValues' mirror, one RemoveValueOperation per item.
+func (c *IssueCache) PlanRemoveValues(items map[string][]issue.Value) ([]issue.Operation, error) {
+	author, err := c.getUserIdentity()
+	if err != nil {
+		return nil, err
+	}
+	unixTime := time.Now().Unix()
+
+	var ops []issue.Operation
+	for _, key := range sortedKeys(items) {
+		for _, item := range items[key] {
+			op := issue.NewRemoveValueOp(author, unixTime, key, item)
+			if err := op.Validate(); err != nil {
+				return nil, err
+			}
+			ops = append(ops, op)
+		}
+	}
+	return ops, nil
+}
+
+// CommitOperations appends a planned list of operations and commits them as one.
+//
+// A commit is the write unit (cli-convention.md):
+// `set` over three keys is three operations in one commit,
+// so that a reader never sees a half-applied document
+// and the log reads as the one change it was.
+func (c *IssueCache) CommitOperations(ops []issue.Operation) error {
+	if len(ops) == 0 {
+		return nil
+	}
+
+	c.mu.Lock()
+	for _, op := range ops {
+		c.entity.Append(op)
+	}
+	c.mu.Unlock()
+
+	if err := c.notifyUpdated(); err != nil {
+		return err
+	}
+	return c.Commit()
+}
+
+// sortedKeys orders a map's keys, so that a plan reads and hashes the same twice.
+func sortedKeys[V any](m map[string]V) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys
 }
 
 // SetTitle is SetField on the title, the one field this layer names.
