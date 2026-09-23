@@ -111,7 +111,9 @@ func NewNamedRepoCache(r repository.ClockedRepo, name string) (*RepoCache, chan 
 
 	// bugs and issues are peers while the store migrates from one to the
 	// other (f4bac00, bf6f392); entities/bug leaves once it has.
-	c.issues = NewRepoCacheIssue(r, c.getResolvers, c.GetUserIdentity)
+	// Issues come after config: an issue write is validated against the
+	// schema the config subcache holds (bb9e89e, E8).
+	c.issues = NewRepoCacheIssue(r, c.getResolvers, c.GetUserIdentity, c.Checker)
 	c.subcaches = append(c.subcaches, c.issues)
 
 	c.resolvers = entity.Resolvers{

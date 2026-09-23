@@ -1,6 +1,7 @@
 package cache
 
 import (
+	"encoding/json"
 	"errors"
 	"sort"
 	"strings"
@@ -11,10 +12,15 @@ import (
 	"github.com/git-bug/git-bug/entity"
 	"github.com/git-bug/git-bug/query"
 	"github.com/git-bug/git-bug/repository"
+	"github.com/git-bug/git-bug/schema"
 )
 
 type RepoCacheIssue struct {
 	*SubCache[*issue.Issue, *IssueExcerpt, *IssueCache]
+
+	// checker compiles the live schema, which a create is measured against
+	// before the entity is written (bb9e89e).
+	checker checkerFunc
 }
 
 // AliasMetadataPrefix is the create-op metadata key prefix that holds an
@@ -26,13 +32,14 @@ const AliasMetadataPrefix = "alias:"
 
 func NewRepoCacheIssue(repo repository.ClockedRepo,
 	resolvers func() entity.Resolvers,
-	getUserIdentity getUserIdentityFunc) *RepoCacheIssue {
+	getUserIdentity getUserIdentityFunc,
+	checker checkerFunc) *RepoCacheIssue {
 
 	makeCached := func(i *issue.Issue, entityUpdated func(id entity.Id) error) *IssueCache {
 		reload := func() (*issue.Issue, error) {
 			return issue.ReadWithResolver(repo, resolvers(), i.Id())
 		}
-		return NewIssueCache(i, repo, getUserIdentity, entityUpdated, reload)
+		return NewIssueCache(i, repo, getUserIdentity, entityUpdated, reload, checker)
 	}
 
 	actions := Actions[*issue.Issue]{
@@ -50,7 +57,27 @@ func NewRepoCacheIssue(repo repository.ClockedRepo,
 		formatVersion, defaultMaxLoadedBugs,
 	)
 
-	return &RepoCacheIssue{SubCache: sc}
+	return &RepoCacheIssue{SubCache: sc, checker: checker}
+}
+
+// checkNew measures a new issue against the live schema.
+//
+// The type is the one field a create can not do without once a schema exists:
+// without it nothing can say which fields the issue has (D2).
+// With no type entity at all, nothing is checked — the bootstrap state (E4).
+func (c *RepoCacheIssue) checkNew(title string, fields map[string]issue.Value) error {
+	if c.checker == nil {
+		return nil
+	}
+	checker, err := c.checker()
+	if err != nil {
+		return err
+	}
+
+	all := rawValues(fields)
+	all[schema.TitleKey] = json.RawMessage(issue.StringValue(title))
+
+	return checker.CheckNew(all)
 }
 
 // ResolveAlias retrieves the issue carrying the given external id under any
@@ -258,6 +285,10 @@ func (c *RepoCacheIssue) NewWithFiles(title string, message string, files []repo
 // well as metadata for the Create operation.
 // The new issue is written in the repository (commit)
 func (c *RepoCacheIssue) NewRaw(author identity.Interface, unixTime int64, title string, message string, files []repository.Hash, fields map[string]issue.Value, metadata map[string]string) (*IssueCache, *issue.CreateOperation, error) {
+	if err := c.checkNew(title, fields); err != nil {
+		return nil, nil, err
+	}
+
 	i, op, err := issue.Create(author, unixTime, title, message, files, fields, metadata)
 	if err != nil {
 		return nil, nil, err

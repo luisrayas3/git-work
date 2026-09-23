@@ -1,6 +1,7 @@
 package cache
 
 import (
+	"encoding/json"
 	"sort"
 	"time"
 
@@ -9,6 +10,7 @@ import (
 	"github.com/git-bug/git-bug/entity"
 	"github.com/git-bug/git-bug/entity/dag"
 	"github.com/git-bug/git-bug/repository"
+	"github.com/git-bug/git-bug/schema"
 )
 
 // IssueCache is a wrapper around an Issue. It provides multiple functions:
@@ -18,14 +20,24 @@ import (
 // 3. Deal with concurrency.
 //
 // Field values are accepted as the entity accepts them, by shape.
-// Checking a value against the schema (kind, allowed values, built-ins)
-// is the job of the schema layer once it exists (bb9e89e),
-// and it belongs here, on the write path, not in the entity.
+// Checking a value against the schema — kind, allowed values, target types —
+// happens here, on the write path (bb9e89e, E6), at planning time,
+// so that `--dry-run` reports what a commit would refuse.
+// The entity stays free of any schema import,
+// because an operation's Validate is frozen (D6).
 type IssueCache struct {
 	CachedEntityBase[*issue.Snapshot, issue.Operation]
+
+	// checker compiles the live schema. It is a function rather than a value
+	// because the schema changes under a long-lived cache: the ref watcher
+	// refreshes the config subcache, and a plan must see what is there now.
+	checker checkerFunc
 }
 
-func NewIssueCache(i *issue.Issue, repo repository.ClockedRepo, getUserIdentity getUserIdentityFunc, entityUpdated func(id entity.Id) error, reload func() (*issue.Issue, error)) *IssueCache {
+// checkerFunc hands the issue cache the live schema's write checks.
+type checkerFunc func() (*schema.Checker, error)
+
+func NewIssueCache(i *issue.Issue, repo repository.ClockedRepo, getUserIdentity getUserIdentityFunc, entityUpdated func(id entity.Id) error, reload func() (*issue.Issue, error), checker checkerFunc) *IssueCache {
 	return &IssueCache{
 		CachedEntityBase: CachedEntityBase[*issue.Snapshot, issue.Operation]{
 			repo:            repo,
@@ -40,7 +52,13 @@ func NewIssueCache(i *issue.Issue, repo repository.ClockedRepo, getUserIdentity 
 				return &withSnapshot[*issue.Snapshot, issue.Operation]{Interface: fresh}, nil
 			},
 		},
+		checker: checker,
 	}
+}
+
+// typeKey is the issue's type as it stands, the key to the rest of the schema.
+func (c *IssueCache) typeKey() string {
+	return issueTypeOf(c.Snapshot().Fields)
 }
 
 func (c *IssueCache) AddComment(message string) (entity.CombinedId, *issue.AddCommentOperation, error) {
@@ -98,6 +116,9 @@ func (c *IssueCache) PlanSetFields(fields map[string]issue.Value) ([]issue.Opera
 	if err != nil {
 		return nil, err
 	}
+	if err := c.checkFields(fields); err != nil {
+		return nil, err
+	}
 	unixTime := time.Now().Unix()
 
 	ops := make([]issue.Operation, 0, len(fields))
@@ -116,6 +137,9 @@ func (c *IssueCache) PlanSetFields(fields map[string]issue.Value) ([]issue.Opera
 func (c *IssueCache) PlanAddValues(items map[string][]issue.Value) ([]issue.Operation, error) {
 	author, err := c.getUserIdentity()
 	if err != nil {
+		return nil, err
+	}
+	if err := c.checkItems(items); err != nil {
 		return nil, err
 	}
 	unixTime := time.Now().Unix()
@@ -139,6 +163,9 @@ func (c *IssueCache) PlanRemoveValues(items map[string][]issue.Value) ([]issue.O
 	if err != nil {
 		return nil, err
 	}
+	if err := c.checkItems(items); err != nil {
+		return nil, err
+	}
 	unixTime := time.Now().Unix()
 
 	var ops []issue.Operation
@@ -152,6 +179,54 @@ func (c *IssueCache) PlanRemoveValues(items map[string][]issue.Value) ([]issue.O
 		}
 	}
 	return ops, nil
+}
+
+// checkFields measures a `set` against the live schema,
+// bubbling every problem as one error before anything is written.
+//
+// An empty schema validates nothing, which is the bootstrap state (E4):
+// a repository with no config entities takes every write.
+func (c *IssueCache) checkFields(fields map[string]issue.Value) error {
+	checker, err := c.liveChecker()
+	if err != nil || checker == nil {
+		return err
+	}
+	return checker.CheckFields(c.typeKey(), rawValues(fields))
+}
+
+// checkItems measures an `add` or a `remove` against the live schema.
+func (c *IssueCache) checkItems(items map[string][]issue.Value) error {
+	checker, err := c.liveChecker()
+	if err != nil || checker == nil {
+		return err
+	}
+
+	raw := make(map[string][]json.RawMessage, len(items))
+	for key, list := range items {
+		out := make([]json.RawMessage, len(list))
+		for at, item := range list {
+			out[at] = json.RawMessage(item)
+		}
+		raw[key] = out
+	}
+
+	return checker.CheckItems(c.typeKey(), raw)
+}
+
+func (c *IssueCache) liveChecker() (*schema.Checker, error) {
+	if c.checker == nil {
+		return nil, nil
+	}
+	return c.checker()
+}
+
+// rawValues passes issue values to the schema layer as the JSON they are.
+func rawValues(fields map[string]issue.Value) map[string]json.RawMessage {
+	raw := make(map[string]json.RawMessage, len(fields))
+	for key, value := range fields {
+		raw[key] = json.RawMessage(value)
+	}
+	return raw
 }
 
 // CommitOperations appends a planned list of operations and commits them as one.

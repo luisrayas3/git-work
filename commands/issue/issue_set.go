@@ -214,9 +214,28 @@ func resolveIssueAndItems(env *execenv.Env, args []string) (*cache.IssueCache, m
 // commitOrPrint is the end of every writer: --dry-run prints the operations in
 // their wire shape and writes nothing, otherwise they land as one commit and
 // nothing is printed.
+//
+// The operations reaching here are already checked against the schema, at
+// planning time, so a dry run reports what a commit would refuse (bb9e89e).
 func commitOrPrint(env *execenv.Env, i *cache.IssueCache, opts writeOptions, ops []issue.Operation) error {
 	if opts.dryRun {
+		warnUnvalidated(env)
 		return env.Out.PrintJSON(ops)
 	}
 	return i.CommitOperations(ops)
+}
+
+// warnUnvalidated says, on stderr, that a dry run checked nothing.
+//
+// With no type entity in the store there is no schema to measure a write
+// against (E4), and silence would read as approval.
+func warnUnvalidated(env *execenv.Env) {
+	s, err := env.Backend.LoadSchema()
+	if err != nil {
+		env.Err.Printf("the schema could not be read: %v\n", err)
+		return
+	}
+	if s.Empty() {
+		env.Err.Println("no type is defined, so nothing was checked against the schema; git work schema init")
+	}
 }
