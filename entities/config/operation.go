@@ -2,6 +2,7 @@ package config
 
 import (
 	"encoding/json"
+	"fmt"
 
 	"github.com/git-bug/git-bug/entity"
 	"github.com/git-bug/git-bug/entity/dag"
@@ -23,6 +24,30 @@ const (
 	NoOpOp                          // 5
 	SetMetadataOp                   // 6
 )
+
+// OperationTypeName names an operation type for the outside world.
+//
+// The type code is what the store holds and what an id hashes;
+// the name is what `git work flow log` prints and what a script matches on,
+// so it is kebab-case like every other key on the command line.
+func OperationTypeName(t dag.OperationType) string {
+	switch t {
+	case CreateOp:
+		return "create"
+	case SetOp:
+		return "set"
+	case RemoveOp:
+		return "remove"
+	case SetArchivedOp:
+		return "set-archived"
+	case NoOpOp:
+		return "noop"
+	case SetMetadataOp:
+		return "set-metadata"
+	default:
+		return fmt.Sprintf("unknown-%d", int(t))
+	}
+}
 
 // Operation is the interface an edit of a config entity fulfills.
 type Operation = dag.OperationWithApply[*Snapshot]
