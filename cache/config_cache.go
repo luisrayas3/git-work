@@ -138,18 +138,34 @@ func (c *ConfigCache) UpdateRaw(author identity.Interface, unixTime int64, set m
 	removals := append([]string(nil), remove...)
 	sort.Strings(removals)
 
-	c.mu.Lock()
+	// Build and validate every operation before appending any of them:
+	// a rejected name half way through would otherwise leave the rest staged
+	// on the cached entity, to be written by whoever commits next.
+	ops := make([]config.Operation, 0, len(names)+len(removals))
 	for _, name := range names {
-		if _, err := config.Set(c.entity, author, unixTime, name, set[name], metadata); err != nil {
-			c.mu.Unlock()
+		op := config.NewSetOp(author, unixTime, name, set[name])
+		for k, v := range metadata {
+			op.SetMetadata(k, v)
+		}
+		if err := op.Validate(); err != nil {
 			return err
 		}
+		ops = append(ops, op)
 	}
 	for _, name := range removals {
-		if _, err := config.Remove(c.entity, author, unixTime, name, metadata); err != nil {
-			c.mu.Unlock()
+		op := config.NewRemoveOp(author, unixTime, name)
+		for k, v := range metadata {
+			op.SetMetadata(k, v)
+		}
+		if err := op.Validate(); err != nil {
 			return err
 		}
+		ops = append(ops, op)
+	}
+
+	c.mu.Lock()
+	for _, op := range ops {
+		c.entity.Append(op)
 	}
 	c.mu.Unlock()
 

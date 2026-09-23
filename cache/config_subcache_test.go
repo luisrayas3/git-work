@@ -131,6 +131,16 @@ func TestConfigCacheUpdate(t *testing.T) {
 	// an empty update writes nothing
 	require.NoError(t, field.Update(nil, nil))
 
+	// and a rejected change leaves nothing staged behind it
+	err = field.Update(map[string]config.Value{
+		"name":    config.StringValue("Status"),
+		"Ordinal": config.MustValue(10),
+	}, nil)
+	require.Error(t, err)
+	require.False(t, field.NeedCommit())
+	stillName, _ := field.Snapshot().AttributeString("name")
+	require.Equal(t, "State", stillName)
+
 	// archiving is the replicated removal, and it hides the entity from Query
 	_, err = field.SetArchived(true)
 	require.NoError(t, err)
