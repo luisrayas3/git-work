@@ -117,6 +117,7 @@ require (
 	github.com/urfave/cli/v3 v3.11.0 // indirect
 	github.com/xanzy/ssh-agent v0.3.3 // indirect
 	go.etcd.io/bbolt v1.4.0 // indirect
+	go.starlark.net v0.0.0-20260908191801-89a6a09411d5 // indirect
 	go.yaml.in/yaml/v3 v3.0.5 // indirect
 	golang.org/x/telemetry v0.0.0-20260908163034-4bcc4b2ee518 // indirect
 	golang.org/x/time v0.14.0 // indirect
