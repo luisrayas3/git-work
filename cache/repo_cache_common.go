@@ -109,9 +109,16 @@ func (c *RepoCache) RemoveAll() error {
 func (c *RepoCache) MergeAll(remote string) <-chan entity.MergeResult {
 	out := make(chan entity.MergeResult)
 
+	// The merge tiers, in dependency order (E1): identities, then the schema,
+	// then the issues, then the flows.
+	// An issue merge does not consult the schema (D6),
+	// so the schema going first costs nothing and keeps the door open;
+	// a flow names fields, so it goes last.
 	dependency := [][]cacheMgmt{
 		{c.identities},
+		{c.schema},
 		{c.bugs, c.issues},
+		{c.flows},
 	}
 
 	// run MergeAll according to entities dependencies and merge the results

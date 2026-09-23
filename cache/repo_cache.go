@@ -6,6 +6,7 @@ import (
 	"sync"
 
 	"github.com/git-bug/git-bug/entities/bug"
+	"github.com/git-bug/git-bug/entities/config"
 	"github.com/git-bug/git-bug/entities/identity"
 	"github.com/git-bug/git-bug/entities/issue"
 	"github.com/git-bug/git-bug/entity"
@@ -68,6 +69,8 @@ type RepoCache struct {
 	bugs       *RepoCacheBug
 	issues     *RepoCacheIssue
 	identities *RepoCacheIdentity
+	schema     *RepoCacheConfig
+	flows      *RepoCacheConfig
 
 	subcaches []cacheMgmt
 
@@ -95,6 +98,14 @@ func NewNamedRepoCache(r repository.ClockedRepo, name string) (*RepoCache, chan 
 	c.identities = NewRepoCacheIdentity(r, c.getResolvers, c.GetUserIdentity)
 	c.subcaches = append(c.subcaches, c.identities)
 
+	// Config is two subcaches over one entity, one per namespace (3556569):
+	// types and fields in refs/work-schema, flows in refs/work-flows.
+	c.schema = NewRepoCacheConfig(r, c.getResolvers, c.GetUserIdentity, config.Schema)
+	c.subcaches = append(c.subcaches, c.schema)
+
+	c.flows = NewRepoCacheConfig(r, c.getResolvers, c.GetUserIdentity, config.Flows)
+	c.subcaches = append(c.subcaches, c.flows)
+
 	c.bugs = NewRepoCacheBug(r, c.getResolvers, c.GetUserIdentity)
 	c.subcaches = append(c.subcaches, c.bugs)
 
@@ -110,6 +121,12 @@ func NewNamedRepoCache(r repository.ClockedRepo, name string) (*RepoCache, chan 
 		&BugExcerpt{}:      entity.ResolverFunc[*BugExcerpt](c.bugs.ResolveExcerpt),
 		&IssueCache{}:      entity.ResolverFunc[*IssueCache](c.issues.Resolve),
 		&IssueExcerpt{}:    entity.ResolverFunc[*IssueExcerpt](c.issues.ResolveExcerpt),
+		// One Go type serves both config namespaces, so one resolver has to
+		// cover both. Ids are content-derived and so unique across namespaces:
+		// asking the other subcache when the first has never heard of an id is
+		// exact, not a guess.
+		&ConfigCache{}:   entity.ResolverFunc[*ConfigCache](c.resolveConfig),
+		&ConfigExcerpt{}: entity.ResolverFunc[*ConfigExcerpt](c.resolveConfigExcerpt),
 	}
 
 	// small buffer so that the functions below can emit an event without blocking
@@ -157,6 +174,40 @@ func (c *RepoCache) Issues() *RepoCacheIssue {
 // Identities gives access to the Identity entities
 func (c *RepoCache) Identities() *RepoCacheIdentity {
 	return c.identities
+}
+
+// Schema gives access to the config entities of refs/work-schema,
+// the types and the fields.
+func (c *RepoCache) Schema() *RepoCacheConfig {
+	return c.schema
+}
+
+// Flows gives access to the config entities of refs/work-flows.
+func (c *RepoCache) Flows() *RepoCacheConfig {
+	return c.flows
+}
+
+// resolveConfig finds a config entity in whichever namespace holds it.
+func (c *RepoCache) resolveConfig(id entity.Id) (*ConfigCache, error) {
+	cached, err := c.schema.Resolve(id)
+	if err == nil {
+		return cached, nil
+	}
+	if !entity.IsErrNotFound(err) {
+		return nil, err
+	}
+	return c.flows.Resolve(id)
+}
+
+func (c *RepoCache) resolveConfigExcerpt(id entity.Id) (*ConfigExcerpt, error) {
+	excerpt, err := c.schema.ResolveExcerpt(id)
+	if err == nil {
+		return excerpt, nil
+	}
+	if !entity.IsErrNotFound(err) {
+		return nil, err
+	}
+	return c.flows.ResolveExcerpt(id)
 }
 
 func (c *RepoCache) getResolvers() entity.Resolvers {
@@ -221,6 +272,10 @@ func (c *RepoCache) registerObserver(repoName string, typename string, observer 
 		c.issues.RegisterObserver(repoName, observer)
 	case identity.Typename:
 		c.identities.RegisterObserver(repoName, observer)
+	case config.SchemaTypename:
+		c.schema.RegisterObserver(repoName, observer)
+	case config.FlowTypename:
+		c.flows.RegisterObserver(repoName, observer)
 	default:
 		var allTypenames []string
 		for _, subcache := range c.subcaches {
