@@ -52,6 +52,27 @@ func OperationTypeName(t dag.OperationType) string {
 // Operation is the interface an edit of a config entity fulfills.
 type Operation = dag.OperationWithApply[*Snapshot]
 
+// OperationTypeName names an operation type for the outside world,
+// as entities/issue does, so that `schema log` reads like `issue log`.
+func OperationTypeName(t dag.OperationType) string {
+	switch t {
+	case CreateOp:
+		return "create"
+	case SetOp:
+		return "set"
+	case RemoveOp:
+		return "remove"
+	case SetArchivedOp:
+		return "set-archived"
+	case NoOpOp:
+		return "noop"
+	case SetMetadataOp:
+		return "set-metadata"
+	default:
+		return fmt.Sprintf("unknown-%d", int(t))
+	}
+}
+
 // make sure that package external operations do conform to our interface
 var _ Operation = &dag.NoOpOperation[*Snapshot]{}
 var _ Operation = &dag.SetMetadataOperation[*Snapshot]{}
