@@ -75,7 +75,7 @@ a saved view is a flow whose script returns a render spec,
 and `refs/work-views` exists only if a live view ever needs what a flow cannot express (`d56e6f1`).
 
 **Refs are the runtime source of truth; the tree is for authoring** (`0740bf3`).
-`schema.yaml` and `flows/*.star` in the working tree are reviewed and merged by git,
+`schema.yaml` and the `.star` files in the working tree are reviewed and merged by git,
 and reach `refs/work-schema` and `refs/work-flows` only through
 `git work schema import` and `git work flow import` (E9).
 Nothing reads the tree at runtime,
@@ -148,11 +148,22 @@ Built-ins are code and apply to every type;
 a per-type entity with a built-in key overrides its configurable parts (E4).
 A flow's attributes are `script`, the Starlark source, and `description`
 (`0740bf3`, corrected 2026-09-23).
-Typed, defaulted parameters that the runner binds to Starlark variables,
-`args/<name>`, are a **future step**; the design is not obvious and nothing needs it yet.
+The script is **exactly one function definition** and nothing else
+(Luis, 2026-09-23):
+its name is the flow's key,
+its docstring is the description, which import mirrors into the attribute
+so that listing flows never parses a script,
+and its parameters are the flow's arguments, defaults included.
+Import reads all three from the syntax tree without executing anything,
+and rejects a file with a second statement, a `load`, or no `def`;
+helpers are nested functions and the host modules are the only globals.
+Starlark has no annotation syntax,
+so a parameter's type is inferred from its default
+and a parameter without one is a required string;
+declaring richer types is the **future step** `args` was.
 Which fields a flow reads is not an attribute:
-the script passes field keys to the generic host commands itself,
-`work.render_timeline(types=["story"], start="start_date", end="due_date")`,
+the script passes field keys to the generic host functions itself,
+`view.gantt(items, start="start_date", end="due_date")`,
 and that is where the field roles of an earlier draft went.
 Last-writer-wins on the whole script is right here,
 because the only writer is `flow import`
@@ -187,7 +198,7 @@ type    <type>          name, ordinal, description
 field   <type>/<field>  kind, name, description, ordinal, freeform,
                         values/<id> -> {name, ordinal, category, description, color}   enum kinds
                         inverse, target_types/<type> -> {}                               relation kinds
-flow    <flow>          script (Starlark), description          (args: future step)
+flow    <flow>          script (one Starlark def named <flow>), description (its docstring)
 ```
 
 **Set- and map-valued attributes are one attribute per member.**
@@ -210,7 +221,7 @@ Notes on the field attributes:
   (`configurable-schema.md` D5).
 - there are **no roles** and no `on_open`/`on_close` (`d56e6f1`).
   What a field is *for* is the consumer's business:
-  the Gantt flow's script calls the timeline command with `start="start_date", end="due_date"`,
+  the Gantt flow's script calls `view.gantt(items, start="start_date", end="due_date")`,
   the planning flow's sums `story_points`,
   a close flow's sets the status value it wants, or takes it as an arg.
   Presets ship their flows with the keys of their own fields.
@@ -316,7 +327,7 @@ per `bb9e89e`:
 - `values/<id>` exist only on enum kinds, `inverse` and `target_types/<type>` only on relation kinds;
 - a built-in's kind is not changed and a built-in is not archived;
 - `inverse` names are unique per type and collide with no field key;
-- a flow's `script` parses as Starlark;
+- a flow's `script` is one Starlark function definition whose name is the key;
   a shape with no validator is accepted as written.
 
 Cross-entity references, `target_types` naming a type
@@ -339,9 +350,11 @@ and every `schema` command prints it on stderr.
 
 Unlike a duplicate singleton, this has a real remedy:
 `schema import` of the loser's exported values folds them into the winner,
-and `schema rm` **archives** the loser,
+and `schema archive` **archives** the loser,
 which is an operation and so reaches every clone.
-Nothing needs a ref deleted.
+Nothing needs a ref deleted;
+`schema rm` exists, but it deletes the local ref only, like `issue rm`,
+and the entity returns on the next pull (E10).
 
 ### E8 — The cache layer
 
@@ -416,30 +429,61 @@ types:
 `shared` is authoring only, YAML anchors for the human writing the file;
 the store holds one `status` entity per type.
 
-Flows are authored the same way, one file per flow:
+Flows are authored the same way, one function per file:
 
-```
-flows/
-  board.star        # a saved view: returns render_board(...)
-  backlog.star
-  close-sprint.star
-  gantt.star
+```python
+def board(iteration="current"):
+    """Kanban of one iteration, a column per status."""
+    items = issue.list('map(select(.fields.iteration == "%s"))' % iteration)
+    return view.board(items, columns="status", card_title="title")
 ```
 
-with `description` declared at the top of the script,
-which the importer mirrors into an attribute,
-so the file is the whole flow.
-Typed args declared the same way and bound to Starlark variables from the command line
-are a future step.
-`git work flow import flows/` reconciles them like the schema:
-create, `Set script`, archive what the directory no longer has.
+The function is the whole declaration:
+name, description and arguments come from it,
+so the file's name and location do not matter
+and `git work flow import` takes any files, directories or stdin,
+a scratch file in `/tmp` included (Luis, 2026-09-23).
+A directory of `.star` files under the repository is a convention for review,
+not something the tool knows about.
+Import is an **upsert** of the flows it is given:
+create, `Set script`, `Set description`.
+Archiving what a directory no longer has is `--prune`, explicit,
+the same flag `schema import` uses (E10).
 Starlark (`go.starlark.net`) was measured before being chosen (`0740bf3`):
 a whole board flow over a thousand issues runs in 3.3 ms,
 conversion of the issues into Starlark values included,
 and a step cap bounds every run.
-The host API a script sees is `b511c63`'s:
-`query` with a gojq program, `get`, `set`, `add`, `remove`, `new`, `comment`,
-`render_list`, `render_board`, `args`, `me`.
+The host API a script sees **mirrors the command line one to one**
+(Luis, 2026-09-23; the full map is `cli-convention.md`):
+every `git work <module> <verb>` is a Starlark function
+of the same name under a module of the same name,
+taking the same arguments and returning the JSON the command prints,
+so `git work issue set ID status done` is `issue.set(id, "status", "done")`
+and `git work issue PROGRAM` is `issue.list(program)`.
+Starlark has no positional-only parameters,
+so a command's arguments are one JSON object of keyword arguments,
+`git work flow run board '{"iteration":"current"}'`
+is `flow.run("board", iteration="current")`,
+and the fixed positionals of `set ID KEY VALUE` are that object spelled out.
+Nothing is reachable from a script that is not reachable from the shell,
+and the reverse,
+so a flow is exactly a shell script that runs in-process.
+Rendering is a module like any other, `view`,
+because `view.gantt(...)` is an atomic capability git-work provides,
+not a surface:
+a view function builds a **spec** from items and field bindings,
+and a renderer consumes specs.
+The terminal renderer is behind `git work view` (`84dfbde`),
+the HTTP renderer behind `git work gui` (`8b06191`),
+and a renderer that lacks a view type fails at render time naming itself,
+so there is never a command that exists for one surface and not the other.
+`git work view board '{"columns":"status"}' < items.json`
+is `view.board(items, columns="status")`;
+in a TTY it opens the interactive view, otherwise it prints the spec,
+and `--gui` sends it to the browser.
+A view that edits, a kanban drag, calls `issue.set` and re-renders;
+there is no second path.
+`me()` is the only name with no shell equivalent.
 
 List position *is* the order in the file;
 `ordinal` is never written by hand.
@@ -456,11 +500,12 @@ and by the Jira sync (`69b7be0`):
 1. for each section **present** in the document,
    match entries to unarchived entities by shape and key;
 2. create an entity for each entry with no match,
-   archive each unmatched entity,
    and for each match emit `Set`/`Remove`
    for every attribute whose canonical JSON differs;
-   sections absent from the document are untouched,
-   so a file that only says `types:` cannot archive anyone's flows;
+   an unmatched entity is archived only under `--prune`,
+   so an import is an upsert by default
+   and a partial file from anywhere can never archive anyone's work
+   (Luis, 2026-09-23);
 3. assign ordinals so that unchanged relative order keeps its numbers,
    a moved or new entry takes a number between its neighbours,
    and a list is renumbered only when no number fits.
@@ -480,21 +525,33 @@ in the same shape `issue patch --dry-run` prints its operations.
 
 ### E10 — Commands
 
-```
-git work schema                 show the live schema (alias of export)
-git work schema init [preset]   create the preset's entities; refuses if any field entity exists
-git work schema export          [--format yaml|json]
-git work schema import <file|-> [--dry-run]
-git work schema log [key]       config operations, rendered by shape and key
-git work schema rm <key>        archive a type or field (E7)
-```
+The whole command line, and the rules it follows, is `cli-convention.md`;
+the config part of it:
 
 ```
-git work flow import <dir|file> [--dry-run]
-git work flow export [dir]
-git work flow <name> [args...]  run one
+git work schema [--format yaml|json]              live schema
+git work schema init [PRESET]                     refuses if any field entity exists
+git work schema import FILE|- [--prune] [--dry-run]
+git work schema export [--format yaml|json]
+git work schema log [KEY]                         config operations, rendered by shape and key
+git work schema archive KEY                       the replicated removal (E7)
+git work schema rm KEY                            local ref only; returns on pull
+
+git work flow                                     names, descriptions, arguments
+git work flow run NAME [KWARGS] [--gui] [--format json|text]
+git work flow show NAME                           the script
+git work flow import FILE|DIR|-... [--prune] [--dry-run]
+git work flow export NAME > FILE
+git work flow export --all DIR
+git work flow log [NAME]
+git work flow archive NAME
+git work flow rm NAME                             local ref only
 ```
 
+`rm` and `archive` are different verbs on every tree
+because they are different things (Luis, 2026-09-23):
+`archive` is an operation and reaches every clone,
+`rm` deletes the local ref and the entity returns on the next pull.
 The `flow` commands (`b511c63`, `52a2797`) reach the entities through the same `Update`
 and are not part of this task;
 `schema init` applies a preset's embedded default flows through `flow import`.
@@ -542,9 +599,9 @@ Recorded on the tasks as well, per the working conventions:
   four generic operations, not the enumerated list;
   types carry `ordinal`, not `rank`.
 - `b511c63`, `f37603c`, `52a2797`:
-  a flow is an entity of that shape holding a Starlark script,
-  applied from `flows/*.star` by import, run by `git work flow <name>`,
-  and a saved view is a flow whose script returns a render spec (`0740bf3`).
+  a flow is an entity of that shape holding one Starlark function,
+  applied from any `.star` file by import, run by `git work flow run <name>`,
+  and a saved view is a flow whose function returns a `view.*` spec (`0740bf3`).
 - `bb9e89e`: three built-ins in code with configurable overrides;
   kinds, categories, `freeform`, `target_types`; no roles, no `on_open`/`on_close`.
 - `87a48c1`: iteration fields are the `iteration` type's field entities, and membership a target-typed relation field.

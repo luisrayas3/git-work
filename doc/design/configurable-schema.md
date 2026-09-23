@@ -435,8 +435,9 @@ so either the preset carries a custom one or decisions become Task plus a marker
   shapes are `type`, `field` and `flow`, relation folded into field, view folded into flow,
   and `refs/work-views` is gone.
 - 2026-09-23 (`0740bf3`): refs are the runtime source of truth for schema and flows;
-  `schema.yaml` and `flows/*.star` in the tree reach them only through `import`.
-  Flows are Starlark scripts over a small host API, measured at 3.3 ms per thousand issues for a board.
+  `schema.yaml` and `.star` files in the tree reach them only through `import`.
+  A flow is one Starlark function over a host API that mirrors the CLI one to one,
+  measured at 3.3 ms per thousand issues for a board.
 - The first-class set was named: structural core plus four built-in fields;
   labels demoted to a preset field.
 - Sequencing: `entities/issue` is built as a peer of `entities/bug`,

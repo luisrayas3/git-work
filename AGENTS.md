@@ -144,8 +144,13 @@ Settled calls (details live in the referenced issues):
   dimension anywhere; "cross-project" in older text meant across epics
   (`cd41e40`, 2026-09-21).
 - `git work issue *` is **plumbing, agent-first**: JSON out by default,
-  RFC 6902 JSON Patch in (`e8d6426`).
+  RFC 6902 JSON Patch in, `new` takes a JSON document only, writers print
+  the id they created and nothing else, no sugar flags (`e8d6426`).
   `git work flow *` is porcelain, one verb per workflow (`b511c63`).
+  The **Starlark host API mirrors the CLI one to one**: module and verb
+  names match, a command's arguments are one JSON object of keyword
+  arguments, and `me()` is the only script-only name. The target map is
+  `doc/design/cli-convention.md` (2026-09-23).
 - The query language is **jq**, via gojq, over the same JSON `--format json`
   prints; a saved view is a flow whose action renders (`483dbe2`, `3c9c24d`, `d56e6f1`).
   External ids such as Jira keys are immutable **aliases** kept in create-op
@@ -177,14 +182,18 @@ Settled calls (details live in the referenced issues):
   people adding two statuses both survive (`7c90fbd`, `3556569`, `483dbe2`,
   `d56e6f1`). Removal is an archive op. Relations are fields of kind
   `relation`/`multi-relation` with `inverse` and `target_types`.
-  A flow is a **Starlark script** over a small host API (`query` with a gojq
-  program, get/set/add/remove, new, comment, render), run by
-  `git work flow <name>`; a saved view is a flow that returns a render spec
-  (`b511c63`, `f37603c`, `3df330f`, `0740bf3`).
-  **Refs are the runtime source of truth.** `schema.yaml` and `flows/*.star`
+  A flow is **one Starlark function**: its name is the key, its docstring
+  the description, its parameters the arguments; import rejects anything
+  else in the file. It runs with `git work flow run <name>`. Rendering is
+  the `view` module and command (`view.board`, `view.gantt`, ...): a view
+  builds a spec from items plus field bindings, the terminal and `gui`
+  renderers consume it, and a saved view is a flow that returns one
+  (`b511c63`, `f37603c`, `3df330f`, `0740bf3`, `84dfbde`, `8b06191`).
+  `rm` deletes a local ref on every tree; `archive` is the replicated removal.
+  **Refs are the runtime source of truth.** `schema.yaml` and `.star` files
   in the tree are authoring files, merged by git and applied only by
-  `git work schema import` and `git work flow import`; nothing reads the tree
-  at runtime (`0740bf3`).
+  `git work schema import` and `git work flow import`, which upsert unless
+  `--prune`; nothing reads the tree at runtime (`0740bf3`).
   **Automation is out of scope**: no daemon, no scheduler, no trigger inside
   git-work. Anything periodic is an external cron calling the CLI
   (`47b8430` closed, `483dbe2`).
