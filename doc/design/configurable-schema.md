@@ -3,7 +3,7 @@
 **Outcome:** hierarchy, statuses with categories, priority, estimate, dates,
 assignee, typed relations and iterations are all config,
 with `jira` and `linear` presets proving both native models fit.
-Tooling keys off kinds, categories and roles, never names.
+Tooling keys off kinds and categories; flows bind the fields they need by key.
 
 **Tasks:** `7c90fbd` where the schema lives ·
 `3556569` the config entities (designed in `config-entity.md`) ·
@@ -80,7 +80,7 @@ Decided: entities, not the worktree file and not a plain blob.
 Two things settle it.
 
 **The machinery is not paid for by the schema alone.**
-The flow catalogue (`b511c63`) and saved views (`f37603c`)
+The flow catalogue (`b511c63`), saved views included (`f37603c`),
 want exactly what the schema wants:
 to travel with the tracker rather than with a branch,
 to be editable by several people,
@@ -99,9 +99,9 @@ Jira's config endpoints can return unstable ordering,
 so `69b7be0` normalises before comparing.
 
 **Shape.**
-One entity per field, issue type, relation type, flow and view,
-each with a content-derived id under a namespace per kind, `refs/work-schema/<id>` for fields, types and relations,
-`refs/work-views/<id>` and `refs/work-flows/<id>` (`483dbe2`)
+One entity per issue type, field and flow,
+each with a content-derived id under a namespace per shape, `refs/work-schema/<id>` for types and fields,
+`refs/work-flows/<id>` for flows (`483dbe2`, `d56e6f1`)
 and its kind fixed in its create operation.
 The entity boundary is the coarse merge unit;
 inside a field, enum values are per-item operations,
@@ -140,13 +140,21 @@ Decided instead:
   id, author, timestamps, comments, timeline, actors and participants,
   and the fields map itself.
   Everything an issue *has* is a field, relations to other issues included.
-- Four fields are **built in**, present in every schema and unremovable,
+- Three fields are **built in**, present on every type and unremovable,
   because tooling cannot function without them:
-  `title` (text), `type`, `status` (enum with category) and `archived` (bool).
-  Status and archived stay separate (`4d61ebe`):
-  one says how work ended, the other whether it is still worth looking at.
-- Everything else is preset config found **by kind and role**, not by key:
-  assignee, priority, estimate, start and due dates, iteration.
+  `title` (text), `type` (a type id) and `archived` (bool).
+  Status is **not** built in (`d56e6f1`, 2026-09-23):
+  it is a preset field of kind `enum-with-category` on every work type,
+  and everything keyed on categories, hiding done work, `status:open`, the weekly report,
+  Jira's resolution, applies where a type has one and degrades to "never done" where it does not.
+  Archived is the guaranteed default-listing filter (`4d61ebe`):
+  status says how work ended, archived whether it is still worth looking at.
+- Everything else is preset config, per type (`e7e58f2`):
+  status, assignee, priority, estimate, dates, iteration membership.
+  There are **no field roles** (`d56e6f1`):
+  a flow's script names the fields it needs when it calls the host API,
+  so the Gantt flow tells the timeline command which date is start and which is end,
+  and presets ship their flows with the keys of their own fields.
   Labels stop being special and become a freeform `multi-enum` in the presets,
   which is what they are in Jira.
 - Operations: `Create`, `SetField{key, value}`, `AddValue{key, item}`, `RemoveValue{key, item}`,
@@ -219,8 +227,7 @@ Field kinds, fixed as `bb9e89e` specifies, plus the additions this design settle
 | `multi-enum` | labels, components, fix versions | list of value ids |
 | `multi-identity` | reviewers, watchers | list of identity ids |
 | `rank` | board and backlog order | LexoRank-style string (`441dcbb`) |
-| `iteration` | sprint, cycle | `entity.Id` of an iteration (D5) |
-| `relation` | parent, and any cardinality-one link | `entity.Id` of an issue (D4) |
+| `relation` | parent, iteration, and any cardinality-one link | `entity.Id` of an issue (D4, D5) |
 | `multi-relation` | blocks, relates-to | list of issue ids (D4) |
 
 `type` is validated against the type entities rather than a field's values,
@@ -250,9 +257,10 @@ and `status:open` becomes a shorthand of the query language,
 which is jq via gojq over the excerpt JSON (`483dbe2`, `3c9c24d`),
 for "category is not `completed` or `canceled`".
 
-The `open` and `close` verbs survive as porcelain:
-they write `SetField status` with the value the schema names in
-`on_open` and `on_close` on the status field (`config-entity.md` E3).
+The `open` and `close` verbs, if they survive, are flows
+with the status value they write in the script or as an arg;
+there is no `on_open`/`on_close` on the schema (`d56e6f1`),
+and `git work issue set <id> status done` always works.
 
 ### D4 — Relations are fields; one side is stored and the inverse is derived (`c090f9b`)
 
@@ -266,8 +274,8 @@ Revised 2026-09-22:
 the merge property that argument protected, concurrent adds both surviving,
 is the property every multi-valued field needs,
 so it belongs to the operation set (`AddValue`) and not to relations;
-and target validation and inverse derivation are exactly what
-"found by kind and role" already does for every other field.
+and target validation and inverse derivation are schema lookups by kind,
+like every other field's.
 Two operations and a snapshot member disappear, and nothing is lost.
 
 One side is stored, on the issue that "owns" the statement,
@@ -279,7 +287,7 @@ The excerpt carries its fields,
 all excerpts are in memory,
 so "children of X" is a scan of the excerpt map over the fields of relation kind,
 built into a reverse index at load and maintained incrementally on update.
-This is why the relation entities have to exist
+This is why the field entities of relation kind have to exist
 before the cache can index them:
 without the schema, a field holding an id is just a string.
 
@@ -289,34 +297,45 @@ without the schema, a field holding an id is just a string.
 - **Dangling targets render.**
   An id pointing at an issue that was removed, or not yet pulled,
   shows as the short id, not an error and not a crash.
-- **Allowed-parent rules** come from the type entities:
-  an ordered list of issue types, each naming which types may parent it.
-  That is the whole of hierarchy;
+- **Hierarchy** is `target_types` on each type's `parent` field:
+  `story/parent` may target `[epic]`, `epic/parent` may target `[initiative]`.
+  That is the whole of it;
   Linear's Initiative > Project > Issue > sub-issue
   and Jira's Initiative > Epic > Story/Task > Sub-task are both config.
 
-### D5 — Iterations are the same entity, in a second namespace (`aba17f4`, `87a48c1`)
+### D5 — Iterations are an issue type, not a namespace (`aba17f4`, `87a48c1`, revised 2026-09-23)
 
 Sprint planning needs dates, membership, capacity and carry-over,
 which an opaque text field cannot carry;
-`aba17f4` decided on an entity.
-This revision decides *which* entity:
-**the issue entity itself**, instantiated in `refs/work-iterations`
-through a second `dag.Definition`.
+`aba17f4` decided on an entity,
+and a first revision of this section made it the issue entity in a second namespace.
+Revised again:
+**an iteration is an issue of type `iteration` in `refs/work-issues`.**
+The namespace had survived the collapse of the separate type
+without a reason of its own.
+What it bought, issue lists that need no filter and a cheap "is this an iteration" check,
+is what per-type applicability gives every type anyway,
+and Jira's field configurations and workflows are per issue type,
+so that mechanism is needed regardless.
 
-An iteration has a title, fields, comments (the retro lives somewhere),
-a timeline and participants, exactly like an issue,
-and the schema declares its fields through `on: iteration` on field entities.
-Its built-ins are `title`, `status`, `archived`,
-and two `date` fields with roles `start` and `end`,
-because planning tooling keys off those.
-Capacity is **not** first class:
-it is a `number` field in the preset,
-so a team that plans in hours rather than points changes config, not code.
-Jira sprints and Linear cycles both map onto this.
-
-An issue's membership is a field of kind `iteration` holding the iteration's id,
-cardinality one, found by kind.
+- **Fields belong to a type** (`e7e58f2`, 2026-09-23).
+  Every field entity is `(type, key)`;
+  start and end dates,
+  and `capacity` as a `number` field, are the `iteration` type's fields,
+  and a team that plans in hours rather than points changes config, not code.
+  Status values differ per type the same way, as Jira's per-type workflows do,
+  with no special case (`bb9e89e`).
+- **Membership is a relation.**
+  An issue's iteration is a `relation` field of cardinality one
+  whose field entity carries `target_types: [iteration]`;
+  the same attribute on `parent` replaces the older allowed-parents list.
+  The `iteration` value kind and the field attribute `on` disappear.
+- **Containers at other scales**, quarters or program increments for the roadmap,
+  are further types, not further namespaces.
+- **Flows that list work exclude the type by default**, one line in the preset.
+- An iteration still has a title, fields, comments (the retro lives somewhere),
+  a timeline and participants, because it is an issue.
+  Jira sprints and Linear cycles both map onto it.
 
 The consequence to state plainly: **closing an iteration is not atomic.**
 Marking it closed and moving N unfinished issues is N+1 commits.
@@ -372,14 +391,15 @@ so either the preset carries a custom one or decisions become Task plus a marker
    Started 2026-09-22.
 2. `3556569` — the config entities, `schema init`/`export`/`import` on `reconcile`.
    Everything below reads this.
-3. `bb9e89e` — kinds, roles, built-ins, categories, validation, actionable errors.
+3. `bb9e89e` — kinds, the three built-ins, categories, `target_types`, validation, actionable errors.
    Pure library, wired into the issue cache's write path.
 4. `bf6f392` — the one-time migration:
    old operations to new, labels to fields, ids and lamport times preserved;
    `refs/issues/*` deleted locally and on origin, identities moved to `refs/work-identities/*`;
    `entities/bug`, `commands/bug` and their cache files deleted;
    `schema init jira` in the same pass; AGENTS.md rewritten.
-5. `87a48c1` — the iteration namespace and its built-ins.
+5. `87a48c1` — iterations as a type: per-type field applicability, target-typed relations,
+   the date and planning fields in the presets.
 6. `59fed1c` — both presets and the round-trip table test, last,
    because it is the acceptance test for all of the above.
 
@@ -402,6 +422,21 @@ so either the preset carries a custom one or decisions become Task plus a marker
   because `entities/bug` was already ours and nothing that reads the old shape survives the other stories.
 - D1 went from one config entity to one per configurable thing (`config-entity.md`, "Why not one entity").
 - D5 made iterations the same entity as issues and capacity a field.
+- 2026-09-23: D5 revised again, iterations are an issue *type* in `refs/work-issues`;
+  membership is a target-typed relation,
+  and `refs/work-iterations`, the `iteration` kind and the `on` attribute are gone.
+- 2026-09-23 (`e7e58f2`): every field and relation entity belongs to exactly one type,
+  Jira's model; sharing is YAML anchors at authoring time, and the store is fully instantiated.
+  The entity keeps the name `issue`: it is Jira's, Linear's and GitHub's word,
+  Jira's own types include Initiative and Epic, and `item` collides with list items.
+- 2026-09-23 (`d56e6f1`): built-ins are `title`, `type`, `archived`; status is a preset field.
+  No field roles and no `on_open`/`on_close`: flows bind fields by key in their own config.
+  The config entity is a plain document with four operations and no item map;
+  shapes are `type`, `field` and `flow`, relation folded into field, view folded into flow,
+  and `refs/work-views` is gone.
+- 2026-09-23 (`0740bf3`): refs are the runtime source of truth for schema and flows;
+  `schema.yaml` and `flows/*.star` in the tree reach them only through `import`.
+  Flows are Starlark scripts over a small host API, measured at 3.3 ms per thousand issues for a board.
 - The first-class set was named: structural core plus four built-in fields;
   labels demoted to a preset field.
 - Sequencing: `entities/issue` is built as a peer of `entities/bug`,
@@ -419,11 +454,11 @@ so either the preset carries a custom one or decisions become Task plus a marker
 
 - **Kinds are the expensive thing to get wrong.**
   A missing *value* is config; a missing *kind* is a schema-language change.
-  That is why `bool`, `multi-enum`, `multi-identity`, `rank` and `iteration` are settled here.
+  That is why `bool`, `multi-enum`, `multi-identity`, `rank`, `relation` and `multi-relation` are settled here.
 - **The engine outgrowing "just configurable enough."**
-  The fixed kind list, the closed category set and the closed role set are the guard.
+  The fixed kind list and the closed category set are the guard.
 - **The migration is a flag day.**
-  Every clone re-pulls `refs/work-issues/*` and `refs/work-iterations/*`,
+  Every clone re-pulls `refs/work-issues/*`,
   and an old binary is locked out by design.
   One team makes this an afternoon; do it once, and do it before Jira import (`33148f2`) multiplies the data.
 - **The unverified `jira` preset.**

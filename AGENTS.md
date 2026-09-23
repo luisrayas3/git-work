@@ -147,28 +147,44 @@ Settled calls (details live in the referenced issues):
   RFC 6902 JSON Patch in (`e8d6426`).
   `git work flow *` is porcelain, one verb per workflow (`b511c63`).
 - The query language is **jq**, via gojq, over the same JSON `--format json`
-  prints; saved views are jq programs (`483dbe2`, `3c9c24d`).
+  prints; a saved view is a flow whose action renders (`483dbe2`, `3c9c24d`, `d56e6f1`).
   External ids such as Jira keys are immutable **aliases** kept in create-op
   metadata and accepted wherever an id is; the entity id stays the hash (`483dbe2`).
 - Schema is *just configurable enough* to represent both Jira's and
   Linear's native models: fixed field kinds, configurable values;
   parent is a cardinality-1 relation (`bb9e89e`, `c090f9b`, `59fed1c`).
   An issue is a structural core (id, author, comments, timeline,
-  participants) plus a fields map; four fields are built in and
-  unremovable — `title`, `type`, `status`, `archived` — and everything else,
-  labels included, is preset config found by kind and role, never by key
-  (`f4bac00`).
-  Iterations are the same entity in `refs/work-iterations`, with their own
-  fields; capacity is a field, not first class (`aba17f4`, `87a48c1`).
+  participants) plus a fields map; three fields are built in and
+  unremovable — `title`, `type`, `archived` — and everything else, status
+  and labels included, is preset config. There are **no field roles**: a
+  flow's script names the fields it needs when it calls the host API (`f4bac00`,
+  `d56e6f1`).
+  Iterations are issues of type `iteration`; capacity is a field, not first
+  class (`aba17f4`, `87a48c1`, revised 2026-09-23).
+  **Every field and relation belongs to exactly one type**, Jira's model:
+  `status` on `task` and on `epic` are two config entities with the same key,
+  and sharing is YAML anchors in the schema file, not the store (`e7e58f2`).
+  The entity is named `issue` for good, because Jira, Linear and GitHub call
+  it that and Jira's types already include Initiative and Epic (`e7e58f2`).
   Manual rank is a LexoRank-style fractional index ordered by `(rank, id)`,
   so concurrent drags both survive (`441dcbb`).
-- Schema, saved views and flows are **config entities**, one per field, type,
-  relation, view or flow, under `refs/work-schema`, `refs/work-views` and
-  `refs/work-flows`, so the entity boundary is the merge unit; inside a field,
-  values are per-item ops, so two people adding two statuses both survive
-  (`7c90fbd`, `3556569`, `3df330f`, `483dbe2`). Removal is an archive op.
-  A view is a selection (jq program plus sort) with a presentation; a flow is a
-  selection with actions, run when someone invokes it (`b511c63`, `f37603c`).
+- Schema and flows are **config entities** of three shapes, `type`, `field`
+  and `flow`, under `refs/work-schema` (types and fields) and
+  `refs/work-flows`, so the entity boundary is the merge unit. A config entity
+  is a plain document: shape, key, attributes with last-writer-wins per
+  attribute, archived; four operations. The word `kind` is reserved for a
+  field's data type. Enum values are per-attribute, so two
+  people adding two statuses both survive (`7c90fbd`, `3556569`, `483dbe2`,
+  `d56e6f1`). Removal is an archive op. Relations are fields of kind
+  `relation`/`multi-relation` with `inverse` and `target_types`.
+  A flow is a **Starlark script** over a small host API (`query` with a gojq
+  program, get/set/add/remove, new, comment, render), run by
+  `git work flow <name>`; a saved view is a flow that returns a render spec
+  (`b511c63`, `f37603c`, `3df330f`, `0740bf3`).
+  **Refs are the runtime source of truth.** `schema.yaml` and `flows/*.star`
+  in the tree are authoring files, merged by git and applied only by
+  `git work schema import` and `git work flow import`; nothing reads the tree
+  at runtime (`0740bf3`).
   **Automation is out of scope**: no daemon, no scheduler, no trigger inside
   git-work. Anything periodic is an external cron calling the CLI
   (`47b8430` closed, `483dbe2`).
@@ -176,7 +192,7 @@ Settled calls (details live in the referenced issues):
   ref→hash staleness diff, a ref watcher for live views (`d35de2e`, `d591cb3`, `63c68d1`).
   Bleve is dropped; search is a non-goal (`3500366`).
 - Ref namespaces carry the `work-` prefix: `refs/work-issues`,
-  `work-iterations`, `work-schema`, `work-views`, `work-flows`, and
+  `work-schema`, `work-flows`, and
   `work-identities` after the migration (`483dbe2`). The store is **migrated
   once** to the owned format with entity and comment ids preserved, and
   `formatVersion` bumps so old binaries refuse it rather than misread it

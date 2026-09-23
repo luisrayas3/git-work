@@ -1,7 +1,7 @@
 # Config entities (`3556569`)
 
 **Outcome:** every configurable thing in the tracker,
-a field, an issue type, a relation type, a flow, a view,
+an issue type, a field, a flow,
 is its own CRDT entity under a `refs/work-*` namespace,
 so team configuration travels with the tracker,
 merges at the boundary the dag already provides,
@@ -9,13 +9,16 @@ and shows who changed what.
 
 **Serves:** `6555e36` (schema, step 1 of its order of work),
 `17e1d0a` (flows, `b511c63`),
-`3df330f` (views `f37603c`).
+`3df330f` (saved views, which are flows, `f37603c`).
 `7c90fbd` decided that config is CRDT entities rather than a file;
 this document is the entities themselves.
 
 **Status:** design, awaiting approval.
 Revised 2026-09-22 from a one-entity draft;
 see "Why not one entity" at the end.
+Revised 2026-09-23 (`e7e58f2`, `d56e6f1`, `0740bf3`):
+per-type fields, three shapes, four operations, no roles,
+flows as Starlark scripts, and import as the only way from the tree into the refs.
 
 ## What the code offers
 
@@ -57,143 +60,202 @@ not a second synchronisation path.
 
 ### E1 — One entity per configurable thing
 
-A field, an issue type, a relation type, a view and a flow
+An issue type, a field and a flow
 are each **one entity**, with a content-derived id like everything else,
-in a namespace per kind (`483dbe2`):
-fields, types and relations under `refs/work-schema/<id>`,
+in a namespace per shape (`483dbe2`, `d56e6f1`):
+types and fields under `refs/work-schema/<id>`,
 because they form one whole that is imported, exported and reconciled together;
-views under `refs/work-views/<id>`; flows under `refs/work-flows/<id>`.
+flows under `refs/work-flows/<id>`.
 One entity type, one `dag.Definition` per namespace, one subcache each;
-the merge tiers run identities, then schema, then issues and iterations, then views and flows.
+the merge tiers run identities, then schema, then issues, then flows.
 Automation is out of scope: a flow runs when invoked and nothing in git-work fires on its own,
-so there is no rule kind, no trigger attribute and no `refs/work-rules` (`47b8430` closed).
+so there is no rule shape, no trigger attribute and no `refs/work-rules` (`47b8430` closed).
+There is no `view` shape either:
+a saved view is a flow whose script returns a render spec,
+and `refs/work-views` exists only if a live view ever needs what a flow cannot express (`d56e6f1`).
+
+**Refs are the runtime source of truth; the tree is for authoring** (`0740bf3`).
+`schema.yaml` and `flows/*.star` in the working tree are reviewed and merged by git,
+and reach `refs/work-schema` and `refs/work-flows` only through
+`git work schema import` and `git work flow import` (E9).
+Nothing reads the tree at runtime,
+so a checkout can never disagree with the store,
+which a flow that assumes the schema of its own commit would.
 
 This is the dag used as designed.
 The entity boundary is the coarse merge unit:
 two people adding two flows are two entities and never meet,
 exactly like two people opening two issues.
-Inside one entity, per-attribute and per-item operations (E2)
+Inside one entity, per-attribute operations (E2)
 give the fine unit:
 two people adding two statuses to the same field both keep them.
 
 There is **no singleton**.
 Nothing has to be found by "the one entity of kind X";
-the schema is the set of field, type and relation entities,
+the schema is the set of type and field entities,
 read by listing the namespace.
 The one failure that remains is two clones defining the same key
 before either pushes (E7).
 
-One Go entity type serves all kinds.
-The kind is fixed in the create operation
-and phase 4 adds kinds, not entity types.
+One storage form, the document, serves all three shapes;
+what differs between them is meaning, consumer and namespace, not storage.
+A `type` uses three attributes and a `flow` mostly one;
+the document does not care, any more than a map cares how many keys it holds.
+The shape is fixed in the create operation
+and later phases add shapes, not storage forms.
 
-### E2 — Six operations, generic across kinds
+### E2 — Four operations, generic across shapes
+
+The discriminator is called **shape**, not kind (2026-09-23):
+`kind` is a field's data type and nothing else uses the word.
 
 ```
-Create      {kind, key}                 kind and key are immutable; the id derives from this op
-SetAttr     {name, value JSON}          one attribute, last in dag order wins
-RemoveAttr  {name}
-SetItem     {id, value JSON}            one member of the entity's item set, same rule
-RemoveItem  {id}
-SetArchived {bool}                      soft removal; refs cannot be deleted across clones
+Create      {shape, key}       shape and key are immutable; the id derives from this op
+Set         {name, value JSON} one attribute, last in dag order wins
+Remove      {name}
+SetArchived {bool}             soft removal; refs cannot be deleted across clones
 ```
 
 plus dag's own `NoOp` and `SetMetadata`, as the issue entity uses them.
 
 An entity's state is its kind, its key,
-a map of attributes,
-a map of items,
+a map of attributes with last-writer-wins per attribute,
 and the archived flag.
-Items are the collection a kind carries:
-a field's enum values,
-a type's allowed parents.
-Flows and views carry their document as attributes;
-their owning tasks say which.
+Nothing else: a plain document.
+Collections a shape carries, a field's enum values,
+are attributes with a prefixed name, `values/<id>`,
+because a map with per-key merge is exactly what a per-item collection was
+(`d56e6f1` folded the earlier item map into this one).
+Nothing in the operations is specific to a shape;
+Luis's test for "generic" is that a member used by one shape only is not generic,
+which is why the earlier `type` member of `Create` is gone
+and lives in the key instead.
+
+**A field belongs to exactly one type** (decided 2026-09-23, `e7e58f2`).
+Its key is `<type>/<field>`, so `task/status` and `epic/status`
+are two entities with the same field key
+and, if the team wants, different values;
+the issue stores `status` and the engine resolves the entity by the issue's type.
+This is Jira's model, field configurations and workflows per issue type,
+so the sync instantiates per type instead of inferring what is shared.
+Sharing is an authoring concern:
+the schema YAML uses anchors, and one definition reconciles into one entity per type.
+A `template` shape can come later if anchors are not enough.
+Relations are fields of kind `relation` or `multi-relation` (D4),
+so `task/parent` carries its own `target_types`
+and there is no allowed-parents list anywhere.
+Built-ins are code and apply to every type;
+a per-type entity with a built-in key overrides its configurable parts (E4).
+A flow's attributes are `script`, the Starlark source, and `description`
+(`0740bf3`, corrected 2026-09-23).
+Typed, defaulted parameters that the runner binds to Starlark variables,
+`args/<name>`, are a **future step**; the design is not obvious and nothing needs it yet.
+Which fields a flow reads is not an attribute:
+the script passes field keys to the generic host commands itself,
+`work.render_timeline(types=["story"], start="start_date", end="due_date")`,
+and that is where the field roles of an earlier draft went.
+Last-writer-wins on the whole script is right here,
+because the only writer is `flow import`
+and the text merge already happened in git.
 
 Why generic:
-sections arrive at different times,
-schema in phase 2 and flows and views in phase 4,
-and with kind-specific operations each would be a new op type
+shapes arrive at different times,
+schema in phase 2 and flows in phase 4,
+and with shape-specific operations each would be a new op type
 that old binaries read as `dag.UnknownOperation` and skip.
-With generic operations an old binary reads a `view` entity in full,
+With generic operations an old binary reads a `flow` entity in full,
 lists it and syncs it,
 and only its typed projection ignores it.
 Two structural `Validate`s instead of a dozen is the other half,
 and fact 2 says structural is all they may ever be.
 
 Typed access is in Go:
-`schema.Field`, `schema.Value`, `schema.Type`, `schema.Relation`
-are projections of a snapshot of the matching kind,
+`schema.Type`, `schema.Field`, `schema.Value`
+are projections of a snapshot of the matching shape,
 and `cache.ConfigCache` exposes typed helpers
 that emit these operations.
 Nobody outside the entity package writes an attribute name by hand.
 
-`schema log` renders operations by kind and key,
-so "Luis added value `qa` to field `status`" is what a reader sees.
+`schema log` renders operations by shape and key,
+so "Luis added value `qa` to field `task/status`" is what a reader sees.
 
-### E3 — What each kind carries
+### E3 — What each shape carries
 
 ```
-kind      key        attributes                                   items
-field     <key>      kind, name, description, ordinal, on,        enum values: <id> -> {name, ordinal,
-                     role, on_open, on_close, freeform, …         category, description, color}
-type      <id>       name, ordinal, description                   allowed parents: <type id> -> {}
-relation  <key>      name, inverse, cardinality (one|many)        —
-flow      <name>     owned by `b511c63`                           —
-view      <name>     owned by `f37603c`                           —
+shape   key             attributes
+type    <type>          name, ordinal, description
+field   <type>/<field>  kind, name, description, ordinal, freeform,
+                        values/<id> -> {name, ordinal, category, description, color}   enum kinds
+                        inverse, target_types/<type> -> {}                               relation kinds
+flow    <flow>          script (Starlark), description          (args: future step)
 ```
+
+**Set- and map-valued attributes are one attribute per member.**
+`values/<id>`, `target_types/<type>`:
+adding a member is `Set`, removing it is `Remove`,
+and two people adding two members concurrently both keep theirs,
+which one attribute holding a list could not give.
+Export folds them back into lists and maps, so the YAML is unchanged.
+Two people editing the *same* member concurrently resolve last-writer-wins on that member,
+a rename against a recategorisation of `values/qa`, say,
+which is the same property the earlier item map had.
 
 Notes on the field attributes:
 
 - `kind` is the field kind from `bb9e89e`'s fixed list.
   It is set at creation and never changes;
-  a `SetAttr` that would change it is refused (E6).
-- `on` says which entity the field applies to, `issue` or `iteration`,
-  since iterations are the same entity as issues in a second namespace
-  and take fields the same way (`configurable-schema.md` D5).
-- `role` is a value from a small closed set,
-  `assignee`, `estimate`, `start`, `target`, `due`,
-  so that the Gantt finds its start and end dates
-  and the planning view its estimate
-  by kind and role, never by key.
-  The set belongs to `bb9e89e`.
-- `on_open` and `on_close` on the status field
-  name the values the `open` and `close` verbs map to.
-- `freeform` on `multi-enum` allows values outside the item list;
+  a `Set` that would change it is refused (E6).
+- the type is part of the key, not an attribute:
+  iterations are a type, so their dates and capacity are the `iteration` type's fields
+  (`configurable-schema.md` D5).
+- there are **no roles** and no `on_open`/`on_close` (`d56e6f1`).
+  What a field is *for* is the consumer's business:
+  the Gantt flow's script calls the timeline command with `start="start_date", end="due_date"`,
+  the planning flow's sums `story_points`,
+  a close flow's sets the status value it wants, or takes it as an arg.
+  Presets ship their flows with the keys of their own fields.
+  A role on the field would be one consumer's choice stored on the schema,
+  and a second attribute next to `key` that schema users would confuse with it.
+- `freeform` on `multi-enum` allows values outside the value list;
   Jira's labels are freeform, ours too.
 
-A relation entity declares both directions:
+A field of a relation kind declares both directions:
 `inverse` is the name the derived side reads as
 (`parent` reads as `child` from the other side, `blocks` as `blocked-by`),
 never a key an issue can write (`configurable-schema.md` D4).
-On the issue, the relation is a field under the relation's key,
-of kind `relation` when the cardinality is one and `multi-relation` otherwise;
-the relation entity is what tells the engine that the string it holds is an issue id.
+`target_types` restricts what the target may be:
+`[iteration]` on `story/iteration`,
+`[epic]` on `story/parent`.
+Cardinality is the kind: `relation` is one, `multi-relation` is many.
+The field entity is what tells the engine that the string the issue holds is an issue id.
 
 A field key must also pass the issue entity's structural check,
 `^[a-z][a-z0-9_-]*$`, the stricter of the two slugs;
 the entity's check is frozen, and can only ever be loosened.
 
-Keys and ids are slugs,
-`[a-z0-9][a-z0-9_.-]*`, at most 64 characters.
+Config keys are slugs with one optional `/`,
+`[a-z0-9][a-z0-9_.-]*(/[a-z0-9][a-z0-9_.-]*)?`, at most 64 characters.
 Display names are free text in attributes,
 which is what lets a Jira rename change one attribute and no history.
 
 ### E4 — Built-in fields are code; entities override their configurable parts
 
-`title` (text), `type`, `status` (enum with category) and `archived` (bool)
-exist in every schema,
+`title` (text), `type` (a type id) and `archived` (bool)
+exist on every type,
 because tooling cannot function without them
-(`configurable-schema.md` D2).
-They are defined in code, in `schema.Builtins`, with defaults:
-status has values `open` (unstarted) and `closed` (completed).
+(`configurable-schema.md` D2):
+`title` to show anything, `type` to find the rest of the schema,
+`archived` to know what the default listing hides.
+They are defined in code, in `schema.Builtins`.
+Status is **not** built in (`d56e6f1`):
+it is a preset field of kind `enum-with-category` on every work type,
+and behaviour keyed on categories applies where a type has one.
 
 A field entity whose key is a built-in
 **overrides the configurable parts** of that built-in:
-its values, name, `on_open` and `on_close`.
+its name and description.
 It cannot change the kind and cannot be archived (E6).
-`schema init jira` therefore creates a `status` entity carrying Jira's statuses,
-and a repository with no config entities at all
+A repository with no config entities at all
 runs on the built-ins alone,
 which is the `base` schema of D7:
 not a file, the defaults in code.
@@ -205,7 +267,7 @@ sort by `(ordinal, id)`.
 Presets number by tens
 so a human inserting one value between two needs one operation, not a renumber.
 When there is no gap, `schema import` renumbers the list;
-inside one entity that is many `SetItem`s in one pack and one commit,
+inside one entity that is many `Set`s in one pack and one commit,
 so unlike issue rank (`441dcbb`) a renumber here is atomic
 and needs no fractional scheme.
 Field order across entities is not atomic,
@@ -218,13 +280,12 @@ Both are `ordinal`;
 
 ### E6 — Structural rules on the operation, semantic rules in `Update`
 
-`Create.Validate` checks the kind is a slug and the key is a slug.
-`SetAttr.Validate` and `SetItem.Validate` check
-a slug name or id,
+`Create.Validate` checks the kind is a slug and the key is a config key (E3).
+`Set.Validate` checks a slug name, with `/` allowed once for `values/<id>`,
 and a value that is valid JSON under 64 KiB and `text.Safe`.
 **These rules are frozen** the day the first entity is written;
 fact 2 says why.
-They do not check that the kind or attribute is one this binary knows,
+They do not check that the shape or attribute is one this binary knows,
 so a newer binary's entities read on an older one.
 
 Everything that can change lives at write time,
@@ -249,18 +310,17 @@ Semantic validation, rejected with the thing and the valid alternatives named,
 per `bb9e89e`:
 
 - `kind` is in the fixed list and never changes;
+- a field's key names an existing type;
 - `category` is one of `backlog unstarted started completed canceled`;
-- `ordinal` is an integer, `on` and `role` come from their closed sets;
-- `on_open` names a value whose category is not `completed` or `canceled`,
-  `on_close` one whose category is;
-- items exist only on kinds that have them;
+- `ordinal` is an integer;
+- `values/<id>` exist only on enum kinds, `inverse` and `target_types/<type>` only on relation kinds;
 - a built-in's kind is not changed and a built-in is not archived;
-- `inverse` names are unique across relation entities and collide with no key;
-- flow and view attributes are checked by a validator their owning package registers;
-  a kind with no validator is accepted as written.
+- `inverse` names are unique per type and collide with no field key;
+- a flow's `script` parses as Starlark;
+  a shape with no validator is accepted as written.
 
-Cross-entity references, `allowed_parents` naming a type
-or a view naming a field,
+Cross-entity references, `target_types` naming a type
+or, later, a flow's arg default naming a field,
 are checked against the excerpts at write time
 and **tolerated on read**:
 a dangling reference is reported in `Snapshot.Problems`, never a failure,
@@ -269,9 +329,9 @@ Reads never fail on what was written before (D6).
 
 ### E7 — Duplicate keys
 
-Two clones creating a field `phase` before either pushes
-produce two entities with the same kind and key.
-`RepoCacheConfig.Current(kind, key)` picks the one with the lowest creation lamport time,
+Two clones creating `task/phase` before either pushes
+produce two entities with the same shape and key.
+`RepoCacheConfig.Current(shape, key)` picks the one with the lowest creation lamport time,
 ties by lowest id,
 from the excerpts alone.
 The other is ignored deterministically
@@ -285,24 +345,24 @@ Nothing needs a ref deleted.
 
 ### E8 — The cache layer
 
-- `cache.RepoCacheConfig` wraps `SubCache[*config.Item, *ConfigExcerpt, *ConfigCache]`,
-  cache file `cache/config`.
+- `cache.RepoCacheConfig` wraps `SubCache[*config.Entity, *ConfigExcerpt, *ConfigCache]`,
+  one per namespace, cache files `cache/work-schema` and `cache/work-flows`.
   `maxLoaded` is unbounded for this subcache;
   a few dozen small entities stay in memory.
-- `ConfigExcerpt`: id, kind, key, archived, ordinal, create and edit lamport times.
+- `ConfigExcerpt`: id, shape, key, archived, ordinal, create and edit lamport times.
   Enough to list, to pick a duplicate's winner and to order,
   without loading.
 - `ConfigCache` embeds `CachedEntityBase` and adds `Update` (E6)
   and the typed helpers that call it.
 - Resolvers gain `&ConfigCache{}` and `&ConfigExcerpt{}`.
-- `MergeAll` runs identities, then config, then issues and iterations.
+- `MergeAll` runs identities, then config, then issues.
   Issue merges do not consult the schema (D6),
   so this ordering costs nothing and keeps a door open.
 - `Fetch` and `Push` pick up the `refs/work-*` config namespaces from the subcache list unchanged,
   so `git work push` and `pull` carry configuration with no new code.
 - The ref watcher already refreshes every subcache (`cache/watcher.go:114`),
   so a status someone else adds appears in an open GUI as a new column.
-- `RepoCache.Schema()` compiles the built-ins plus every unarchived field, type and relation entity
+- `RepoCache.Schema()` compiles the built-ins plus every unarchived type and field entity
   into one `*schema.Schema`,
   memoised by the set of config ref hashes,
   rebuilt on update and refresh.
@@ -315,33 +375,71 @@ The document a human edits is a view over the entities:
 
 ```yaml
 preset: jira
-fields:
-  status:
+shared:
+  status: &status
     kind: enum-with-category
     name: Status
-    on_open: to-do
-    on_close: done
     values:
       - {id: to-do,       name: To Do,       category: unstarted}
       - {id: in-progress, name: In Progress, category: started}
       - {id: in-review,   name: In Review,   category: started}
       - {id: done,        name: Done,        category: completed}
-  priority:
+  priority: &priority
     kind: ordinal-enum
     values:
       - {id: highest, name: Highest}
       - {id: high,    name: High}
       - {id: medium,  name: Medium}
-  capacity:
-    kind: number
-    on: iteration
 types:
-  - {id: epic,  name: Epic,  allowed_parents: [initiative]}
-  - {id: story, name: Story, allowed_parents: [epic]}
-relations:
-  parent: {inverse: child, cardinality: one}
-  blocks: {inverse: blocked-by, cardinality: many}
+  epic:
+    name: Epic
+    fields:
+      status:   *status
+      priority: *priority
+      parent:   {kind: relation, inverse: child, target_types: [initiative]}
+  story:
+    name: Story
+    fields:
+      status:    *status
+      priority:  *priority
+      parent:    {kind: relation, inverse: child, target_types: [epic]}
+      iteration: {kind: relation, inverse: issues, target_types: [iteration]}
+      blocks:    {kind: multi-relation, inverse: blocked-by}
+  iteration:
+    name: Sprint
+    fields:
+      start:    {kind: date}
+      end:      {kind: date}
+      capacity: {kind: number}
 ```
+
+`shared` is authoring only, YAML anchors for the human writing the file;
+the store holds one `status` entity per type.
+
+Flows are authored the same way, one file per flow:
+
+```
+flows/
+  board.star        # a saved view: returns render_board(...)
+  backlog.star
+  close-sprint.star
+  gantt.star
+```
+
+with `description` declared at the top of the script,
+which the importer mirrors into an attribute,
+so the file is the whole flow.
+Typed args declared the same way and bound to Starlark variables from the command line
+are a future step.
+`git work flow import flows/` reconciles them like the schema:
+create, `Set script`, archive what the directory no longer has.
+Starlark (`go.starlark.net`) was measured before being chosen (`0740bf3`):
+a whole board flow over a thousand issues runs in 3.3 ms,
+conversion of the issues into Starlark values included,
+and a step cap bounds every run.
+The host API a script sees is `b511c63`'s:
+`query` with a gojq program, `get`, `set`, `add`, `remove`, `new`, `comment`,
+`render_list`, `render_board`, `args`, `me`.
 
 List position *is* the order in the file;
 `ordinal` is never written by hand.
@@ -356,13 +454,13 @@ used by import, by `schema init` (desired = preset, current = nothing)
 and by the Jira sync (`69b7be0`):
 
 1. for each section **present** in the document,
-   match entries to unarchived entities by kind and key;
+   match entries to unarchived entities by shape and key;
 2. create an entity for each entry with no match,
    archive each unmatched entity,
-   and for each match emit `SetAttr`/`SetItem`/`RemoveAttr`/`RemoveItem`
-   for every attribute or item whose canonical JSON differs;
+   and for each match emit `Set`/`Remove`
+   for every attribute whose canonical JSON differs;
    sections absent from the document are untouched,
-   so a file that only says `fields:` cannot archive anyone's views;
+   so a file that only says `types:` cannot archive anyone's flows;
 3. assign ordinals so that unchanged relative order keeps its numbers,
    a moved or new entry takes a number between its neighbours,
    and a list is renumbered only when no number fits.
@@ -387,13 +485,19 @@ git work schema                 show the live schema (alias of export)
 git work schema init [preset]   create the preset's entities; refuses if any field entity exists
 git work schema export          [--format yaml|json]
 git work schema import <file|-> [--dry-run]
-git work schema log [key]       config operations, rendered by kind and key
-git work schema rm <key>        archive a field, type or relation (E7)
+git work schema log [key]       config operations, rendered by shape and key
+git work schema rm <key>        archive a type or field (E7)
 ```
 
-`flow` and `view` commands (`b511c63`, `52a2797`)
-create and edit entities of their kinds through the same `Update`
-and are not part of this task.
+```
+git work flow import <dir|file> [--dry-run]
+git work flow export [dir]
+git work flow <name> [args...]  run one
+```
+
+The `flow` commands (`b511c63`, `52a2797`) reach the entities through the same `Update`
+and are not part of this task;
+`schema init` applies a preset's embedded default flows through `flow import`.
 
 Library: `github.com/goccy/go-yaml`, already an indirect dependency,
 because its errors carry line and column,
@@ -402,8 +506,8 @@ and an import error an agent can act on needs both.
 ## Package layout
 
 ```
-entities/config/   Item, Snapshot, the six operations, unmarshaler, actions, resolver
-schema/            Builtins; Field, Kind, Value, Category, Type, Relation, Role;
+entities/config/   Entity, Snapshot, the four operations, unmarshaler, actions, resolver
+schema/            Builtins; Type, Field, Kind, Value, Category;
                    projection from snapshots; presets/{jira,linear}.yaml (go:embed);
                    export; reconcile
 cache/             config_subcache.go, config_cache.go (Update), config_excerpt.go, Schema()
@@ -434,21 +538,22 @@ Many entities need neither.
 
 Recorded on the tasks as well, per the working conventions:
 
-- `configurable-schema.md` D1: many entities under `refs/work-schema/*`, `refs/work-views/*` and `refs/work-flows/*`, not one singleton;
-  six generic operations, not the enumerated list;
+- `configurable-schema.md` D1: many entities under `refs/work-schema/*` and `refs/work-flows/*`, not one singleton;
+  four generic operations, not the enumerated list;
   types carry `ordinal`, not `rank`.
-- `b511c63`, `f37603c`, `47b8430`, `52a2797`:
-  a flow, a view is an entity of that kind,
-  created and edited with the generic operations;
-  each owner supplies the attribute set and a validator.
-- `bb9e89e`: built-ins in code with configurable overrides;
-  the `on`, `role` and `freeform` attributes.
-- `87a48c1`: iteration fields are field entities with `on: iteration`.
-- `5b09ee1`: `on_open`/`on_close` on the status field are what the open and close verbs write.
+- `b511c63`, `f37603c`, `52a2797`:
+  a flow is an entity of that shape holding a Starlark script,
+  applied from `flows/*.star` by import, run by `git work flow <name>`,
+  and a saved view is a flow whose script returns a render spec (`0740bf3`).
+- `bb9e89e`: three built-ins in code with configurable overrides;
+  kinds, categories, `freeform`, `target_types`; no roles, no `on_open`/`on_close`.
+- `87a48c1`: iteration fields are the `iteration` type's field entities, and membership a target-typed relation field.
+- `c090f9b`: relations are fields of kind `relation`/`multi-relation`, not a config kind.
+- `5b09ee1`: the entity guarantees `title`, `type`, `archived`; status is a preset field.
 
 ## Done when
 
-- `git work schema init jira` creates one `refs/work-schema/*` entity per field, type and relation,
+- `git work schema init jira` creates one `refs/work-schema/*` entity per type and per (type, field),
   and `git work schema` prints the preset back;
 - `schema export | schema import` emits zero operations;
   editing one value and importing emits one;
@@ -464,8 +569,8 @@ Recorded on the tasks as well, per the working conventions:
 ## Risks
 
 - **Generic operations are easy to abuse.**
-  Any kind can be created without a design.
-  The rule is that a kind exists only with an owning task and a validator;
+  Any shape can be created without a design.
+  The rule is that a shape exists only with an owning task and a validator;
   `Problems` will show the first violation.
 - **Attribute names are forever.**
   Renaming an attribute is a new name plus a projection that reads both,
