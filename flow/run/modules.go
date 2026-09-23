@@ -452,8 +452,11 @@ func strictUnmarshal(raw json.RawMessage, into any) error {
 	return dec.Decode(into)
 }
 
-// hostError names the function a failure came from, which the backtrace then
-// places on its line.
+// hostError carries a host failure back into Starlark.
+//
+// The name is not added here: a builtin's error becomes an EvalError whose
+// Backtrace() already opens with "Error in <builtin>", and saying it twice
+// reads as two failures.
 func hostError(b *starlark.Builtin, err error) error {
-	return fmt.Errorf("%s: %w", b.Name(), err)
+	return err
 }
