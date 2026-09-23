@@ -17,9 +17,10 @@ import (
 //
 // There is no `load`, so these globals are the only names a script has,
 // and every one of them is a command the shell has too — `me` excepted.
-// The schema module is not here yet: `schema.export()` and `schema.log(key)`
-// arrive with the schema entity (`3556569`), and the shape is the same,
-// one Starlark function per `git work schema <verb>`.
+//
+// TODO(`3556569`): register the `schema` module here —
+// `schema.export()` and `schema.log(key)`, one function per
+// `git work schema <verb>`, in the same shape as the modules below.
 func (r *runtime) predeclared() starlark.StringDict {
 	return starlark.StringDict{
 		"issue": &starlarkstruct.Module{
