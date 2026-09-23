@@ -66,6 +66,16 @@ Decisions are recorded on `e8d6426` (plumbing), `b511c63` (flows),
   and `--gui` sends it to the browser.
   A renderer that lacks a view type fails at render time naming itself,
   so no command exists on one surface and not the other.
+- **A spec is `{"view", "bindings", "items"}`.**
+  `view` is the kind, `bindings` maps the kind's slots to field keys,
+  and `items` are the issues, the JSON `git work issue` prints.
+  Which slots a kind has, and which of them it cannot do without,
+  is a table in package `view`, read by the view, the help and every renderer:
+  `list` takes `title`, `group_by` and `sort_by`, all optional;
+  `board` requires `columns` and takes `card_title`, `group_by` and `sort_by`;
+  `gantt` requires `start` and `end` and takes `group_by`, `label` and `progress`.
+  Every binding's value is one field key, because there are no field roles:
+  a script names the fields it means when it calls the view.
 
 ## Map
 

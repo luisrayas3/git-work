@@ -509,6 +509,14 @@ and the fixed positionals of `set ID KEY VALUE` are that object spelled out.
 Nothing is reachable from a script that is not reachable from the shell,
 and the reverse,
 so a flow is exactly a shell script that runs in-process.
+That mirroring is a **mechanism, not a discipline** (`52a2797`):
+package `host` is one plain Go function per command,
+over the repository cache and JSON-shaped values,
+returning what the command prints,
+and both `commands/` and the Starlark modules of `flow/run` call it,
+so there is nothing for two implementations to disagree about.
+Argument resolution, an id prefix or an alias, lives there too,
+which is what makes `issue.get("PROJ-12")` mean what the shell means by it.
 Rendering is a module like any other, `view`,
 because `view.gantt(...)` is an atomic capability git-work provides,
 not a surface:

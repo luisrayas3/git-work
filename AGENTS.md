@@ -141,12 +141,13 @@ Flows, the config entities of `refs/work-flows` (`b511c63`, `3556569`).
 A flow is one Starlark function:
 its name is the flow's name, its docstring the description,
 its parameters the arguments.
-Running one is not built yet; the entity's surface is:
+It runs in-process over the same host API a command reaches (`52a2797`):
 
 | Action | Command |
 | --- | --- |
 | List | `git work flow` · `--format text` (name, description, arguments) |
 | Show | `git work flow get <name>` · `--format text` prints the script |
+| Run | `git work flow run <name> [KWARGS\|-]` · `--format text` · `--gui` (no renderer yet) |
 | Import | `git work flow import FILE\|DIR\|-…` `[--prune] [--dry-run]` → prints the id of each flow it creates |
 | Export | `git work flow export <name> > FILE` · `git work flow export --all DIR` |
 | History | `git work flow log [<name>]` (one JSON object per line) |
@@ -158,6 +159,28 @@ and `export | import` writes nothing;
 `--prune` archives the flows the inputs do not mention, and is the only removal.
 Every input is parsed before anything is written,
 so one file that is not exactly one `def` aborts the whole import.
+
+KWARGS is one JSON object of the flow's arguments,
+defaults from the signature filling what it omits;
+an unknown key is an error naming the parameters.
+A flow's script reaches `issue.*`, `flow.*`, `view.*` and `me()` —
+the same verbs, the same arguments, the same output as the commands —
+and writes through the cache like any command does.
+
+Views build a **spec** from items and field bindings; a renderer consumes it,
+and neither renderer exists yet (`84dfbde`, `8b06191`),
+so `--gui` errors and a spec is printed:
+
+| Action | Command |
+| --- | --- |
+| List | `git work view list [KWARGS] < ITEMS` (bindings `title`, `group_by`, `sort_by`) |
+| Board | `git work view board [KWARGS] < ITEMS` (`columns` required; `card_title`, `group_by`, `sort_by`) |
+| Gantt | `git work view gantt [KWARGS] < ITEMS` (`start` and `end` required; `group_by`, `label`, `progress`) |
+
+ITEMS is the JSON array `git work issue` prints, on standard input,
+so a kanban with no flow at all is a pipe:
+`git work issue 'map(select(.fields.status != "done"))' | git work view board '{"columns":"status"}'`.
+A spec is `{"view": <kind>, "bindings": {<slot>: <field key>}, "items": [...]}`.
 
 Gotchas, hardened from use:
 
