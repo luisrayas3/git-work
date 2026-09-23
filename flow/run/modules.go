@@ -10,6 +10,7 @@ import (
 
 	"github.com/git-bug/git-bug/entities/issue"
 	"github.com/git-bug/git-bug/host"
+	"github.com/git-bug/git-bug/schema"
 	"github.com/git-bug/git-bug/view"
 )
 
@@ -17,10 +18,6 @@ import (
 //
 // There is no `load`, so these globals are the only names a script has,
 // and every one of them is a command the shell has too — `me` excepted.
-//
-// TODO(`3556569`): register the `schema` module here —
-// `schema.export()` and `schema.log(key)`, one function per
-// `git work schema <verb>`, in the same shape as the modules below.
 func (r *runtime) predeclared() starlark.StringDict {
 	return starlark.StringDict{
 		"issue": &starlarkstruct.Module{
@@ -42,6 +39,19 @@ func (r *runtime) predeclared() starlark.StringDict {
 						"edit": starlark.NewBuiltin("issue.comment.edit", r.issueCommentEdit),
 					},
 				},
+			},
+		},
+		// `import` is a reserved word in Starlark, so the one verb that can
+		// not keep its name is spelled `import_` (cli-convention.md, E9).
+		"schema": &starlarkstruct.Module{
+			Name: "schema",
+			Members: starlark.StringDict{
+				"export":  starlark.NewBuiltin("schema.export", r.schemaExport),
+				"import_": starlark.NewBuiltin("schema.import_", r.schemaImport),
+				"init":    starlark.NewBuiltin("schema.init", r.schemaInit),
+				"log":     starlark.NewBuiltin("schema.log", r.schemaLog),
+				"archive": starlark.NewBuiltin("schema.archive", r.schemaArchive),
+				"rm":      starlark.NewBuiltin("schema.rm", r.schemaRm),
 			},
 		},
 		"flow": &starlarkstruct.Module{
@@ -225,6 +235,136 @@ func (r *runtime) issueCommentEdit(thread *starlark.Thread, b *starlark.Builtin,
 	return starlark.None, nil
 }
 
+// schema.export() — `git work schema export`.
+//
+// The document comes back as the dict `--format json` prints, which is the
+// dict `schema.import_` takes, so a script edits a schema the way it reads one.
+func (r *runtime) schemaExport(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+	if err := starlark.UnpackArgs(b.Name(), args, kwargs); err != nil {
+		return nil, err
+	}
+
+	doc, warnings, err := host.SchemaExport(r.repo)
+	r.warn(warnings)
+	if err != nil {
+		return nil, hostError(b, err)
+	}
+
+	// The document's members carry YAML tags and its mappings remember their
+	// order, so its own marshaller is the only one that prints it whole,
+	// and the ordered conversion is the only one that keeps what it printed.
+	raw, err := doc.Marshal("json")
+	if err != nil {
+		return nil, hostError(b, err)
+	}
+	return decodeOrdered(raw)
+}
+
+// schema.import_(doc, prune=False, dry_run=False) — `git work schema import`.
+//
+// `import` is a reserved word in Starlark, so this one verb is spelled with a
+// trailing underscore; everything else about it is the command.
+// The changes come back whether they were committed or not, because they are
+// what `--dry-run` prints and what the same call commits a moment later.
+func (r *runtime) schemaImport(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+	var value starlark.Value
+	var prune, dryRun bool
+	if err := starlark.UnpackArgs(b.Name(), args, kwargs,
+		"doc", &value, "prune?", &prune, "dry_run?", &dryRun); err != nil {
+		return nil, err
+	}
+
+	if value == starlark.None {
+		return nil, fmt.Errorf("%s: the document is None", b.Name())
+	}
+	raw, err := marshalOrdered(value)
+	if err != nil {
+		return nil, hostError(b, err)
+	}
+
+	doc, err := schema.ParseDocument(raw)
+	if err != nil {
+		return nil, hostError(b, err)
+	}
+
+	r.warn(host.SchemaDuplicates(r.repo))
+
+	changes, _, err := host.SchemaImport(r.repo, doc, prune, dryRun)
+	if err != nil {
+		return nil, hostError(b, err)
+	}
+	return changeList(b, changes)
+}
+
+// schema.init(preset="jira", dry_run=False) — `git work schema init`.
+//
+// It returns the changes, as import_ does, rather than the ids the command
+// prints: the two are one host call, and a script that wants the ids reads
+// them off the creates.
+func (r *runtime) schemaInit(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+	var preset string
+	var dryRun bool
+	if err := starlark.UnpackArgs(b.Name(), args, kwargs, "preset?", &preset, "dry_run?", &dryRun); err != nil {
+		return nil, err
+	}
+
+	r.warn(host.SchemaDuplicates(r.repo))
+
+	changes, _, err := host.SchemaInit(r.repo, preset, dryRun)
+	if err != nil {
+		return nil, hostError(b, err)
+	}
+	return changeList(b, changes)
+}
+
+// schema.log(key="") — `git work schema log [KEY]`, every entity by default.
+func (r *runtime) schemaLog(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+	var key string
+	if err := starlark.UnpackArgs(b.Name(), args, kwargs, "key?", &key); err != nil {
+		return nil, err
+	}
+
+	r.warn(host.SchemaDuplicates(r.repo))
+
+	entries, err := host.SchemaLog(r.repo, key)
+	if err != nil {
+		return nil, hostError(b, err)
+	}
+	return reencode(b, entries)
+}
+
+// schema.archive(key) — `git work schema archive KEY`, the replicated removal.
+func (r *runtime) schemaArchive(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+	var key string
+	if err := starlark.UnpackArgs(b.Name(), args, kwargs, "key", &key); err != nil {
+		return nil, err
+	}
+
+	r.warn(host.SchemaDuplicates(r.repo))
+
+	warnings, err := host.SchemaArchive(r.repo, key)
+	r.warn(warnings)
+	if err != nil {
+		return nil, hostError(b, err)
+	}
+	return starlark.None, nil
+}
+
+// schema.rm(key) — `git work schema rm KEY`, the local ref only.
+func (r *runtime) schemaRm(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+	var key string
+	if err := starlark.UnpackArgs(b.Name(), args, kwargs, "key", &key); err != nil {
+		return nil, err
+	}
+
+	r.warn(host.SchemaDuplicates(r.repo))
+
+	if err := host.SchemaRm(r.repo, key); err != nil {
+		return nil, hostError(b, err)
+	}
+	return starlark.None, nil
+}
+
 // flow.list() — `git work flow`.
 func (r *runtime) flowList(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 	if err := starlark.UnpackArgs(b.Name(), args, kwargs); err != nil {
@@ -235,9 +375,7 @@ func (r *runtime) flowList(thread *starlark.Thread, b *starlark.Builtin, args st
 	if err != nil {
 		return nil, hostError(b, err)
 	}
-	for _, warning := range warnings {
-		fmt.Fprintf(r.stderr, "warning: %s\n", warning)
-	}
+	r.warn(warnings)
 	return reencode(b, entries)
 }
 
@@ -252,9 +390,7 @@ func (r *runtime) flowGet(thread *starlark.Thread, b *starlark.Builtin, args sta
 	if err != nil {
 		return nil, hostError(b, err)
 	}
-	for _, warning := range warnings {
-		fmt.Fprintf(r.stderr, "warning: %s\n", warning)
-	}
+	r.warn(warnings)
 	return reencode(b, detail)
 }
 
@@ -425,6 +561,23 @@ func keywordJSON(b *starlark.Builtin, kwargs []starlark.Tuple) (map[string]json.
 		values[name] = raw
 	}
 	return values, nil
+}
+
+// warn prints a host's warnings where a command prints them, on stderr,
+// so that a flow's diagnostics never end up in the JSON it returns.
+func (r *runtime) warn(warnings []string) {
+	for _, warning := range warnings {
+		fmt.Fprintf(r.stderr, "warning: %s\n", warning)
+	}
+}
+
+// changeList returns an import's changes, empty rather than None when a
+// document and the store already agree — which is what a round trip returns.
+func changeList(b *starlark.Builtin, changes []schema.Change) (starlark.Value, error) {
+	if changes == nil {
+		changes = []schema.Change{}
+	}
+	return reencode(b, changes)
 }
 
 // reencode turns a host result into a Starlark value through its JSON, so that

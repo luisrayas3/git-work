@@ -154,6 +154,147 @@ func fromStarlark(v starlark.Value) (any, error) {
 	}
 }
 
+// A schema document is the one value whose key order carries meaning:
+// mapping position *is* the order of the types, the fields and the values
+// (E5, E9), so `export | import` emits nothing only if the order survives.
+// The two functions below are that document's conversion, and nothing else's:
+// the general one sorts keys going in and loses order coming out, which is
+// what a script reading issues wants and what a schema can not have.
+
+// decodeOrdered turns JSON into a Starlark value keeping every object's keys
+// in the order they were written, which a starlark.Dict remembers.
+func decodeOrdered(raw []byte) (starlark.Value, error) {
+	dec := json.NewDecoder(bytes.NewReader(raw))
+	dec.UseNumber()
+	return decodeOrderedValue(dec)
+}
+
+func decodeOrderedValue(dec *json.Decoder) (starlark.Value, error) {
+	token, err := dec.Token()
+	if err != nil {
+		return nil, err
+	}
+
+	delim, isDelim := token.(json.Delim)
+	if !isDelim {
+		switch value := token.(type) {
+		case nil:
+			return starlark.None, nil
+		case bool:
+			return starlark.Bool(value), nil
+		case string:
+			return starlark.String(value), nil
+		case json.Number:
+			return numberToStarlark(value)
+		default:
+			return nil, fmt.Errorf("cannot convert %T to a Starlark value", token)
+		}
+	}
+
+	switch delim {
+	case '{':
+		dict := starlark.NewDict(0)
+		for dec.More() {
+			key, err := dec.Token()
+			if err != nil {
+				return nil, err
+			}
+			name, ok := key.(string)
+			if !ok {
+				return nil, fmt.Errorf("a JSON object's keys are strings")
+			}
+			value, err := decodeOrderedValue(dec)
+			if err != nil {
+				return nil, err
+			}
+			if err := dict.SetKey(starlark.String(name), value); err != nil {
+				return nil, err
+			}
+		}
+		_, err := dec.Token() // the closing brace
+		return dict, err
+
+	case '[':
+		var items []starlark.Value
+		for dec.More() {
+			item, err := decodeOrderedValue(dec)
+			if err != nil {
+				return nil, err
+			}
+			items = append(items, item)
+		}
+		if _, err := dec.Token(); err != nil { // the closing bracket
+			return nil, err
+		}
+		return starlark.NewList(items), nil
+
+	default:
+		return nil, fmt.Errorf("unexpected %v in JSON", delim)
+	}
+}
+
+// marshalOrdered is marshalStarlark keeping each dict's insertion order,
+// which is the order the script wrote and the order the document means.
+func marshalOrdered(v starlark.Value) (json.RawMessage, error) {
+	buf := &bytes.Buffer{}
+	if err := writeOrdered(buf, v); err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
+}
+
+func writeOrdered(buf *bytes.Buffer, v starlark.Value) error {
+	switch value := v.(type) {
+	case *starlark.Dict:
+		buf.WriteByte('{')
+		for at, item := range value.Items() {
+			if at > 0 {
+				buf.WriteByte(',')
+			}
+			key, ok := starlark.AsString(item[0])
+			if !ok {
+				return fmt.Errorf("a dict key must be a string, %s is not", item[0].Type())
+			}
+			raw, err := json.Marshal(key)
+			if err != nil {
+				return err
+			}
+			buf.Write(raw)
+			buf.WriteByte(':')
+			if err := writeOrdered(buf, item[1]); err != nil {
+				return err
+			}
+		}
+		buf.WriteByte('}')
+		return nil
+
+	case *starlark.List:
+		buf.WriteByte('[')
+		for at := 0; at < value.Len(); at++ {
+			if at > 0 {
+				buf.WriteByte(',')
+			}
+			if err := writeOrdered(buf, value.Index(at)); err != nil {
+				return err
+			}
+		}
+		buf.WriteByte(']')
+		return nil
+
+	default:
+		converted, err := fromStarlark(v)
+		if err != nil {
+			return err
+		}
+		raw, err := json.Marshal(converted)
+		if err != nil {
+			return err
+		}
+		buf.Write(raw)
+		return nil
+	}
+}
+
 // marshalStarlark is fromStarlark straight to bytes, which is what Run returns.
 func marshalStarlark(v starlark.Value) (json.RawMessage, error) {
 	converted, err := fromStarlark(v)

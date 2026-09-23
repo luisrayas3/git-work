@@ -501,6 +501,14 @@ of the same name under a module of the same name,
 taking the same arguments and returning the JSON the command prints,
 so `git work issue set ID '{"status":"done"}'` is `issue.set(id, status="done")`
 and `git work issue PROGRAM` is `issue.list(program)`.
+`import` is a reserved word in Starlark,
+so `git work schema import` is the one verb that can not keep its name
+and is bound as `schema.import_(doc, prune=False, dry_run=False)`.
+A schema document is also the one value whose key order carries meaning,
+so `schema.export()` and `schema.import_()` convert it
+through a conversion that keeps each mapping's order,
+rather than the general one that sorts keys so a script reads the same twice:
+without it `schema.import_(schema.export())` would renumber the whole schema.
 Starlark has no positional-only parameters,
 so a command's arguments are one JSON object of keyword arguments,
 `git work flow run board '{"iteration":"current"}'`

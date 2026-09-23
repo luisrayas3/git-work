@@ -387,9 +387,10 @@ func TestTheOnlyGlobalsAreTheHostModules(t *testing.T) {
 	// `load` is not available, so a flow can only reach the host
 	_, _, err := run(t, repo, `def sneaky():
     """Reach for something that is not there."""
-    return schema
+    return bridge
 `, nil)
 	require.Error(t, err)
+	require.Contains(t, err.Error(), "bridge")
 
 	// and a module cannot be reassigned out from under the rest of the script
 	_, _, err = run(t, repo, `def shadow():
@@ -398,4 +399,118 @@ func TestTheOnlyGlobalsAreTheHostModules(t *testing.T) {
 `, nil)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "absent")
+}
+
+func TestSchemaInitThenAWriteItValidates(t *testing.T) {
+	repo := testRepo(t)
+
+	// a preset's type and one of its statuses go through
+	value, _, err := run(t, repo, `def setup():
+    """Apply the jira preset and create a task."""
+    schema.init()
+    return issue.new({"fields": {"title": "a task", "type": "task", "status": "to-do"}})
+`, nil)
+	require.NoError(t, err)
+	require.Len(t, repo.Issues().AllIds(), 1)
+
+	id, ok := value.(string)
+	require.True(t, ok)
+	require.NotEmpty(t, id)
+
+	// and a status the schema does not have is refused, naming the ones it has
+	_, _, err = run(t, repo, `def refused():
+    """Set a status that is not in the schema."""
+    return issue.new({"fields": {"title": "another", "type": "task", "status": "shipped"}})
+`, nil)
+	require.ErrorContains(t, err, "valid values: backlog, to-do, in-progress, in-review, done, canceled")
+	require.Len(t, repo.Issues().AllIds(), 1)
+
+	// init refuses a second time, as the command does
+	_, _, err = run(t, repo, `def again():
+    """Apply the preset twice."""
+    return schema.init()
+`, nil)
+	require.ErrorContains(t, err, "already has")
+}
+
+func TestSchemaExportRoundTripsThroughImport(t *testing.T) {
+	repo := testRepo(t)
+
+	value, _, err := run(t, repo, `def roundtrip():
+    """Write the schema back exactly as it was read."""
+    schema.init()
+    return [schema.export()["types"]["task"]["fields"]["status"]["kind"],
+            schema.import_(schema.export())]
+`, nil)
+	require.NoError(t, err)
+
+	pair := value.([]any)
+	require.Equal(t, "enum", pair[0], "the document is the one --format json prints")
+	require.Equal(t, []any{}, pair[1], "export | import emits no change")
+
+	// a document the store differs from does emit one, and dry_run writes nothing
+	value, _, err = run(t, repo, `def edit():
+    """Rename one value of one field."""
+    doc = schema.export()
+    doc["types"]["task"]["fields"]["status"]["values"][0]["name"] = "Someday"
+    return schema.import_(doc, dry_run=True)
+`, nil)
+	require.NoError(t, err)
+
+	changes := value.([]any)
+	require.Len(t, changes, 1)
+	require.Equal(t, "update", changes[0].(map[string]any)["action"])
+	require.Equal(t, "task/status", changes[0].(map[string]any)["key"])
+
+	after, _, err := run(t, repo, `def unchanged():
+    """Nothing was written, so the round trip is still clean."""
+    return schema.import_(schema.export())
+`, nil)
+	require.NoError(t, err)
+	require.Equal(t, []any{}, after)
+}
+
+func TestSchemaLogReturnsOperations(t *testing.T) {
+	repo := testRepo(t)
+
+	value, _, err := run(t, repo, `def history():
+    """Who added a status, and when."""
+    schema.init()
+    return [schema.log("task/status"), len(schema.log())]
+`, nil)
+	require.NoError(t, err)
+
+	pair := value.([]any)
+	entries := pair[0].([]any)
+	require.NotEmpty(t, entries)
+
+	first := entries[0].(map[string]any)
+	require.Equal(t, "create", first["type"])
+	require.Equal(t, "field", first["shape"])
+	require.Equal(t, "task/status", first["key"])
+	require.Equal(t, "John Doe", first["author"].(map[string]any)["name"])
+
+	// with no key, every entity's operations
+	require.Greater(t, pair[1], float64(len(entries)))
+}
+
+func TestSchemaArchiveAndRmFromAScript(t *testing.T) {
+	repo := testRepo(t)
+
+	_, stderr, err := run(t, repo, `def clean():
+    """Archive a field, archive a type, then drop a local ref."""
+    schema.init()
+    schema.archive("task/estimate")
+    schema.archive("bug")
+    schema.rm("task/due")
+`, nil)
+	require.NoError(t, err)
+	require.Contains(t, stderr, "still live on the archived type bug")
+
+	s, err := repo.LoadSchema()
+	require.NoError(t, err)
+	_, ok := s.Field("task", "estimate")
+	require.False(t, ok)
+	_, ok = s.Field("task", "due")
+	require.False(t, ok)
 }

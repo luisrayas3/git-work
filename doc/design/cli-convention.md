@@ -147,7 +147,11 @@ git work issue 'map(select(.fields.status != "done"))' | git work view board '{"
 `issue.set(id, **fields)`, `issue.add(id, **items)`, `issue.remove(id, **items)`,
 `issue.comment.new(id, body)`, `issue.comment.edit(id, body)`,
 `issue.log(id)`, `issue.archive(id)`;
-`schema.export()`, `schema.log(key)`;
+`schema.export()`, `schema.import_(doc, prune=False, dry_run=False)`,
+`schema.init(preset="jira", dry_run=False)`,
+`schema.log(key="")`, `schema.archive(key)`, `schema.rm(key)`;
+`import` is a reserved word in Starlark,
+so that one verb is spelled with a trailing underscore;
 `flow.run(name, **kwargs)`, `flow.get(name)`;
 `view.list(items, ...)`, `view.board(items, ...)`, `view.gantt(items, ...)`;
 `me()`.
