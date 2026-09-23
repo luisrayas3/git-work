@@ -209,7 +209,3 @@ types:
         name: Capacity
         description: Story points the team commits to, in the unit estimate uses.
       rank: *rank
-
-# TODO(59fed1c): the linear preset — Backlog/Todo/In Progress/Done/Canceled
-# statuses, `project` where this has `epic`, `cycle` where this has `iteration`
-# — earns its place in the round-trip table test of that task.

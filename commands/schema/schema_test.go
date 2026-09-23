@@ -73,6 +73,38 @@ func TestSchemaInit(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestSchemaInitLinear(t *testing.T) {
+	env := newTestEnv(t)
+
+	require.NoError(t, runSchemaInit(env, initOptions{}, []string{"linear"}))
+	ids := strings.Fields(env.Out.String())
+	require.Equal(t, len(ids), len(env.Backend.Schema().AllIds()))
+
+	s, err := env.Backend.LoadSchema()
+	require.NoError(t, err)
+	require.Empty(t, s.Problems)
+	require.Equal(t, []string{"initiative", "project", "issue", "cycle"}, s.TypeKeys())
+
+	// an issue's parent is a project or another issue, and nothing else
+	i, _, err := env.Backend.Issues().New("an issue", "", map[string]issue.Value{
+		"type":   issue.StringValue("issue"),
+		"status": issue.StringValue("todo"),
+	})
+	require.NoError(t, err)
+
+	cycle, _, err := env.Backend.Issues().New("a cycle", "", map[string]issue.Value{
+		"type": issue.StringValue("cycle"),
+	})
+	require.NoError(t, err)
+
+	_, err = i.PlanSetFields(map[string]issue.Value{"parent": issue.StringValue(cycle.Id().String())})
+	require.ErrorContains(t, err, "parent takes issue, project")
+
+	ops, err := i.PlanSetFields(map[string]issue.Value{"cycle": issue.StringValue(cycle.Id().String())})
+	require.NoError(t, err)
+	require.NoError(t, i.CommitOperations(ops))
+}
+
 func TestSchemaInitRefusesTwice(t *testing.T) {
 	env := newTestEnv(t)
 	initJira(t, env)

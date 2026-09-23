@@ -123,7 +123,7 @@ The schema itself, types and fields under `refs/work-schema`
 | Action | Command |
 | --- | --- |
 | Show | `git work schema` · `--format json` (alias of `export`) |
-| Bootstrap | `git work schema init [jira]` → prints the created ids; refuses if any field exists |
+| Bootstrap | `git work schema init [jira\|linear]` → prints the created ids; refuses if any field exists |
 | Round trip | `git work schema export > schema.yaml` · `git work schema import schema.yaml` (writes only what differs; a no-op when nothing did) |
 | Import a partial file | `git work schema import FILE\|- [--prune] [--dry-run]`; an upsert unless `--prune`, which archives what the file omits |
 | History | `git work schema log [KEY]` · `--format text`; one JSON object per line |

@@ -1,0 +1,149 @@
+# The linear preset: Linear's native model as git-work config (59fed1c, D7).
+#
+# It exists beside the jira preset to hold the schema honest: "just
+# configurable enough to represent both Jira's and Linear's native models" is
+# a claim, and two presets that both round trip are the test of it. Nothing in
+# this repository runs on it, so expect it to be wrong in small ways until it
+# meets a real workspace.
+#
+# Linear's grouping above an issue is a project, and above that an initiative;
+# `project` plays the role `epic` plays in the jira preset. Its iteration is a
+# cycle, which is a type here as a sprint is there (D5).
+preset: linear
+
+shared:
+  # Linear's five workflow states. The names are Linear's defaults and the
+  # categories are its status types, which is what everything keyed on "is
+  # this done" reads, never the name (D2).
+  status: &status
+    kind: enum
+    name: Status
+    description: Where the work stands.
+    values:
+      - {id: backlog,     name: Backlog,     category: backlog}
+      - {id: todo,        name: Todo,        category: unstarted}
+      - {id: in-progress, name: In Progress, category: started}
+      - {id: done,        name: Done,        category: completed}
+      - {id: canceled,    name: Canceled,    category: canceled}
+
+  # Linear's priorities, most urgent first. "No priority" is a value and not
+  # an absent field, because it is what Linear sorts and filters on.
+  priority: &priority
+    kind: ordinal-enum
+    name: Priority
+    description: Linear's four priorities, most urgent first, then none.
+    values:
+      - {id: urgent,      name: Urgent}
+      - {id: high,        name: High}
+      - {id: medium,      name: Medium}
+      - {id: low,         name: Low}
+      - {id: no-priority, name: No priority}
+
+  assignee: &assignee
+    kind: identity
+    name: Assignee
+    description: Who is doing the work.
+
+  # Freeform, because Linear's labels are created as they are typed.
+  labels: &labels
+    kind: multi-enum
+    name: Labels
+    description: Free tags; the preset ships none and anything is accepted.
+    freeform: true
+
+  estimate: &estimate
+    kind: number
+    name: Estimate
+    description: The estimate a cycle's capacity is measured in.
+
+  due: &due
+    kind: date
+    name: Due date
+
+  rank: &rank
+    kind: rank
+    name: Rank
+    description: Manual board and backlog order, sorted by (rank, id).
+
+  # One side is stored and the inverse is derived (D4): `blocked_by` is what
+  # the other issue reads, never a key an issue writes.
+  blocks: &blocks
+    kind: multi-relation
+    name: Blocks
+    inverse: blocked_by
+
+  cycle: &cycle
+    kind: relation
+    name: Cycle
+    description: The cycle this issue is committed to.
+    inverse: issues
+    target_types: [cycle]
+
+types:
+  initiative:
+    name: Initiative
+    description: A long-range outcome, delivered by projects.
+    fields:
+      status: *status
+      priority: *priority
+      assignee: *assignee
+      labels: *labels
+      due: *due
+      blocks: *blocks
+      rank: *rank
+
+  project:
+    name: Project
+    description: A body of work delivered by issues; Linear's grouping.
+    fields:
+      status: *status
+      priority: *priority
+      assignee: *assignee
+      labels: *labels
+      due: *due
+      parent:
+        kind: relation
+        name: Initiative
+        inverse: children
+        target_types: [initiative]
+      blocks: *blocks
+      rank: *rank
+
+  # Linear has one work type. A sub-issue is an issue whose parent is an
+  # issue, which is why `parent` takes both a project and an issue.
+  issue:
+    name: Issue
+    description: A unit of work; a sub-issue is one whose parent is an issue.
+    fields:
+      status: *status
+      priority: *priority
+      assignee: *assignee
+      labels: *labels
+      estimate: *estimate
+      due: *due
+      parent:
+        kind: relation
+        name: Parent
+        inverse: children
+        target_types: [project, issue]
+      cycle: *cycle
+      blocks: *blocks
+      rank: *rank
+
+  # A cycle is an issue type, not a namespace (D5): it has a title, comments
+  # for the retro, and its dates and capacity as ordinary fields.
+  cycle:
+    name: Cycle
+    description: A time-boxed iteration; Linear's cycle, Jira's sprint.
+    fields:
+      start:
+        kind: date
+        name: Start date
+      end:
+        kind: date
+        name: End date
+      capacity:
+        kind: number
+        name: Capacity
+        description: Points the team commits to, in the unit estimate uses.
+      rank: *rank
