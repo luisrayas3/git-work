@@ -109,6 +109,28 @@ Every id position takes an id prefix or an alias —
 `git work issue new '{"fields":{"title":"…"},"aliases":{"jira":"PROJ-12"}}'` —
 and a writer prints an id or nothing at all.
 
+Flows, the config entities of `refs/work-flows` (`b511c63`, `3556569`).
+A flow is one Starlark function:
+its name is the flow's name, its docstring the description,
+its parameters the arguments.
+Running one is not built yet; the entity's surface is:
+
+| Action | Command |
+| --- | --- |
+| List | `git work flow` · `--format text` (name, description, arguments) |
+| Show | `git work flow get <name>` · `--format text` prints the script |
+| Import | `git work flow import FILE\|DIR\|-…` `[--prune] [--dry-run]` → prints the id of each flow it creates |
+| Export | `git work flow export <name> > FILE` · `git work flow export --all DIR` |
+| History | `git work flow log [<name>]` (one JSON object per line) |
+| Archive / remove | `git work flow archive <name>` (an operation, replicated) · `git work flow rm <name>` (the local ref only) |
+
+Import is an upsert keyed on the function's name,
+so the file's name and location never matter
+and `export | import` writes nothing;
+`--prune` archives the flows the inputs do not mention, and is the only removal.
+Every input is parsed before anything is written,
+so one file that is not exactly one `def` aborts the whole import.
+
 Gotchas, hardened from use:
 
 - `ls` is not a command; the list is the bare `git work bug`.

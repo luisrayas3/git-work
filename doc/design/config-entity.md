@@ -151,6 +151,8 @@ A flow's attributes are `script`, the Starlark source, and `description`
 The script is **exactly one function definition** and nothing else
 (Luis, 2026-09-23):
 its name is the flow's key,
+which a Starlark identifier narrows to `^[a-z][a-z0-9_]*$`,
+the config key slug of E3 without the `-` an identifier cannot carry,
 its docstring is the description, which import mirrors into the attribute
 so that listing flows never parses a script,
 and its parameters are the flow's arguments, defaults included.
