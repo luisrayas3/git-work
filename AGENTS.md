@@ -176,9 +176,10 @@ so `git work schema import` is
 `work.schema.import_(doc, prune=False, dry_run=False)`;
 every other verb keeps its name.
 
-Views build a **spec** from items and field bindings; a renderer consumes it,
-and neither renderer exists yet (`84dfbde`, `8b06191`),
-so `--gui` errors and a spec is printed:
+A view call renders and blocks (`work.view.board(...)`, decided 2026-09-24),
+but neither renderer exists yet (`84dfbde`, `8b06191`),
+so today every call takes the headless path:
+`--gui` errors and the **spec**, the view's serialized form, is printed:
 
 | Action | Command |
 | --- | --- |
