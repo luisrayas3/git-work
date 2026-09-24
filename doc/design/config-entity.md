@@ -19,6 +19,8 @@ see "Why not one entity" at the end.
 Revised 2026-09-23 (`e7e58f2`, `d56e6f1`, `0740bf3`):
 per-type fields, three shapes, four operations, no roles,
 flows as Starlark scripts, and import as the only way from the tree into the refs.
+Revised 2026-09-24 (Luis): the host API is one `work` module,
+and a flow calls a view rather than returning a spec (E9).
 
 ## What the code offers
 
@@ -71,7 +73,7 @@ the merge tiers run identities, then schema, then issues, then flows.
 Automation is out of scope: a flow runs when invoked and nothing in git-work fires on its own,
 so there is no rule shape, no trigger attribute and no `refs/work-rules` (`47b8430` closed).
 There is no `view` shape either:
-a saved view is a flow whose script returns a render spec,
+a saved view is a flow whose script calls `work.view.*` (E9),
 and `refs/work-views` exists only if a live view ever needs what a flow cannot express (`d56e6f1`).
 
 **Refs are the runtime source of truth; the tree is for authoring** (`0740bf3`).
@@ -165,7 +167,7 @@ and a parameter without one is a required string;
 declaring richer types is the **future step** `args` was.
 Which fields a flow reads is not an attribute:
 the script passes field keys to the generic host functions itself,
-`view.gantt(items, start="start_date", end="due_date")`,
+`work.view.gantt(items, start="start_date", end="due_date")`,
 and that is where the field roles of an earlier draft went.
 Last-writer-wins on the whole script is right here,
 because the only writer is `flow import`
@@ -223,7 +225,7 @@ Notes on the field attributes:
   (`configurable-schema.md` D5).
 - there are **no roles** and no `on_open`/`on_close` (`d56e6f1`).
   What a field is *for* is the consumer's business:
-  the Gantt flow's script calls `view.gantt(items, start="start_date", end="due_date")`,
+  the Gantt flow's script calls `work.view.gantt(items, start="start_date", end="due_date")`,
   the planning flow's sums `story_points`,
   a close flow's sets the status value it wants, or takes it as an arg.
   Presets ship their flows with the keys of their own fields.
@@ -475,8 +477,8 @@ Flows are authored the same way, one function per file:
 ```python
 def board(iteration="current"):
     """Kanban of one iteration, a column per status."""
-    items = issue.list('map(select(.fields.iteration == "%s"))' % iteration)
-    return view.board(items, columns="status", card_title="title")
+    q = 'map(select(.fields.iteration == "%s"))' % iteration
+    work.view.board(lambda: work.issue.list(q), columns="status", card_title="title")
 ```
 
 The function is the whole declaration:
@@ -498,21 +500,24 @@ The host API a script sees **mirrors the command line one to one**
 (Luis, 2026-09-23; the full map is `cli-convention.md`):
 every `git work <module> <verb>` is a Starlark function
 of the same name under a module of the same name,
-taking the same arguments and returning the JSON the command prints,
-so `git work issue set ID '{"status":"done"}'` is `issue.set(id, status="done")`
-and `git work issue PROGRAM` is `issue.list(program)`.
+taking the same arguments and returning the JSON the command prints.
+Every module hangs off one predeclared global named `work`,
+after the binary itself (Luis, 2026-09-24),
+so `git work issue set ID '{"status":"done"}'` is `work.issue.set(id, status="done")`
+and `git work issue PROGRAM` is `work.issue.list(program)`,
+which also leaves `issue` and `flow` free as local names in a script.
 `import` is a reserved word in Starlark,
 so `git work schema import` is the one verb that can not keep its name
-and is bound as `schema.import_(doc, prune=False, dry_run=False)`.
+and is bound as `work.schema.import_(doc, prune=False, dry_run=False)`.
 A schema document is also the one value whose key order carries meaning,
-so `schema.export()` and `schema.import_()` convert it
+so `work.schema.export()` and `work.schema.import_()` convert it
 through a conversion that keeps each mapping's order,
 rather than the general one that sorts keys so a script reads the same twice:
-without it `schema.import_(schema.export())` would renumber the whole schema.
+without it `work.schema.import_(work.schema.export())` would renumber the whole schema.
 Starlark has no positional-only parameters,
 so a command's arguments are one JSON object of keyword arguments,
 `git work flow run board '{"iteration":"current"}'`
-is `flow.run("board", iteration="current")`,
+is `work.flow.run("board", iteration="current")`,
 and the fixed positionals of `set ID KEY VALUE` are that object spelled out.
 Nothing is reachable from a script that is not reachable from the shell,
 and the reverse,
@@ -524,23 +529,80 @@ returning what the command prints,
 and both `commands/` and the Starlark modules of `flow/run` call it,
 so there is nothing for two implementations to disagree about.
 Argument resolution, an id prefix or an alias, lives there too,
-which is what makes `issue.get("PROJ-12")` mean what the shell means by it.
-Rendering is a module like any other, `view`,
-because `view.gantt(...)` is an atomic capability git-work provides,
-not a surface:
-a view function builds a **spec** from items and field bindings,
-and a renderer consumes specs.
-The terminal renderer is behind `git work view` (`84dfbde`),
-the HTTP renderer behind `git work gui` (`8b06191`),
-and a renderer that lacks a view type fails at render time naming itself,
-so there is never a command that exists for one surface and not the other.
+which is what makes `work.issue.get("PROJ-12")` mean what the shell means by it.
+Rendering is a module like any other, `work.view`,
+because `work.view.board(...)` is an atomic capability git-work provides,
+not a surface (Luis, 2026-09-24).
+
+**Flows call views; views never call flows.**
+`work.view.board(items, columns="status")` is the call that renders.
+It draws the board, handles its own interaction,
+writes its own edits through the host —
+a card dragged to another column is a set of the field the `columns` binding names —
+and returns when the user quits.
+A flow that returns another flow's spec was the earlier model and is not a goal:
+nothing consumes it, and the flow that wants a board can simply call one.
+
+**A view call blocks, on the script's thread.**
+The builtin starts the renderer and does not return until the user is done,
+so Starlark is paused inside the call
+and the renderer can call back into the script synchronously,
+which leaves no concurrency in the language and no scheduler in the host.
+Non-blocking views were considered and rejected:
+a script that ends while its view is still open has nowhere to live,
+and two views started from one script compete for one terminal.
+Two panes at once is a composite view, `work.view.split(...)`,
+a capability like any other rather than concurrency.
+
+**`items` is a list or a provider function.**
+A list is static, what the flow already read.
+A function, `lambda: work.issue.list(q)`,
+is called by the view whenever it needs the data again:
+after its own edits, and when the ref watcher reports a change (`63c68d1`),
+so a board stays live without anyone re-running the flow.
+
+**The return value is the user's answer**, not a spec.
+A board returns `None`;
+a list with `pick=True` returns the item the user chose,
+which is what `flow pick` (`9a24c8e`) needs from it.
+
+**The spec is only the headless serialization.**
+`{"view", "bindings", "items"}` is what a view call emits
+when it cannot render in the process it is running in:
+with no TTY it prints the spec to stdout and returns `None`,
+which is how an agent gets the data;
+`--gui` sends it to the browser;
+and the `gui` process running a flow selects an HTML backend for the same call (`8b06191`).
+The code that exists today —
+package `view`, `git work view <kind>`, and `work.view.*` returning a spec —
+is that headless backend,
+and is the interim behaviour until the terminal renderer lands (`84dfbde`).
+A backend that lacks a view kind fails naming itself,
+so no capability exists on one surface and not the other.
 `git work view board '{"columns":"status"}' < items.json`
-is `view.board(items, columns="status")`;
-in a TTY it opens the interactive view, otherwise it prints the spec,
-and `--gui` sends it to the browser.
-A view that edits, a kanban drag, calls `issue.set` and re-renders;
-there is no second path.
-`me()` is the only name with no shell equivalent.
+is `work.view.board(items, columns="status")` with the items on standard input.
+
+**Callbacks are a probable but deferred feature**, not a decision.
+If they come, they look like this:
+`on_change(item, field, old, new)`, where, if it is given,
+the handler owns the write, the view writing nothing itself,
+and an error raised rejects the change and shows its message in the view;
+`on_select(item)` for Enter on a row or a card,
+whose return value becomes the view call's.
+The same hook names on every view kind,
+and a callback runs inside the event loop, so a slow one freezes the view.
+Whether they come at all is open.
+
+`work.user.me()` is the current identity,
+and the command line spells it `git work user me`,
+the explicit form of the bare `git work user`,
+so there is no script-only name left.
+
+What changed on 2026-09-24:
+the model this replaces was that a view function built a spec,
+a flow returned it and `flow run` handed it to a renderer.
+Flows now call views, a view call renders and blocks,
+and the spec is what a view emits only when it cannot render where it is.
 
 List position *is* the order in the file;
 `ordinal` is never written by hand.
@@ -658,7 +720,7 @@ Recorded on the tasks as well, per the working conventions:
 - `b511c63`, `f37603c`, `52a2797`:
   a flow is an entity of that shape holding one Starlark function,
   applied from any `.star` file by import, run by `git work flow run <name>`,
-  and a saved view is a flow whose function returns a `view.*` spec (`0740bf3`).
+  and a saved view is a flow whose function calls `work.view.*` (`0740bf3`, revised 2026-09-24).
 - `bb9e89e`: three built-ins in code with configurable overrides;
   kinds, categories, `freeform`, `target_types`; no roles, no `on_open`/`on_close`.
 - `87a48c1`: iteration fields are the `iteration` type's field entities, and membership a target-typed relation field.

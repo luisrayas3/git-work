@@ -270,10 +270,19 @@ Settled calls (details live in the referenced issues):
   A flow is **one Starlark function**: its name is the key, its docstring
   the description, its parameters the arguments; import rejects anything
   else in the file. It runs with `git work flow run <name>`. Rendering is
-  the `view` module and command (`view.board`, `view.gantt`, ...): a view
-  builds a spec from items plus field bindings, the terminal and `gui`
-  renderers consume it, and a saved view is a flow that returns one
-  (`b511c63`, `f37603c`, `3df330f`, `0740bf3`, `84dfbde`, `8b06191`).
+  the `work.view.*` module and the `view` command (`work.view.board`,
+  `work.view.gantt`, ...): **flows call views; views never call flows**, a
+  view call renders, blocks on the script's thread until the user quits, and
+  writes its own edits through the host, so a saved view is a flow that
+  *calls* a view rather than returning a spec. `items` is a list or a
+  provider function the view calls again to stay live, and the return value
+  is the user's answer (a list with `pick=True` returns the chosen item). The
+  spec `{"view", "bindings", "items"}` is only the headless form, emitted
+  when the call cannot render where it runs — no TTY, `--gui`, an agent — and
+  is the interim behaviour until the terminal renderer lands. Callbacks
+  (`on_change`, `on_select`) are deferred, not decided
+  (`b511c63`, `f37603c`, `3df330f`, `0740bf3`, `84dfbde`, `8b06191`,
+  revised 2026-09-24).
   `rm` deletes a local ref on every tree; `archive` is the replicated removal.
   **Refs are the runtime source of truth.** `schema.yaml` and `.star` files
   in the tree are authoring files, merged by git and applied only by

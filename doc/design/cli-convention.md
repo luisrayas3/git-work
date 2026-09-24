@@ -59,23 +59,40 @@ Decisions are recorded on `e8d6426` (plumbing), `b511c63` (flows),
 - **The list is a jq program** (`3c9c24d`) over the array of excerpts,
   the same JSON `--format json` prints.
   The default program is mine and unarchived; `.` is everything.
-- **Views are a module, not a surface.**
-  A `view.*` function builds a spec from items and field bindings;
-  renderers consume specs.
-  In a TTY a view opens interactively, otherwise it prints the spec,
-  and `--gui` sends it to the browser.
-  A renderer that lacks a view type fails at render time naming itself,
-  so no command exists on one surface and not the other.
-- **A spec is `{"view", "bindings", "items"}`.**
+- **Views are a module, not a surface** (revised 2026-09-24).
+  A view is an atomic capability, and **flows call views; views never call flows**.
+  `work.view.board(items, columns="status")` renders:
+  it draws the board, handles its own interaction,
+  writes its own edits through the host —
+  a card moved between columns sets the field `columns` names —
+  and **blocks on the script's thread**,
+  returning only when the user quits,
+  so a renderer can call back into the paused script
+  and the language never sees concurrency.
+  `items` is a list, or a provider function the view calls again
+  after its own edits and on a ref-watcher change, which is what keeps a board live.
+  The return value is the user's answer, not a spec:
+  a board returns none, a list with `pick=True` returns the chosen item.
+  Two panes at once would be a composite view, `work.view.split(...)`, not two views at once.
+  A backend that lacks a view kind fails naming itself,
+  so no capability exists on one surface and not the other.
+- **A spec is `{"view", "bindings", "items"}`**, the headless serialization,
+  emitted when the call cannot render where it runs:
+  no TTY prints it to stdout and returns none, so agents get the data,
+  `--gui` sends it to the browser,
+  and the `gui` process running a flow renders the same call as HTML.
   `view` is the kind, `bindings` maps the kind's slots to field keys,
   and `items` are the issues, the JSON `git work issue` prints.
   Which slots a kind has, and which of them it cannot do without,
-  is a table in package `view`, read by the view, the help and every renderer:
+  is a table in package `view`, read by the view, the help and every backend:
   `list` takes `title`, `group_by` and `sort_by`, all optional;
   `board` requires `columns` and takes `card_title`, `group_by` and `sort_by`;
   `gantt` requires `start` and `end` and takes `group_by`, `label` and `progress`.
   Every binding's value is one field key, because there are no field roles:
   a script names the fields it means when it calls the view.
+  Today every call takes that path: package `view` and `git work view <kind>`
+  are the headless backend, and the interim behaviour
+  until the terminal renderer (`84dfbde`) lands behind the same calls.
 
 ## Map
 
