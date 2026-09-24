@@ -85,7 +85,7 @@ Forms below are verified against 0.10.x.
 | Close / reopen | `git work bug status close <id>` · `status open <id>` |
 | Comment | `git work bug comment new <id> -m "…"` |
 | Sync | `git work push` · `git work pull` (both namespaces) |
-| Interactive | `git work termui` (TTY) · `git work webui` (webui build); becoming `tui` and `gui` (8b06191) |
+| Interactive | `git work termui` (TTY) · `git work webui` (webui build); `webui` becomes `gui`, and there is no `tui` — the terminal renderer sits behind `view` and `flow run` (8b06191, 84dfbde) |
 
 The new tree, plumbing with explicit ids, no editor and no sugar flag,
 built to the map in `doc/design/cli-convention.md` (`e8d6426`):
@@ -147,7 +147,7 @@ It runs in-process over the same host API a command reaches (`52a2797`):
 | --- | --- |
 | List | `git work flow` · `--format text` (name, description, arguments) |
 | Show | `git work flow get <name>` · `--format text` prints the script |
-| Run | `git work flow run <name> [KWARGS\|-]` · `--format text` · `--gui` (no renderer yet) |
+| Run | `git work flow run <name> [KWARGS\|-]` · `--format text` · `--gui` (errors until the gui process exists) |
 | Import | `git work flow import FILE\|DIR\|-…` `[--prune] [--dry-run]` → prints the id of each flow it creates |
 | Export | `git work flow export <name> > FILE` · `git work flow export --all DIR` |
 | History | `git work flow log [<name>]` (one JSON object per line) |
@@ -177,20 +177,28 @@ so `git work schema import` is
 every other verb keeps its name.
 
 A view call renders and blocks (`work.view.board(...)`, decided 2026-09-24),
-but neither renderer exists yet (`84dfbde`, `8b06191`),
-so today every call takes the headless path:
-`--gui` errors and the **spec**, the view's serialized form, is printed:
+and the command is the whole input:
+one KWARGS object, the same one the Starlark call takes,
+nothing on standard input and nothing printed
+(design in `doc/design/terminal-renderer.md`).
+`list` and `show` render in the terminal (`84dfbde`);
+`board` and `gantt` error naming the renderer until it is built,
+and `--gui` errors until the gui process exists (`8b06191`):
 
 | Action | Command |
 | --- | --- |
-| List | `git work view list [KWARGS] < ITEMS` (bindings `title`, `group_by`, `sort_by`) |
-| Board | `git work view board [KWARGS] < ITEMS` (`columns` required; `card_title`, `group_by`, `sort_by`) |
-| Gantt | `git work view gantt [KWARGS] < ITEMS` (`start` and `end` required; `group_by`, `label`, `progress`) |
+| List | `git work view list [KWARGS]` (`query`, `fields`, `details`, `group_by`, `expand`, `depth`, `rank`) |
+| Show | `git work view show [KWARGS]` (`id` required; `fields`) |
+| Board | `git work view board [KWARGS]` (`columns` required; `values`, `card`, `group_by`, `rank`) |
+| Gantt | `git work view gantt [KWARGS]` (`start` and `stop` required; `label`, `scale`, `from`, `to`, `progress`, `group_by`, `expand`, `depth`, `rank`) |
 
-ITEMS is the JSON array `git work issue` prints, on standard input,
-so a kanban with no flow at all is a pipe:
-`git work issue 'map(select(.fields.status != "done"))' | git work view board '{"columns":"status"}'`.
-A spec is `{"view": <kind>, "bindings": {<slot>: <field key>}, "items": [...]}`.
+Every kind takes `query`, a jq program over the same array `git work issue` prints,
+which the view runs itself and re-runs on a ref-watcher change and after its own writes,
+so a kanban with no flow at all is one command:
+`git work view board '{"query":"map(select(.fields.status != \"done\"))","columns":"status"}'`.
+Arrows, vim and emacs keys all navigate;
+`Space` grabs an item to move it, `e` edits the field under the cursor,
+`Enter` opens show, `y` yanks the id, `?` lists the keys, `q` quits.
 
 Gotchas, hardened from use:
 
@@ -215,7 +223,11 @@ Gotchas, hardened from use:
   without it the repo is unwrapped and go-git's behaviour returns.
 - Only one process may hold the store at a time
   (pid lock at `.git/git-work/lock`).
-  `termui` and `webui` hold it while open, so quit them first.
+  `termui` and `webui` hold it while open, so quit them first;
+  they keep that behaviour until `bf6f392` deletes them.
+  The view renderer holds no lock while open:
+  readers never lock, and each write takes the short write lock
+  and releases it (`d35de2e`).
   `already locked by … pid N` with a dead pid N is a stale lock, safe to remove.
 - Do not `git work push` without explicit intent;
   it publishes the tracker to `origin`.
@@ -281,19 +293,22 @@ Settled calls (details live in the referenced issues):
   A flow is **one Starlark function**: its name is the key, its docstring
   the description, its parameters the arguments; import rejects anything
   else in the file. It runs with `git work flow run <name>`. Rendering is
-  the `work.view.*` module and the `view` command (`work.view.board`,
-  `work.view.gantt`, ...): **flows call views; views never call flows**, a
-  view call renders, blocks on the script's thread until the user quits, and
-  writes its own edits through the host, so a saved view is a flow that
-  *calls* a view rather than returning a spec. `items` is a list or a
-  provider function the view calls again to stay live, and the return value
-  is the user's answer (a list with `pick=True` returns the chosen item). The
-  spec `{"view", "bindings", "items"}` is only the headless form, emitted
-  when the call cannot render where it runs — no TTY, `--gui`, an agent — and
-  is the interim behaviour until the terminal renderer lands. Callbacks
-  (`on_change`, `on_select`) are deferred, not decided
+  the `work.view.*` module and the `view` command (`work.view.list`,
+  `work.view.show`, `work.view.board`, `work.view.gantt`): **flows call
+  views; views never call flows**, a view call renders, blocks on the
+  script's thread until the user quits, and writes its own edits through the
+  host, so a saved view is a flow that *calls* a view rather than returning a
+  spec. **The command is the spec**: a view's input is one KWARGS object, the
+  same object the Starlark call takes, so nothing is read from standard input
+  and nothing is printed — `--gui` posts that object to the gui, and no TTY
+  and no `--gui` is an error, because an agent wanting data runs `git work
+  issue PROGRAM`. Items are a jq `query` the view owns and re-runs on a
+  watcher change and after its own writes; there is no provider function, no
+  static list and no `pick`. Actions injected into views are the deferred
+  direction, in place of the `on_change`/`on_select` sketch; the renderer is
+  Bubble Tea v2, behind `view` and `flow run`, never a `tui` command
   (`b511c63`, `f37603c`, `3df330f`, `0740bf3`, `84dfbde`, `8b06191`,
-  revised 2026-09-24).
+  revised 2026-09-24, design in `doc/design/terminal-renderer.md`).
   `rm` deletes a local ref on every tree; `archive` is the replicated removal.
   **Refs are the runtime source of truth.** `schema.yaml` and `.star` files
   in the tree are authoring files, merged by git and applied only by
@@ -321,7 +336,8 @@ Settled calls (details live in the referenced issues):
   `git work gui` is server-rendered HTML plus htmx, live over Server-Sent
   Events from the ref watcher, reading the cache in-process; the React webui,
   pnpm and (recommended) GraphQL leave (938434e, 8b06191).
-  `git work tui` is the Bubble Tea rewrite (`84dfbde`).
+  The terminal renderer is Bubble Tea v2 behind `view` and `flow run`,
+  not a `tui` command (`84dfbde`).
 
 ## Label taxonomy
 

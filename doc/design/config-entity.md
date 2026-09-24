@@ -20,7 +20,9 @@ Revised 2026-09-23 (`e7e58f2`, `d56e6f1`, `0740bf3`):
 per-type fields, three shapes, four operations, no roles,
 flows as Starlark scripts, and import as the only way from the tree into the refs.
 Revised 2026-09-24 (Luis): the host API is one `work` module,
-and a flow calls a view rather than returning a spec (E9).
+and a flow calls a view rather than returning a spec (E9);
+later the same day the spec goes entirely
+and a view owns the query it draws (`terminal-renderer.md`).
 
 ## What the code offers
 
@@ -167,7 +169,7 @@ and a parameter without one is a required string;
 declaring richer types is the **future step** `args` was.
 Which fields a flow reads is not an attribute:
 the script passes field keys to the generic host functions itself,
-`work.view.gantt(items, start="start_date", end="due_date")`,
+`work.view.gantt(start="start_date", stop="due_date")`,
 and that is where the field roles of an earlier draft went.
 Last-writer-wins on the whole script is right here,
 because the only writer is `flow import`
@@ -225,7 +227,7 @@ Notes on the field attributes:
   (`configurable-schema.md` D5).
 - there are **no roles** and no `on_open`/`on_close` (`d56e6f1`).
   What a field is *for* is the consumer's business:
-  the Gantt flow's script calls `work.view.gantt(items, start="start_date", end="due_date")`,
+  the Gantt flow's script calls `work.view.gantt(start="start_date", stop="due_date")`,
   the planning flow's sums `story_points`,
   a close flow's sets the status value it wants, or takes it as an arg.
   Presets ship their flows with the keys of their own fields.
@@ -477,8 +479,8 @@ Flows are authored the same way, one function per file:
 ```python
 def board(iteration="current"):
     """Kanban of one iteration, a column per status."""
-    q = 'map(select(.fields.iteration == "%s"))' % iteration
-    work.view.board(lambda: work.issue.list(q), columns="status", card_title="title")
+    work.view.board(query='map(select(.fields.iteration == "%s"))' % iteration,
+                    columns="status")
 ```
 
 The function is the whole declaration:
@@ -535,63 +537,56 @@ because `work.view.board(...)` is an atomic capability git-work provides,
 not a surface (Luis, 2026-09-24).
 
 **Flows call views; views never call flows.**
-`work.view.board(items, columns="status")` is the call that renders.
+`work.view.board(columns="status")` is the call that renders.
 It draws the board, handles its own interaction,
 writes its own edits through the host —
-a card dragged to another column is a set of the field the `columns` binding names —
+a card moved to another column is a set of the field the `columns` binding names —
 and returns when the user quits.
 A flow that returns another flow's spec was the earlier model and is not a goal:
 nothing consumes it, and the flow that wants a board can simply call one.
 
-**A view call blocks, on the script's thread.**
-The builtin starts the renderer and does not return until the user is done,
-so Starlark is paused inside the call
-and the renderer can call back into the script synchronously,
+**A view call blocks, on the script's thread**, and returns the user's answer,
+which is `None` for every kind today.
+Starlark is therefore paused inside the call,
 which leaves no concurrency in the language and no scheduler in the host.
 Non-blocking views were considered and rejected:
 a script that ends while its view is still open has nowhere to live,
 and two views started from one script compete for one terminal.
-Two panes at once is a composite view, `work.view.split(...)`,
-a capability like any other rather than concurrency.
+Inside the renderer the event loop runs on its own goroutine,
+and the blocked script's goroutine is a worker taking queued work,
+so navigation never waits on a script;
+the queue has no clients yet.
 
-**`items` is a list or a provider function.**
-A list is static, what the flow already read.
-A function, `lambda: work.issue.list(q)`,
-is called by the view whenever it needs the data again:
-after its own edits, and when the ref watcher reports a change (`63c68d1`),
-so a board stays live without anyone re-running the flow.
+**A view's items are a jq query the view owns.**
+Every kind takes `query`, defaulting to the list's default program,
+and the view re-runs it when the ref watcher reports a change (`63c68d1`)
+and after each of its own writes,
+which is what keeps a board live without anyone re-running the flow.
+There is no provider function and no static list.
 
-**The return value is the user's answer**, not a spec.
-A board returns `None`;
-a list with `pick=True` returns the item the user chose,
-which is what `flow pick` (`9a24c8e`) needs from it.
+**A view's input is one KWARGS object, and there is no spec.**
+`git work view board '{"columns":"status"}'` is `work.view.board(columns="status")`
+spelled for the shell,
+so the input already is the serialization
+and `{"view", "bindings", "items"}` has nothing left to do.
+`--gui` posts that same object to the `gui` process (`8b06191`);
+no TTY and no `--gui` is an error,
+because an agent that wants the data runs `git work issue PROGRAM`.
+What package `view` keeps is the kinds table, the argument contract,
+which the view functions, every backend and the help all read,
+so a backend that lacks a kind fails naming itself
+and no capability exists on one surface and not the other.
 
-**The spec is only the headless serialization.**
-`{"view", "bindings", "items"}` is what a view call emits
-when it cannot render in the process it is running in:
-with no TTY it prints the spec to stdout and returns `None`,
-which is how an agent gets the data;
-`--gui` sends it to the browser;
-and the `gui` process running a flow selects an HTML backend for the same call (`8b06191`).
-The code that exists today —
-package `view`, `git work view <kind>`, and `work.view.*` returning a spec —
-is that headless backend,
-and is the interim behaviour until the terminal renderer lands (`84dfbde`).
-A backend that lacks a view kind fails naming itself,
-so no capability exists on one surface and not the other.
-`git work view board '{"columns":"status"}' < items.json`
-is `work.view.board(items, columns="status")` with the items on standard input.
+**Actions injected into views are the deferred feature**, not a decision:
+`actions={"Start": start_fn}` drawn as buttons on rows, cards and show.
+They subsume the `on_change` / `on_select` callback sketch this section carried,
+because a callback is an action the view invents a name for.
+`work.view.split` and questions to the user are deferred beside them,
+and `pick=True` on a list is removed:
+`flow pick ID` (`9a24c8e`) takes its id from the command line.
 
-**Callbacks are a probable but deferred feature**, not a decision.
-If they come, they look like this:
-`on_change(item, field, old, new)`, where, if it is given,
-the handler owns the write, the view writing nothing itself,
-and an error raised rejects the change and shows its message in the view;
-`on_select(item)` for Enter on a row or a card,
-whose return value becomes the view call's.
-The same hook names on every view kind,
-and a callback runs inside the event loop, so a slow one freezes the view.
-Whether they come at all is open.
+The keys, the grab vocabulary, the per-kind arguments,
+nesting, rank and the sequencing are `terminal-renderer.md` (`84dfbde`).
 
 `work.user.me()` is the current identity,
 and the command line spells it `git work user me`,
@@ -599,10 +594,19 @@ the explicit form of the bare `git work user`,
 so there is no script-only name left.
 
 What changed on 2026-09-24:
-the model this replaces was that a view function built a spec,
+the model this replaced was that a view function built a spec,
 a flow returned it and `flow run` handed it to a renderer.
-Flows now call views, a view call renders and blocks,
-and the spec is what a view emits only when it cannot render where it is.
+Flows call views instead, and a view call renders and blocks.
+
+What changed later the same day (Luis):
+the spec goes entirely, and with it the provider function and `pick=True`.
+A view's items are a jq query the view owns and re-runs,
+its input is the one KWARGS object the command and the call both take —
+which is the serialization, so there is nothing to print —
+and actions injected into views replace the callback sketch
+as the deferred direction.
+The detail, including the keys and the grab vocabulary,
+is `terminal-renderer.md` (`84dfbde`).
 
 List position *is* the order in the file;
 `ordinal` is never written by hand.
