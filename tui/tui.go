@@ -7,9 +7,12 @@
 // `view` and hands the result to whatever renderer the surface could build.
 // There is no `tui` command: a view is the command (decided 2026-09-24).
 //
-// This is the seam. No kind is drawn yet, and a kind that is not draws an
-// error naming this renderer, so a view is never silently a different view
-// than it says.
+// The renderer writes through package `host`, like every other caller, so a
+// title edited here and a title set from the shell are the same operation
+// against the same write lock. Nothing here touches a ref.
+//
+// Only `list` is drawn today. Every other kind fails naming this renderer,
+// so a view is never silently a different view than it says.
 package tui
 
 import (
@@ -19,6 +22,7 @@ import (
 	"io"
 	"os"
 
+	tea "charm.land/bubbletea/v2"
 	"golang.org/x/term"
 
 	"github.com/git-bug/git-bug/cache"
@@ -53,5 +57,79 @@ func New(out io.Writer) (*Renderer, bool) {
 // view is a question as much as a picture — `work.view.list(pick=True)` will
 // return the issue that was chosen.
 func (r *Renderer) Render(ctx context.Context, repo *cache.RepoCache, call *view.Call) (json.RawMessage, error) {
-	return nil, fmt.Errorf("the terminal renderer does not draw a %s yet (84dfbde)", call.Kind)
+	// Nesting is in the argument table, and parsed, so that a script written
+	// against it fails on the renderer rather than on the spelling.
+	for _, arg := range []string{"expand", "depth"} {
+		if call.Has(arg) {
+			return nil, fmt.Errorf("the terminal renderer does not nest rows yet (84dfbde): %s", arg)
+		}
+	}
+
+	first, err := r.page(repo, call)
+	if err != nil {
+		return nil, err
+	}
+
+	in, closeIn, err := openInput()
+	if err != nil {
+		return nil, err
+	}
+	defer closeIn()
+
+	program := tea.NewProgram(&root{pages: []page{first}, width: 80, height: 24},
+		tea.WithContext(ctx),
+		tea.WithInput(in),
+		tea.WithOutput(r.out),
+	)
+
+	stopWatching := watch(repo, program)
+	defer stopWatching()
+
+	// The program runs on its own goroutine and the caller's stays here, as a
+	// worker: a view blocks the script that called it, and the script's thread
+	// is the only one Starlark may be re-entered on. Nothing posts a job yet —
+	// callbacks (on_change, on_select) are deferred, not decided (0740bf3) —
+	// but when they are, this loop is where they run.
+	jobs := make(chan func())
+	done := make(chan error, 1)
+	go func() {
+		_, err := program.Run()
+		done <- err
+	}()
+
+	for {
+		select {
+		case job := <-jobs:
+			job()
+		case err := <-done:
+			return nil, err
+		}
+	}
+}
+
+// page builds the first screen of a call, or says which renderer is missing.
+func (r *Renderer) page(repo *cache.RepoCache, call *view.Call) (page, error) {
+	switch call.Kind {
+	case view.KindList:
+		return newListPage(repo, call)
+	default:
+		return nil, fmt.Errorf("the terminal renderer does not draw a %s yet (84dfbde)", call.Kind)
+	}
+}
+
+// openInput returns the terminal to read keys from.
+//
+// Standard input is not it when the kwargs came in on a pipe
+// (`git work flow run NAME -`), so the controlling terminal is opened
+// directly: the view is on the screen either way, and it has to be typeable.
+func openInput() (io.Reader, func(), error) {
+	if term.IsTerminal(int(os.Stdin.Fd())) {
+		return os.Stdin, func() {}, nil
+	}
+
+	tty, err := os.Open("/dev/tty")
+	if err != nil {
+		return nil, nil, fmt.Errorf("a view needs a terminal to type into: %w", err)
+	}
+	return tty, func() { _ = tty.Close() }, nil
 }
