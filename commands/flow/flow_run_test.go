@@ -14,15 +14,15 @@ import (
 // runnableFlow creates two issues, edits one and returns a board of them.
 const runnableFlow = `def kanban(status="open"):
     """A kanban of one status."""
-    a = issue.new({"fields": {"title": "first", "status": "open"}})
-    issue.new({"fields": {"title": "second", "status": "done"}})
-    issue.set(a, estimate=3)
-    return view.board(issue.list('map(select(.fields.status == "%s"))' % status), columns="status")
+    a = work.issue.new({"fields": {"title": "first", "status": "open"}})
+    work.issue.new({"fields": {"title": "second", "status": "done"}})
+    work.issue.set(a, estimate=3)
+    return work.view.board(work.issue.list('map(select(.fields.status == "%s"))' % status), columns="status")
 `
 
 const quietFlow = `def quiet():
     """Write one issue and say nothing."""
-    issue.new({"fields": {"title": "made by a flow"}})
+    work.issue.new({"fields": {"title": "made by a flow"}})
 `
 
 // importScript puts a script in the store through the import command.
@@ -141,7 +141,7 @@ func TestFlowRunTextOfSomethingThatIsNotASpec(t *testing.T) {
 	env := newTestEnv(t)
 	importScript(t, env, "count.star", `def count():
     """How many issues there are."""
-    return len(issue.list("."))
+    return len(work.issue.list("."))
 `)
 
 	env.Out.Reset()

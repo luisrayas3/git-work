@@ -69,11 +69,11 @@ func importFlow(t *testing.T, repo *cache.RepoCache, script string) {
 
 const boardFlow = `def board(status="open"):
     """Kanban of what is not done."""
-    a = issue.new({"fields": {"title": "first", "status": "open"}})
-    issue.new({"fields": {"title": "second", "status": "done"}})
-    issue.set(a, estimate=3)
-    items = issue.list('map(select(.fields.status == "%s"))' % status)
-    return view.board(items, columns="status", card_title="title")
+    a = work.issue.new({"fields": {"title": "first", "status": "open"}})
+    work.issue.new({"fields": {"title": "second", "status": "done"}})
+    work.issue.set(a, estimate=3)
+    items = work.issue.list('map(select(.fields.status == "%s"))' % status)
+    return work.view.board(items, columns="status", card_title="title")
 `
 
 func TestFlowWritesReadsAndReturnsASpec(t *testing.T) {
@@ -95,7 +95,7 @@ func TestFlowWritesReadsAndReturnsASpec(t *testing.T) {
 	item := items[0].(map[string]any)
 	fields := item["fields"].(map[string]any)
 	require.Equal(t, "first", fields["title"])
-	// issue.set landed, through the cache, as one commit
+	// work.issue.set landed, through the cache, as one commit
 	require.EqualValues(t, 3, fields["estimate"])
 
 	// and both issues are really in the store
@@ -177,7 +177,7 @@ func TestFlowRunIsReentrant(t *testing.T) {
 
 	value, _, err := run(t, repo, `def outer(n=3):
     """Call another flow."""
-    return flow.run("inner", n=n) + 1
+    return work.flow.run("inner", n=n) + 1
 `, nil)
 	require.NoError(t, err)
 	require.EqualValues(t, 7, value)
@@ -189,16 +189,16 @@ func TestFlowRunHasADepthCap(t *testing.T) {
 	// a cycle: each flow calls the other, forever
 	importFlow(t, repo, `def ping():
     """Call pong."""
-    return flow.run("pong")
+    return work.flow.run("pong")
 `)
 	importFlow(t, repo, `def pong():
     """Call ping."""
-    return flow.run("ping")
+    return work.flow.run("ping")
 `)
 
 	_, _, err := run(t, repo, `def start():
     """Enter the cycle."""
-    return flow.run("ping")
+    return work.flow.run("ping")
 `, nil)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "cycle")
@@ -224,7 +224,7 @@ func TestHostErrorNamesTheFunction(t *testing.T) {
 
 	_, _, err := run(t, repo, `def bad():
     """Ask for an issue nobody created."""
-    return issue.get("deadbeef")
+    return work.issue.get("deadbeef")
 `, nil)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "issue.get")
@@ -236,14 +236,14 @@ func TestViewErrorsReachTheScript(t *testing.T) {
 
 	_, _, err := run(t, repo, `def bad():
     """A board with no columns."""
-    return view.board([])
+    return work.view.board([])
 `, nil)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "columns")
 
 	_, _, err = run(t, repo, `def bad():
     """A binding this view does not have."""
-    return view.gantt([], start="a", end="b", colour="c")
+    return work.view.gantt([], start="a", end="b", colour="c")
 `, nil)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "colour")
@@ -286,12 +286,12 @@ func TestContextCancellationStops(t *testing.T) {
 	require.Contains(t, err.Error(), "flow forever")
 }
 
-func TestMeIsTheIdentity(t *testing.T) {
+func TestUserMeIsTheIdentity(t *testing.T) {
 	repo := testRepo(t)
 
 	value, _, err := run(t, repo, `def who():
     """Who am I."""
-    return me()
+    return work.user.me()
 `, nil)
 	require.NoError(t, err)
 
@@ -318,7 +318,7 @@ func TestNoneReturnsNothing(t *testing.T) {
 
 	value, _, err := run(t, repo, `def quiet():
     """Return nothing."""
-    issue.new({"fields": {"title": "made"}})
+    work.issue.new({"fields": {"title": "made"}})
 `, nil)
 	require.NoError(t, err)
 	require.Nil(t, value)
@@ -330,9 +330,9 @@ func TestCommentsAndTheWholeIssue(t *testing.T) {
 
 	value, _, err := run(t, repo, `def talk():
     """Create, comment, read back."""
-    id = issue.new({"fields": {"title": "a title"}, "body": "the body"})
-    issue.comment.new(id, "a comment")
-    return issue.get(id)
+    id = work.issue.new({"fields": {"title": "a title"}, "body": "the body"})
+    work.issue.comment.new(id, "a comment")
+    return work.issue.get(id)
 `, nil)
 	require.NoError(t, err)
 
@@ -348,11 +348,11 @@ func TestAddRemoveAndArchive(t *testing.T) {
 
 	value, _, err := run(t, repo, `def labels():
     """Add, remove, archive."""
-    id = issue.new({"fields": {"title": "a title"}})
-    issue.add(id, labels=["area:core", "prio:high"])
-    issue.remove(id, labels=["prio:high"])
-    issue.archive(id)
-    return issue.get(id)["fields"]
+    id = work.issue.new({"fields": {"title": "a title"}})
+    work.issue.add(id, labels=["area:core", "prio:high"])
+    work.issue.remove(id, labels=["prio:high"])
+    work.issue.archive(id)
+    return work.issue.get(id)["fields"]
 `, nil)
 	require.NoError(t, err)
 
@@ -370,7 +370,7 @@ func TestFlowListAndGet(t *testing.T) {
 
 	value, _, err := run(t, repo, `def look():
     """Read the flows."""
-    return [flow.list(), flow.get("inner")["description"]]
+    return [work.flow.list(), work.flow.get("inner")["description"]]
 `, nil)
 	require.NoError(t, err)
 
@@ -381,7 +381,7 @@ func TestFlowListAndGet(t *testing.T) {
 	require.Equal(t, "Double a number.", pair[1])
 }
 
-func TestTheOnlyGlobalsAreTheHostModules(t *testing.T) {
+func TestTheOnlyGlobalIsTheWorkModule(t *testing.T) {
 	repo := testRepo(t)
 
 	// `load` is not available, so a flow can only reach the host
@@ -392,13 +392,45 @@ func TestTheOnlyGlobalsAreTheHostModules(t *testing.T) {
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "bridge")
 
-	// and a module cannot be reassigned out from under the rest of the script
-	_, _, err = run(t, repo, `def shadow():
-    """Shadow a module."""
-    return issue.absent()
+	// the SDK is one name, so every old top-level name is gone
+	for _, name := range []string{"issue", "schema", "flow", "view", "me"} {
+		_, _, err = run(t, repo, `def bare():
+    """Reach for a name the SDK no longer predeclares."""
+    return `+name+`
 `, nil)
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "absent")
+		require.ErrorContains(t, err, name, "%s is not predeclared any more", name)
+	}
+
+	// `work` is, and a verb it does not have is the script's mistake
+	_, _, err = run(t, repo, `def absent():
+    """Call a verb the SDK does not have."""
+    return work.issue.absent()
+`, nil)
+	require.ErrorContains(t, err, "absent")
+}
+
+// TestTheSDKNamesAreFreeForAScript is the whole point of one module:
+// `issue` and `flow` read best as a script's own variables,
+// and nothing but `work` is taken.
+func TestTheSDKNamesAreFreeForAScript(t *testing.T) {
+	repo := testRepo(t)
+
+	value, _, err := run(t, repo, `def local_names():
+    """Name locals after the things they hold."""
+    id = work.issue.new({"fields": {"title": "a title"}})
+    issue = work.issue.get(id)
+    flow = work.flow.list()
+    schema = work.schema.export()
+    view = work.view.list([issue])
+    return [issue["fields"]["title"], len(flow), len(schema["types"]), view["view"]]
+`, nil)
+	require.NoError(t, err)
+
+	got := value.([]any)
+	require.Equal(t, "a title", got[0])
+	require.EqualValues(t, 0, got[1])
+	require.EqualValues(t, 0, got[2])
+	require.Equal(t, "list", got[3])
 }
 
 func TestSchemaInitThenAWriteItValidates(t *testing.T) {
@@ -407,8 +439,8 @@ func TestSchemaInitThenAWriteItValidates(t *testing.T) {
 	// a preset's type and one of its statuses go through
 	value, _, err := run(t, repo, `def setup():
     """Apply the jira preset and create a task."""
-    schema.init()
-    return issue.new({"fields": {"title": "a task", "type": "task", "status": "to-do"}})
+    work.schema.init()
+    return work.issue.new({"fields": {"title": "a task", "type": "task", "status": "to-do"}})
 `, nil)
 	require.NoError(t, err)
 	require.Len(t, repo.Issues().AllIds(), 1)
@@ -420,7 +452,7 @@ func TestSchemaInitThenAWriteItValidates(t *testing.T) {
 	// and a status the schema does not have is refused, naming the ones it has
 	_, _, err = run(t, repo, `def refused():
     """Set a status that is not in the schema."""
-    return issue.new({"fields": {"title": "another", "type": "task", "status": "shipped"}})
+    return work.issue.new({"fields": {"title": "another", "type": "task", "status": "shipped"}})
 `, nil)
 	require.ErrorContains(t, err, "valid values: backlog, to-do, in-progress, in-review, done, canceled")
 	require.Len(t, repo.Issues().AllIds(), 1)
@@ -428,7 +460,7 @@ func TestSchemaInitThenAWriteItValidates(t *testing.T) {
 	// init refuses a second time, as the command does
 	_, _, err = run(t, repo, `def again():
     """Apply the preset twice."""
-    return schema.init()
+    return work.schema.init()
 `, nil)
 	require.ErrorContains(t, err, "already has")
 }
@@ -438,9 +470,9 @@ func TestSchemaExportRoundTripsThroughImport(t *testing.T) {
 
 	value, _, err := run(t, repo, `def roundtrip():
     """Write the schema back exactly as it was read."""
-    schema.init()
-    return [schema.export()["types"]["task"]["fields"]["status"]["kind"],
-            schema.import_(schema.export())]
+    work.schema.init()
+    return [work.schema.export()["types"]["task"]["fields"]["status"]["kind"],
+            work.schema.import_(work.schema.export())]
 `, nil)
 	require.NoError(t, err)
 
@@ -451,9 +483,9 @@ func TestSchemaExportRoundTripsThroughImport(t *testing.T) {
 	// a document the store differs from does emit one, and dry_run writes nothing
 	value, _, err = run(t, repo, `def edit():
     """Rename one value of one field."""
-    doc = schema.export()
+    doc = work.schema.export()
     doc["types"]["task"]["fields"]["status"]["values"][0]["name"] = "Someday"
-    return schema.import_(doc, dry_run=True)
+    return work.schema.import_(doc, dry_run=True)
 `, nil)
 	require.NoError(t, err)
 
@@ -464,7 +496,7 @@ func TestSchemaExportRoundTripsThroughImport(t *testing.T) {
 
 	after, _, err := run(t, repo, `def unchanged():
     """Nothing was written, so the round trip is still clean."""
-    return schema.import_(schema.export())
+    return work.schema.import_(work.schema.export())
 `, nil)
 	require.NoError(t, err)
 	require.Equal(t, []any{}, after)
@@ -475,8 +507,8 @@ func TestSchemaLogReturnsOperations(t *testing.T) {
 
 	value, _, err := run(t, repo, `def history():
     """Who added a status, and when."""
-    schema.init()
-    return [schema.log("task/status"), len(schema.log())]
+    work.schema.init()
+    return [work.schema.log("task/status"), len(work.schema.log())]
 `, nil)
 	require.NoError(t, err)
 
@@ -499,10 +531,10 @@ func TestSchemaArchiveAndRmFromAScript(t *testing.T) {
 
 	_, stderr, err := run(t, repo, `def clean():
     """Archive a field, archive a type, then drop a local ref."""
-    schema.init()
-    schema.archive("task/estimate")
-    schema.archive("bug")
-    schema.rm("task/due")
+    work.schema.init()
+    work.schema.archive("task/estimate")
+    work.schema.archive("bug")
+    work.schema.rm("task/due")
 `, nil)
 	require.NoError(t, err)
 	require.Contains(t, stderr, "still live on the archived type bug")

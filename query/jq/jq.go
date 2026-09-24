@@ -1,7 +1,7 @@
 // Package jq runs jq programs, git-work's query language (3c9c24d, 483dbe2).
 //
 // There is one evaluator for the whole tool:
-// `git work issue PROGRAM` and the Starlark host API's `issue.list(program)`
+// `git work issue PROGRAM` and the Starlark host API's `work.issue.list(program)`
 // call this package over the same JSON,
 // so a program written at the shell means the same thing inside a flow.
 //

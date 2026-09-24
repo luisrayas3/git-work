@@ -15,10 +15,13 @@ Decisions are recorded on `e8d6426` (plumbing), `b511c63` (flows),
   There is no sugar: no `--fields`, no `-t`/`-m`, no per-field flags.
   A jq program projects, a flow is the porcelain.
 - **The Starlark host API mirrors the command line one to one.**
-  `git work <module> <verb>` is `<module>.<verb>(...)`,
+  The SDK is one module, named after the binary:
+  `git work <module> <verb>` is `work.<module>.<verb>(...)`,
   same arguments, returning what the command prints.
-  Nothing is reachable from a script that the shell cannot reach, and the reverse.
-  `me()` is the only script-only name.
+  Nothing is reachable from a script that the shell cannot reach, and the reverse;
+  there is no script-only name.
+  One predeclared name rather than five
+  leaves `issue`, `flow`, `schema`, `view` and `user` free for a script's own locals.
 - **Arguments are keyword arguments.**
   Starlark has no positional-only parameters,
   so a command that takes a function's arguments takes them as one JSON object,
@@ -148,8 +151,8 @@ git work completion SHELL
 ```python
 def board(iteration="current"):
     """Kanban of one iteration, a column per status."""
-    items = issue.list('map(select(.fields.iteration == "%s"))' % iteration)
-    return view.board(items, columns="status", card_title="title")
+    items = work.issue.list('map(select(.fields.iteration == "%s"))' % iteration)
+    return work.view.board(items, columns="status", card_title="title")
 ```
 
 The same kanban with no flow at all:
@@ -160,18 +163,20 @@ git work issue 'map(select(.fields.status != "done"))' | git work view board '{"
 
 ## Starlark
 
-`issue.list(program)`, `issue.new(doc)`, `issue.get(id)`,
-`issue.set(id, **fields)`, `issue.add(id, **items)`, `issue.remove(id, **items)`,
-`issue.comment.new(id, body)`, `issue.comment.edit(id, body)`,
-`issue.log(id)`, `issue.archive(id)`;
-`schema.export()`, `schema.import_(doc, prune=False, dry_run=False)`,
-`schema.init(preset="jira", dry_run=False)`,
-`schema.log(key="")`, `schema.archive(key)`, `schema.rm(key)`;
+`work` is the only predeclared name, and the whole SDK hangs off it:
+
+`work.issue.list(program)`, `work.issue.new(doc)`, `work.issue.get(id)`,
+`work.issue.set(id, **fields)`, `work.issue.add(id, **items)`, `work.issue.remove(id, **items)`,
+`work.issue.comment.new(id, body)`, `work.issue.comment.edit(id, body)`,
+`work.issue.log(id)`, `work.issue.archive(id)`, `work.issue.rm(id)`;
+`work.schema.export()`, `work.schema.import_(doc, prune=False, dry_run=False)`,
+`work.schema.init(preset="jira", dry_run=False)`,
+`work.schema.log(key="")`, `work.schema.archive(key)`, `work.schema.rm(key)`;
 `import` is a reserved word in Starlark,
 so that one verb is spelled with a trailing underscore;
-`flow.run(name, **kwargs)`, `flow.get(name)`;
-`view.list(items, ...)`, `view.board(items, ...)`, `view.gantt(items, ...)`;
-`me()`.
+`work.flow.list()`, `work.flow.get(name)`, `work.flow.run(name, **kwargs)`;
+`work.view.list(items, ...)`, `work.view.board(items, ...)`, `work.view.gantt(items, ...)`;
+`work.user.me()`.
 Every function returns what the command would print, as a Starlark value.
 
 ## Gone

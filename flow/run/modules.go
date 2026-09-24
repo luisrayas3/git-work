@@ -16,61 +16,99 @@ import (
 
 // predeclared is the whole of what a flow can see.
 //
-// There is no `load`, so these globals are the only names a script has,
-// and every one of them is a command the shell has too — `me` excepted.
+// The SDK is one module, named after the binary:
+// `work.issue.get(id)` is the command `issue get ID`, one for one
+// (cli-convention.md, `b511c63`, `0740bf3`).
+// One name rather than five leaves `issue`, `flow`, `schema`, `view` and `user`
+// free for a script's own locals,
+// and leaves no host name that is not also a command.
+// There is no `load`, so `work` is the only global
+// besides Starlark's own universe.
 func (r *runtime) predeclared() starlark.StringDict {
-	return starlark.StringDict{
-		"issue": &starlarkstruct.Module{
-			Name: "issue",
-			Members: starlark.StringDict{
-				"list":    starlark.NewBuiltin("issue.list", r.issueList),
-				"new":     starlark.NewBuiltin("issue.new", r.issueNew),
-				"get":     starlark.NewBuiltin("issue.get", r.issueGet),
-				"set":     starlark.NewBuiltin("issue.set", r.issueSet),
-				"add":     starlark.NewBuiltin("issue.add", r.issueAdd),
-				"remove":  starlark.NewBuiltin("issue.remove", r.issueRemove),
-				"log":     starlark.NewBuiltin("issue.log", r.issueLog),
-				"archive": starlark.NewBuiltin("issue.archive", r.issueArchive),
-				"rm":      starlark.NewBuiltin("issue.rm", r.issueRm),
-				"comment": &starlarkstruct.Module{
-					Name: "issue.comment",
-					Members: starlark.StringDict{
-						"new":  starlark.NewBuiltin("issue.comment.new", r.issueCommentNew),
-						"edit": starlark.NewBuiltin("issue.comment.edit", r.issueCommentEdit),
-					},
-				},
-			},
-		},
-		// `import` is a reserved word in Starlark, so the one verb that can
-		// not keep its name is spelled `import_` (cli-convention.md, E9).
-		"schema": &starlarkstruct.Module{
-			Name: "schema",
-			Members: starlark.StringDict{
-				"export":  starlark.NewBuiltin("schema.export", r.schemaExport),
-				"import_": starlark.NewBuiltin("schema.import_", r.schemaImport),
-				"init":    starlark.NewBuiltin("schema.init", r.schemaInit),
-				"log":     starlark.NewBuiltin("schema.log", r.schemaLog),
-				"archive": starlark.NewBuiltin("schema.archive", r.schemaArchive),
-				"rm":      starlark.NewBuiltin("schema.rm", r.schemaRm),
-			},
-		},
-		"flow": &starlarkstruct.Module{
-			Name: "flow",
-			Members: starlark.StringDict{
-				"list": starlark.NewBuiltin("flow.list", r.flowList),
-				"get":  starlark.NewBuiltin("flow.get", r.flowGet),
-				"run":  starlark.NewBuiltin("flow.run", r.flowRun),
-			},
-		},
-		"view": &starlarkstruct.Module{
-			Name:    "view",
-			Members: r.viewMembers(),
-		},
-		"me": starlark.NewBuiltin("me", r.me),
-	}
+	return starlark.StringDict{"work": r.work()}
 }
 
-// issue.list(program) — `git work issue [PROGRAM]`.
+// work is the module tree, the whole SDK in one table.
+//
+// Every builtin is named by its path through the tree,
+// so a failure reads as `work.issue.comment.new`,
+// which is the call as a script writes it.
+func (r *runtime) work() *starlarkstruct.Module {
+	return newModule("work",
+		sub("issue",
+			verb("list", r.issueList),
+			verb("new", r.issueNew),
+			verb("get", r.issueGet),
+			verb("set", r.issueSet),
+			verb("add", r.issueAdd),
+			verb("remove", r.issueRemove),
+			verb("log", r.issueLog),
+			verb("archive", r.issueArchive),
+			verb("rm", r.issueRm),
+			sub("comment",
+				verb("new", r.issueCommentNew),
+				verb("edit", r.issueCommentEdit),
+			),
+		),
+		sub("flow",
+			verb("list", r.flowList),
+			verb("get", r.flowGet),
+			verb("run", r.flowRun),
+		),
+		// `import` is a reserved word in Starlark, so the one verb that can
+		// not keep its name is spelled `import_` (cli-convention.md, E9).
+		sub("schema",
+			verb("export", r.schemaExport),
+			verb("import_", r.schemaImport),
+			verb("init", r.schemaInit),
+			verb("log", r.schemaLog),
+			verb("archive", r.schemaArchive),
+			verb("rm", r.schemaRm),
+		),
+		sub("view", r.viewMembers()...),
+		sub("user",
+			verb("me", r.userMe),
+		),
+	)
+}
+
+// builtinFunc is the shape every host verb has.
+type builtinFunc = func(*starlark.Thread, *starlark.Builtin, starlark.Tuple, []starlark.Tuple) (starlark.Value, error)
+
+// member is one name in the module tree: a verb, or a module of more names.
+//
+// A member does not know where it sits until the tree is built,
+// so it is handed its path then
+// and no name in the table is written twice.
+type member struct {
+	name  string
+	build func(path string) starlark.Value
+}
+
+func verb(name string, fn builtinFunc) member {
+	return member{name: name, build: func(path string) starlark.Value {
+		return starlark.NewBuiltin(path, fn)
+	}}
+}
+
+func sub(name string, members ...member) member {
+	return member{name: name, build: func(path string) starlark.Value {
+		return newModule(path, members...)
+	}}
+}
+
+func newModule(path string, members ...member) *starlarkstruct.Module {
+	module := &starlarkstruct.Module{
+		Name:    path,
+		Members: make(starlark.StringDict, len(members)),
+	}
+	for _, m := range members {
+		module.Members[m.name] = m.build(path + "." + m.name)
+	}
+	return module
+}
+
+// work.issue.list(program) — `git work issue [PROGRAM]`.
 //
 // One value comes back as itself, which is the array a program usually
 // returns; several come back as a list, which is what a stream is.
@@ -91,7 +129,7 @@ func (r *runtime) issueList(thread *starlark.Thread, b *starlark.Builtin, args s
 	return toStarlark(values)
 }
 
-// issue.new(doc) — `git work issue new DOC`; returns the new id.
+// work.issue.new(doc) — `git work issue new DOC`; returns the new id.
 func (r *runtime) issueNew(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 	var value starlark.Value
 	if err := starlark.UnpackArgs(b.Name(), args, kwargs, "doc", &value); err != nil {
@@ -115,7 +153,7 @@ func (r *runtime) issueNew(thread *starlark.Thread, b *starlark.Builtin, args st
 	return starlark.String(id.String()), nil
 }
 
-// issue.get(id) — `git work issue get ID`.
+// work.issue.get(id) — `git work issue get ID`.
 func (r *runtime) issueGet(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 	var id string
 	if err := starlark.UnpackArgs(b.Name(), args, kwargs, "id", &id); err != nil {
@@ -129,7 +167,7 @@ func (r *runtime) issueGet(thread *starlark.Thread, b *starlark.Builtin, args st
 	return reencode(b, document)
 }
 
-// issue.log(id) — `git work issue log ID`.
+// work.issue.log(id) — `git work issue log ID`.
 func (r *runtime) issueLog(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 	var id string
 	if err := starlark.UnpackArgs(b.Name(), args, kwargs, "id", &id); err != nil {
@@ -143,7 +181,7 @@ func (r *runtime) issueLog(thread *starlark.Thread, b *starlark.Builtin, args st
 	return reencode(b, entries)
 }
 
-// issue.set(id, **fields) — `git work issue set ID FIELDS`; prints nothing.
+// work.issue.set(id, **fields) — `git work issue set ID FIELDS`; prints nothing.
 func (r *runtime) issueSet(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 	id, fields, err := idAndFields(b, args, kwargs)
 	if err != nil {
@@ -156,7 +194,7 @@ func (r *runtime) issueSet(thread *starlark.Thread, b *starlark.Builtin, args st
 	return starlark.None, nil
 }
 
-// issue.add(id, **items) — `git work issue add ID ITEMS`.
+// work.issue.add(id, **items) — `git work issue add ID ITEMS`.
 func (r *runtime) issueAdd(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 	id, items, err := idAndItems(b, args, kwargs)
 	if err != nil {
@@ -169,7 +207,7 @@ func (r *runtime) issueAdd(thread *starlark.Thread, b *starlark.Builtin, args st
 	return starlark.None, nil
 }
 
-// issue.remove(id, **items) — `git work issue remove ID ITEMS`.
+// work.issue.remove(id, **items) — `git work issue remove ID ITEMS`.
 func (r *runtime) issueRemove(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 	id, items, err := idAndItems(b, args, kwargs)
 	if err != nil {
@@ -182,7 +220,7 @@ func (r *runtime) issueRemove(thread *starlark.Thread, b *starlark.Builtin, args
 	return starlark.None, nil
 }
 
-// issue.archive(id) — `git work issue archive ID`.
+// work.issue.archive(id) — `git work issue archive ID`.
 func (r *runtime) issueArchive(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 	var id string
 	if err := starlark.UnpackArgs(b.Name(), args, kwargs, "id", &id); err != nil {
@@ -195,7 +233,7 @@ func (r *runtime) issueArchive(thread *starlark.Thread, b *starlark.Builtin, arg
 	return starlark.None, nil
 }
 
-// issue.rm(id) — `git work issue rm ID`, the local ref only.
+// work.issue.rm(id) — `git work issue rm ID`, the local ref only.
 func (r *runtime) issueRm(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 	var id string
 	if err := starlark.UnpackArgs(b.Name(), args, kwargs, "id", &id); err != nil {
@@ -208,7 +246,7 @@ func (r *runtime) issueRm(thread *starlark.Thread, b *starlark.Builtin, args sta
 	return starlark.None, nil
 }
 
-// issue.comment.new(id, body) — returns the new comment's id.
+// work.issue.comment.new(id, body) — returns the new comment's id.
 func (r *runtime) issueCommentNew(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 	var id, body string
 	if err := starlark.UnpackArgs(b.Name(), args, kwargs, "id", &id, "body", &body); err != nil {
@@ -222,7 +260,7 @@ func (r *runtime) issueCommentNew(thread *starlark.Thread, b *starlark.Builtin, 
 	return starlark.String(commentId.String()), nil
 }
 
-// issue.comment.edit(id, body) — id is the comment's own id.
+// work.issue.comment.edit(id, body) — id is the comment's own id.
 func (r *runtime) issueCommentEdit(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 	var id, body string
 	if err := starlark.UnpackArgs(b.Name(), args, kwargs, "id", &id, "body", &body); err != nil {
@@ -235,10 +273,11 @@ func (r *runtime) issueCommentEdit(thread *starlark.Thread, b *starlark.Builtin,
 	return starlark.None, nil
 }
 
-// schema.export() — `git work schema export`.
+// work.schema.export() — `git work schema export`.
 //
 // The document comes back as the dict `--format json` prints, which is the
-// dict `schema.import_` takes, so a script edits a schema the way it reads one.
+// dict `work.schema.import_` takes,
+// so a script edits a schema the way it reads one.
 func (r *runtime) schemaExport(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 	if err := starlark.UnpackArgs(b.Name(), args, kwargs); err != nil {
 		return nil, err
@@ -260,7 +299,7 @@ func (r *runtime) schemaExport(thread *starlark.Thread, b *starlark.Builtin, arg
 	return decodeOrdered(raw)
 }
 
-// schema.import_(doc, prune=False, dry_run=False) — `git work schema import`.
+// work.schema.import_(doc, prune=False, dry_run=False) — `git work schema import`.
 //
 // `import` is a reserved word in Starlark, so this one verb is spelled with a
 // trailing underscore; everything else about it is the command.
@@ -296,7 +335,7 @@ func (r *runtime) schemaImport(thread *starlark.Thread, b *starlark.Builtin, arg
 	return changeList(b, changes)
 }
 
-// schema.init(preset="jira", dry_run=False) — `git work schema init`.
+// work.schema.init(preset="jira", dry_run=False) — `git work schema init`.
 //
 // It returns the changes, as import_ does, rather than the ids the command
 // prints: the two are one host call, and a script that wants the ids reads
@@ -317,7 +356,7 @@ func (r *runtime) schemaInit(thread *starlark.Thread, b *starlark.Builtin, args 
 	return changeList(b, changes)
 }
 
-// schema.log(key="") — `git work schema log [KEY]`, every entity by default.
+// work.schema.log(key="") — `git work schema log [KEY]`, every entity by default.
 func (r *runtime) schemaLog(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 	var key string
 	if err := starlark.UnpackArgs(b.Name(), args, kwargs, "key?", &key); err != nil {
@@ -333,7 +372,7 @@ func (r *runtime) schemaLog(thread *starlark.Thread, b *starlark.Builtin, args s
 	return reencode(b, entries)
 }
 
-// schema.archive(key) — `git work schema archive KEY`, the replicated removal.
+// work.schema.archive(key) — `git work schema archive KEY`, the replicated removal.
 func (r *runtime) schemaArchive(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 	var key string
 	if err := starlark.UnpackArgs(b.Name(), args, kwargs, "key", &key); err != nil {
@@ -350,7 +389,7 @@ func (r *runtime) schemaArchive(thread *starlark.Thread, b *starlark.Builtin, ar
 	return starlark.None, nil
 }
 
-// schema.rm(key) — `git work schema rm KEY`, the local ref only.
+// work.schema.rm(key) — `git work schema rm KEY`, the local ref only.
 func (r *runtime) schemaRm(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 	var key string
 	if err := starlark.UnpackArgs(b.Name(), args, kwargs, "key", &key); err != nil {
@@ -365,7 +404,7 @@ func (r *runtime) schemaRm(thread *starlark.Thread, b *starlark.Builtin, args st
 	return starlark.None, nil
 }
 
-// flow.list() — `git work flow`.
+// work.flow.list() — `git work flow`.
 func (r *runtime) flowList(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 	if err := starlark.UnpackArgs(b.Name(), args, kwargs); err != nil {
 		return nil, err
@@ -379,7 +418,7 @@ func (r *runtime) flowList(thread *starlark.Thread, b *starlark.Builtin, args st
 	return reencode(b, entries)
 }
 
-// flow.get(name) — `git work flow get NAME`.
+// work.flow.get(name) — `git work flow get NAME`.
 func (r *runtime) flowGet(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 	var name string
 	if err := starlark.UnpackArgs(b.Name(), args, kwargs, "name", &name); err != nil {
@@ -394,7 +433,7 @@ func (r *runtime) flowGet(thread *starlark.Thread, b *starlark.Builtin, args sta
 	return reencode(b, detail)
 }
 
-// flow.run(name, **kwargs) — `git work flow run NAME KWARGS`.
+// work.flow.run(name, **kwargs) — `git work flow run NAME KWARGS`.
 //
 // Flows compose, so this is re-entrant; MaxDepth is what stops a cycle.
 func (r *runtime) flowRun(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
@@ -426,8 +465,8 @@ func (r *runtime) flowRun(thread *starlark.Thread, b *starlark.Builtin, args sta
 	return toStarlark(decoded)
 }
 
-// me() — the identity this repository writes as, the one script-only name.
-func (r *runtime) me(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+// work.user.me() — the identity this repository writes as.
+func (r *runtime) userMe(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 	if err := starlark.UnpackArgs(b.Name(), args, kwargs); err != nil {
 		return nil, err
 	}
@@ -441,10 +480,10 @@ func (r *runtime) me(thread *starlark.Thread, b *starlark.Builtin, args starlark
 
 // viewMembers is one builtin per view kind, from the same table the renderers
 // read, so a kind added there is callable here without another edit.
-func (r *runtime) viewMembers() starlark.StringDict {
-	members := make(starlark.StringDict, len(view.Kinds))
+func (r *runtime) viewMembers() []member {
+	members := make([]member, 0, len(view.Kinds))
 	for _, kind := range view.KindNames() {
-		members[kind] = starlark.NewBuiltin("view."+kind, r.viewBuiltin(kind))
+		members = append(members, verb(kind, r.viewBuiltin(kind)))
 	}
 	return members
 }

@@ -7,12 +7,12 @@
 //
 // Those modules mirror the command line one to one
 // (doc/design/cli-convention.md):
-// every `git work <module> <verb>` is `<module>.<verb>(...)`,
+// every `git work <module> <verb>` is `work.<module>.<verb>(...)`,
 // taking the same arguments and returning what the command prints,
 // and every one of them is a call into package `host`,
 // which is also what `commands/` calls.
 // A flow is therefore exactly a shell script that runs in-process,
-// and `me()` is the only name a script has and a shell does not.
+// with no name a shell does not have.
 //
 // Nothing here is a sandbox against a malicious script:
 // a flow comes from the team's own refs and can write to the store by design.
@@ -43,7 +43,7 @@ import (
 // and still trips in about a second on a loop that will never end.
 const MaxSteps = 50_000_000
 
-// MaxDepth bounds `flow.run` calling `flow.run`.
+// MaxDepth bounds `work.flow.run` calling `work.flow.run`.
 //
 // Flows compose — a report calls a board — but a cycle between two of them is
 // a mistake, and without a cap it is a mistake that fills memory.
@@ -52,8 +52,8 @@ const MaxDepth = 8
 // fileOptions are the dialect a flow is written in.
 //
 // `set` is on because it is the natural way to collect distinct field values;
-// top-level reassignment is off because a flow's globals are the host modules
-// and shadowing one silently is how a script stops meaning what it reads as;
+// top-level reassignment is off because a flow's one global is the SDK
+// and shadowing it silently is how a script stops meaning what it reads as;
 // recursion stays off, which is Starlark's default and what makes MaxSteps
 // the only thing that can run long.
 var fileOptions = &syntax.FileOptions{
@@ -71,7 +71,7 @@ func Run(ctx context.Context, repo *cache.RepoCache, stderr io.Writer, def *flow
 }
 
 // Flow loads a flow by name and runs it, which is `git work flow run NAME`
-// and the `flow.run(name, ...)` a script calls.
+// and the `work.flow.run(name, ...)` a script calls.
 func Flow(ctx context.Context, repo *cache.RepoCache, stderr io.Writer, name string, kwargs map[string]json.RawMessage) (json.RawMessage, error) {
 	return newRuntime(ctx, repo, stderr, 0).flow(name, kwargs)
 }

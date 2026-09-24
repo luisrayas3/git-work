@@ -38,7 +38,7 @@ type IssueDocument struct {
 // IssueList runs a jq program over the issues and returns every value it emits.
 //
 // An empty program is the default one,
-// so that `git work issue` and `issue.list()` mean the same thing.
+// so that `git work issue` and `work.issue.list()` mean the same thing.
 func IssueList(repo *cache.RepoCache, program string) ([]any, error) {
 	if program == "" {
 		program = DefaultProgram

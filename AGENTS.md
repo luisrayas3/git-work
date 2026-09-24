@@ -163,12 +163,17 @@ so one file that is not exactly one `def` aborts the whole import.
 KWARGS is one JSON object of the flow's arguments,
 defaults from the signature filling what it omits;
 an unknown key is an error naming the parameters.
-A flow's script reaches `issue.*`, `schema.*`, `flow.*`, `view.*` and `me()` —
+A flow's script reaches one predeclared name, `work`, and through it
+`work.issue.*`, `work.schema.*`, `work.flow.*`, `work.view.*` and
+`work.user.me()` —
 the same verbs, the same arguments, the same output as the commands,
 because both go through package `host` —
 and writes through the cache, schema check included, like any command does.
+Nothing else is predeclared, so `issue`, `flow`, `schema`, `view` and `user`
+are a script's to use as locals.
 `import` is a reserved word in Starlark,
-so `git work schema import` is `schema.import_(doc, prune=False, dry_run=False)`;
+so `git work schema import` is
+`work.schema.import_(doc, prune=False, dry_run=False)`;
 every other verb keeps its name.
 
 Views build a **spec** from items and field bindings; a renderer consumes it,
@@ -232,9 +237,12 @@ Settled calls (details live in the referenced issues):
   take an object and commit one operation per key (no RFC 6902), writers
   print the id they created and nothing else, no sugar flags (`e8d6426`).
   `git work flow *` is porcelain, one verb per workflow (`b511c63`).
-  The **Starlark host API mirrors the CLI one to one**: module and verb
-  names match, a command's arguments are one JSON object of keyword
-  arguments, and `me()` is the only script-only name. The target map is
+  The **Starlark host API mirrors the CLI one to one**: it is one module
+  named after the binary, so `git work issue get ID` is
+  `work.issue.get(id)`, a command's arguments are one JSON object of
+  keyword arguments, and no name is script-only. `work` is the only
+  predeclared name, which leaves `issue`, `flow`, `schema`, `view` and
+  `user` for a script's own locals (2026-09-24). The target map is
   `doc/design/cli-convention.md` (2026-09-23).
 - The query language is **jq**, via gojq, over the same JSON `--format json`
   prints; a saved view is a flow whose action renders (`483dbe2`, `3c9c24d`, `d56e6f1`).
