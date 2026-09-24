@@ -140,6 +140,7 @@ git work migrate                                # one shot; removed after bf6f39
 
 git work bridge configure|pull|push|rm          # Jira, phase 3
 git work user
+git work user me                                # the identity this repository writes as
 git work user new | adopt ID
 git work gui [--port N] [--no-browser]          # every flow as a page, every view as a renderer
 git work version
@@ -176,7 +177,7 @@ git work issue 'map(select(.fields.status != "done"))' | git work view board '{"
 so that one verb is spelled with a trailing underscore;
 `work.flow.list()`, `work.flow.get(name)`, `work.flow.run(name, **kwargs)`;
 `work.view.list(items, ...)`, `work.view.board(items, ...)`, `work.view.gantt(items, ...)`;
-`work.user.me()`.
+`work.user.me()`, which is `git work user me`.
 Every function returns what the command would print, as a Starlark value.
 
 ## Gone

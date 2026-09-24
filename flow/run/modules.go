@@ -465,13 +465,13 @@ func (r *runtime) flowRun(thread *starlark.Thread, b *starlark.Builtin, args sta
 	return toStarlark(decoded)
 }
 
-// work.user.me() — the identity this repository writes as.
+// work.user.me() — `git work user me`, the identity this repository writes as.
 func (r *runtime) userMe(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 	if err := starlark.UnpackArgs(b.Name(), args, kwargs); err != nil {
 		return nil, err
 	}
 
-	identity, err := host.Me(r.repo)
+	identity, err := host.UserMe(r.repo)
 	if err != nil {
 		return nil, hostError(b, err)
 	}

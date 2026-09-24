@@ -198,7 +198,9 @@ Gotchas, hardened from use:
   the first mutating command sets your identity from git's `user.name`/`user.email`,
   adopting an existing identity with that email or creating one
   (`cache.RepoCache.EnsureUserIdentity`, our `828c228`).
-  `user new`/`user adopt` remain as overrides.
+  `user new`/`user adopt` remain as overrides,
+  and `git work user me` prints the identity it settled on
+  (`--format json`, the same document `work.user.me()` returns).
 - Config reads and remote transport go through the `git` CLI
   (package `gitcli`, wired in `execenv.LoadRepo`),
   because go-git reimplements git's environment incompletely:

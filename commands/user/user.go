@@ -29,6 +29,7 @@ func NewUserCommand(env *execenv.Env) *cobra.Command {
 	}
 
 	cmd.AddCommand(newUserNewCommand(env))
+	cmd.AddCommand(newUserMeCommand(env))
 	cmd.AddCommand(newUserShowCommand(env))
 	cmd.AddCommand(newUserAdoptCommand(env))
 

@@ -286,7 +286,10 @@ func TestContextCancellationStops(t *testing.T) {
 	require.Contains(t, err.Error(), "flow forever")
 }
 
-func TestUserMeIsTheIdentity(t *testing.T) {
+// TestUserMeIsWhatTheCommandPrints pins the mirror:
+// `work.user.me()` is `git work user me`, the same host call,
+// so a script and a shell agree on who is writing.
+func TestUserMeIsWhatTheCommandPrints(t *testing.T) {
 	repo := testRepo(t)
 
 	value, _, err := run(t, repo, `def who():
@@ -298,6 +301,15 @@ func TestUserMeIsTheIdentity(t *testing.T) {
 	identity := value.(map[string]any)
 	require.Equal(t, "John Doe", identity["name"])
 	require.NotEmpty(t, identity["id"])
+
+	me, err := host.UserMe(repo)
+	require.NoError(t, err)
+
+	raw, err := json.Marshal(me)
+	require.NoError(t, err)
+	var printed any
+	require.NoError(t, json.Unmarshal(raw, &printed))
+	require.Equal(t, printed, value)
 }
 
 func TestPrintGoesToStderr(t *testing.T) {
