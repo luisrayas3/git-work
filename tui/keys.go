@@ -26,6 +26,7 @@ type keymap struct {
 	yank    key.Binding
 	filter  key.Binding
 	grab    key.Binding
+	toggle  key.Binding
 	help    key.Binding
 	quit    key.Binding
 	submit  key.Binding
@@ -45,13 +46,14 @@ var keys = keymap{
 		key.WithHelp("home/g/alt+<", "first")),
 	bottom: key.NewBinding(key.WithKeys("end", "G", "shift+g", "alt+>", "alt+shift+."),
 		key.WithHelp("end/G/alt+>", "last")),
-	open:    key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "accept")),
+	open:    key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "open the issue")),
 	back:    key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "back")),
 	edit:    key.NewBinding(key.WithKeys("e"), key.WithHelp("e", "edit the field")),
 	comment: key.NewBinding(key.WithKeys("c"), key.WithHelp("c", "comment")),
 	yank:    key.NewBinding(key.WithKeys("y"), key.WithHelp("y", "yank the id")),
 	filter:  key.NewBinding(key.WithKeys("/"), key.WithHelp("/", "filter")),
 	grab:    key.NewBinding(key.WithKeys(" ", "space"), key.WithHelp("space", "grab and drop a row")),
+	toggle:  key.NewBinding(key.WithKeys("t"), key.WithHelp("t", "comments or the op log")),
 	help:    key.NewBinding(key.WithKeys("?"), key.WithHelp("?", "this help")),
 	quit:    key.NewBinding(key.WithKeys("q", "ctrl+c"), key.WithHelp("q/ctrl+c", "quit")),
 	submit:  key.NewBinding(key.WithKeys("ctrl+s", "ctrl+d"), key.WithHelp("ctrl+s/ctrl+d", "submit")),
@@ -72,13 +74,14 @@ func helpLines() []string {
 		{keys.pageDn, "page down"},
 		{keys.top, "first row"},
 		{keys.bottom, "last row"},
-		{keys.open, "accept what is typed"},
+		{keys.open, "open the issue under the cursor"},
 		{keys.back, "back, or clear the filter"},
 		{keys.edit, "edit the field under the cursor"},
 		{keys.comment, "write a comment"},
 		{keys.yank, "yank the id to the clipboard"},
 		{keys.filter, "filter the rows"},
 		{keys.grab, "grab a row, then drop it (needs rank)"},
+		{keys.toggle, "on an issue: comments or the op log"},
 		{keys.help, "this help"},
 		{keys.quit, "quit"},
 	}

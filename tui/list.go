@@ -317,6 +317,9 @@ func (p *listPage) key(press tea.KeyPressMsg) (page, tea.Cmd) {
 	case key.Matches(press, keys.right):
 		p.column = min(len(p.fields)-1, p.column+1)
 
+	case key.Matches(press, keys.open):
+		return p.open()
+
 	case key.Matches(press, keys.edit):
 		p.startEdit()
 	case key.Matches(press, keys.comment):
@@ -344,6 +347,19 @@ func (p *listPage) key(press tea.KeyPressMsg) (page, tea.Cmd) {
 
 func (p *listPage) move(by int) {
 	p.cursor = min(max(p.cursor+by, 0), max(len(p.order)-1, 0))
+}
+
+func (p *listPage) open() (page, tea.Cmd) {
+	row := p.current()
+	if row == nil {
+		return p, nil
+	}
+	shown, err := newShowPage(p.repo, row.id, nil)
+	if err != nil {
+		p.status = err.Error()
+		return p, nil
+	}
+	return p, func() tea.Msg { return pushMsg{page: shown} }
 }
 
 // yank puts the issue's id on the clipboard with OSC 52, which is the one way
