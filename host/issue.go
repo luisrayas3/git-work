@@ -11,18 +11,18 @@ import (
 	"github.com/git-bug/git-bug/entity"
 	"github.com/git-bug/git-bug/query/jq"
 	"github.com/git-bug/git-bug/util/text"
+	"github.com/git-bug/git-bug/view"
 )
 
-// DefaultProgram is the list you get when you name no program:
-// everything that is not archived, most recently edited first.
+// DefaultProgram is the list you get when you name no program.
 //
-// It is written as a jq program rather than special-cased in Go
-// so that `.` means the whole array and nothing is hidden from it.
-// "mine" would be the better default, but it needs the schema's assignee
-// field to know which one it is, so it waits for the schema (e8d6426).
-const DefaultProgram = `map(select(.fields.archived != true))
-	| sort_by(.edit_time.lamport, .edit_time.timestamp)
-	| reverse`
+// It is view.DefaultQuery rather than a second copy of it:
+// `git work issue` with no program
+// and a view whose `query` argument was not given
+// have to show the same issues,
+// and one constant is the only way to guarantee that.
+// It lives in `view` because that is the lower of the two packages.
+const DefaultProgram = view.DefaultQuery
 
 // IssueDocument is what `issue new` takes: the issue as a document.
 //

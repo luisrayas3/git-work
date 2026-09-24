@@ -2,22 +2,26 @@ package flowcmd
 
 import (
 	"encoding/json"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
 	"github.com/git-bug/git-bug/commands/execenv"
-	viewcmd "github.com/git-bug/git-bug/commands/view"
 )
 
-// runnableFlow creates two issues, edits one and returns a board of them.
+// runnableFlow creates two issues, edits one and returns the ones it kept.
 const runnableFlow = `def kanban(status="open"):
-    """A kanban of one status."""
+    """The issues of one status."""
     a = work.issue.new({"fields": {"title": "first", "status": "open"}})
     work.issue.new({"fields": {"title": "second", "status": "done"}})
     work.issue.set(a, estimate=3)
-    return work.view.board(work.issue.list('map(select(.fields.status == "%s"))' % status), columns="status")
+    return work.issue.list('map(select(.fields.status == "%s"))' % status)
+`
+
+// drawingFlow calls a view, which needs a surface to draw on.
+const drawingFlow = `def kanban_view():
+    """A board of everything."""
+    return work.view.board(columns="status")
 `
 
 const quietFlow = `def quiet():
@@ -39,56 +43,29 @@ func TestFlowRunJSON(t *testing.T) {
 	env.Out.Reset()
 	require.NoError(t, runFlowRun(env, flowRunOptions{format: "json"}, []string{"kanban"}))
 
-	var spec struct {
-		View     string            `json:"view"`
-		Bindings map[string]string `json:"bindings"`
-		Items    []struct {
-			Fields map[string]json.RawMessage `json:"fields"`
-		} `json:"items"`
+	var items []struct {
+		Fields map[string]json.RawMessage `json:"fields"`
 	}
-	require.NoError(t, json.Unmarshal(env.Out.Bytes(), &spec))
-	require.Equal(t, "board", spec.View)
-	require.Equal(t, map[string]string{"columns": "status"}, spec.Bindings)
-	require.Len(t, spec.Items, 1)
-	require.JSONEq(t, `"first"`, string(spec.Items[0].Fields["title"]))
-	require.JSONEq(t, `3`, string(spec.Items[0].Fields["estimate"]))
+	require.NoError(t, json.Unmarshal(env.Out.Bytes(), &items))
+	require.Len(t, items, 1)
+	require.JSONEq(t, `"first"`, string(items[0].Fields["title"]))
+	require.JSONEq(t, `3`, string(items[0].Fields["estimate"]))
 
 	// the writes really happened, through the cache
 	require.Len(t, env.Backend.Issues().AllIds(), 2)
 }
 
-// TestFlowRunPrintsASpecAsTheViewCommandDoes pins the one contract two
-// printers share: a spec is a spec whichever half of the pipe built it.
-func TestFlowRunPrintsASpecAsTheViewCommandDoes(t *testing.T) {
+// TestFlowRunDrawingNeedsASurface is the one thing `flow run` does not do for
+// a flow that draws: a test env's output is a buffer, so there is no terminal
+// and the view call is what says so.
+func TestFlowRunDrawingNeedsASurface(t *testing.T) {
 	env := newTestEnv(t)
-	importScript(t, env, "kanban.star", runnableFlow)
+	importScript(t, env, "kanban_view.star", drawingFlow)
 
 	env.Out.Reset()
-	require.NoError(t, runFlowRun(env, flowRunOptions{format: "json"}, []string{"kanban"}))
-	fromFlow := env.Out.String()
-	require.True(t, strings.Index(fromFlow, `"view"`) < strings.Index(fromFlow, `"bindings"`),
-		"a spec prints in the struct's order, not the map's")
-
-	// the same items and bindings, through `git work view board`
-	var spec struct {
-		Items []any `json:"items"`
-	}
-	require.NoError(t, json.Unmarshal([]byte(fromFlow), &spec))
-	items, err := json.Marshal(spec.Items)
-	require.NoError(t, err)
-
-	viewEnv := execenv.NewTestEnv(t)
-	_, err = viewEnv.In.(*execenv.TestIn).Write(items)
-	require.NoError(t, err)
-	viewEnv.Out.Reset()
-
-	cmd := viewcmd.NewViewCommand(viewEnv)
-	cmd.SetArgs([]string{"board", `{"columns":"status"}`})
-	cmd.SetOut(viewEnv.Out)
-	cmd.SetErr(viewEnv.Err)
-	require.NoError(t, cmd.Execute())
-
-	require.Equal(t, fromFlow, viewEnv.Out.String())
+	err := runFlowRun(env, flowRunOptions{format: "json"}, []string{"kanban_view"})
+	require.ErrorContains(t, err, "no renderer here")
+	require.Equal(t, "", env.Out.String())
 }
 
 func TestFlowRunKwargsFromTheArgument(t *testing.T) {
@@ -98,14 +75,12 @@ func TestFlowRunKwargsFromTheArgument(t *testing.T) {
 	env.Out.Reset()
 	require.NoError(t, runFlowRun(env, flowRunOptions{format: "json"}, []string{"kanban", `{"status":"done"}`}))
 
-	var spec struct {
-		Items []struct {
-			Fields map[string]json.RawMessage `json:"fields"`
-		} `json:"items"`
+	var items []struct {
+		Fields map[string]json.RawMessage `json:"fields"`
 	}
-	require.NoError(t, json.Unmarshal(env.Out.Bytes(), &spec))
-	require.Len(t, spec.Items, 1)
-	require.JSONEq(t, `"second"`, string(spec.Items[0].Fields["title"]))
+	require.NoError(t, json.Unmarshal(env.Out.Bytes(), &items))
+	require.Len(t, items, 1)
+	require.JSONEq(t, `"second"`, string(items[0].Fields["title"]))
 }
 
 func TestFlowRunKwargsFromStdin(t *testing.T) {
@@ -121,23 +96,30 @@ func TestFlowRunKwargsFromStdin(t *testing.T) {
 	require.NotContains(t, env.Out.String(), "first")
 }
 
+// TestFlowRunText is what --format text is for now that drawing is a view's
+// own business: a sentence is printed as a sentence, not in quotes.
 func TestFlowRunText(t *testing.T) {
 	env := newTestEnv(t)
-	importScript(t, env, "kanban.star", runnableFlow)
+	importScript(t, env, "report.star", `def report():
+    """One line of prose."""
+    return "two issues, one done"
+`)
 
 	env.Out.Reset()
-	require.NoError(t, runFlowRun(env, flowRunOptions{format: "text"}, []string{"kanban"}))
+	require.NoError(t, runFlowRun(env, flowRunOptions{format: "text"}, []string{"report"}))
+	require.Equal(t, "two issues, one done\n", env.Out.String())
 
-	lines := strings.Split(strings.TrimSpace(env.Out.String()), "\n")
-	require.Len(t, lines, 2)
-	// a placeholder until a renderer exists (84dfbde, 8b06191)
-	require.Equal(t, "view board (1 items)", lines[0])
-	require.Equal(t, 3, len(strings.Split(lines[1], "\t")))
-	require.Contains(t, lines[1], "open")
-	require.Contains(t, lines[1], "first")
+	// a list of strings is one per line, which is what a pipe wants
+	importScript(t, env, "titles.star", `def titles():
+    """Every title."""
+    return ["first", "second"]
+`)
+	env.Out.Reset()
+	require.NoError(t, runFlowRun(env, flowRunOptions{format: "text"}, []string{"titles"}))
+	require.Equal(t, "first\nsecond\n", env.Out.String())
 }
 
-func TestFlowRunTextOfSomethingThatIsNotASpec(t *testing.T) {
+func TestFlowRunTextOfSomethingElse(t *testing.T) {
 	env := newTestEnv(t)
 	importScript(t, env, "count.star", `def count():
     """How many issues there are."""
@@ -164,7 +146,8 @@ func TestFlowRunGuiHasNoRenderer(t *testing.T) {
 	importScript(t, env, "kanban.star", runnableFlow)
 
 	err := runFlowRun(env, flowRunOptions{format: "json", gui: true}, []string{"kanban"})
-	require.ErrorIs(t, err, ErrNoRenderer)
+	require.ErrorIs(t, err, ErrNoGui)
+	require.Contains(t, err.Error(), "8b06191")
 	// and it ran nothing
 	require.Empty(t, env.Backend.Issues().AllIds())
 }

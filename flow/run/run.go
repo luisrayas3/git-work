@@ -34,6 +34,7 @@ import (
 	"github.com/git-bug/git-bug/cache"
 	"github.com/git-bug/git-bug/flow"
 	"github.com/git-bug/git-bug/host"
+	"github.com/git-bug/git-bug/view"
 )
 
 // MaxSteps bounds one flow's execution.
@@ -63,32 +64,50 @@ var fileOptions = &syntax.FileOptions{
 	Recursion:      false,
 }
 
+// Options are what an execution is given besides the flow itself.
+//
+// Renderer is what a `work.view.*` call draws on, and nil is the honest value
+// where nothing can draw — a pipe, an agent, a run with no terminal. A flow
+// that never calls a view does not notice; one that does fails saying so,
+// from `host.View`, which is where the command line fails too.
+type Options struct {
+	Stderr   io.Writer
+	Renderer view.Renderer
+}
+
 // Run executes a flow and returns what it returned, as JSON.
 //
 // A flow that returns None returns nil, which is a command that prints nothing.
-func Run(ctx context.Context, repo *cache.RepoCache, stderr io.Writer, def *flow.Def, script string, kwargs map[string]json.RawMessage) (json.RawMessage, error) {
-	return newRuntime(ctx, repo, stderr, 0).run(def, script, kwargs)
+func Run(ctx context.Context, repo *cache.RepoCache, opts Options, def *flow.Def, script string, kwargs map[string]json.RawMessage) (json.RawMessage, error) {
+	return newRuntime(ctx, repo, opts, 0).run(def, script, kwargs)
 }
 
 // Flow loads a flow by name and runs it, which is `git work flow run NAME`
 // and the `work.flow.run(name, ...)` a script calls.
-func Flow(ctx context.Context, repo *cache.RepoCache, stderr io.Writer, name string, kwargs map[string]json.RawMessage) (json.RawMessage, error) {
-	return newRuntime(ctx, repo, stderr, 0).flow(name, kwargs)
+func Flow(ctx context.Context, repo *cache.RepoCache, opts Options, name string, kwargs map[string]json.RawMessage) (json.RawMessage, error) {
+	return newRuntime(ctx, repo, opts, 0).flow(name, kwargs)
 }
 
 // runtime is one execution, and the depth it is at.
 type runtime struct {
-	ctx    context.Context
-	repo   *cache.RepoCache
-	stderr io.Writer
-	depth  int
+	ctx      context.Context
+	repo     *cache.RepoCache
+	stderr   io.Writer
+	renderer view.Renderer
+	depth    int
 }
 
-func newRuntime(ctx context.Context, repo *cache.RepoCache, stderr io.Writer, depth int) *runtime {
+func newRuntime(ctx context.Context, repo *cache.RepoCache, opts Options, depth int) *runtime {
+	stderr := opts.Stderr
 	if stderr == nil {
 		stderr = io.Discard
 	}
-	return &runtime{ctx: ctx, repo: repo, stderr: stderr, depth: depth}
+	return &runtime{ctx: ctx, repo: repo, stderr: stderr, renderer: opts.Renderer, depth: depth}
+}
+
+// options rebuilds what this runtime was given, for a nested flow.
+func (r *runtime) options() Options {
+	return Options{Stderr: r.stderr, Renderer: r.renderer}
 }
 
 // flow resolves a name to its script and runs it.

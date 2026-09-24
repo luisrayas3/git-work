@@ -1,13 +1,18 @@
 // Package viewcmd is the `git work view` command tree.
 //
 // A view is a module, not a surface (doc/design/cli-convention.md):
-// `git work view board '{"columns":"status"}' < items.json`
-// and `view.board(items, columns="status")` are the same call
-// into package `view`, and both return a spec.
-// A renderer consumes specs, so the terminal (`84dfbde`) and the browser
-// (`8b06191`) never disagree about which views exist.
+// `git work view board '{"columns":"status"}'` and
+// `work.view.board(columns="status")` are the same call into `host.View`,
+// with the same keywords, the same defaults and the same refusals.
 //
-// Until a renderer lands, a spec is printed, and --gui says so.
+// The command is the view (decided 2026-09-24): its whole input is one JSON
+// object of keyword arguments, `query` included, so nothing is piped in and
+// no intermediate document is printed out. The view reads the store itself,
+// draws, and blocks until the user quits.
+//
+// There is no `tui` command. A terminal is where the terminal renderer draws,
+// so `git work view list` in one is the interactive list; outside one it says
+// so rather than printing something nobody asked for.
 package viewcmd
 
 import (
@@ -20,11 +25,19 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/git-bug/git-bug/commands/execenv"
+	"github.com/git-bug/git-bug/host"
+	"github.com/git-bug/git-bug/tui"
 	"github.com/git-bug/git-bug/view"
 )
 
-// ErrNoRenderer is what --gui hits until a renderer exists.
-var ErrNoRenderer = errors.New("no renderer yet (84dfbde, 8b06191)")
+// ErrNoGui is what --gui hits until the browser renderer exists.
+var ErrNoGui = errors.New("the gui renderer is not built yet (8b06191)")
+
+// ErrNoTerminal is what a view without a surface hits.
+//
+// It is not an error about the call: the call is fine, there is just nowhere
+// to draw it, and the two ways out are both in the message.
+var ErrNoTerminal = errors.New("a view needs a terminal; run it in one, or with --gui")
 
 type viewOptions struct {
 	gui bool
@@ -33,16 +46,17 @@ type viewOptions struct {
 func NewViewCommand(env *execenv.Env) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "view",
-		Short: "Build a render spec from issues",
-		Long: `Build a render spec: a view kind, the field bindings it was given, and the
-issues it was handed.
+		Short: "Draw the issues",
+		Long: `Draw the issues: a list, a board, a gantt chart, or one issue.
 
-The items are a JSON array on standard input, the same JSON ` + "`git work issue`" + `
-prints, so a view is the second half of a pipe:
+A view takes one JSON object of keyword arguments and nothing else. Every kind
+but ` + "`show`" + ` takes a ` + "`query`" + `, the jq program its issues come from, so a kanban
+with no flow at all is one command:
 
-  git work issue 'map(select(.fields.status != "done"))' | git work view board '{"columns":"status"}'
+  git work view board '{"query":"map(select(.fields.status != \"done\"))","columns":"status"}'
 
-A renderer consumes the spec. Until one exists, the spec is printed.`,
+The view draws in the terminal and blocks until you quit it. Edits made in it
+are written through the same path a command writes through.`,
 	}
 
 	for _, kind := range view.KindNames() {
@@ -57,100 +71,90 @@ func newViewKindCommand(env *execenv.Env, kind string) *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   kind + " [KWARGS]",
-		Short: "Build a " + kind + " spec",
+		Short: "Draw a " + kind,
 		Long:  kindLong(kind),
 		Args:  cobra.MaximumNArgs(1),
-		// No repository is loaded: a view is a pure function over the JSON it
-		// is handed, which is what lets the same call serve a pipe and a flow.
-		RunE: func(cmd *cobra.Command, args []string) error {
+		// A view writes: an edit made in it is an operation like any other,
+		// so it needs the identity every writer needs.
+		PreRunE: execenv.LoadBackendEnsureUser(env),
+		RunE: execenv.CloseBackend(env, func(cmd *cobra.Command, args []string) error {
 			return runView(env, options, kind, args)
-		},
+		}),
 	}
 
 	flags := cmd.Flags()
 	flags.SortFlags = false
 
-	flags.BoolVar(&options.gui, "gui", false, "Render the spec in the browser")
+	flags.BoolVar(&options.gui, "gui", false, "Draw the view in the browser")
 
 	return cmd
 }
 
-// kindLong documents a kind from the binding table, so that the help and the
+// kindLong documents a kind from its argument table, so that the help and the
 // validation can never drift apart.
 func kindLong(kind string) string {
 	var b strings.Builder
-	fmt.Fprintf(&b, "Build a %s spec from the issues on standard input.\n\n", kind)
-	b.WriteString("KWARGS is a JSON object binding this view's slots to field keys:\n")
-	for _, binding := range view.Kinds[kind] {
-		required := "optional"
-		if binding.Required {
-			required = "required"
-		}
-		fmt.Fprintf(&b, "  %-12s %-8s %s\n", binding.Name, required, binding.Doc)
-	}
+	fmt.Fprintf(&b, "Draw a %s.\n\n", kind)
+	b.WriteString("KWARGS is a JSON object of this view's arguments:\n")
+	b.WriteString(view.Help(kind))
+	b.WriteString("\nA `feature` argument is in the table and not drawn yet.\n")
 	return b.String()
 }
 
 func runView(env *execenv.Env, opts viewOptions, kind string, args []string) error {
 	if opts.gui {
-		return ErrNoRenderer
+		return ErrNoGui
 	}
 
-	items, err := readItems(env)
+	kwargs, err := readKwargs(env, args)
 	if err != nil {
 		return err
 	}
 
-	bindings, err := readBindings(args)
+	renderer, ok := tui.New(env.Out.Raw())
+	if !ok {
+		// The call is still parsed, so that a misspelled argument is reported
+		// as itself rather than hidden behind the missing terminal.
+		if _, err := view.Parse(kind, kwargs); err != nil {
+			return err
+		}
+		return ErrNoTerminal
+	}
+
+	answer, err := host.View(env.Ctx, env.Backend, renderer, kind, kwargs)
 	if err != nil {
 		return err
 	}
-
-	spec, err := view.Build(kind, items, bindings)
-	if err != nil {
-		return err
-	}
-
-	return env.Out.PrintJSON(spec)
-}
-
-// readItems reads the issues from standard input.
-//
-// One object is taken as a list of one, because a jq program that emitted a
-// single issue is a pipe someone meant to work.
-func readItems(env *execenv.Env) ([]any, error) {
-	data, err := io.ReadAll(env.In)
-	if err != nil {
-		return nil, fmt.Errorf("reading the standard input: %w", err)
-	}
-	if len(strings.TrimSpace(string(data))) == 0 {
-		return nil, fmt.Errorf("no items on standard input: a view takes the JSON `git work issue` prints")
+	if answer == nil {
+		return nil
 	}
 
 	var value any
-	if err := json.Unmarshal(data, &value); err != nil {
-		return nil, fmt.Errorf("the items are JSON: %w", err)
+	if err := json.Unmarshal(answer, &value); err != nil {
+		return err
 	}
-
-	switch items := value.(type) {
-	case []any:
-		return items, nil
-	case map[string]any:
-		return []any{items}, nil
-	default:
-		return nil, fmt.Errorf("the items are an array of issues, or one issue")
-	}
+	return env.Out.PrintJSON(value)
 }
 
-// readBindings reads the optional JSON object of bindings.
-func readBindings(args []string) (map[string]string, error) {
+// readKwargs reads the optional JSON object of arguments, from the argument
+// or, as "-", from standard input.
+func readKwargs(env *execenv.Env, args []string) (map[string]json.RawMessage, error) {
 	if len(args) == 0 {
 		return nil, nil
 	}
 
-	var bindings map[string]string
-	if err := json.Unmarshal([]byte(args[0]), &bindings); err != nil {
-		return nil, fmt.Errorf("the bindings are a JSON object of field keys: %w", err)
+	data := []byte(args[0])
+	if args[0] == "-" {
+		read, err := io.ReadAll(env.In)
+		if err != nil {
+			return nil, fmt.Errorf("reading the standard input: %w", err)
+		}
+		data = read
 	}
-	return bindings, nil
+
+	var kwargs map[string]json.RawMessage
+	if err := json.Unmarshal(data, &kwargs); err != nil {
+		return nil, fmt.Errorf("the arguments are a JSON object: %w", err)
+	}
+	return kwargs, nil
 }

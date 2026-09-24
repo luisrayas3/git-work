@@ -450,7 +450,7 @@ func (r *runtime) flowRun(thread *starlark.Thread, b *starlark.Builtin, args sta
 		return nil, err
 	}
 
-	raw, err := newRuntime(r.ctx, r.repo, r.stderr, r.depth+1).flow(name, values)
+	raw, err := newRuntime(r.ctx, r.repo, r.options(), r.depth+1).flow(name, values)
 	if err != nil {
 		return nil, hostError(b, err)
 	}
@@ -488,37 +488,33 @@ func (r *runtime) viewMembers() []member {
 	return members
 }
 
-func (r *runtime) viewBuiltin(kind string) func(*starlark.Thread, *starlark.Builtin, starlark.Tuple, []starlark.Tuple) (starlark.Value, error) {
+func (r *runtime) viewBuiltin(kind string) builtinFunc {
 	return func(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
-		if len(args) != 1 {
-			return nil, fmt.Errorf("%s: takes the items and then its bindings by keyword", b.Name())
+		if len(args) != 0 {
+			return nil, fmt.Errorf("%s: takes its arguments by keyword", b.Name())
 		}
 
-		converted, err := fromStarlark(args[0])
+		values, err := keywordJSON(b, kwargs)
+		if err != nil {
+			return nil, err
+		}
+
+		// The same call the command makes, through the same function: a view
+		// renders where it is called from and blocks until the user quits,
+		// and what it answers is what the script gets (decided 2026-09-24).
+		answer, err := host.View(r.ctx, r.repo, r.renderer, kind, values)
 		if err != nil {
 			return nil, hostError(b, err)
 		}
-		items, ok := converted.([]any)
-		if !ok {
-			return nil, fmt.Errorf("%s: the items are a list of issues, not a %s", b.Name(), args[0].Type())
+		if answer == nil {
+			return starlark.None, nil
 		}
 
-		bindings := make(map[string]string, len(kwargs))
-		for _, kwarg := range kwargs {
-			name, _ := starlark.AsString(kwarg[0])
-			value, ok := starlark.AsString(kwarg[1])
-			if !ok {
-				return nil, fmt.Errorf("%s: binding %s names a field, so it is a string, not a %s",
-					b.Name(), name, kwarg[1].Type())
-			}
-			bindings[name] = value
-		}
-
-		spec, err := view.Build(kind, items, bindings)
+		decoded, err := decodeJSON(answer)
 		if err != nil {
 			return nil, hostError(b, err)
 		}
-		return reencode(b, spec)
+		return toStarlark(decoded)
 	}
 }
 

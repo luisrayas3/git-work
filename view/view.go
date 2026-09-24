@@ -1,176 +1,242 @@
-// Package view builds render specs, the contract between a view and a renderer.
+// Package view is the argument table of every view kind, and the seam a
+// renderer plugs into.
 //
 // A view is a module, not a surface (doc/design/cli-convention.md):
-// `view.board(items, columns="status")` and
-// `git work view board '{"columns":"status"}' < items.json`
-// are the same call, and both return a spec.
-// A renderer — the terminal one (`84dfbde`), the HTTP one (`8b06191`) —
-// consumes specs and nothing else,
-// so a view exists on every surface or on none.
+// `work.view.board(columns="status")` and
+// `git work view board '{"columns":"status"}'`
+// are the same call, with the same keywords and the same defaults,
+// because both parse against the one table in kinds.go.
 //
-// A spec is a plain JSON document:
+// The command *is* the view: a call's whole input is one JSON object of
+// keyword arguments, `query` included, so nothing is piped in and nothing
+// intermediate is printed out (decided 2026-09-24). A view reads the store
+// itself, draws, and returns what the user answered.
 //
-//	{"view": "board", "bindings": {"columns": "status"}, "items": [...]}
-//
-// `view` is the kind, `bindings` maps a view's slots to the field keys that
-// fill them, and `items` are the issues, in the shape `git work issue` prints.
-// Which bindings a kind takes is the table in kinds.go,
-// so a renderer reads one contract rather than a kind's documentation.
+// What draws it is a Renderer: the terminal one (package `tui`, `84dfbde`) and
+// the browser one (`8b06191`). A kind no renderer draws yet fails naming the
+// renderer, so a view is never a command on one surface and not the other.
 // There are no field roles on the schema: a flow's script names the fields it
 // means when it calls the view (`d56e6f1`, `f4bac00`).
 package view
 
 import (
+	"bytes"
+	"context"
+	"encoding/json"
 	"fmt"
-	"sort"
 	"strings"
+
+	"github.com/git-bug/git-bug/cache"
 )
 
-// Spec is what a view returns and a renderer consumes.
-type Spec struct {
-	View     string            `json:"view"`
-	Bindings map[string]string `json:"bindings"`
-	Items    []any             `json:"items"`
-}
-
-// List builds a list spec: one line per item.
-func List(items []any, bindings map[string]string) (*Spec, error) {
-	return Build(KindList, items, bindings)
-}
-
-// Board builds a board spec: a column per value of the `columns` field.
-func Board(items []any, bindings map[string]string) (*Spec, error) {
-	return Build(KindBoard, items, bindings)
-}
-
-// Gantt builds a gantt spec: a bar per item, from `start` to `end`.
-func Gantt(items []any, bindings map[string]string) (*Spec, error) {
-	return Build(KindGantt, items, bindings)
-}
-
-// Build validates items and bindings against a kind's table and returns a spec.
+// Call is one parsed view call: the kind, and its arguments with the
+// defaults applied.
 //
-// Everything a renderer can be told at build time is checked here,
-// so that a bad view fails where it is written
-// rather than in the renderer of whichever surface ran it first.
-func Build(kind string, items []any, bindings map[string]string) (*Spec, error) {
-	slots, ok := Kinds[kind]
+// It is what a renderer is handed, and the only thing it is handed besides the
+// repository, so that everything a view can be told is checked in one place
+// rather than in each renderer.
+type Call struct {
+	Kind string
+	Args map[string]json.RawMessage
+}
+
+// Renderer draws a call and blocks until the user is done with it.
+//
+// The return value is the user's answer — nothing, today, for every kind —
+// so that a flow can one day write `chosen = work.view.list(pick=True)`.
+type Renderer interface {
+	Render(ctx context.Context, repo *cache.RepoCache, call *Call) (json.RawMessage, error)
+}
+
+// Parse checks a call against its kind's table and applies the defaults.
+//
+// Everything a renderer can be told is checked here, in the one place both
+// surfaces reach, so that a bad view fails where it was written rather than in
+// the renderer of whichever surface ran it first.
+func Parse(kind string, kwargs map[string]json.RawMessage) (*Call, error) {
+	args, ok := Kinds[kind]
 	if !ok {
 		return nil, fmt.Errorf("no view named %s, the views are %s", kind, strings.Join(KindNames(), ", "))
 	}
 
-	checked, err := checkBindings(kind, slots, bindings)
-	if err != nil {
-		return nil, err
+	allowed := make(map[string]Arg, len(args))
+	for _, arg := range args {
+		allowed[arg.Name] = arg
 	}
-
-	checked2, err := checkItems(items)
-	if err != nil {
-		return nil, err
-	}
-
-	return &Spec{View: kind, Bindings: checked, Items: checked2}, nil
-}
-
-// IsSpec reports whether a decoded JSON value is a spec,
-// which is how a printer decides to render rather than to print JSON.
-func IsSpec(v any) bool {
-	object, ok := v.(map[string]any)
-	if !ok {
-		return false
-	}
-	kind, ok := object["view"].(string)
-	if !ok {
-		return false
-	}
-	if _, ok := Kinds[kind]; !ok {
-		return false
-	}
-	_, ok = object["items"].([]any)
-	return ok
-}
-
-// checkBindings refuses an unknown slot and a required one that is absent.
-func checkBindings(kind string, slots []Binding, bindings map[string]string) (map[string]string, error) {
-	allowed := make(map[string]struct{}, len(slots))
-	for _, slot := range slots {
-		allowed[slot.Name] = struct{}{}
-	}
-
-	for name := range bindings {
+	for name := range kwargs {
 		if _, ok := allowed[name]; !ok {
-			return nil, fmt.Errorf("view %s takes no binding %s, it takes %s",
-				kind, name, strings.Join(slotNames(slots), ", "))
+			return nil, fmt.Errorf("view %s takes no argument %s, it takes %s",
+				kind, name, argNames(args))
 		}
 	}
 
-	checked := make(map[string]string, len(bindings))
-	for _, slot := range slots {
-		value, given := bindings[slot.Name]
+	out := make(map[string]json.RawMessage, len(args))
+	for _, arg := range args {
+		raw, given := kwargs[arg.Name]
+		if given && isNull(raw) {
+			// An explicit null is how a script says "use the default",
+			// which is the absence of a value, not a value of null.
+			given = false
+		}
+
 		if !given {
-			if slot.Required {
-				return nil, fmt.Errorf("view %s needs a binding for %s: %s", kind, slot.Name, slot.Doc)
+			switch arg.Tier {
+			case Required:
+				return nil, fmt.Errorf("view %s needs %s: %s", kind, arg.Name, arg.Doc)
+			case Defaulted:
+				if arg.hasDefault() {
+					out[arg.Name] = json.RawMessage(arg.Default)
+				}
 			}
 			continue
 		}
-		if strings.TrimSpace(value) == "" {
-			return nil, fmt.Errorf("view %s: binding %s is empty, it names a field", kind, slot.Name)
+
+		checked, err := arg.check(raw)
+		if err != nil {
+			return nil, fmt.Errorf("view %s: %s %w", kind, arg.Name, err)
 		}
-		checked[slot.Name] = value
+		out[arg.Name] = checked
 	}
 
-	return checked, nil
+	return &Call{Kind: kind, Args: out}, nil
 }
 
-// checkItems refuses anything that is not issue-shaped.
-//
-// A renderer reads `id` and looks fields up by the bindings' keys,
-// so an item without either is a mistake the script made,
-// and one it made several steps before the renderer would notice.
-func checkItems(items []any) ([]any, error) {
-	if items == nil {
-		return []any{}, nil
-	}
-
-	for at, item := range items {
-		object, ok := item.(map[string]any)
-		if !ok {
-			return nil, fmt.Errorf("item %d is %s, not an issue", at, jsonKind(item))
-		}
-		if _, ok := object["id"].(string); !ok {
-			return nil, fmt.Errorf("item %d has no id, so it is not an issue", at)
-		}
-		if _, ok := object["fields"].(map[string]any); !ok {
-			return nil, fmt.Errorf("item %d has no fields, so it is not an issue", at)
-		}
-	}
-
-	return items, nil
+// Has reports whether an argument was given or defaulted into place.
+func (c *Call) Has(name string) bool {
+	_, ok := c.Args[name]
+	return ok
 }
 
-func slotNames(slots []Binding) []string {
-	names := make([]string, 0, len(slots))
-	for _, slot := range slots {
-		name := slot.Name
-		if slot.Required {
-			name += " (required)"
+// Raw returns an argument's JSON, nil when it is absent.
+func (c *Call) Raw(name string) json.RawMessage {
+	return c.Args[name]
+}
+
+// String returns a string argument, empty when it is absent.
+func (c *Call) String(name string) string {
+	raw, ok := c.Args[name]
+	if !ok {
+		return ""
+	}
+	var s string
+	if err := json.Unmarshal(raw, &s); err != nil {
+		return ""
+	}
+	return s
+}
+
+// Strings returns a list argument, nil when it is absent.
+func (c *Call) Strings(name string) []string {
+	raw, ok := c.Args[name]
+	if !ok {
+		return nil
+	}
+	var list []string
+	if err := json.Unmarshal(raw, &list); err != nil {
+		return nil
+	}
+	return list
+}
+
+// Int returns a whole-number argument, zero when it is absent.
+func (c *Call) Int(name string) int {
+	raw, ok := c.Args[name]
+	if !ok {
+		return 0
+	}
+	var n int
+	if err := json.Unmarshal(raw, &n); err != nil {
+		return 0
+	}
+	return n
+}
+
+// check validates one value against its row of the table,
+// and returns it compacted, so that equal arguments are equal bytes.
+func (a Arg) check(raw json.RawMessage) (json.RawMessage, error) {
+	switch a.Kind {
+	case FieldKey, Id:
+		s, err := asString(raw)
+		if err != nil {
+			return nil, err
 		}
-		names = append(names, name)
+		if strings.TrimSpace(s) == "" {
+			return nil, fmt.Errorf("is empty, it names %s", a.Doc)
+		}
+
+	case String, Query:
+		if _, err := asString(raw); err != nil {
+			return nil, err
+		}
+
+	case Enum:
+		s, err := asString(raw)
+		if err != nil {
+			return nil, err
+		}
+		if !contains(a.Allowed, s) {
+			return nil, fmt.Errorf("is %s, which is not one of %s", s, strings.Join(a.Allowed, ", "))
+		}
+
+	case FieldKeys, StringList:
+		var list []string
+		if err := json.Unmarshal(raw, &list); err != nil {
+			return nil, fmt.Errorf("is a list of strings, not %s", jsonKind(raw))
+		}
+		for _, item := range list {
+			if a.Kind == FieldKeys && strings.TrimSpace(item) == "" {
+				return nil, fmt.Errorf("has an empty field key")
+			}
+		}
+
+	case Int:
+		var n int
+		if err := json.Unmarshal(raw, &n); err != nil {
+			return nil, fmt.Errorf("is a whole number, not %s", jsonKind(raw))
+		}
+
+	default:
+		return nil, fmt.Errorf("has an unknown kind %s, which is a bug in the table", a.Kind)
 	}
-	return names
+
+	return compact(raw), nil
 }
 
-// KindNames lists the view kinds, in a stable order.
-func KindNames() []string {
-	names := make([]string, 0, len(Kinds))
-	for name := range Kinds {
-		names = append(names, name)
+func asString(raw json.RawMessage) (string, error) {
+	var s string
+	if err := json.Unmarshal(raw, &s); err != nil {
+		return "", fmt.Errorf("is a string, not %s", jsonKind(raw))
 	}
-	sort.Strings(names)
-	return names
+	return s, nil
 }
 
-func jsonKind(v any) string {
+func contains(list []string, s string) bool {
+	for _, item := range list {
+		if item == s {
+			return true
+		}
+	}
+	return false
+}
+
+func isNull(raw json.RawMessage) bool {
+	return len(raw) == 0 || strings.TrimSpace(string(raw)) == "null"
+}
+
+func compact(raw json.RawMessage) json.RawMessage {
+	var buf bytes.Buffer
+	if err := json.Compact(&buf, raw); err != nil {
+		return raw
+	}
+	return buf.Bytes()
+}
+
+// jsonKind names what a value is, for an error a reader can act on.
+func jsonKind(raw json.RawMessage) string {
+	var v any
+	if err := json.Unmarshal(raw, &v); err != nil {
+		return "something that is not JSON"
+	}
 	switch v.(type) {
 	case nil:
 		return "null"
@@ -180,6 +246,8 @@ func jsonKind(v any) string {
 		return "a string"
 	case []any:
 		return "a list"
+	case map[string]any:
+		return "an object"
 	default:
 		return "a number"
 	}

@@ -10,15 +10,12 @@ import (
 
 	"github.com/git-bug/git-bug/commands/execenv"
 	"github.com/git-bug/git-bug/flow/run"
+	"github.com/git-bug/git-bug/tui"
 	"github.com/git-bug/git-bug/view"
 )
 
-// ErrNoRenderer is what --gui and a spec in a terminal both hit today.
-//
-// A view builds a spec and a renderer consumes it;
-// the terminal renderer is `84dfbde` and the HTTP one `8b06191`,
-// and until one of them lands a spec is printed, not drawn.
-var ErrNoRenderer = errors.New("no renderer yet (84dfbde, 8b06191)")
+// ErrNoGui is what --gui hits until the browser renderer exists.
+var ErrNoGui = errors.New("the gui renderer is not built yet (8b06191)")
 
 type flowRunOptions struct {
 	format string
@@ -39,8 +36,11 @@ an unknown key is an error naming the arguments, and an argument with no
 default that nobody named is an error too. ` + "`git work flow`" + ` lists them.
 
 A flow that returns a value prints it as JSON; one that returns nothing prints
-nothing. A flow that returns a view's spec prints the spec, until a renderer
-exists to draw it.`,
+nothing.
+
+A flow that calls a view draws it here and blocks until you quit it, so a
+saved view is a flow that calls one. That needs a terminal: without one, the
+view call is what fails, and a flow that draws nothing runs as it always did.`,
 		Example: `git work flow run board
 git work flow run board '{"iteration":"2026-Q4-S3"}'
 echo '{"iteration":"current"}' | git work flow run board -`,
@@ -57,7 +57,7 @@ echo '{"iteration":"current"}' | git work flow run board -`,
 
 	addFormatFlag(cmd, &options.format)
 	flags.BoolVar(&options.gui, "gui", false,
-		"Render what the flow returned in the browser")
+		"Draw what the flow renders in the browser")
 
 	return cmd
 }
@@ -66,7 +66,7 @@ func runFlowRun(env *execenv.Env, opts flowRunOptions, args []string) error {
 	warnDuplicates(env)
 
 	if opts.gui {
-		return ErrNoRenderer
+		return ErrNoGui
 	}
 
 	kwargs, err := readKwargs(env, args)
@@ -74,9 +74,18 @@ func runFlowRun(env *execenv.Env, opts flowRunOptions, args []string) error {
 		return err
 	}
 
+	// A flow needs no renderer until it calls a view, so a missing terminal
+	// is not an error here: it is the absence host.View reports if and when
+	// the script asks to draw something.
+	var renderer view.Renderer
+	if terminal, ok := tui.New(env.Out.Raw()); ok {
+		renderer = terminal
+	}
+
 	// A flow writes through the cache like any command, as the user that
 	// LoadBackendEnsureUser settled, and print() goes to stderr.
-	raw, err := run.Flow(env.Ctx, env.Backend, env.Err.Raw(), args[0], kwargs)
+	raw, err := run.Flow(env.Ctx, env.Backend,
+		run.Options{Stderr: env.Err.Raw(), Renderer: renderer}, args[0], kwargs)
 	if err != nil {
 		return err
 	}
@@ -92,32 +101,12 @@ func runFlowRun(env *execenv.Env, opts flowRunOptions, args []string) error {
 
 	switch opts.format {
 	case "json":
-		return printSpecOrJSON(env, raw, value)
+		return env.Out.PrintJSON(value)
 	case "text":
 		return printText(env, value)
 	default:
 		return fmt.Errorf("unknown format %s", opts.format)
 	}
-}
-
-// printSpecOrJSON prints what a flow returned,
-// and prints a spec the way `git work view` prints one.
-//
-// A spec reaching here has been through a `map[string]any`, whose keys marshal
-// alphabetically, so printing the decoded value would put `bindings` before
-// `view` while the view command prints the struct's own order. The two paths
-// build the same spec and must print the same bytes (`52a2797`), so a spec is
-// decoded back into one before it goes out.
-func printSpecOrJSON(env *execenv.Env, raw json.RawMessage, value any) error {
-	if view.IsSpec(value) {
-		spec := &view.Spec{}
-		if err := json.Unmarshal(raw, spec); err != nil {
-			return err
-		}
-		return env.Out.PrintJSON(spec)
-	}
-
-	return env.Out.PrintJSON(value)
 }
 
 // readKwargs reads the optional JSON object of arguments.

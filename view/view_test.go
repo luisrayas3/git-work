@@ -7,100 +7,150 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func items(n int) []any {
-	out := make([]any, 0, n)
-	for i := 0; i < n; i++ {
-		out = append(out, map[string]any{
-			"id":     "abcdef0123456789",
-			"fields": map[string]any{"title": "a title", "status": "open"},
-		})
-	}
+// kwargs is the JSON object a call is, from a literal.
+func kwargs(t *testing.T, doc string) map[string]json.RawMessage {
+	t.Helper()
+	var out map[string]json.RawMessage
+	require.NoError(t, json.Unmarshal([]byte(doc), &out))
 	return out
 }
 
-func TestSpecShape(t *testing.T) {
-	spec, err := Board(items(2), map[string]string{"columns": "status", "card_title": "title"})
+func TestParseAppliesTheDefaults(t *testing.T) {
+	call, err := Parse(KindList, nil)
 	require.NoError(t, err)
 
-	raw, err := json.Marshal(spec)
-	require.NoError(t, err)
-
-	var got map[string]any
-	require.NoError(t, json.Unmarshal(raw, &got))
-	require.Equal(t, "board", got["view"])
-	require.Equal(t, map[string]any{"columns": "status", "card_title": "title"}, got["bindings"])
-	require.Len(t, got["items"], 2)
-
-	// a spec is recognisable by a renderer, and by the printer
-	require.True(t, IsSpec(got))
+	require.Equal(t, KindList, call.Kind)
+	// every kind that draws more than one issue queries the same way
+	require.Equal(t, DefaultQuery, call.String("query"))
+	require.Equal(t, []string{"title"}, call.Strings("fields"))
+	// a feature nobody asked for is simply absent
+	require.False(t, call.Has("group_by"))
+	require.False(t, call.Has("rank"))
+	require.Equal(t, 0, call.Int("depth"))
 }
 
-func TestRequiredBindings(t *testing.T) {
-	// board needs its columns
-	_, err := Board(items(1), nil)
+func TestParseKeepsWhatWasGiven(t *testing.T) {
+	call, err := Parse(KindList, kwargs(t, `{
+		"query": "map(select(.fields.status != \"done\"))",
+		"fields": ["title", "status", "assignee"],
+		"details": ["labels"],
+		"group_by": "status",
+		"depth": 2,
+		"rank": "rank"
+	}`))
+	require.NoError(t, err)
+
+	require.Equal(t, `map(select(.fields.status != "done"))`, call.String("query"))
+	require.Equal(t, []string{"title", "status", "assignee"}, call.Strings("fields"))
+	require.Equal(t, []string{"labels"}, call.Strings("details"))
+	require.Equal(t, "status", call.String("group_by"))
+	require.Equal(t, 2, call.Int("depth"))
+	require.True(t, call.Has("rank"))
+}
+
+func TestParseUnknownKeyNamesTheArguments(t *testing.T) {
+	_, err := Parse(KindBoard, kwargs(t, `{"columns":"status","colums":"status"}`))
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "colums")
+	// the error names what the view does take, with the tier
+	require.Contains(t, err.Error(), "columns (required)")
+	require.Contains(t, err.Error(), "card (defaulted)")
+	require.Contains(t, err.Error(), "group_by (feature)")
+}
+
+func TestParseMissingRequired(t *testing.T) {
+	_, err := Parse(KindBoard, nil)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "columns")
 
 	// gantt needs both ends, and says which one is missing
-	_, err = Gantt(items(1), map[string]string{"start": "start_date"})
+	_, err = Parse(KindGantt, kwargs(t, `{"start":"start_date"}`))
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "end")
+	require.Contains(t, err.Error(), "stop")
 
-	_, err = Gantt(items(1), map[string]string{"start": "start_date", "end": "due_date"})
+	call, err := Parse(KindGantt, kwargs(t, `{"start":"start_date","stop":"due"}`))
 	require.NoError(t, err)
+	require.Equal(t, "week", call.String("scale"))
+	require.Equal(t, "title", call.String("label"))
+	// a default the renderer computes is absent here, not null
+	require.False(t, call.Has("from"))
+	require.False(t, call.Has("to"))
 
-	// list requires nothing
-	spec, err := List(items(1), nil)
+	// show takes an id, and no query at all
+	_, err = Parse(KindShow, nil)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "id")
+
+	_, err = Parse(KindShow, kwargs(t, `{"id":"abcdef0","query":"."}`))
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "query")
+}
+
+func TestParseChecksValueTypes(t *testing.T) {
+	// a field key is a string
+	_, err := Parse(KindBoard, kwargs(t, `{"columns":3}`))
+	require.ErrorContains(t, err, "a string")
+
+	// and not an empty one
+	_, err = Parse(KindBoard, kwargs(t, `{"columns":"  "}`))
+	require.ErrorContains(t, err, "empty")
+
+	// a list of field keys is a list
+	_, err = Parse(KindList, kwargs(t, `{"fields":"title"}`))
+	require.ErrorContains(t, err, "a list of strings")
+
+	_, err = Parse(KindList, kwargs(t, `{"fields":["title", 3]}`))
+	require.ErrorContains(t, err, "a list of strings")
+
+	// depth is a whole number
+	_, err = Parse(KindList, kwargs(t, `{"depth":"two"}`))
+	require.ErrorContains(t, err, "whole number")
+
+	// the values of a board are any strings, not necessarily field keys
+	call, err := Parse(KindBoard, kwargs(t, `{"columns":"status","values":["to-do","done"]}`))
 	require.NoError(t, err)
-	require.Equal(t, map[string]string{}, spec.Bindings)
+	require.Equal(t, []string{"to-do", "done"}, call.Strings("values"))
 }
 
-func TestUnknownBindingNamesTheAllowedOnes(t *testing.T) {
-	_, err := Board(items(1), map[string]string{"columns": "status", "colums": "status"})
+func TestParseChecksAnEnum(t *testing.T) {
+	_, err := Parse(KindGantt, kwargs(t, `{"start":"a","stop":"b","scale":"fortnight"}`))
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "colums")
-	// the error names what the view does take
-	require.Contains(t, err.Error(), "card_title")
-	require.Contains(t, err.Error(), "columns (required)")
-}
+	require.Contains(t, err.Error(), "fortnight")
+	require.Contains(t, err.Error(), "day, week, month, quarter")
 
-func TestEmptyBindingIsRefused(t *testing.T) {
-	_, err := Board(items(1), map[string]string{"columns": "  "})
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "empty")
-}
-
-func TestItemsAreIssueShaped(t *testing.T) {
-	_, err := List([]any{"not an issue"}, nil)
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "item 0")
-
-	_, err = List([]any{map[string]any{"fields": map[string]any{}}}, nil)
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "no id")
-
-	_, err = List([]any{map[string]any{"id": "abc"}}, nil)
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "no fields")
-
-	// no items at all is a view of nothing, not an error, and never null
-	spec, err := List(nil, nil)
+	call, err := Parse(KindGantt, kwargs(t, `{"start":"a","stop":"b","scale":"quarter"}`))
 	require.NoError(t, err)
-	require.Equal(t, []any{}, spec.Items)
+	require.Equal(t, "quarter", call.String("scale"))
 }
 
-func TestUnknownKind(t *testing.T) {
-	_, err := Build("burndown", items(1), nil)
+// TestNullMeansTheDefault is what a Starlark keyword of None has to mean:
+// the argument was not given.
+func TestNullMeansTheDefault(t *testing.T) {
+	call, err := Parse(KindList, kwargs(t, `{"query":null,"group_by":null}`))
+	require.NoError(t, err)
+	require.Equal(t, DefaultQuery, call.String("query"))
+	require.False(t, call.Has("group_by"))
+
+	// but a required argument is still required
+	_, err = Parse(KindBoard, kwargs(t, `{"columns":null}`))
+	require.ErrorContains(t, err, "columns")
+}
+
+func TestParseUnknownKind(t *testing.T) {
+	_, err := Parse("burndown", nil)
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "board")
-	require.Contains(t, err.Error(), "gantt")
-	require.Contains(t, err.Error(), "list")
+	for _, kind := range []string{"board", "gantt", "list", "show"} {
+		require.Contains(t, err.Error(), kind)
+	}
 }
 
-func TestIsSpecRefusesWhatIsNotOne(t *testing.T) {
-	require.False(t, IsSpec(nil))
-	require.False(t, IsSpec("a string"))
-	require.False(t, IsSpec(map[string]any{"view": "burndown", "items": []any{}}))
-	require.False(t, IsSpec(map[string]any{"view": "board"}))
-	require.True(t, IsSpec(map[string]any{"view": "board", "items": []any{}}))
+// TestHelpIsGeneratedFromTheTable pins the one rule the help follows:
+// every argument is in it, with its tier, so the help and the check agree.
+func TestHelpIsGeneratedFromTheTable(t *testing.T) {
+	help := Help(KindBoard)
+	for _, arg := range Kinds[KindBoard] {
+		require.Contains(t, help, arg.Name)
+		require.Contains(t, help, string(arg.Tier))
+	}
+	require.Contains(t, Help(KindList), `["title"]`)
 }

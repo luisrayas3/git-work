@@ -14,6 +14,7 @@ import (
 	"github.com/git-bug/git-bug/flow"
 	"github.com/git-bug/git-bug/host"
 	"github.com/git-bug/git-bug/repository"
+	"github.com/git-bug/git-bug/view"
 )
 
 // testRepo is a store with an identity set, which is what a writer needs.
@@ -32,15 +33,33 @@ func testRepo(t *testing.T) *cache.RepoCache {
 	return backend
 }
 
-// run executes a script and returns what it returned, decoded.
+// fakeRenderer is a surface that draws nothing and remembers what it was
+// asked to draw, which is what a test of the wiring needs to see.
+type fakeRenderer struct {
+	calls  []*view.Call
+	answer json.RawMessage
+}
+
+func (f *fakeRenderer) Render(_ context.Context, _ *cache.RepoCache, call *view.Call) (json.RawMessage, error) {
+	f.calls = append(f.calls, call)
+	return f.answer, nil
+}
+
+// run executes a script with no renderer, which is a flow in a pipe.
 func run(t *testing.T, repo *cache.RepoCache, script string, kwargs map[string]json.RawMessage) (any, string, error) {
+	t.Helper()
+	return runWith(t, repo, nil, script, kwargs)
+}
+
+// runWith executes a script on a surface, and returns what it returned.
+func runWith(t *testing.T, repo *cache.RepoCache, renderer view.Renderer, script string, kwargs map[string]json.RawMessage) (any, string, error) {
 	t.Helper()
 
 	def, err := flow.Parse(script)
 	require.NoError(t, err)
 
 	stderr := &bytes.Buffer{}
-	raw, err := Run(context.Background(), repo, stderr, def, script, kwargs)
+	raw, err := Run(context.Background(), repo, Options{Stderr: stderr, Renderer: renderer}, def, script, kwargs)
 	if err != nil {
 		return nil, stderr.String(), err
 	}
@@ -68,27 +87,21 @@ func importFlow(t *testing.T, repo *cache.RepoCache, script string) {
 }
 
 const boardFlow = `def board(status="open"):
-    """Kanban of what is not done."""
+    """What is not done."""
     a = work.issue.new({"fields": {"title": "first", "status": "open"}})
     work.issue.new({"fields": {"title": "second", "status": "done"}})
     work.issue.set(a, estimate=3)
-    items = work.issue.list('map(select(.fields.status == "%s"))' % status)
-    return work.view.board(items, columns="status", card_title="title")
+    return work.issue.list('map(select(.fields.status == "%s"))' % status)
 `
 
-func TestFlowWritesReadsAndReturnsASpec(t *testing.T) {
+func TestFlowWritesAndReads(t *testing.T) {
 	repo := testRepo(t)
 
 	value, _, err := run(t, repo, boardFlow, nil)
 	require.NoError(t, err)
 
-	spec, ok := value.(map[string]any)
-	require.True(t, ok)
-	require.Equal(t, "board", spec["view"])
-	require.Equal(t, map[string]any{"columns": "status", "card_title": "title"}, spec["bindings"])
-
 	// the jq program selected one of the two issues the flow created
-	items, ok := spec["items"].([]any)
+	items, ok := value.([]any)
 	require.True(t, ok)
 	require.Len(t, items, 1)
 
@@ -110,7 +123,7 @@ func TestDefaultFillsAndAnArgumentOverridesIt(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	items := value.(map[string]any)["items"].([]any)
+	items := value.([]any)
 	require.Len(t, items, 1)
 	require.Equal(t, "second", items[0].(map[string]any)["fields"].(map[string]any)["title"])
 }
@@ -233,20 +246,58 @@ func TestHostErrorNamesTheFunction(t *testing.T) {
 
 func TestViewErrorsReachTheScript(t *testing.T) {
 	repo := testRepo(t)
+	renderer := &fakeRenderer{}
 
-	_, _, err := run(t, repo, `def bad():
+	// the call is checked before anything is drawn, so a bad one fails the
+	// same way with a surface and without one
+	_, _, err := runWith(t, repo, renderer, `def bad():
     """A board with no columns."""
-    return work.view.board([])
+    return work.view.board()
 `, nil)
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "columns")
+	require.ErrorContains(t, err, "columns")
 
-	_, _, err = run(t, repo, `def bad():
-    """A binding this view does not have."""
-    return work.view.gantt([], start="a", end="b", colour="c")
+	_, _, err = runWith(t, repo, renderer, `def bad():
+    """An argument this view does not have."""
+    return work.view.gantt(start="a", stop="b", colour="c")
 `, nil)
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "colour")
+	require.ErrorContains(t, err, "colour")
+
+	require.Empty(t, renderer.calls, "nothing was drawn")
+}
+
+// TestViewWithoutARendererSaysSo is what a flow in a pipe, or an agent's
+// flow, hits: the call is fine, there is nowhere to draw it.
+func TestViewWithoutARendererSaysSo(t *testing.T) {
+	repo := testRepo(t)
+
+	_, _, err := run(t, repo, `def board():
+    """A board with nowhere to draw it."""
+    return work.view.board(columns="status")
+`, nil)
+	require.ErrorContains(t, err, "no renderer here")
+	require.ErrorContains(t, err, "--gui")
+}
+
+// TestViewReachesTheRendererParsed pins the seam: the renderer is handed a
+// call with the defaults already applied, and never a raw keyword object.
+func TestViewReachesTheRendererParsed(t *testing.T) {
+	repo := testRepo(t)
+	renderer := &fakeRenderer{answer: json.RawMessage(`"quit"`)}
+
+	value, _, err := runWith(t, repo, renderer, `def board():
+    """A list grouped by status."""
+    return work.view.list(group_by="status")
+`, nil)
+	require.NoError(t, err)
+	require.Equal(t, "quit", value)
+
+	require.Len(t, renderer.calls, 1)
+	call := renderer.calls[0]
+	require.Equal(t, view.KindList, call.Kind)
+	require.Equal(t, "status", call.String("group_by"))
+	// the defaults the table carries, applied once, in host.View
+	require.Equal(t, view.DefaultQuery, call.String("query"))
+	require.Equal(t, []string{"title"}, call.Strings("fields"))
 }
 
 func TestStepCapTrips(t *testing.T) {
@@ -281,7 +332,7 @@ func TestContextCancellationStops(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	_, err = Run(ctx, repo, nil, def, script, nil)
+	_, err = Run(ctx, repo, Options{}, def, script, nil)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "flow forever")
 }
@@ -427,14 +478,14 @@ func TestTheOnlyGlobalIsTheWorkModule(t *testing.T) {
 func TestTheSDKNamesAreFreeForAScript(t *testing.T) {
 	repo := testRepo(t)
 
-	value, _, err := run(t, repo, `def local_names():
+	value, _, err := runWith(t, repo, &fakeRenderer{answer: json.RawMessage(`"drawn"`)}, `def local_names():
     """Name locals after the things they hold."""
     id = work.issue.new({"fields": {"title": "a title"}})
     issue = work.issue.get(id)
     flow = work.flow.list()
     schema = work.schema.export()
-    view = work.view.list([issue])
-    return [issue["fields"]["title"], len(flow), len(schema["types"]), view["view"]]
+    view = work.view.list()
+    return [issue["fields"]["title"], len(flow), len(schema["types"]), view]
 `, nil)
 	require.NoError(t, err)
 
@@ -442,7 +493,7 @@ func TestTheSDKNamesAreFreeForAScript(t *testing.T) {
 	require.Equal(t, "a title", got[0])
 	require.EqualValues(t, 0, got[1])
 	require.EqualValues(t, 0, got[2])
-	require.Equal(t, "list", got[3])
+	require.Equal(t, "drawn", got[3])
 }
 
 func TestSchemaInitThenAWriteItValidates(t *testing.T) {
