@@ -21,6 +21,7 @@ var (
 	styleCell    = lipgloss.NewStyle().Reverse(true)
 	styleStatus  = lipgloss.NewStyle().Faint(true)
 	styleProblem = lipgloss.NewStyle().Foreground(lipgloss.Color("1"))
+	styleGrab    = lipgloss.NewStyle().Foreground(lipgloss.Color("3")).Bold(true)
 )
 
 // noGroup is what a row with no value for the grouping field is filed under.

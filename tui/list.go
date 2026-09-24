@@ -1,15 +1,19 @@
 package tui
 
 import (
+	"fmt"
 	"sort"
 	"strings"
+	"time"
 
 	"charm.land/bubbles/v2/key"
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/git-bug/git-bug/cache"
+	"github.com/git-bug/git-bug/entities/issue"
 	"github.com/git-bug/git-bug/host"
+	"github.com/git-bug/git-bug/rank"
 	"github.com/git-bug/git-bug/schema"
 	"github.com/git-bug/git-bug/view"
 )
@@ -41,7 +45,13 @@ type listPage struct {
 
 	filter    string
 	filtering *textinput.Model
+	editor    *editor
+	comment   *commentBox
 	helping   bool
+
+	// grabbed is the row being dragged, by index into rows, or -1.
+	grabbed int
+	blink   bool
 
 	status string
 }
@@ -69,6 +79,7 @@ func newListPage(repo *cache.RepoCache, call *view.Call) (*listPage, error) {
 		rankKey: call.String("rank"),
 		width:   80,
 		height:  24,
+		grabbed: -1,
 	}
 	if len(p.fields) == 0 {
 		p.fields = []string{schema.TitleKey}
@@ -248,10 +259,24 @@ func (p *listPage) Update(msg tea.Msg) (page, tea.Cmd) {
 		}
 		return p, nil
 
+	case blinkMsg:
+		if p.grabbed < 0 {
+			return p, nil
+		}
+		p.blink = !p.blink
+		return p, blinkTick()
+
 	case tea.KeyPressMsg:
 		return p.key(msg)
 	}
 
+	// a widget that asked for a command gets the answer to it
+	if p.editor != nil {
+		return p.updateEditor(msg)
+	}
+	if p.comment != nil {
+		return p.updateComment(msg)
+	}
 	return p, nil
 }
 
@@ -260,8 +285,14 @@ func (p *listPage) key(press tea.KeyPressMsg) (page, tea.Cmd) {
 	case p.helping:
 		p.helping = false
 		return p, nil
+	case p.editor != nil:
+		return p.updateEditor(press)
+	case p.comment != nil:
+		return p.updateComment(press)
 	case p.filtering != nil:
 		return p.updateFilter(press)
+	case p.grabbed >= 0:
+		return p.updateGrab(press)
 	}
 
 	switch {
@@ -286,10 +317,16 @@ func (p *listPage) key(press tea.KeyPressMsg) (page, tea.Cmd) {
 	case key.Matches(press, keys.right):
 		p.column = min(len(p.fields)-1, p.column+1)
 
+	case key.Matches(press, keys.edit):
+		p.startEdit()
+	case key.Matches(press, keys.comment):
+		p.startComment()
 	case key.Matches(press, keys.yank):
 		return p.yank()
 	case key.Matches(press, keys.filter):
 		p.startFilter()
+	case key.Matches(press, keys.grab):
+		return p.startGrab()
 	case key.Matches(press, keys.help):
 		p.helping = true
 
@@ -350,6 +387,211 @@ func (p *listPage) updateFilter(msg tea.Msg) (page, tea.Cmd) {
 	p.reorder()
 	return p, cmd
 }
+
+// startEdit opens the widget the schema says this field takes.
+//
+// A bool has no widget: there is one other value, so asking which one would
+// be a question with one answer.
+func (p *listPage) startEdit() {
+	row := p.current()
+	if row == nil {
+		return
+	}
+	fieldKey := p.fields[p.column]
+
+	kind, known := fieldKind(p.repo, row.typeKey, fieldKey)
+	if known && kind == schema.KindBool {
+		was, _ := row.fields[fieldKey].(bool)
+		p.write(row.id, fieldKey, issue.MustValue(!was))
+		return
+	}
+
+	ed, refusal, err := editable(p.repo, row.typeKey, fieldKey, row.fields[fieldKey])
+	switch {
+	case err != nil:
+		p.status = err.Error()
+	case refusal != "":
+		p.status = refusal
+	default:
+		ed.issueId = row.id
+		p.editor = ed
+		p.status = ""
+	}
+}
+
+func (p *listPage) updateEditor(msg tea.Msg) (page, tea.Cmd) {
+	done, cancelled, cmd := p.editor.Update(msg)
+	if !done {
+		return p, cmd
+	}
+
+	ed := p.editor
+	p.editor = nil
+	if cancelled {
+		return p, nil
+	}
+
+	value, err := ed.Value()
+	if err != nil {
+		p.status = err.Error()
+		return p, nil
+	}
+	p.write(ed.issueId, ed.key, value)
+	return p, nil
+}
+
+// write is every edit's one exit: through host, which is through the cache,
+// which is the only thing that holds the write lock (AGENTS.md).
+//
+// A refusal — the schema's, or the entity's — is a status line and nothing
+// else changes, because the store did not change either.
+func (p *listPage) write(id, key string, value issue.Value) {
+	if _, err := host.IssueSet(p.repo, id, map[string]issue.Value{key: value}, false); err != nil {
+		p.status = err.Error()
+		return
+	}
+	p.status = fmt.Sprintf("%s set on %s", key, id[:7])
+	if err := p.load(); err != nil {
+		p.status = err.Error()
+	}
+}
+
+func (p *listPage) startComment() {
+	row := p.current()
+	if row == nil {
+		return
+	}
+	p.comment = newCommentBox(row.id, p.width, p.height/3)
+}
+
+func (p *listPage) updateComment(msg tea.Msg) (page, tea.Cmd) {
+	done, body, cmd := p.comment.Update(msg)
+	if !done {
+		return p, cmd
+	}
+
+	id := p.comment.issueId
+	p.comment = nil
+	if body == "" {
+		return p, nil
+	}
+
+	if _, err := host.IssueCommentNew(p.repo, id, body); err != nil {
+		p.status = err.Error()
+		return p, nil
+	}
+	p.status = "commented on " + id[:7]
+	if err := p.load(); err != nil {
+		p.status = err.Error()
+	}
+	return p, nil
+}
+
+// startGrab picks the row under the cursor up, to drop it somewhere else.
+//
+// It needs a rank field: without one the order is the query's, and moving a
+// row would be a change with nowhere to be written.
+func (p *listPage) startGrab() (page, tea.Cmd) {
+	if p.rankKey == "" {
+		p.status = "no rank bound: a view orders by rank to be able to reorder"
+		return p, nil
+	}
+	if p.current() == nil {
+		return p, nil
+	}
+	p.grabbed = p.order[p.cursor]
+	p.blink = true
+	return p, blinkTick()
+}
+
+func (p *listPage) updateGrab(press tea.KeyPressMsg) (page, tea.Cmd) {
+	switch {
+	case key.Matches(press, keys.cancel):
+		// the row goes back where it was: the order is rebuilt from the
+		// store, which never changed.
+		p.grabbed = -1
+		p.reorder()
+		p.putCursorOn(p.currentId())
+		return p, nil
+
+	case key.Matches(press, keys.up):
+		p.dragBy(-1)
+	case key.Matches(press, keys.down):
+		p.dragBy(1)
+
+	case key.Matches(press, keys.grab), key.Matches(press, keys.open):
+		return p, p.drop()
+	}
+	return p, nil
+}
+
+// dragBy moves the grabbed row within its group, on the screen only: the key
+// is computed once, when it is dropped, so a drag of six rows is one write.
+func (p *listPage) dragBy(by int) {
+	to := p.cursor + by
+	if to < 0 || to >= len(p.order) {
+		return
+	}
+	if p.rows[p.order[to]].group != p.rows[p.grabbed].group {
+		return
+	}
+	p.order[p.cursor], p.order[to] = p.order[to], p.order[p.cursor]
+	p.cursor = to
+}
+
+// drop writes the rank of the grabbed row: one key strictly between its new
+// neighbours', which is one operation on one issue.
+func (p *listPage) drop() tea.Cmd {
+	row := &p.rows[p.grabbed]
+	p.grabbed = -1
+
+	lo, hi := p.neighbourRanks()
+	key, err := rank.Between(lo, hi)
+	if err != nil {
+		p.status = err.Error()
+		p.reorder()
+		return nil
+	}
+
+	p.write(row.id, p.rankKey, issue.StringValue(key))
+	p.putCursorOn(row.id)
+	return nil
+}
+
+// neighbourRanks reads the ranks the dropped row has to land between.
+//
+// An empty string on either side is the end of the list, which is what
+// rank.Between takes for "before everything" and "after everything".
+func (p *listPage) neighbourRanks() (string, string) {
+	group := p.rows[p.order[p.cursor]].group
+
+	var lo, hi string
+	for at := p.cursor - 1; at >= 0; at-- {
+		if p.rows[p.order[at]].group != group {
+			break
+		}
+		if r := p.rows[p.order[at]].rank; r != "" {
+			lo = r
+			break
+		}
+	}
+	for at := p.cursor + 1; at < len(p.order); at++ {
+		if p.rows[p.order[at]].group != group {
+			break
+		}
+		if r := p.rows[p.order[at]].rank; r != "" {
+			hi = r
+			break
+		}
+	}
+	return lo, hi
+}
+
+func blinkTick() tea.Cmd {
+	return tea.Tick(blinkInterval, func(_ time.Time) tea.Msg { return blinkMsg{} })
+}
+
+const blinkInterval = 400 * time.Millisecond
 
 // issueItems flattens whatever the jq program emitted into issues.
 //

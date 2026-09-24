@@ -11,21 +11,25 @@ import (
 // three different people and none of them conflict. The help lists all three
 // spellings, so nobody has to guess which one this program chose.
 type keymap struct {
-	up     key.Binding
-	down   key.Binding
-	left   key.Binding
-	right  key.Binding
-	pageUp key.Binding
-	pageDn key.Binding
-	top    key.Binding
-	bottom key.Binding
-	open   key.Binding
-	back   key.Binding
-	yank   key.Binding
-	filter key.Binding
-	help   key.Binding
-	quit   key.Binding
-	cancel key.Binding
+	up      key.Binding
+	down    key.Binding
+	left    key.Binding
+	right   key.Binding
+	pageUp  key.Binding
+	pageDn  key.Binding
+	top     key.Binding
+	bottom  key.Binding
+	open    key.Binding
+	back    key.Binding
+	edit    key.Binding
+	comment key.Binding
+	yank    key.Binding
+	filter  key.Binding
+	grab    key.Binding
+	help    key.Binding
+	quit    key.Binding
+	submit  key.Binding
+	cancel  key.Binding
 }
 
 var keys = keymap{
@@ -41,13 +45,17 @@ var keys = keymap{
 		key.WithHelp("home/g/alt+<", "first")),
 	bottom: key.NewBinding(key.WithKeys("end", "G", "shift+g", "alt+>", "alt+shift+."),
 		key.WithHelp("end/G/alt+>", "last")),
-	open:   key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "accept")),
-	back:   key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "back")),
-	yank:   key.NewBinding(key.WithKeys("y"), key.WithHelp("y", "yank the id")),
-	filter: key.NewBinding(key.WithKeys("/"), key.WithHelp("/", "filter")),
-	help:   key.NewBinding(key.WithKeys("?"), key.WithHelp("?", "this help")),
-	quit:   key.NewBinding(key.WithKeys("q", "ctrl+c"), key.WithHelp("q/ctrl+c", "quit")),
-	cancel: key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "cancel")),
+	open:    key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "accept")),
+	back:    key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "back")),
+	edit:    key.NewBinding(key.WithKeys("e"), key.WithHelp("e", "edit the field")),
+	comment: key.NewBinding(key.WithKeys("c"), key.WithHelp("c", "comment")),
+	yank:    key.NewBinding(key.WithKeys("y"), key.WithHelp("y", "yank the id")),
+	filter:  key.NewBinding(key.WithKeys("/"), key.WithHelp("/", "filter")),
+	grab:    key.NewBinding(key.WithKeys(" ", "space"), key.WithHelp("space", "grab and drop a row")),
+	help:    key.NewBinding(key.WithKeys("?"), key.WithHelp("?", "this help")),
+	quit:    key.NewBinding(key.WithKeys("q", "ctrl+c"), key.WithHelp("q/ctrl+c", "quit")),
+	submit:  key.NewBinding(key.WithKeys("ctrl+s", "ctrl+d"), key.WithHelp("ctrl+s/ctrl+d", "submit")),
+	cancel:  key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "cancel")),
 }
 
 // helpLines is the overlay `?` draws: every key, with all three spellings.
@@ -66,8 +74,11 @@ func helpLines() []string {
 		{keys.bottom, "last row"},
 		{keys.open, "accept what is typed"},
 		{keys.back, "back, or clear the filter"},
+		{keys.edit, "edit the field under the cursor"},
+		{keys.comment, "write a comment"},
 		{keys.yank, "yank the id to the clipboard"},
 		{keys.filter, "filter the rows"},
+		{keys.grab, "grab a row, then drop it (needs rank)"},
 		{keys.help, "this help"},
 		{keys.quit, "quit"},
 	}

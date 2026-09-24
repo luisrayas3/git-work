@@ -42,7 +42,12 @@ func (p *listPage) View() string {
 // always the last line of the page.
 func (p *listPage) bottom() []string {
 	var lines []string
-	if p.filtering != nil {
+	switch {
+	case p.editor != nil:
+		lines = p.editor.View(p.width)
+	case p.comment != nil:
+		lines = p.comment.View(p.width)
+	case p.filtering != nil:
 		lines = []string{fit("/"+p.filtering.View(), p.width)}
 	}
 	return append(lines, p.statusLine())
@@ -91,7 +96,7 @@ func (p *listPage) body() (header string, rows []string, cursorLine int) {
 		if at == p.cursor {
 			cursorLine = len(rows)
 		}
-		rows = append(rows, p.rowLine(row, widths, at == p.cursor))
+		rows = append(rows, p.rowLine(row, widths, at == p.cursor, index == p.grabbed))
 
 		for _, line := range p.detailLines(row) {
 			rows = append(rows, line)
@@ -105,7 +110,7 @@ func (p *listPage) body() (header string, rows []string, cursorLine int) {
 //
 // The cell under the column cursor is reversed, which is what says that `e`
 // edits that one and not the row.
-func (p *listPage) rowLine(row *listRow, widths []int, under bool) string {
+func (p *listPage) rowLine(row *listRow, widths []int, under bool, grabbed bool) string {
 	cells := make([]string, 0, len(p.fields)+1)
 	cells = append(cells, styleDim.Render(pad(row.human, idWidth)))
 
@@ -118,10 +123,17 @@ func (p *listPage) rowLine(row *listRow, widths []int, under bool) string {
 	}
 
 	line := strings.Join(cells, " ")
-	if under {
-		return "›" + line
+	switch {
+	case grabbed && p.blink:
+		line = styleGrab.Render("[") + line + styleGrab.Render("]")
+	case grabbed:
+		line = styleGrab.Render("⟨") + line + styleGrab.Render("⟩")
+	case under:
+		line = "›" + line
+	default:
+		line = " " + line
 	}
-	return " " + line
+	return line
 }
 
 // detailLines are the dim second line under a row, one per detail field, so

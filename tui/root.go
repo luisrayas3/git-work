@@ -27,6 +27,8 @@ type (
 	popMsg struct{}
 	// refreshMsg says the store changed and every page should re-read it.
 	refreshMsg struct{}
+	// blinkMsg drives the grabbed row's blink.
+	blinkMsg struct{}
 )
 
 // root is the stack of pages, and the two keys that are the program's own.
