@@ -147,7 +147,7 @@ It runs in-process over the same host API a command reaches (`52a2797`):
 | --- | --- |
 | List | `git work flow` · `--format text` (name, description, arguments) |
 | Show | `git work flow get <name>` · `--format text` prints the script |
-| Run | `git work flow run <name> [KWARGS\|-]` · `--format text` · `--gui` (errors until the gui process exists) |
+| Run | `git work flow run <name> [KWARGS\|-]` · `--format text` (a string bare, a list of strings one per line, anything else as JSON) · `--gui` (errors until the gui process exists) |
 | Import | `git work flow import FILE\|DIR\|-…` `[--prune] [--dry-run]` → prints the id of each flow it creates |
 | Export | `git work flow export <name> > FILE` · `git work flow export --all DIR` |
 | History | `git work flow log [<name>]` (one JSON object per line) |
@@ -196,8 +196,12 @@ Every kind takes `query`, a jq program over the same array `git work issue` prin
 which the view runs itself and re-runs on a ref-watcher change and after its own writes,
 so a kanban with no flow at all is one command:
 `git work view board '{"query":"map(select(.fields.status != \"done\"))","columns":"status"}'`.
+KWARGS is read from standard input when it is `-`, like every document argument.
 Arrows, vim and emacs keys all navigate;
-`Space` grabs an item to move it, `e` edits the field under the cursor,
+`Space` grabs an item to move it (only when `rank` is bound),
+`e` edits the field under the cursor,
+where a picker ends with `(none)` and an emptied box clears the field
+(`title` excepted, it cannot be cleared),
 `Enter` opens show, `y` yanks the id, `?` lists the keys, `q` quits.
 
 Gotchas, hardened from use:

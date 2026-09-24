@@ -54,8 +54,8 @@ func New(out io.Writer) (*Renderer, bool) {
 // Render draws a call and blocks until the user quits.
 //
 // The answer is nil for every kind today; the signature carries one because a
-// view is a question as much as a picture — `work.view.list(pick=True)` will
-// return the issue that was chosen.
+// view is a question as much as a picture, and the deferred questions to the
+// user (choose, confirm, ask) will return what the user answered.
 func (r *Renderer) Render(ctx context.Context, repo *cache.RepoCache, call *view.Call) (json.RawMessage, error) {
 	// Nesting is in the argument table, and parsed, so that a script written
 	// against it fails on the renderer rather than on the spelling.
@@ -87,9 +87,10 @@ func (r *Renderer) Render(ctx context.Context, repo *cache.RepoCache, call *view
 
 	// The program runs on its own goroutine and the caller's stays here, as a
 	// worker: a view blocks the script that called it, and the script's thread
-	// is the only one Starlark may be re-entered on. Nothing posts a job yet —
-	// callbacks (on_change, on_select) are deferred, not decided (0740bf3) —
-	// but when they are, this loop is where they run.
+	// is the only one Starlark may be re-entered on. Nothing posts a job yet:
+	// actions injected into views are deferred, not decided
+	// (doc/design/terminal-renderer.md), and when they come, this loop is
+	// where they run, so navigation and redraw never wait on a script.
 	jobs := make(chan func())
 	done := make(chan error, 1)
 	go func() {
