@@ -1,1 +1,1 @@
-{"author":{"id":"a3a282966ced55effb4560271fcd98e13241af24ea76b00ec76a0f18154bc8ee"},"ops":[{"type":9,"timestamp":1789760342,"nonce":"cjy/57+kRJ98zHXgXHpZY/bJeoo=","key":"parent","value":"17e1d0ad40890e8b6ca86869476c7aaa797b246d0a5a47b78a8a7230081cb642"}]}
+{"author":{"id":"a3a282966ced55effb4560271fcd98e13241af24ea76b00ec76a0f18154bc8ee"},"ops":[{"type":9,"timestamp":1789760342,"nonce":"DCtK5UtGX8DZOZvFMExw/n+sr2I=","key":"title","value":"Task: TUI rewrite in Bubble Tea: my-work view with live updates"}]}
