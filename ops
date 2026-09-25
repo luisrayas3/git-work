@@ -1,1 +1,1 @@
-{"author":{"id":"a3a282966ced55effb4560271fcd98e13241af24ea76b00ec76a0f18154bc8ee"},"ops":[{"type":3,"timestamp":1790014273,"nonce":"0MHbL+BipRR8pC0iIBQapLFke9Y=","message":"Closed 2026-09-21 in a prune of pre-workshop items. Superseded by bb9e89e: start/target/due are values of the date field kind, and the Gantt derives from them (6285d60).","files":null}]}
+{"author":{"id":"a3a282966ced55effb4560271fcd98e13241af24ea76b00ec76a0f18154bc8ee"},"ops":[{"type":9,"timestamp":1790014273,"nonce":"eHd/yMMieE6xqDsb01QG9lJKNbI=","key":"status","value":"done"}]}
