@@ -20,7 +20,6 @@ import (
 
 // Program is a compiled jq program, safe to run more than once.
 type Program struct {
-	src  string
 	code *gojq.Code
 }
 
@@ -34,12 +33,7 @@ func Compile(src string) (*Program, error) {
 	if err != nil {
 		return nil, fmt.Errorf("jq: %w", err)
 	}
-	return &Program{src: src, code: code}, nil
-}
-
-// Source returns the program as it was written.
-func (p *Program) Source() string {
-	return p.src
+	return &Program{code: code}, nil
 }
 
 // Run evaluates the program over one input and collects every value it emits.

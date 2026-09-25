@@ -14,14 +14,13 @@ import (
 // The styles, all of them, so that changing how the renderer looks is one
 // file and not a hunt.
 var (
-	styleHeader  = lipgloss.NewStyle().Bold(true)
-	styleGroup   = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("6"))
-	styleDim     = lipgloss.NewStyle().Faint(true)
-	styleCursor  = lipgloss.NewStyle().Bold(true)
-	styleCell    = lipgloss.NewStyle().Reverse(true)
-	styleStatus  = lipgloss.NewStyle().Faint(true)
-	styleProblem = lipgloss.NewStyle().Foreground(lipgloss.Color("1"))
-	styleGrab    = lipgloss.NewStyle().Foreground(lipgloss.Color("3")).Bold(true)
+	styleHeader = lipgloss.NewStyle().Bold(true)
+	styleGroup  = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("6"))
+	styleDim    = lipgloss.NewStyle().Faint(true)
+	styleCursor = lipgloss.NewStyle().Bold(true)
+	styleCell   = lipgloss.NewStyle().Reverse(true)
+	styleStatus = lipgloss.NewStyle().Faint(true)
+	styleGrab   = lipgloss.NewStyle().Foreground(lipgloss.Color("3")).Bold(true)
 )
 
 // noGroup is what a row with no value for the grouping field is filed under.

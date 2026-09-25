@@ -390,7 +390,9 @@ func TestRemove(t *testing.T) {
 func TestCacheEviction(t *testing.T) {
 	repo := repository.CreateGoGitTestRepo(t, false)
 	repoCache := createTestRepoCacheNoEvents(t, repo)
-	repoCache.setCacheSize(2)
+	// the eviction this test is about is one subcache's, so it is the
+	// subcache that is sized
+	repoCache.bugs.SetCacheSize(2)
 
 	require.Equal(t, 2, repoCache.bugs.maxLoaded)
 	require.Len(t, repoCache.bugs.cached, 0)

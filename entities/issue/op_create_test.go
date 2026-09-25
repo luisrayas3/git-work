@@ -32,9 +32,7 @@ func TestCreate(t *testing.T) {
 	status, ok := snap.FieldString("status")
 	require.True(t, ok)
 	require.Equal(t, "open", status)
-	estimate, ok := Number(snap.Fields["estimate"])
-	require.True(t, ok)
-	require.Equal(t, 3.0, estimate)
+	require.JSONEq(t, `3`, string(snap.Fields["estimate"]))
 	require.Len(t, snap.Operations, 1)
 	require.Equal(t, op, snap.Operations[0])
 

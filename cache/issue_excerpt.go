@@ -141,20 +141,6 @@ func (e *IssueExcerpt) FieldString(key string) (string, bool) {
  * Sorting
  */
 
-type IssuesById []*IssueExcerpt
-
-func (b IssuesById) Len() int {
-	return len(b)
-}
-
-func (b IssuesById) Less(i, j int) bool {
-	return b[i].id < b[j].id
-}
-
-func (b IssuesById) Swap(i, j int) {
-	b[i], b[j] = b[j], b[i]
-}
-
 type IssuesByCreationTime []*IssueExcerpt
 
 func (b IssuesByCreationTime) Len() int {
@@ -180,27 +166,5 @@ func (b IssuesByCreationTime) Less(i, j int) bool {
 }
 
 func (b IssuesByCreationTime) Swap(i, j int) {
-	b[i], b[j] = b[j], b[i]
-}
-
-type IssuesByEditTime []*IssueExcerpt
-
-func (b IssuesByEditTime) Len() int {
-	return len(b)
-}
-
-func (b IssuesByEditTime) Less(i, j int) bool {
-	if b[i].EditLamportTime < b[j].EditLamportTime {
-		return true
-	}
-
-	if b[i].EditLamportTime > b[j].EditLamportTime {
-		return false
-	}
-
-	return b[i].EditUnixTime < b[j].EditUnixTime
-}
-
-func (b IssuesByEditTime) Swap(i, j int) {
 	b[i], b[j] = b[j], b[i]
 }

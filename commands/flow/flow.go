@@ -35,12 +35,6 @@ const (
 	attrDescription = host.AttrDescription
 )
 
-// flowEntry is one flow in a listing, paramEntry one of its arguments.
-type (
-	flowEntry  = host.FlowEntry
-	paramEntry = host.FlowParam
-)
-
 type flowListOptions struct {
 	format string
 }

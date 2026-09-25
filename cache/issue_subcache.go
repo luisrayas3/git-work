@@ -3,14 +3,11 @@ package cache
 import (
 	"encoding/json"
 	"errors"
-	"sort"
-	"strings"
 	"time"
 
 	"github.com/git-bug/git-bug/entities/identity"
 	"github.com/git-bug/git-bug/entities/issue"
 	"github.com/git-bug/git-bug/entity"
-	"github.com/git-bug/git-bug/query"
 	"github.com/git-bug/git-bug/repository"
 	"github.com/git-bug/git-bug/schema"
 )
@@ -165,91 +162,6 @@ func (c *RepoCacheIssue) ResolveComment(prefix string) (*IssueCache, entity.Comb
 	}
 
 	return matching, matchingCommentId, nil
-}
-
-// issueMatchesTerms reports whether every term appears, case-insensitively,
-// in the excerpt's title or one of its string-valued fields.
-func issueMatchesTerms(excerpt *IssueExcerpt, terms []string) bool {
-	var haystack strings.Builder
-	for _, v := range excerpt.Fields {
-		if s, ok := issue.String(v); ok {
-			haystack.WriteString(strings.ToLower(s))
-			haystack.WriteByte(0)
-			continue
-		}
-		if list, ok := issue.Strings(v); ok {
-			for _, s := range list {
-				haystack.WriteString(strings.ToLower(s))
-				haystack.WriteByte(0)
-			}
-		}
-	}
-	hay := haystack.String()
-
-	for _, term := range terms {
-		if !strings.Contains(hay, strings.ToLower(term)) {
-			return false
-		}
-	}
-	return true
-}
-
-// Query return the id of all Issues matching the given Query
-func (c *RepoCacheIssue) Query(q *query.Query) ([]entity.Id, error) {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-
-	if q == nil {
-		return c.AllIds(), nil
-	}
-
-	matcher, err := compileIssueMatcher(q.Filters)
-	if err != nil {
-		return nil, err
-	}
-
-	var filtered []*IssueExcerpt
-
-	for _, excerpt := range c.excerpts {
-		if q.Search != nil && !issueMatchesTerms(excerpt, q.Search) {
-			continue
-		}
-		if matcher.Match(excerpt, c.resolvers()) {
-			filtered = append(filtered, excerpt)
-		}
-	}
-
-	var sorter sort.Interface
-
-	switch q.OrderBy {
-	case query.OrderById:
-		sorter = IssuesById(filtered)
-	case query.OrderByCreation:
-		sorter = IssuesByCreationTime(filtered)
-	case query.OrderByEdit:
-		sorter = IssuesByEditTime(filtered)
-	default:
-		return nil, errors.New("missing sort type")
-	}
-
-	switch q.OrderDirection {
-	case query.OrderAscending:
-		// Nothing to do
-	case query.OrderDescending:
-		sorter = sort.Reverse(sorter)
-	default:
-		return nil, errors.New("missing sort direction")
-	}
-
-	sort.Sort(sorter)
-
-	result := make([]entity.Id, len(filtered))
-
-	for i, val := range filtered {
-		result[i] = val.Id()
-	}
-
-	return result, nil
 }
 
 // New create a new issue

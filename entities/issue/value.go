@@ -183,21 +183,3 @@ func Strings(v Value) ([]string, bool) {
 	}
 	return s, true
 }
-
-// Bool decodes the value as a JSON bool.
-func Bool(v Value) (bool, bool) {
-	var b bool
-	if err := json.Unmarshal(v, &b); err != nil {
-		return false, false
-	}
-	return b, true
-}
-
-// Number decodes the value as a JSON number.
-func Number(v Value) (float64, bool) {
-	var f float64
-	if err := json.Unmarshal(v, &f); err != nil {
-		return 0, false
-	}
-	return f, true
-}

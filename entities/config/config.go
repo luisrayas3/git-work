@@ -178,12 +178,6 @@ func (s *Store) New() *Config {
 	return s.wrapper(dag.New(s.def))
 }
 
-// NewSchemaEntity creates an empty entity of the schema namespace.
-func NewSchemaEntity() *Config { return Schema.New() }
-
-// NewFlowEntity creates an empty entity of the flow namespace.
-func NewFlowEntity() *Config { return Flows.New() }
-
 func (s *Store) wrapper(e *dag.Entity) *Config {
 	return &Config{Entity: e, store: s}
 }

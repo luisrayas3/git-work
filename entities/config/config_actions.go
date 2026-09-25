@@ -7,22 +7,9 @@ import (
 	"github.com/git-bug/git-bug/repository"
 )
 
-// Fetch retrieves updates of this namespace from a remote.
-// This does not change the local state.
-func (s *Store) Fetch(repo repository.Repo, remote string) (string, error) {
-	return dag.Fetch(s.def, repo, remote)
-}
-
-// Push updates a remote with the local changes of this namespace.
-func (s *Store) Push(repo repository.Repo, remote string) (string, error) {
-	return dag.Push(s.def, repo, remote)
-}
-
-// Pull does a Fetch + MergeAll and returns an error if a merge fails.
-// An author is necessary for the case where a merge commit is created.
-func (s *Store) Pull(repo repository.ClockedRepo, resolvers entity.Resolvers, remote string, mergeAuthor identity.Interface) error {
-	return dag.Pull(s.def, s.wrapper, repo, resolvers, remote, mergeAuthor)
-}
+// Fetching and pushing are the cache's, by namespace: RepoCache.Fetch and
+// RepoCache.Push walk the subcaches, so an entity package needs no transport
+// of its own.
 
 // MergeAll merges all the available remote entities of this namespace.
 func (s *Store) MergeAll(repo repository.ClockedRepo, resolvers entity.Resolvers, remote string, mergeAuthor identity.Interface) <-chan entity.MergeResult {

@@ -7,24 +7,9 @@ import (
 	"github.com/git-bug/git-bug/repository"
 )
 
-// Fetch retrieve updates from a remote
-// This does not change the local issues state
-func Fetch(repo repository.Repo, remote string) (string, error) {
-	return dag.Fetch(def, repo, remote)
-}
-
-// Push update a remote with the local changes
-func Push(repo repository.Repo, remote string) (string, error) {
-	return dag.Push(def, repo, remote)
-}
-
-// Pull will do a Fetch + MergeAll
-// This function will return an error if a merge fail
-// Note: an author is necessary for the case where a merge commit is created, as this commit will
-// have an author and may be signed if a signing key is available.
-func Pull(repo repository.ClockedRepo, resolvers entity.Resolvers, remote string, mergeAuthor identity.Interface) error {
-	return dag.Pull(def, wrapper, repo, resolvers, remote, mergeAuthor)
-}
+// Fetching and pushing are the cache's, by namespace: RepoCache.Fetch and
+// RepoCache.Push walk the subcaches, so an entity package needs no transport
+// of its own.
 
 // MergeAll will merge all the available remote issues
 // Note: an author is necessary for the case where a merge commit is created, as this commit will

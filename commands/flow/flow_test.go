@@ -74,11 +74,11 @@ func operationCount(t *testing.T, env *execenv.Env) int {
 	return len(strings.Split(out, "\n"))
 }
 
-func listEntries(t *testing.T, env *execenv.Env) []flowEntry {
+func listEntries(t *testing.T, env *execenv.Env) []host.FlowEntry {
 	t.Helper()
 	env.Out.Reset()
 	require.NoError(t, runFlowList(env, flowListOptions{format: "json"}))
-	var entries []flowEntry
+	var entries []host.FlowEntry
 	require.NoError(t, json.Unmarshal(env.Out.Bytes(), &entries))
 	env.Out.Reset()
 	return entries

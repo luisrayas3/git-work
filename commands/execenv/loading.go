@@ -9,7 +9,6 @@ import (
 	"github.com/vbauerster/mpb/v8/decor"
 
 	"github.com/git-bug/git-bug/cache"
-	"github.com/git-bug/git-bug/entities/identity"
 	"github.com/git-bug/git-bug/gitcli"
 	"github.com/git-bug/git-bug/repository"
 	"github.com/git-bug/git-bug/util/interrupt"
@@ -39,25 +38,6 @@ func LoadRepo(env *Env) func(*cobra.Command, []string) error {
 		// alone — so config reads and remote transport run through the git
 		// CLI instead (see package gitcli).
 		env.Repo = gitcli.WrapRepo(repo, cwd)
-
-		return nil
-	}
-}
-
-// LoadRepoEnsureUser is the same as LoadRepo, but also ensure that the user has configured
-// an identity. Use this pre-run function when an error after using the configured user won't
-// do.
-func LoadRepoEnsureUser(env *Env) func(*cobra.Command, []string) error {
-	return func(cmd *cobra.Command, args []string) error {
-		err := LoadRepo(env)(cmd, args)
-		if err != nil {
-			return err
-		}
-
-		_, err = identity.GetUserIdentity(env.Repo)
-		if err != nil {
-			return err
-		}
 
 		return nil
 	}

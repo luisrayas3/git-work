@@ -216,13 +216,6 @@ func (c *RepoCache) getResolvers() entity.Resolvers {
 	return c.resolvers
 }
 
-// setCacheSize change the maximum number of loaded bugs
-func (c *RepoCache) setCacheSize(size int) {
-	for _, subcache := range c.subcaches {
-		subcache.SetCacheSize(size)
-	}
-}
-
 // load will try to read from the disk all the cache files
 func (c *RepoCache) load() error {
 	var errWait multierr.ErrWaitGroup

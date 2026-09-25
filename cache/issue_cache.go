@@ -84,25 +84,11 @@ func (c *IssueCache) AddCommentRaw(author identity.Interface, unixTime int64, me
 	return commentId, op, c.notifyUpdated()
 }
 
-// SetField sets one field; a JSON null clears it.
-func (c *IssueCache) SetField(key string, value issue.Value) (*issue.SetFieldOperation, error) {
-	author, err := c.getUserIdentity()
-	if err != nil {
-		return nil, err
-	}
-
-	return c.SetFieldRaw(author, time.Now().Unix(), key, value, nil)
-}
-
-func (c *IssueCache) SetFieldRaw(author identity.Interface, unixTime int64, key string, value issue.Value, metadata map[string]string) (*issue.SetFieldOperation, error) {
-	c.mu.Lock()
-	op, err := issue.SetField(c.entity, author, unixTime, key, value, metadata)
-	c.mu.Unlock()
-	if err != nil {
-		return nil, err
-	}
-	return op, c.notifyUpdated()
-}
+// A field is written through PlanSetFields, PlanAddValues or
+// PlanRemoveValues and then CommitOperations, never one operation at a time:
+// the plan is what the schema check runs over and what --dry-run prints, so a
+// one-field shortcut past it would be a second way to write that nothing
+// checks (bb9e89e).
 
 // PlanSetFields builds the operations that SetFields would commit, one
 // SetFieldOperation per key, in key order, and validates every one of them
@@ -262,72 +248,6 @@ func sortedKeys[V any](m map[string]V) []string {
 	return keys
 }
 
-// SetTitle is SetField on the title, the one field this layer names.
-func (c *IssueCache) SetTitle(title string) (*issue.SetFieldOperation, error) {
-	return c.SetField(issue.TitleKey, issue.StringValue(title))
-}
-
-// AddValue adds one item to a list-valued field, with set semantics.
-func (c *IssueCache) AddValue(key string, item issue.Value) (*issue.AddValueOperation, error) {
-	author, err := c.getUserIdentity()
-	if err != nil {
-		return nil, err
-	}
-
-	return c.AddValueRaw(author, time.Now().Unix(), key, item, nil)
-}
-
-func (c *IssueCache) AddValueRaw(author identity.Interface, unixTime int64, key string, item issue.Value, metadata map[string]string) (*issue.AddValueOperation, error) {
-	c.mu.Lock()
-	op, err := issue.AddValue(c.entity, author, unixTime, key, item, metadata)
-	c.mu.Unlock()
-	if err != nil {
-		return nil, err
-	}
-	return op, c.notifyUpdated()
-}
-
-// RemoveValue removes one item from a list-valued field.
-func (c *IssueCache) RemoveValue(key string, item issue.Value) (*issue.RemoveValueOperation, error) {
-	author, err := c.getUserIdentity()
-	if err != nil {
-		return nil, err
-	}
-
-	return c.RemoveValueRaw(author, time.Now().Unix(), key, item, nil)
-}
-
-func (c *IssueCache) RemoveValueRaw(author identity.Interface, unixTime int64, key string, item issue.Value, metadata map[string]string) (*issue.RemoveValueOperation, error) {
-	c.mu.Lock()
-	op, err := issue.RemoveValue(c.entity, author, unixTime, key, item, metadata)
-	c.mu.Unlock()
-	if err != nil {
-		return nil, err
-	}
-	return op, c.notifyUpdated()
-}
-
-// EditCreateComment is a convenience function to edit the body of an issue (the first comment)
-func (c *IssueCache) EditCreateComment(body string) (entity.CombinedId, *issue.EditCommentOperation, error) {
-	author, err := c.getUserIdentity()
-	if err != nil {
-		return entity.UnsetCombinedId, nil, err
-	}
-
-	return c.EditCreateCommentRaw(author, time.Now().Unix(), body, nil)
-}
-
-// EditCreateCommentRaw is a convenience function to edit the body of an issue (the first comment)
-func (c *IssueCache) EditCreateCommentRaw(author identity.Interface, unixTime int64, body string, metadata map[string]string) (entity.CombinedId, *issue.EditCommentOperation, error) {
-	c.mu.Lock()
-	commentId, op, err := issue.EditCreateComment(c.entity, author, unixTime, body, nil, metadata)
-	c.mu.Unlock()
-	if err != nil {
-		return entity.UnsetCombinedId, nil, err
-	}
-	return commentId, op, c.notifyUpdated()
-}
-
 func (c *IssueCache) EditComment(target entity.CombinedId, message string) (*issue.EditCommentOperation, error) {
 	author, err := c.getUserIdentity()
 	if err != nil {
@@ -351,25 +271,6 @@ func (c *IssueCache) EditCommentRaw(author identity.Interface, unixTime int64, t
 	}
 	if commentId != target {
 		panic("EditComment returned unexpected comment id")
-	}
-	return op, c.notifyUpdated()
-}
-
-func (c *IssueCache) SetMetadata(target entity.Id, newMetadata map[string]string) (*dag.SetMetadataOperation[*issue.Snapshot], error) {
-	author, err := c.getUserIdentity()
-	if err != nil {
-		return nil, err
-	}
-
-	return c.SetMetadataRaw(author, time.Now().Unix(), target, newMetadata)
-}
-
-func (c *IssueCache) SetMetadataRaw(author identity.Interface, unixTime int64, target entity.Id, newMetadata map[string]string) (*dag.SetMetadataOperation[*issue.Snapshot], error) {
-	c.mu.Lock()
-	op, err := issue.SetMetadata(c.entity, author, unixTime, target, newMetadata)
-	c.mu.Unlock()
-	if err != nil {
-		return nil, err
 	}
 	return op, c.notifyUpdated()
 }

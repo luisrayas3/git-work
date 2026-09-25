@@ -159,12 +159,6 @@ var queryArg = Arg{
 	Doc: "the jq program the issues come from; the default is every unarchived issue, last edited first",
 }
 
-// Args returns one kind's argument table.
-func Args(kind string) ([]Arg, bool) {
-	args, ok := Kinds[kind]
-	return args, ok
-}
-
 // KindNames lists the view kinds, in a stable order.
 func KindNames() []string {
 	names := make([]string, 0, len(Kinds))
