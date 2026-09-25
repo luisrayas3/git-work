@@ -1,1 +1,1 @@
-{"author":{"id":"a3a282966ced55effb4560271fcd98e13241af24ea76b00ec76a0f18154bc8ee"},"ops":[{"type":9,"timestamp":1789760335,"nonce":"3QPUwMjIs8H28GE7B+5JamqFQ+g=","key":"parent","value":"6555e3625dd41c628ed31a5c3bc69454ce4f9e92a5196401e88baa9554db1810"}]}
+{"author":{"id":"a3a282966ced55effb4560271fcd98e13241af24ea76b00ec76a0f18154bc8ee"},"ops":[{"type":9,"timestamp":1789760335,"nonce":"VUWS57XGJIKXbd5J5L0rdvqQOFk=","key":"title","value":"Task: Generic SetField op and map-backed snapshot fields"}]}
