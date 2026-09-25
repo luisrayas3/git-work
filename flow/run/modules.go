@@ -52,7 +52,7 @@ func (r *runtime) work() *starlarkstruct.Module {
 		),
 		sub("flow",
 			verb("list", r.flowList),
-			verb("get", r.flowGet),
+			verb("export", r.flowExport),
 			verb("run", r.flowRun),
 		),
 		// `import` is a reserved word in Starlark, so the one verb that can
@@ -418,19 +418,18 @@ func (r *runtime) flowList(thread *starlark.Thread, b *starlark.Builtin, args st
 	return reencode(b, entries)
 }
 
-// work.flow.get(name) — `git work flow get NAME`.
-func (r *runtime) flowGet(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+// work.flow.export(name) — `git work flow export NAME`: the script, verbatim.
+func (r *runtime) flowExport(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 	var name string
 	if err := starlark.UnpackArgs(b.Name(), args, kwargs, "name", &name); err != nil {
 		return nil, err
 	}
 
-	detail, warnings, err := host.FlowGet(r.repo, name)
+	script, err := host.FlowExport(r.repo, name)
 	if err != nil {
 		return nil, hostError(b, err)
 	}
-	r.warn(warnings)
-	return reencode(b, detail)
+	return starlark.String(script), nil
 }
 
 // work.flow.run(name, **kwargs) — `git work flow run NAME KWARGS`.

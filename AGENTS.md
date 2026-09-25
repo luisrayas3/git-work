@@ -146,10 +146,9 @@ It runs in-process over the same host API a command reaches (`52a2797`):
 | Action | Command |
 | --- | --- |
 | List | `git work flow` · `--format text` (name, description, arguments) |
-| Show | `git work flow get <name>` · `--format text` prints the script |
 | Run | `git work flow run <name>\|- [KWARGS\|-]` (`-` as the name runs the script on standard input without importing it) · `--gui` (errors until the gui process exists) |
 | Import | `git work flow import FILE\|DIR\|-…` `[--prune] [--dry-run]` → prints the id of each flow it creates |
-| Export | `git work flow export <name> > FILE` · `git work flow export --all DIR` |
+| Show / export | `git work flow export <name>` prints the script, verbatim (`> FILE`) · `git work flow export --all DIR` |
 | History | `git work flow log [<name>]` (one JSON object per line) |
 | Archive / remove | `git work flow archive <name>` (an operation, replicated) · `git work flow rm <name>` (the local ref only) |
 

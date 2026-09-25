@@ -22,7 +22,7 @@ func newSchemaLogCommand(env *execenv.Env) *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "log [KEY]",
-		Short: "Print the operations the schema is made of",
+		Short: "Print the schema's history",
 		Long: `Print the schema's history: every operation of every type and field entity,
 one JSON object per line, oldest first within each entity. With a KEY, only
 that entity's.

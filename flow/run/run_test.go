@@ -424,7 +424,7 @@ func TestAddRemoveAndArchive(t *testing.T) {
 	require.Equal(t, true, fields["archived"])
 }
 
-func TestFlowListAndGet(t *testing.T) {
+func TestFlowListAndExport(t *testing.T) {
 	repo := testRepo(t)
 	importFlow(t, repo, `def inner(n=1):
     """Double a number."""
@@ -433,7 +433,7 @@ func TestFlowListAndGet(t *testing.T) {
 
 	value, _, err := run(t, repo, `def look():
     """Read the flows."""
-    return [work.flow.list(), work.flow.get("inner")["description"]]
+    return [work.flow.list(), work.flow.export("inner")]
 `, nil)
 	require.NoError(t, err)
 
@@ -441,7 +441,7 @@ func TestFlowListAndGet(t *testing.T) {
 	listed := pair[0].([]any)
 	require.Len(t, listed, 1)
 	require.Equal(t, "inner", listed[0].(map[string]any)["name"])
-	require.Equal(t, "Double a number.", pair[1])
+	require.Equal(t, "def inner(n=1):\n    \"\"\"Double a number.\"\"\"\n    return n * 2\n", pair[1])
 }
 
 func TestTheOnlyGlobalIsTheWorkModule(t *testing.T) {

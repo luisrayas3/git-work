@@ -38,15 +38,6 @@ type FlowParam struct {
 	Required bool            `json:"required"`
 }
 
-// FlowDetail is one flow whole: what a listing gives, plus the script and the id.
-type FlowDetail struct {
-	Name        string      `json:"name"`
-	Description string      `json:"description"`
-	Params      []FlowParam `json:"params"`
-	Script      string      `json:"script"`
-	Id          string      `json:"id"`
-}
-
 // FlowList returns every unarchived flow, by name,
 // and the warnings a reader should be shown about them.
 //
@@ -83,33 +74,15 @@ func FlowList(repo *cache.RepoCache) ([]FlowEntry, []string, error) {
 	return entries, warnings, nil
 }
 
-// FlowGet returns one flow whole, and the warnings about it.
-func FlowGet(repo *cache.RepoCache, name string) (*FlowDetail, []string, error) {
+// FlowExport returns a flow's script, verbatim,
+// which is `git work flow export NAME` and `work.flow.export(name)`:
+// the file an import takes back unchanged.
+func FlowExport(repo *cache.RepoCache, name string) (string, error) {
 	excerpt, err := FlowExcerpt(repo, name)
 	if err != nil {
-		return nil, nil, err
+		return "", err
 	}
-
-	script, err := FlowScript(excerpt)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	description, _ := excerpt.AttributeString(AttrDescription)
-	params, warning := paramsOf(name, script)
-
-	var warnings []string
-	if warning != "" {
-		warnings = append(warnings, warning)
-	}
-
-	return &FlowDetail{
-		Name:        name,
-		Description: description,
-		Params:      params,
-		Script:      script,
-		Id:          excerpt.Id().String(),
-	}, warnings, nil
+	return FlowScript(excerpt)
 }
 
 // FlowExcerpt resolves a flow name to the entity it names (E7).

@@ -25,9 +25,10 @@ type flowOperation struct {
 func newFlowLogCommand(env *execenv.Env) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "log [NAME]",
-		Short: "Print the operations flows are made of",
-		Long: `Print the operations of one flow, or of every flow, oldest first and one JSON
-object per line: who changed a flow, when, and to what.`,
+		Short: "Print the flows' history",
+		Long: `Print the history of one flow, or of every flow: every operation, oldest
+first and one JSON object per line, so it says who changed a flow, when, and
+to what.`,
 		Args:    cobra.MaximumNArgs(1),
 		PreRunE: execenv.LoadBackend(env),
 		RunE: execenv.CloseBackend(env, func(cmd *cobra.Command, args []string) error {

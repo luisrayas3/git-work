@@ -34,12 +34,10 @@ const (
 	attrDescription = host.AttrDescription
 )
 
-// flowEntry is one flow in a listing, paramEntry one of its arguments,
-// and flowDetail one flow whole.
+// flowEntry is one flow in a listing, paramEntry one of its arguments.
 type (
 	flowEntry  = host.FlowEntry
 	paramEntry = host.FlowParam
-	flowDetail = host.FlowDetail
 )
 
 type flowListOptions struct {
@@ -73,7 +71,6 @@ flow's name, its docstring the description and its parameters the arguments
 
 	cmd.AddCommand(newFlowArchiveCommand(env))
 	cmd.AddCommand(newFlowExportCommand(env))
-	cmd.AddCommand(newFlowGetCommand(env))
 	cmd.AddCommand(newFlowImportCommand(env))
 	cmd.AddCommand(newFlowLogCommand(env))
 	cmd.AddCommand(newFlowRmCommand(env))

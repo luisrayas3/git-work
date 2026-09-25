@@ -182,7 +182,7 @@ func TestFlowImportUpdate(t *testing.T) {
 	require.JSONEq(t, `"next"`, string(entries[0].Params[0].Default))
 
 	env.Out.Reset()
-	require.NoError(t, runFlowGet(env, flowGetOptions{format: "text"}, []string{"board"}))
+	require.NoError(t, runFlowExport(env, flowExportOptions{}, []string{"board"}))
 	require.Equal(t, changed, env.Out.String())
 }
 
@@ -309,28 +309,18 @@ func TestFlowListText(t *testing.T) {
 	require.JSONEq(t, `[]`, other.Out.String())
 }
 
-func TestFlowGet(t *testing.T) {
+func TestFlowExportOne(t *testing.T) {
 	env := newTestEnv(t)
 	path := writeFlow(t, t.TempDir(), "board.star", boardFlow)
-	ids := importFlows(t, env, flowImportOptions{}, path)
+	importFlows(t, env, flowImportOptions{}, path)
 
+	// the script, verbatim: what import takes back unchanged
 	env.Out.Reset()
-	require.NoError(t, runFlowGet(env, flowGetOptions{format: "json"}, []string{"board"}))
-	var got flowDetail
-	require.NoError(t, json.Unmarshal(env.Out.Bytes(), &got))
-	require.Equal(t, "board", got.Name)
-	require.Equal(t, "Kanban of one iteration, a column per status.", got.Description)
-	require.Equal(t, boardFlow, got.Script)
-	require.Equal(t, ids[0], got.Id)
-	require.Len(t, got.Params, 2)
-
-	// text is the script, verbatim
-	env.Out.Reset()
-	require.NoError(t, runFlowGet(env, flowGetOptions{format: "text"}, []string{"board"}))
+	require.NoError(t, runFlowExport(env, flowExportOptions{}, []string{"board"}))
 	require.Equal(t, boardFlow, env.Out.String())
 
 	// a flow nobody defined is an error
-	require.Error(t, runFlowGet(env, flowGetOptions{format: "json"}, []string{"absent"}))
+	require.Error(t, runFlowExport(env, flowExportOptions{}, []string{"absent"}))
 }
 
 func TestFlowExportRoundTrip(t *testing.T) {

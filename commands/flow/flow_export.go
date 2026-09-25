@@ -9,6 +9,7 @@ import (
 
 	"github.com/git-bug/git-bug/commands/execenv"
 	"github.com/git-bug/git-bug/entities/config"
+	"github.com/git-bug/git-bug/host"
 )
 
 type flowExportOptions struct {
@@ -52,12 +53,7 @@ func runFlowExport(env *execenv.Env, opts flowExportOptions, args []string) erro
 		return exportAll(env, args[0])
 	}
 
-	excerpt, err := currentExcerpt(env, args[0])
-	if err != nil {
-		return err
-	}
-
-	script, err := scriptOf(excerpt)
+	script, err := host.FlowExport(env.Backend, args[0])
 	if err != nil {
 		return err
 	}

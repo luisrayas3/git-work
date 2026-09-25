@@ -20,7 +20,7 @@ func newIssueLogCommand(env *execenv.Env) *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "log ID",
-		Short: "Print the operations an issue is made of",
+		Short: "Print an issue's history",
 		Long: `Print the issue's history: every operation, oldest first, in the shape the
 store holds it. This is what a status report is generated from.
 ID is an id prefix or an alias.`,

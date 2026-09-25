@@ -662,7 +662,6 @@ git work schema rm KEY                            local ref only; returns on pul
 
 git work flow                                     names, descriptions, arguments
 git work flow run NAME [KWARGS] [--gui] [--format json|text]
-git work flow get NAME [--format json|text]       text prints the script
 git work flow import FILE|DIR|-... [--prune] [--dry-run]
 git work flow export NAME > FILE
 git work flow export --all DIR

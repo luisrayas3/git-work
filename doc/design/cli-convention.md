@@ -127,7 +127,6 @@ git work schema rm KEY
 
 git work flow                                   # names, descriptions, arguments
 git work flow run NAME|- [KWARGS|-] [--gui]      # - runs the script on stdin without importing it
-git work flow get NAME [--format json|text]     # text prints the script
 git work flow import FILE|DIR|-... [--prune] [--dry-run]   # one def per file; its name is the flow's
 git work flow export NAME > FILE
 git work flow export --all DIR
@@ -181,7 +180,7 @@ git work view board '{"query":"map(select(.fields.status != \"done\"))","columns
 `work.schema.log(key="")`, `work.schema.archive(key)`, `work.schema.rm(key)`;
 `import` is a reserved word in Starlark,
 so that one verb is spelled with a trailing underscore;
-`work.flow.list()`, `work.flow.get(name)`, `work.flow.run(name, **kwargs)`;
+`work.flow.list()`, `work.flow.export(name)`, `work.flow.run(name, **kwargs)`;
 `work.view.list(...)`, `work.view.board(...)`, `work.view.gantt(...)`, `work.view.show(id, ...)`;
 `work.user.me()`, which is `git work user me`.
 Every function returns what the command would print, as a Starlark value.
