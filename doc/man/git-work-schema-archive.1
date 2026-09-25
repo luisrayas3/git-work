@@ -1,0 +1,36 @@
+.nh
+.TH "GIT-WORK" "1" "Apr 2019" "Generated from git-work's source code" ""
+
+.SH NAME
+git-work-schema-archive - Archive a type or a field
+
+
+.SH SYNOPSIS
+\fBgit-work schema archive KEY [flags]\fP
+
+
+.SH DESCRIPTION
+Archive a type or a field: the replicated removal, the one that reaches every
+clone. A ref cannot be deleted across clones — it comes back on the next pull —
+so removing a config entity is an operation like any other, and setting the
+flag back undoes it.
+
+.PP
+An archived field stops being settable; it does not vanish from the issues that
+have it, because a schema says what may be written now, never what was written
+before. KEY is a type key or a field key, /\&.
+
+
+.SH OPTIONS
+\fB-h\fP, \fB--help\fP[=false]
+	help for archive
+
+
+.SH EXAMPLE
+.EX
+git work schema archive task/estimate
+.EE
+
+
+.SH SEE ALSO
+\fBgit-work-schema(1)\fP

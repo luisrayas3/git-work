@@ -1,13 +1,16 @@
 ## git-work issue rm
 
-Remove an existing issue
+Remove an issue from the local repository
 
 ### Synopsis
 
-Remove an existing issue in the local repository. Note removing issues that were imported from bridges will not remove the issue on the remote, and will only remove the local copy of the issue.
+Remove an issue's local ref. This is local: the issue comes back on the next
+pull, and removing one that came from a bridge does not remove it on the remote.
+The replicated removal is archive.
+ID is an id prefix or an alias.
 
 ```
-git-work issue rm ISSUE_ID [flags]
+git-work issue rm ID [flags]
 ```
 
 ### Options

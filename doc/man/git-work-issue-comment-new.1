@@ -1,31 +1,21 @@
 .nh
-.TH "GIT-BUG" "1" "Apr 2019" "Generated from git-bug's source code" ""
+.TH "GIT-WORK" "1" "Apr 2019" "Generated from git-work's source code" ""
 
 .SH NAME
 git-work-issue-comment-new - Add a new comment to an issue
 
 
 .SH SYNOPSIS
-\fBgit-work issue comment new [ISSUE_ID] [flags]\fP
+\fBgit-work issue comment new ISSUE_ID BODY|- [flags]\fP
 
 
 .SH DESCRIPTION
-Add a new comment to an issue
+Add a comment to an issue, its body given as the argument or on standard
+input. The new comment's id is printed, and nothing else.
+ISSUE_ID is an id prefix or an alias.
 
 
 .SH OPTIONS
-\fB-F\fP, \fB--file\fP=""
-	Take the message from the given file. Use - to read the message from the standard input
-
-.PP
-\fB-m\fP, \fB--message\fP=""
-	Provide the new message from the command line
-
-.PP
-\fB--non-interactive\fP[=false]
-	Do not ask for user input
-
-.PP
 \fB-h\fP, \fB--help\fP[=false]
 	help for new
 

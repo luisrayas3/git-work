@@ -1,0 +1,38 @@
+.nh
+.TH "GIT-WORK" "1" "Apr 2019" "Generated from git-work's source code" ""
+
+.SH NAME
+git-work-schema - Show the schema
+
+
+.SH SYNOPSIS
+\fBgit-work schema [flags]\fP
+
+
+.SH DESCRIPTION
+Print the live schema: every type and field entity, compiled, in the document
+a human edits. This is an alias of export.
+
+.PP
+The three built-in fields — title, type and archived — exist in code on every
+type and are not printed unless an entity overrides one of them.
+
+
+.SH OPTIONS
+\fB-f\fP, \fB--format\fP="yaml"
+	Select the output formatting style. Valid values are [yaml,json]
+
+.PP
+\fB-h\fP, \fB--help\fP[=false]
+	help for schema
+
+
+.SH EXAMPLE
+.EX
+git work schema
+git work schema --format json | jq '.types.task.fields | keys'
+.EE
+
+
+.SH SEE ALSO
+\fBgit-work(1)\fP, \fBgit-work-schema-archive(1)\fP, \fBgit-work-schema-export(1)\fP, \fBgit-work-schema-import(1)\fP, \fBgit-work-schema-init(1)\fP, \fBgit-work-schema-log(1)\fP, \fBgit-work-schema-rm(1)\fP

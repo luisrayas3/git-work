@@ -1,0 +1,39 @@
+.nh
+.TH "GIT-WORK" "1" "Apr 2019" "Generated from git-work's source code" ""
+
+.SH NAME
+git-work-view-board - Draw a board
+
+
+.SH SYNOPSIS
+\fBgit-work view board [KWARGS|-] [flags]\fP
+
+
+.SH DESCRIPTION
+Draw a board.
+
+.PP
+KWARGS is a JSON object of this view's arguments, read from standard
+input when it is "-":
+  query      query                            defaulted          the jq program the issues come from; the default is every unarchived issue, last edited first
+  columns    field key                        required           the field whose values are the columns
+  values     strings                          defaulted          the column values, in order; the field's schema order by default, which is resolved at render time
+  card       field keys                       defaulted ["title"] the fields shown on a card
+  group_by   field key                        feature            the field whose value starts a new swimlane
+  rank       field key                        feature            the rank field cards are ordered and dragged by
+
+.PP
+A \fBfeature\fR argument is in the table and not drawn yet.
+
+
+.SH OPTIONS
+\fB--gui\fP[=false]
+	Draw the view in the browser
+
+.PP
+\fB-h\fP, \fB--help\fP[=false]
+	help for board
+
+
+.SH SEE ALSO
+\fBgit-work-view(1)\fP

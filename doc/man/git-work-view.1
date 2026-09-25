@@ -1,0 +1,34 @@
+.nh
+.TH "GIT-WORK" "1" "Apr 2019" "Generated from git-work's source code" ""
+
+.SH NAME
+git-work-view - Draw the issues
+
+
+.SH SYNOPSIS
+\fBgit-work view [flags]\fP
+
+
+.SH DESCRIPTION
+Draw the issues: a list, a board, a gantt chart, or one issue.
+
+.PP
+A view takes one JSON object of keyword arguments and nothing else. Every kind
+but \fBshow\fR takes a \fBquery\fR, the jq program its issues come from, so a kanban
+with no flow at all is one command:
+
+.PP
+git work view board '{"query":"map(select(.fields.status != \\"done\\"))","columns":"status"}'
+
+.PP
+The view draws in the terminal and blocks until you quit it. Edits made in it
+are written through the same path a command writes through.
+
+
+.SH OPTIONS
+\fB-h\fP, \fB--help\fP[=false]
+	help for view
+
+
+.SH SEE ALSO
+\fBgit-work(1)\fP, \fBgit-work-view-board(1)\fP, \fBgit-work-view-gantt(1)\fP, \fBgit-work-view-list(1)\fP, \fBgit-work-view-show(1)\fP

@@ -1,5 +1,5 @@
 .nh
-.TH "GIT-BUG" "1" "Apr 2019" "Generated from git-bug's source code" ""
+.TH "GIT-WORK" "1" "Apr 2019" "Generated from git-work's source code" ""
 
 .SH NAME
 git-work-user - List identities
@@ -10,12 +10,16 @@ git-work-user - List identities
 
 
 .SH DESCRIPTION
-List identities
+List the identities this repository knows about.
+
+.PP
+JSON out by default, like every other reader; --format text prints one line
+per identity, the id and the display name.
 
 
 .SH OPTIONS
-\fB-f\fP, \fB--format\fP="default"
-	Select the output formatting style. Valid values are [default,json]
+\fB-f\fP, \fB--format\fP="json"
+	Select the output formatting style. Valid values are [json,text]
 
 .PP
 \fB-h\fP, \fB--help\fP[=false]
@@ -23,4 +27,4 @@ List identities
 
 
 .SH SEE ALSO
-\fBgit-work(1)\fP, \fBgit-work-user-adopt(1)\fP, \fBgit-work-user-new(1)\fP, \fBgit-work-user-show(1)\fP
+\fBgit-work(1)\fP, \fBgit-work-user-adopt(1)\fP, \fBgit-work-user-me(1)\fP, \fBgit-work-user-new(1)\fP

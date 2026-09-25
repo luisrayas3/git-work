@@ -1,0 +1,48 @@
+.nh
+.TH "GIT-WORK" "1" "Apr 2019" "Generated from git-work's source code" ""
+
+.SH NAME
+git-work-schema-import - Apply a schema document to the store
+
+
+.SH SYNOPSIS
+\fBgit-work schema import FILE|- [flags]\fP
+
+
+.SH DESCRIPTION
+Read a schema document, YAML or JSON, from a file or standard input, and write
+what differs from the store: one commit per entity, nothing at all where the
+document and the store already agree.
+
+.PP
+The whole document is validated before anything is written. An import is an
+upsert: a type or a field the document does not mention is left alone, so a
+partial file from anywhere can never archive anyone's work. --prune archives
+what the document does not mention, which is the only way to remove.
+
+.PP
+The ids of the entities it creates are printed, one per line, and nothing else.
+
+
+.SH OPTIONS
+\fB--prune\fP[=false]
+	Archive the types and fields the document does not mention
+
+.PP
+\fB--dry-run\fP[=false]
+	Print the changes that would be committed, and write nothing
+
+.PP
+\fB-h\fP, \fB--help\fP[=false]
+	help for import
+
+
+.SH EXAMPLE
+.EX
+git work schema import schema.yaml
+git work schema import - --dry-run < schema.yaml
+.EE
+
+
+.SH SEE ALSO
+\fBgit-work-schema(1)\fP

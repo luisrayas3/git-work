@@ -2,20 +2,23 @@
 
 Add a new comment to an issue
 
+### Synopsis
+
+Add a comment to an issue, its body given as the argument or on standard
+input. The new comment's id is printed, and nothing else.
+ISSUE_ID is an id prefix or an alias.
+
 ```
-git-work issue comment new [ISSUE_ID] [flags]
+git-work issue comment new ISSUE_ID BODY|- [flags]
 ```
 
 ### Options
 
 ```
-  -F, --file string       Take the message from the given file. Use - to read the message from the standard input
-  -m, --message string    Provide the new message from the command line
-      --non-interactive   Do not ask for user input
-  -h, --help              help for new
+  -h, --help   help for new
 ```
 
 ### SEE ALSO
 
-* [git-work issue comment](git-work_issue_comment.md)	 - List an issue's comments
+* [git-work issue comment](git-work_issue_comment.md)	 - Write an issue's comments
 

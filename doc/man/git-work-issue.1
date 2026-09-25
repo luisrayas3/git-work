@@ -1,64 +1,31 @@
 .nh
-.TH "GIT-BUG" "1" "Apr 2019" "Generated from git-bug's source code" ""
+.TH "GIT-WORK" "1" "Apr 2019" "Generated from git-work's source code" ""
 
 .SH NAME
 git-work-issue - List issues
 
 
 .SH SYNOPSIS
-\fBgit-work issue [QUERY] [flags]\fP
+\fBgit-work issue [PROGRAM] [flags]\fP
 
 
 .SH DESCRIPTION
-Display a summary of each issue.
+Run a jq program over the issues and print what it emits.
 
 .PP
-You can pass an additional query to filter and order the list. This query can be expressed either with a simple query language, flags, a natural language full text search, or a combination of the aforementioned.
+The program's input is the array of issue excerpts, the same JSON this command
+prints: one object per issue, with an id, times, an author and a fields map.
+With no program, the list is every unarchived issue, last edited first.
+
+.PP
+Each emitted value is printed as JSON, one per line when there are several.
+--format text prints one line per issue when the program returned issues, and
+falls back to JSON when it returned anything else.
 
 
 .SH OPTIONS
-\fB-s\fP, \fB--status\fP=[]
-	Filter by status. Valid values are [open,closed]
-
-.PP
-\fB-a\fP, \fB--author\fP=[]
-	Filter by author
-
-.PP
-\fB-m\fP, \fB--metadata\fP=[]
-	Filter by metadata. Example: github-url=URL
-
-.PP
-\fB-p\fP, \fB--participant\fP=[]
-	Filter by participant
-
-.PP
-\fB-A\fP, \fB--actor\fP=[]
-	Filter by actor
-
-.PP
-\fB-l\fP, \fB--label\fP=[]
-	Filter by label
-
-.PP
-\fB-t\fP, \fB--title\fP=[]
-	Filter by title
-
-.PP
-\fB-n\fP, \fB--no\fP=[]
-	Filter by absence of something. Valid values are [label]
-
-.PP
-\fB-b\fP, \fB--by\fP="creation"
-	Sort the results by a characteristic. Valid values are [id,creation,edit]
-
-.PP
-\fB-d\fP, \fB--direction\fP="asc"
-	Select the sorting direction. Valid values are [asc,desc]
-
-.PP
-\fB-f\fP, \fB--format\fP="default"
-	Select the output formatting style. Valid values are [default,plain,id,json,org-mode]
+\fB-f\fP, \fB--format\fP="json"
+	Select the output formatting style. Valid values are [json,text]
 
 .PP
 \fB-h\fP, \fB--help\fP[=false]
@@ -67,20 +34,17 @@ You can pass an additional query to filter and order the list. This query can be
 
 .SH EXAMPLE
 .EX
-List open issues sorted by last edition with a query:
-git work issue status:open sort:edit-desc
+Every issue, in the input's own order:
+git work issue .
 
-List closed issues sorted by creation with flags:
-git work issue --status closed --by creation
+The titles of the issues of one epic:
+git work issue 'map(select(.fields.parent == "6a1b2c3")) | map(.fields.title)'
 
-Do a full text search of all issues:
-git work issue "foo bar" baz
-
-Use queries, flags, and full text search:
-git work issue status:open --by creation "foo bar" baz
+A kanban of what is not done:
+git work view board '{"query":"map(select(.fields.status != \\"done\\"))","columns":"status"}'
 
 .EE
 
 
 .SH SEE ALSO
-\fBgit-work(1)\fP, \fBgit-work-issue-comment(1)\fP, \fBgit-work-issue-deselect(1)\fP, \fBgit-work-issue-label(1)\fP, \fBgit-work-issue-new(1)\fP, \fBgit-work-issue-rm(1)\fP, \fBgit-work-issue-select(1)\fP, \fBgit-work-issue-show(1)\fP, \fBgit-work-issue-status(1)\fP, \fBgit-work-issue-title(1)\fP
+\fBgit-work(1)\fP, \fBgit-work-issue-add(1)\fP, \fBgit-work-issue-archive(1)\fP, \fBgit-work-issue-comment(1)\fP, \fBgit-work-issue-get(1)\fP, \fBgit-work-issue-log(1)\fP, \fBgit-work-issue-new(1)\fP, \fBgit-work-issue-remove(1)\fP, \fBgit-work-issue-rm(1)\fP, \fBgit-work-issue-set(1)\fP

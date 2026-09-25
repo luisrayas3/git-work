@@ -1,0 +1,36 @@
+.nh
+.TH "GIT-WORK" "1" "Apr 2019" "Generated from git-work's source code" ""
+
+.SH NAME
+git-work-issue-add - Add items to list-valued fields of an issue
+
+
+.SH SYNOPSIS
+\fBgit-work issue add ID ITEMS|- [flags]\fP
+
+
+.SH DESCRIPTION
+Add items to list-valued fields from a JSON object of lists, given as the
+argument or on standard input: one AddValue operation per item, one commit.
+
+.PP
+git work issue add 2f15 '{"labels":["area:core","prio:high"]}'
+
+.PP
+Items have set semantics, so two people adding two items concurrently both
+win. A many-cardinality relation is a list field too, of the other issues'
+ids; an item that is the unambiguous prefix of one issue is taken as its id.
+ID is an id prefix or an alias.
+
+
+.SH OPTIONS
+\fB--dry-run\fP[=false]
+	Print the operations that would be committed, and write nothing
+
+.PP
+\fB-h\fP, \fB--help\fP[=false]
+	help for add
+
+
+.SH SEE ALSO
+\fBgit-work-issue(1)\fP

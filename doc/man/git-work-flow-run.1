@@ -1,0 +1,55 @@
+.nh
+.TH "GIT-WORK" "1" "Apr 2019" "Generated from git-work's source code" ""
+
+.SH NAME
+git-work-flow-run - Run a flow
+
+
+.SH SYNOPSIS
+\fBgit-work flow run NAME|- [KWARGS|-] [flags]\fP
+
+
+.SH DESCRIPTION
+Run a flow and print what it returned.
+
+.PP
+NAME is a flow in the store, or "-" to run a script from standard input
+without importing it: one function, the same shape import takes.
+
+.PP
+KWARGS is a JSON object of the flow's arguments, given as the argument or on
+standard input as "-" (not when the script is). Defaults in the signature fill
+what the object omits, an unknown key is an error naming the arguments, and an
+argument with no default that nobody named is an error too. \fBgit work flow\fR
+lists them.
+
+.PP
+A flow that returns a value prints it as JSON; one that returns nothing prints
+nothing.
+
+.PP
+A flow that calls a view draws it here and blocks until you quit it, so a
+saved view is a flow that calls one. That needs a terminal: without one, the
+view call is what fails, and a flow that draws nothing runs as it always did.
+
+
+.SH OPTIONS
+\fB--gui\fP[=false]
+	Draw what the flow renders in the browser
+
+.PP
+\fB-h\fP, \fB--help\fP[=false]
+	help for run
+
+
+.SH EXAMPLE
+.EX
+git work flow run board
+git work flow run board '{"iteration":"2026-Q4-S3"}'
+echo '{"iteration":"current"}' | git work flow run board -
+git work flow run - '{"status":"done"}' < scratch.star
+.EE
+
+
+.SH SEE ALSO
+\fBgit-work-flow(1)\fP

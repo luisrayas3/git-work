@@ -1,0 +1,38 @@
+.nh
+.TH "GIT-WORK" "1" "Apr 2019" "Generated from git-work's source code" ""
+
+.SH NAME
+git-work-flow-export - Print a flow's script, or write every flow to a directory
+
+
+.SH SYNOPSIS
+\fBgit-work flow export NAME|--all DIR [flags]\fP
+
+
+.SH DESCRIPTION
+Print a flow's script on standard output, verbatim, so that a redirection
+writes the file an import takes back unchanged.
+
+.PP
+--all writes one \&.star per unarchived flow into the directory, which is
+created if it is missing, and prints nothing.
+
+
+.SH OPTIONS
+\fB--all\fP[=false]
+	Write every flow into the directory given as the argument
+
+.PP
+\fB-h\fP, \fB--help\fP[=false]
+	help for export
+
+
+.SH EXAMPLE
+.EX
+git work flow export board > flows/board.star
+git work flow export --all flows/
+.EE
+
+
+.SH SEE ALSO
+\fBgit-work-flow(1)\fP

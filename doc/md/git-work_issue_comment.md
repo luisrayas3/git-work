@@ -1,10 +1,6 @@
 ## git-work issue comment
 
-List an issue's comments
-
-```
-git-work issue comment [ISSUE_ID] [flags]
-```
+Write an issue's comments
 
 ### Options
 

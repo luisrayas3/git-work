@@ -1,19 +1,34 @@
 ## git-work issue new
 
-Create a new issue
+Create a new issue from a JSON document
+
+### Synopsis
+
+Create an issue from a JSON document, given as the argument or on standard input.
+
+  {"fields": {"title": "…", "type": "task", "status": "open"},
+   "body": "the first comment",
+   "aliases": {"jira": "PROJ-12"}}
+
+A title is required and lives in fields, like every other property of an issue.
+An alias is an external id, immutable, accepted wherever an id is.
+The new issue's id is printed, and nothing else.
 
 ```
-git-work issue new [flags]
+git-work issue new DOC|- [flags]
+```
+
+### Examples
+
+```
+git work issue new '{"fields":{"title":"Task: rework the CLI","type":"task"}}'
+echo "$doc" | git work issue new -
 ```
 
 ### Options
 
 ```
-  -t, --title string      Provide a title to describe the issue
-  -m, --message string    Provide a message to describe the issue
-  -F, --file string       Take the message from the given file. Use - to read the message from the standard input
-      --non-interactive   Do not ask for user input
-  -h, --help              help for new
+  -h, --help   help for new
 ```
 
 ### SEE ALSO

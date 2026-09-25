@@ -1,0 +1,27 @@
+.nh
+.TH "GIT-WORK" "1" "Apr 2019" "Generated from git-work's source code" ""
+
+.SH NAME
+git-work-flow-archive - Archive a flow
+
+
+.SH SYNOPSIS
+\fBgit-work flow archive NAME [flags]\fP
+
+
+.SH DESCRIPTION
+Archive a flow: it leaves every listing and stops being importable over.
+
+.PP
+Archiving is an operation, so it reaches every clone, which is what makes it
+the removal a team can rely on. A ref cannot be deleted across clones; rm
+deletes the local one and the flow comes back on the next pull.
+
+
+.SH OPTIONS
+\fB-h\fP, \fB--help\fP[=false]
+	help for archive
+
+
+.SH SEE ALSO
+\fBgit-work-flow(1)\fP

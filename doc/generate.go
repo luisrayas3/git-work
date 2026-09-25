@@ -70,10 +70,10 @@ func genManPage(root *cobra.Command) error {
 	date := time.Date(2019, 4, 1, 12, 0, 0, 0, time.UTC)
 
 	header := &doc.GenManHeader{
-		Title:   "GIT-BUG",
+		Title:   "GIT-WORK",
 		Section: "1",
 		Date:    &date,
-		Source:  "Generated from git-bug's source code",
+		Source:  "Generated from git-work's source code",
 	}
 
 	files, err := filepath.Glob(dir + "/*.1")

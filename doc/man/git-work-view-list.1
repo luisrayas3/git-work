@@ -1,0 +1,40 @@
+.nh
+.TH "GIT-WORK" "1" "Apr 2019" "Generated from git-work's source code" ""
+
+.SH NAME
+git-work-view-list - Draw a list
+
+
+.SH SYNOPSIS
+\fBgit-work view list [KWARGS|-] [flags]\fP
+
+
+.SH DESCRIPTION
+Draw a list.
+
+.PP
+KWARGS is a JSON object of this view's arguments, read from standard
+input when it is "-":
+  query      query                            defaulted          the jq program the issues come from; the default is every unarchived issue, last edited first
+  fields     field keys                       defaulted ["title"] the fields shown as columns, in order
+  details    field keys                       feature            the fields shown on a dim second line under each row
+  group_by   field key                        feature            the field whose value starts a new section
+  expand     field key                        feature            the relation whose targets are nested under a row
+  depth      int                              feature            how many levels of nesting to expand
+  rank       field key                        feature            the rank field rows are ordered and dragged by
+
+.PP
+A \fBfeature\fR argument is in the table and not drawn yet.
+
+
+.SH OPTIONS
+\fB--gui\fP[=false]
+	Draw the view in the browser
+
+.PP
+\fB-h\fP, \fB--help\fP[=false]
+	help for list
+
+
+.SH SEE ALSO
+\fBgit-work-view(1)\fP

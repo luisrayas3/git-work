@@ -1,0 +1,42 @@
+.nh
+.TH "GIT-WORK" "1" "Apr 2019" "Generated from git-work's source code" ""
+
+.SH NAME
+git-work-schema-init - Create a preset's types and fields
+
+
+.SH SYNOPSIS
+\fBgit-work schema init [PRESET] [flags]\fP
+
+
+.SH DESCRIPTION
+Instantiate an embedded preset as config entities: one entity per type and
+one per (type, field). With no argument, the jira preset.
+
+.PP
+It refuses when a field entity already exists, archived or not, because a
+preset is a starting point and not a merge; to change a schema that is already
+there, export it, edit it and import it.
+
+.PP
+The ids of the entities it creates are printed, one per line, and nothing else.
+
+
+.SH OPTIONS
+\fB--dry-run\fP[=false]
+	Print the changes that would be committed, and write nothing
+
+.PP
+\fB-h\fP, \fB--help\fP[=false]
+	help for init
+
+
+.SH EXAMPLE
+.EX
+git work schema init
+git work schema init jira
+.EE
+
+
+.SH SEE ALSO
+\fBgit-work-schema(1)\fP

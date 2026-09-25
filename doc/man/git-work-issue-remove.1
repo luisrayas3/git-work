@@ -1,0 +1,34 @@
+.nh
+.TH "GIT-WORK" "1" "Apr 2019" "Generated from git-work's source code" ""
+
+.SH NAME
+git-work-issue-remove - Remove items from list-valued fields of an issue
+
+
+.SH SYNOPSIS
+\fBgit-work issue remove ID ITEMS|- [flags]\fP
+
+
+.SH DESCRIPTION
+Remove items from list-valued fields from a JSON object of lists, given as
+the argument or on standard input: one RemoveValue operation per item, one commit.
+
+.PP
+git work issue remove 2f15 '{"labels":["prio:high"]}'
+
+.PP
+Removing an item that is not there changes nothing.
+ID is an id prefix or an alias.
+
+
+.SH OPTIONS
+\fB--dry-run\fP[=false]
+	Print the operations that would be committed, and write nothing
+
+.PP
+\fB-h\fP, \fB--help\fP[=false]
+	help for remove
+
+
+.SH SEE ALSO
+\fBgit-work-issue(1)\fP

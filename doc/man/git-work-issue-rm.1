@@ -1,16 +1,19 @@
 .nh
-.TH "GIT-BUG" "1" "Apr 2019" "Generated from git-bug's source code" ""
+.TH "GIT-WORK" "1" "Apr 2019" "Generated from git-work's source code" ""
 
 .SH NAME
-git-work-issue-rm - Remove an existing issue
+git-work-issue-rm - Remove an issue from the local repository
 
 
 .SH SYNOPSIS
-\fBgit-work issue rm ISSUE_ID [flags]\fP
+\fBgit-work issue rm ID [flags]\fP
 
 
 .SH DESCRIPTION
-Remove an existing issue in the local repository. Note removing issues that were imported from bridges will not remove the issue on the remote, and will only remove the local copy of the issue.
+Remove an issue's local ref. This is local: the issue comes back on the next
+pull, and removing one that came from a bridge does not remove it on the remote.
+The replicated removal is archive.
+ID is an id prefix or an alias.
 
 
 .SH OPTIONS
