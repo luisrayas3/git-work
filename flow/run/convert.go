@@ -5,9 +5,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"math/big"
-	"sort"
 
 	"go.starlark.net/starlark"
+
+	"github.com/git-bug/git-bug/util/sorted"
 )
 
 // This file is the whole boundary between JSON and Starlark.
@@ -64,7 +65,7 @@ func toStarlark(v any) (starlark.Value, error) {
 		// Keys go in sorted, so that iterating a dict in a script reads the
 		// same twice; Starlark dicts keep insertion order.
 		dict := starlark.NewDict(len(value))
-		for _, key := range sortedKeys(value) {
+		for _, key := range sorted.Keys(value) {
 			converted, err := toStarlark(value[key])
 			if err != nil {
 				return nil, err
@@ -305,13 +306,4 @@ func marshalStarlark(v starlark.Value) (json.RawMessage, error) {
 		return nil, nil
 	}
 	return json.Marshal(converted)
-}
-
-func sortedKeys(m map[string]any) []string {
-	keys := make([]string, 0, len(m))
-	for key := range m {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
-	return keys
 }

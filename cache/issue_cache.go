@@ -2,7 +2,6 @@ package cache
 
 import (
 	"encoding/json"
-	"sort"
 	"time"
 
 	"github.com/git-bug/git-bug/entities/identity"
@@ -11,6 +10,7 @@ import (
 	"github.com/git-bug/git-bug/entity/dag"
 	"github.com/git-bug/git-bug/repository"
 	"github.com/git-bug/git-bug/schema"
+	"github.com/git-bug/git-bug/util/sorted"
 )
 
 // IssueCache is a wrapper around an Issue. It provides multiple functions:
@@ -108,7 +108,7 @@ func (c *IssueCache) PlanSetFields(fields map[string]issue.Value) ([]issue.Opera
 	unixTime := time.Now().Unix()
 
 	ops := make([]issue.Operation, 0, len(fields))
-	for _, key := range sortedKeys(fields) {
+	for _, key := range sorted.Keys(fields) {
 		op := issue.NewSetFieldOp(author, unixTime, key, fields[key])
 		if err := op.Validate(); err != nil {
 			return nil, err
@@ -131,7 +131,7 @@ func (c *IssueCache) PlanAddValues(items map[string][]issue.Value) ([]issue.Oper
 	unixTime := time.Now().Unix()
 
 	var ops []issue.Operation
-	for _, key := range sortedKeys(items) {
+	for _, key := range sorted.Keys(items) {
 		for _, item := range items[key] {
 			op := issue.NewAddValueOp(author, unixTime, key, item)
 			if err := op.Validate(); err != nil {
@@ -155,7 +155,7 @@ func (c *IssueCache) PlanRemoveValues(items map[string][]issue.Value) ([]issue.O
 	unixTime := time.Now().Unix()
 
 	var ops []issue.Operation
-	for _, key := range sortedKeys(items) {
+	for _, key := range sorted.Keys(items) {
 		for _, item := range items[key] {
 			op := issue.NewRemoveValueOp(author, unixTime, key, item)
 			if err := op.Validate(); err != nil {
@@ -236,16 +236,6 @@ func (c *IssueCache) CommitOperations(ops []issue.Operation) error {
 		return err
 	}
 	return c.Commit()
-}
-
-// sortedKeys orders a map's keys, so that a plan reads and hashes the same twice.
-func sortedKeys[V any](m map[string]V) []string {
-	keys := make([]string, 0, len(m))
-	for k := range m {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-	return keys
 }
 
 func (c *IssueCache) EditComment(target entity.CombinedId, message string) (*issue.EditCommentOperation, error) {

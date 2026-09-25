@@ -283,7 +283,7 @@ func TestViewWithoutARendererSaysSo(t *testing.T) {
     """A board with nowhere to draw it."""
     return work.view.board(columns="status")
 `, nil)
-	require.ErrorContains(t, err, "no renderer here")
+	require.ErrorContains(t, err, view.ErrNoTerminal.Error())
 	require.ErrorContains(t, err, "--gui")
 }
 

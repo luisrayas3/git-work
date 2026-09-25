@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/git-bug/git-bug/util/sorted"
 )
 
 // Resolver answers the two questions a value check can not answer alone:
@@ -145,7 +147,7 @@ func (c *Checker) CheckItems(currentType string, items map[string][]json.RawMess
 		return problems.err()
 	}
 
-	for _, key := range sortedKeys(items) {
+	for _, key := range sorted.Keys(items) {
 		field, ok := t.Field(key)
 		if !ok {
 			problems.add("%s", unknownField(t, key))
@@ -171,7 +173,7 @@ func (c *Checker) checkFields(problems *Problems, typeKey string, fields map[str
 		return
 	}
 
-	for _, key := range sortedKeys(fields) {
+	for _, key := range sorted.Keys(fields) {
 		field, ok := t.Field(key)
 		if !ok {
 			problems.add("%s", unknownField(t, key))

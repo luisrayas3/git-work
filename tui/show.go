@@ -13,6 +13,7 @@ import (
 	"github.com/git-bug/git-bug/entities/issue"
 	"github.com/git-bug/git-bug/host"
 	"github.com/git-bug/git-bug/schema"
+	"github.com/git-bug/git-bug/util/sorted"
 )
 
 // showPage is the `show` view: one issue, its fields, and what was said about
@@ -94,7 +95,7 @@ func (p *showPage) fieldOrder() []string {
 		}
 	}
 
-	return sortedKeys(p.snapshot.Fields)
+	return sorted.Keys(p.snapshot.Fields)
 }
 
 func (p *showPage) Update(msg tea.Msg) (page, tea.Cmd) {

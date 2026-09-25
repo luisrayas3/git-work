@@ -77,7 +77,7 @@ func exportAll(env *execenv.Env, dir string) error {
 		if err != nil {
 			return err
 		}
-		script, err := scriptOf(excerpt)
+		script, err := host.FlowScript(excerpt)
 		if err != nil {
 			return err
 		}

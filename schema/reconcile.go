@@ -5,6 +5,7 @@ import (
 
 	"github.com/git-bug/git-bug/entities/config"
 	"github.com/git-bug/git-bug/entity"
+	"github.com/git-bug/git-bug/util/sorted"
 )
 
 // Change is one entity's share of an import: a create, an update or an archive.
@@ -228,7 +229,7 @@ func diff(shape config.Shape, key string, entry Entry, exists bool, desired map[
 		Id:     entry.Id,
 	}
 
-	for _, name := range sortedKeys(desired) {
+	for _, name := range sorted.Keys(desired) {
 		have, present := entry.Attributes[name]
 		if present && sameValue(have, desired[name]) {
 			continue
@@ -239,7 +240,7 @@ func diff(shape config.Shape, key string, entry Entry, exists bool, desired map[
 		change.Set[name] = desired[name]
 	}
 
-	for _, name := range sortedKeys(entry.Attributes) {
+	for _, name := range sorted.Keys(entry.Attributes) {
 		if !owned(name) {
 			continue
 		}

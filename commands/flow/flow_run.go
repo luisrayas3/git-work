@@ -15,9 +15,6 @@ import (
 	"github.com/git-bug/git-bug/view"
 )
 
-// ErrNoGui is what --gui hits until the browser renderer exists.
-var ErrNoGui = errors.New("the gui renderer is not built yet (8b06191)")
-
 type flowRunOptions struct {
 	gui bool
 }
@@ -70,7 +67,7 @@ func runFlowRun(env *execenv.Env, opts flowRunOptions, args []string) error {
 	warnDuplicates(env)
 
 	if opts.gui {
-		return ErrNoGui
+		return view.ErrNoGui
 	}
 
 	kwargs, err := readKwargs(env, args)
@@ -127,28 +124,18 @@ func runScript(env *execenv.Env, options run.Options, kwargs map[string]json.Raw
 }
 
 // readKwargs reads the optional JSON object of arguments.
+//
+// The one thing this command has that a view does not is two arguments that
+// can each be "-", and standard input is one stream: the guard is here,
+// because it is about this command's shape and nothing else.
 func readKwargs(env *execenv.Env, args []string) (map[string]json.RawMessage, error) {
 	if len(args) < 2 {
 		return nil, nil
 	}
-
-	data := []byte(args[1])
-	if args[1] == "-" {
-		if args[0] == "-" {
-			return nil, errors.New("the script and the arguments can not both come from standard input")
-		}
-		read, err := io.ReadAll(env.In)
-		if err != nil {
-			return nil, fmt.Errorf("reading the standard input: %w", err)
-		}
-		data = read
+	if args[1] == "-" && args[0] == "-" {
+		return nil, errors.New("the script and the arguments can not both come from standard input")
 	}
-
-	var kwargs map[string]json.RawMessage
-	if err := json.Unmarshal(data, &kwargs); err != nil {
-		return nil, fmt.Errorf("the arguments are a JSON object: %w", err)
-	}
-	return kwargs, nil
+	return execenv.ReadKwargs(env, args[1])
 }
 
 func decodeValue(raw json.RawMessage) (any, error) {

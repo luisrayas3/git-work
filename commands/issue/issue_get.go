@@ -38,7 +38,7 @@ ID is an id prefix or an alias.`,
 	flags := cmd.Flags()
 	flags.SortFlags = false
 
-	addFormatFlag(cmd, &options.format)
+	execenv.AddFormatFlag(cmd, &options.format, "json", "text")
 
 	return cmd
 }

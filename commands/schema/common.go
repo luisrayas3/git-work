@@ -1,9 +1,6 @@
 package schemacmd
 
 import (
-	"fmt"
-	"io"
-	"os"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -22,30 +19,7 @@ import (
 // entity boundary leaves (E7). The winner is deterministic, and saying so is
 // the difference between a team repairing it and a team losing an edit.
 func warnDuplicates(env *execenv.Env) {
-	warn(env, host.SchemaDuplicates(env.Backend))
-}
-
-// warn prints what the host said a reader should be told.
-func warn(env *execenv.Env, warnings []string) {
-	for _, warning := range warnings {
-		env.Err.Printf("warning: %s\n", warning)
-	}
-}
-
-// readArg returns an argument's file, or standard input when it is "-".
-func readArg(env *execenv.Env, arg string) ([]byte, error) {
-	if arg == "-" {
-		data, err := io.ReadAll(env.In)
-		if err != nil {
-			return nil, fmt.Errorf("reading the standard input: %w", err)
-		}
-		return data, nil
-	}
-	data, err := os.ReadFile(arg)
-	if err != nil {
-		return nil, err
-	}
-	return data, nil
+	env.Warn(host.SchemaDuplicates(env.Backend))
 }
 
 // printImport is the end of import and of init: --dry-run prints the changes

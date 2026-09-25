@@ -6,6 +6,7 @@ import (
 
 	"github.com/git-bug/git-bug/entities/config"
 	"github.com/git-bug/git-bug/entity"
+	"github.com/git-bug/git-bug/util/sorted"
 )
 
 // Entry is one config entity as the schema layer reads it:
@@ -236,7 +237,7 @@ func compileField(typeKey, fieldKey string, e Entry) (*Field, error) {
 
 func compileValues(attrs map[string]config.Value) ([]Value, error) {
 	var values []Value
-	for _, name := range sortedKeys(attrs) {
+	for _, name := range sorted.Keys(attrs) {
 		prefix, id, folded := config.SplitName(name)
 		if !folded || prefix != ValuesPrefix {
 			continue
@@ -271,7 +272,7 @@ func compileValues(attrs map[string]config.Value) ([]Value, error) {
 
 func compileTargetTypes(attrs map[string]config.Value) []string {
 	var targets []string
-	for _, name := range sortedKeys(attrs) {
+	for _, name := range sorted.Keys(attrs) {
 		prefix, typeKey, folded := config.SplitName(name)
 		if !folded || prefix != TargetTypesPrefix {
 			continue

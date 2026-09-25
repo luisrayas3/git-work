@@ -3,7 +3,6 @@ package tui
 import (
 	"encoding/json"
 	"fmt"
-	"sort"
 	"strconv"
 	"strings"
 
@@ -104,16 +103,6 @@ func fit(line string, width int) string {
 		return line
 	}
 	return truncate(line, width)
-}
-
-// sortedKeys orders a map's keys, so that a page reads the same twice.
-func sortedKeys[V any](m map[string]V) []string {
-	keys := make([]string, 0, len(m))
-	for key := range m {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
-	return keys
 }
 
 // decodeValue reads a stored value as the Go value JSON decodes it into,

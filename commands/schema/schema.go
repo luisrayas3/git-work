@@ -13,7 +13,6 @@ package schemacmd
 import (
 	"github.com/spf13/cobra"
 
-	"github.com/git-bug/git-bug/commands/completion"
 	"github.com/git-bug/git-bug/commands/execenv"
 )
 
@@ -37,7 +36,7 @@ git work schema --format json | jq '.types.task.fields | keys'`,
 		}),
 	}
 
-	addFormatFlag(cmd, &options.format)
+	execenv.AddFormatFlag(cmd, &options.format, "yaml", "json")
 
 	cmd.AddCommand(newSchemaArchiveCommand(env))
 	cmd.AddCommand(newSchemaExportCommand(env))
@@ -52,10 +51,4 @@ git work schema --format json | jq '.types.task.fields | keys'`,
 // formatOptions is the one output flag the readers share.
 type formatOptions struct {
 	format string
-}
-
-func addFormatFlag(cmd *cobra.Command, format *string) {
-	cmd.Flags().StringVarP(format, "format", "f", "yaml",
-		"Select the output formatting style. Valid values are [yaml,json]")
-	cmd.RegisterFlagCompletionFunc("format", completion.From([]string{"yaml", "json"}))
 }

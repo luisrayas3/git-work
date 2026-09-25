@@ -2,7 +2,6 @@ package schema
 
 import (
 	"fmt"
-	"sort"
 	"strings"
 )
 
@@ -168,14 +167,4 @@ func CategoryList() string {
 // Done reports whether work in this category is over, either way.
 func (c Category) Done() bool {
 	return c == CategoryCompleted || c == CategoryCanceled
-}
-
-// sortedKeys orders a map's keys, so that output reads the same twice.
-func sortedKeys[V any](m map[string]V) []string {
-	keys := make([]string, 0, len(m))
-	for key := range m {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
-	return keys
 }

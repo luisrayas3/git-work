@@ -115,7 +115,7 @@ func SchemaLog(repo *cache.RepoCache, key string) ([]cmdjson.ConfigOperation, er
 	var entities []*cache.ConfigCache
 
 	if key != "" {
-		cached, err := resolveSchemaKey(repo, key)
+		cached, err := repo.Schema().ResolveSchemaKey(key)
 		if err != nil {
 			return nil, err
 		}
@@ -148,7 +148,7 @@ func SchemaLog(repo *cache.RepoCache, key string) ([]cmdjson.ConfigOperation, er
 // SchemaArchive archives a type or a field, the replicated removal,
 // and returns what archiving it left behind.
 func SchemaArchive(repo *cache.RepoCache, key string) ([]string, error) {
-	cached, err := resolveSchemaKey(repo, key)
+	cached, err := repo.Schema().ResolveSchemaKey(key)
 	if err != nil {
 		return nil, err
 	}
@@ -166,7 +166,7 @@ func SchemaArchive(repo *cache.RepoCache, key string) ([]string, error) {
 // SchemaRm deletes a type's or a field's local ref;
 // the entity comes back on the next pull.
 func SchemaRm(repo *cache.RepoCache, key string) error {
-	cached, err := resolveSchemaKey(repo, key)
+	cached, err := repo.Schema().ResolveSchemaKey(key)
 	if err != nil {
 		return err
 	}
@@ -244,10 +244,4 @@ func orphanedFields(repo *cache.RepoCache, shape config.Shape, key string) []str
 		}
 	}
 	return warnings
-}
-
-// resolveSchemaKey finds the entity a KEY argument names, type first,
-// field second, the same way from the shell and from a script.
-func resolveSchemaKey(repo *cache.RepoCache, key string) (*cache.ConfigCache, error) {
-	return repo.Schema().ResolveSchemaKey(key)
 }

@@ -15,7 +15,6 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/git-bug/git-bug/commands/completion"
 	"github.com/git-bug/git-bug/commands/execenv"
 	"github.com/git-bug/git-bug/entity"
 	"github.com/git-bug/git-bug/host"
@@ -60,7 +59,7 @@ git work issue 'map(select(.fields.status != "done"))' | git work view board '{"
 	flags := cmd.Flags()
 	flags.SortFlags = false
 
-	addFormatFlag(cmd, &options.format)
+	execenv.AddFormatFlag(cmd, &options.format, "json", "text")
 
 	cmd.AddCommand(newIssueAddCommand(env))
 	cmd.AddCommand(newIssueArchiveCommand(env))
@@ -73,13 +72,6 @@ git work issue 'map(select(.fields.status != "done"))' | git work view board '{"
 	cmd.AddCommand(newIssueSetCommand(env))
 
 	return cmd
-}
-
-// addFormatFlag adds the one output flag every reader has.
-func addFormatFlag(cmd *cobra.Command, format *string) {
-	cmd.Flags().StringVarP(format, "format", "f", "json",
-		"Select the output formatting style. Valid values are [json,text]")
-	cmd.RegisterFlagCompletionFunc("format", completion.From([]string{"json", "text"}))
 }
 
 func runIssueList(env *execenv.Env, opts issueListOptions, args []string) error {
@@ -125,40 +117,20 @@ func printValues(env *execenv.Env, values []any) error {
 }
 
 // printIssueLines prints one line per issue and reports whether it could:
-// the values have to be issue-shaped, objects with an id and a fields map,
-// either as one array or as a stream of them.
+// the values have to be issue-shaped, which is host.IssueItems' question and
+// the same one the terminal renderer asks of the same JSON.
 func printIssueLines(env *execenv.Env, values []any) (bool, error) {
-	items := values
-	if len(values) == 1 {
-		if array, ok := values[0].([]any); ok {
-			items = array
-		}
-	}
-	if len(items) == 0 {
+	objects, ok := host.IssueItems(values)
+	if !ok {
 		return false, nil
-	}
-
-	objects := make([]map[string]any, 0, len(items))
-	for _, item := range items {
-		object, ok := item.(map[string]any)
-		if !ok {
-			return false, nil
-		}
-		if _, ok := object["id"].(string); !ok {
-			return false, nil
-		}
-		if _, ok := object["fields"].(map[string]any); !ok {
-			return false, nil
-		}
-		objects = append(objects, object)
 	}
 
 	for _, object := range objects {
 		fields, _ := object["fields"].(map[string]any)
 		env.Out.Printf("%s\t%s\t%s\n",
 			colors.Cyan(humanIdOf(object)),
-			colors.Yellow(stringOr(fields["status"], "-")),
-			stringOr(fields["title"], ""),
+			colors.Yellow(host.StringOr(fields["status"], "-")),
+			host.StringOr(fields["title"], ""),
 		)
 	}
 	return true, nil
@@ -168,16 +140,9 @@ func humanIdOf(object map[string]any) string {
 	if human, ok := object["human_id"].(string); ok {
 		return human
 	}
-	id, _ := object["id"].(string)
+	id := host.StringOr(object["id"], "")
 	if len(id) > entity.HumanIdLength {
 		return id[:entity.HumanIdLength]
 	}
 	return id
-}
-
-func stringOr(v any, fallback string) string {
-	if s, ok := v.(string); ok {
-		return s
-	}
-	return fallback
 }

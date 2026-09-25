@@ -23,11 +23,23 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 
 	"github.com/git-bug/git-bug/cache"
 )
+
+// ErrNoTerminal is what a view with nowhere to draw hits.
+//
+// It is not an error about the call: the call is fine, there is just no
+// surface, and the two ways out are both in the message. It lives here
+// because the command and host.View both answer with it, and a view that
+// could not be drawn has to say the same thing whoever asked for it.
+var ErrNoTerminal = errors.New("a view needs a terminal; run it in one, or with --gui")
+
+// ErrNoGui is what --gui hits until the browser renderer exists (8b06191).
+var ErrNoGui = errors.New("the gui renderer is not built yet (8b06191)")
 
 // Call is one parsed view call: the kind, and its arguments with the
 // defaults applied.

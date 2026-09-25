@@ -6,6 +6,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/git-bug/git-bug/commands/execenv"
+	"github.com/git-bug/git-bug/view"
 )
 
 // A test env's output is a buffer, which is never a terminal, so these tests
@@ -15,7 +16,7 @@ func TestViewNeedsATerminal(t *testing.T) {
 	env := execenv.NewTestEnv(t)
 
 	err := runView(env, viewOptions{}, "list", nil)
-	require.ErrorIs(t, err, ErrNoTerminal)
+	require.ErrorIs(t, err, view.ErrNoTerminal)
 	require.Contains(t, err.Error(), "--gui")
 	require.Equal(t, "", env.Out.String())
 }
@@ -24,7 +25,7 @@ func TestViewGuiHasNoRenderer(t *testing.T) {
 	env := execenv.NewTestEnv(t)
 
 	err := runView(env, viewOptions{gui: true}, "board", []string{`{"columns":"status"}`})
-	require.ErrorIs(t, err, ErrNoGui)
+	require.ErrorIs(t, err, view.ErrNoGui)
 	require.Contains(t, err.Error(), "8b06191")
 	require.Equal(t, "", env.Out.String())
 }
@@ -58,7 +59,7 @@ func TestViewKwargsFromStdin(t *testing.T) {
 
 	// the call parses, so what is left is the missing terminal
 	err = runView(env, viewOptions{}, "board", []string{"-"})
-	require.ErrorIs(t, err, ErrNoTerminal)
+	require.ErrorIs(t, err, view.ErrNoTerminal)
 }
 
 // TestEveryKindIsACommand is the contract between the table and the tree: a

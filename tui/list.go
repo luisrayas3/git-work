@@ -105,7 +105,10 @@ func (p *listPage) load() error {
 		return err
 	}
 
-	items := issueItems(values)
+	// A query that returned something other than issues draws nothing: the
+	// list is a list of issues, and inventing rows out of whatever came back
+	// would be worse than an empty one.
+	items, _ := host.IssueItems(values)
 	p.rows = make([]listRow, 0, len(items))
 	for _, item := range items {
 		p.rows = append(p.rows, p.newRow(item))
@@ -123,9 +126,9 @@ func (p *listPage) newRow(item map[string]any) listRow {
 	}
 
 	row := listRow{
-		id:      stringOf(item["id"]),
-		human:   stringOf(item["human_id"]),
-		typeKey: stringOf(fields[schema.TypeKey]),
+		id:      host.StringOr(item["id"], ""),
+		human:   host.StringOr(item["human_id"], ""),
+		typeKey: host.StringOr(fields[schema.TypeKey], ""),
 		fields:  fields,
 	}
 	if row.human == "" && len(row.id) > 7 {
@@ -608,35 +611,3 @@ func blinkTick() tea.Cmd {
 }
 
 const blinkInterval = 400 * time.Millisecond
-
-// issueItems flattens whatever the jq program emitted into issues.
-//
-// A program usually returns one value, the array; one that emitted issues one
-// at a time meant the same thing, so both are read the same way.
-func issueItems(values []any) []map[string]any {
-	var out []map[string]any
-
-	var walk func(value any)
-	walk = func(value any) {
-		switch typed := value.(type) {
-		case []any:
-			for _, item := range typed {
-				walk(item)
-			}
-		case map[string]any:
-			if _, ok := typed["id"].(string); ok {
-				out = append(out, typed)
-			}
-		}
-	}
-
-	for _, value := range values {
-		walk(value)
-	}
-	return out
-}
-
-func stringOf(value any) string {
-	s, _ := value.(string)
-	return s
-}

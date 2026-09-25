@@ -1,7 +1,6 @@
 package run
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 
@@ -13,6 +12,10 @@ import (
 	"github.com/git-bug/git-bug/schema"
 	"github.com/git-bug/git-bug/view"
 )
+
+// A host failure is returned as it is, never wrapped with the builtin's name:
+// a builtin's error becomes an EvalError whose Backtrace() already opens with
+// "Error in <builtin>", and saying it twice reads as two failures.
 
 // predeclared is the whole of what a flow can see.
 //
@@ -125,7 +128,7 @@ func (r *runtime) issueList(thread *starlark.Thread, b *starlark.Builtin, args s
 
 	values, err := host.IssueList(r.repo, program)
 	if err != nil {
-		return nil, hostError(b, err)
+		return nil, err
 	}
 
 	if len(values) == 1 {
@@ -143,17 +146,17 @@ func (r *runtime) issueNew(thread *starlark.Thread, b *starlark.Builtin, args st
 
 	raw, err := marshalStarlark(value)
 	if err != nil {
-		return nil, hostError(b, err)
+		return nil, err
 	}
 
 	var doc host.IssueDocument
 	if err := strictUnmarshal(raw, &doc); err != nil {
-		return nil, hostError(b, err)
+		return nil, err
 	}
 
 	id, err := host.IssueNew(r.repo, doc)
 	if err != nil {
-		return nil, hostError(b, err)
+		return nil, err
 	}
 	return starlark.String(id.String()), nil
 }
@@ -167,7 +170,7 @@ func (r *runtime) issueGet(thread *starlark.Thread, b *starlark.Builtin, args st
 
 	document, err := host.IssueGet(r.repo, id)
 	if err != nil {
-		return nil, hostError(b, err)
+		return nil, err
 	}
 	return reencode(b, document)
 }
@@ -181,7 +184,7 @@ func (r *runtime) issueLog(thread *starlark.Thread, b *starlark.Builtin, args st
 
 	entries, err := host.IssueLog(r.repo, id)
 	if err != nil {
-		return nil, hostError(b, err)
+		return nil, err
 	}
 	return reencode(b, entries)
 }
@@ -194,7 +197,7 @@ func (r *runtime) issueSet(thread *starlark.Thread, b *starlark.Builtin, args st
 	}
 
 	if _, err := host.IssueSet(r.repo, id, fields, false); err != nil {
-		return nil, hostError(b, err)
+		return nil, err
 	}
 	return starlark.None, nil
 }
@@ -207,7 +210,7 @@ func (r *runtime) issueAdd(thread *starlark.Thread, b *starlark.Builtin, args st
 	}
 
 	if _, err := host.IssueAdd(r.repo, id, items, false); err != nil {
-		return nil, hostError(b, err)
+		return nil, err
 	}
 	return starlark.None, nil
 }
@@ -220,7 +223,7 @@ func (r *runtime) issueRemove(thread *starlark.Thread, b *starlark.Builtin, args
 	}
 
 	if _, err := host.IssueRemove(r.repo, id, items, false); err != nil {
-		return nil, hostError(b, err)
+		return nil, err
 	}
 	return starlark.None, nil
 }
@@ -233,7 +236,7 @@ func (r *runtime) issueArchive(thread *starlark.Thread, b *starlark.Builtin, arg
 	}
 
 	if _, err := host.IssueArchive(r.repo, id, false); err != nil {
-		return nil, hostError(b, err)
+		return nil, err
 	}
 	return starlark.None, nil
 }
@@ -246,7 +249,7 @@ func (r *runtime) issueRm(thread *starlark.Thread, b *starlark.Builtin, args sta
 	}
 
 	if err := host.IssueRm(r.repo, id); err != nil {
-		return nil, hostError(b, err)
+		return nil, err
 	}
 	return starlark.None, nil
 }
@@ -260,7 +263,7 @@ func (r *runtime) issueCommentNew(thread *starlark.Thread, b *starlark.Builtin, 
 
 	commentId, err := host.IssueCommentNew(r.repo, id, body)
 	if err != nil {
-		return nil, hostError(b, err)
+		return nil, err
 	}
 	return starlark.String(commentId.String()), nil
 }
@@ -273,7 +276,7 @@ func (r *runtime) issueCommentEdit(thread *starlark.Thread, b *starlark.Builtin,
 	}
 
 	if err := host.IssueCommentEdit(r.repo, id, body); err != nil {
-		return nil, hostError(b, err)
+		return nil, err
 	}
 	return starlark.None, nil
 }
@@ -291,7 +294,7 @@ func (r *runtime) schemaExport(thread *starlark.Thread, b *starlark.Builtin, arg
 	doc, warnings, err := host.SchemaExport(r.repo)
 	r.warn(warnings)
 	if err != nil {
-		return nil, hostError(b, err)
+		return nil, err
 	}
 
 	// The document's members carry YAML tags and its mappings remember their
@@ -299,7 +302,7 @@ func (r *runtime) schemaExport(thread *starlark.Thread, b *starlark.Builtin, arg
 	// and the ordered conversion is the only one that keeps what it printed.
 	raw, err := doc.Marshal("json")
 	if err != nil {
-		return nil, hostError(b, err)
+		return nil, err
 	}
 	return decodeOrdered(raw)
 }
@@ -323,19 +326,19 @@ func (r *runtime) schemaImport(thread *starlark.Thread, b *starlark.Builtin, arg
 	}
 	raw, err := marshalOrdered(value)
 	if err != nil {
-		return nil, hostError(b, err)
+		return nil, err
 	}
 
 	doc, err := schema.ParseDocument(raw)
 	if err != nil {
-		return nil, hostError(b, err)
+		return nil, err
 	}
 
 	r.warn(host.SchemaDuplicates(r.repo))
 
 	changes, _, err := host.SchemaImport(r.repo, doc, prune, dryRun)
 	if err != nil {
-		return nil, hostError(b, err)
+		return nil, err
 	}
 	return changeList(b, changes)
 }
@@ -356,7 +359,7 @@ func (r *runtime) schemaInit(thread *starlark.Thread, b *starlark.Builtin, args 
 
 	changes, _, err := host.SchemaInit(r.repo, preset, dryRun)
 	if err != nil {
-		return nil, hostError(b, err)
+		return nil, err
 	}
 	return changeList(b, changes)
 }
@@ -372,7 +375,7 @@ func (r *runtime) schemaLog(thread *starlark.Thread, b *starlark.Builtin, args s
 
 	entries, err := host.SchemaLog(r.repo, key)
 	if err != nil {
-		return nil, hostError(b, err)
+		return nil, err
 	}
 	return reencode(b, entries)
 }
@@ -389,7 +392,7 @@ func (r *runtime) schemaArchive(thread *starlark.Thread, b *starlark.Builtin, ar
 	warnings, err := host.SchemaArchive(r.repo, key)
 	r.warn(warnings)
 	if err != nil {
-		return nil, hostError(b, err)
+		return nil, err
 	}
 	return starlark.None, nil
 }
@@ -404,7 +407,7 @@ func (r *runtime) schemaRm(thread *starlark.Thread, b *starlark.Builtin, args st
 	r.warn(host.SchemaDuplicates(r.repo))
 
 	if err := host.SchemaRm(r.repo, key); err != nil {
-		return nil, hostError(b, err)
+		return nil, err
 	}
 	return starlark.None, nil
 }
@@ -417,7 +420,7 @@ func (r *runtime) flowList(thread *starlark.Thread, b *starlark.Builtin, args st
 
 	entries, warnings, err := host.FlowList(r.repo)
 	if err != nil {
-		return nil, hostError(b, err)
+		return nil, err
 	}
 	r.warn(warnings)
 	return reencode(b, entries)
@@ -432,7 +435,7 @@ func (r *runtime) flowExport(thread *starlark.Thread, b *starlark.Builtin, args 
 
 	script, err := host.FlowExport(r.repo, name)
 	if err != nil {
-		return nil, hostError(b, err)
+		return nil, err
 	}
 	return starlark.String(script), nil
 }
@@ -461,7 +464,7 @@ func (r *runtime) flowImport(thread *starlark.Thread, b *starlark.Builtin, args 
 
 	_, created, err := host.FlowImport(r.repo, sources, prune, dryRun)
 	if err != nil {
-		return nil, hostError(b, err)
+		return nil, err
 	}
 
 	ids := make([]string, 0, len(created))
@@ -507,7 +510,7 @@ func (r *runtime) flowLog(thread *starlark.Thread, b *starlark.Builtin, args sta
 
 	entries, err := host.FlowLog(r.repo, name)
 	if err != nil {
-		return nil, hostError(b, err)
+		return nil, err
 	}
 	return reencode(b, entries)
 }
@@ -522,7 +525,7 @@ func (r *runtime) flowArchive(thread *starlark.Thread, b *starlark.Builtin, args
 	r.warn(host.FlowWarnings(r.repo))
 
 	if err := host.FlowArchive(r.repo, name); err != nil {
-		return nil, hostError(b, err)
+		return nil, err
 	}
 	return starlark.None, nil
 }
@@ -537,7 +540,7 @@ func (r *runtime) flowRm(thread *starlark.Thread, b *starlark.Builtin, args star
 	r.warn(host.FlowWarnings(r.repo))
 
 	if err := host.FlowRm(r.repo, name); err != nil {
-		return nil, hostError(b, err)
+		return nil, err
 	}
 	return starlark.None, nil
 }
@@ -561,7 +564,7 @@ func (r *runtime) flowRun(thread *starlark.Thread, b *starlark.Builtin, args sta
 
 	raw, err := newRuntime(r.ctx, r.repo, r.options(), r.depth+1).flow(name, values)
 	if err != nil {
-		return nil, hostError(b, err)
+		return nil, err
 	}
 	if raw == nil {
 		return starlark.None, nil
@@ -569,7 +572,7 @@ func (r *runtime) flowRun(thread *starlark.Thread, b *starlark.Builtin, args sta
 
 	decoded, err := decodeJSON(raw)
 	if err != nil {
-		return nil, hostError(b, err)
+		return nil, err
 	}
 	return toStarlark(decoded)
 }
@@ -582,7 +585,7 @@ func (r *runtime) userMe(thread *starlark.Thread, b *starlark.Builtin, args star
 
 	identity, err := host.UserMe(r.repo)
 	if err != nil {
-		return nil, hostError(b, err)
+		return nil, err
 	}
 	return reencode(b, identity)
 }
@@ -613,7 +616,7 @@ func (r *runtime) viewBuiltin(kind string) builtinFunc {
 		// and what it answers is what the script gets (decided 2026-09-24).
 		answer, err := host.View(r.ctx, r.repo, r.renderer, kind, values)
 		if err != nil {
-			return nil, hostError(b, err)
+			return nil, err
 		}
 		if answer == nil {
 			return starlark.None, nil
@@ -621,7 +624,7 @@ func (r *runtime) viewBuiltin(kind string) builtinFunc {
 
 		decoded, err := decodeJSON(answer)
 		if err != nil {
-			return nil, hostError(b, err)
+			return nil, err
 		}
 		return toStarlark(decoded)
 	}
@@ -729,31 +732,21 @@ func changeList(b *starlark.Builtin, changes []schema.Change) (starlark.Value, e
 func reencode(b *starlark.Builtin, v any) (starlark.Value, error) {
 	raw, err := json.Marshal(v)
 	if err != nil {
-		return nil, hostError(b, err)
+		return nil, err
 	}
 	decoded, err := decodeJSON(raw)
 	if err != nil {
-		return nil, hostError(b, err)
+		return nil, err
 	}
 	return toStarlark(decoded)
 }
 
 // strictUnmarshal refuses an unknown key, as the command line does:
-// a misspelled key is a mistake, never a silent no-op.
+// a misspelled key is a mistake, never a silent no-op. It is the command
+// line's decoder, host.DecodeStrict, because it is the command line's rule.
 func strictUnmarshal(raw json.RawMessage, into any) error {
 	if raw == nil {
 		return fmt.Errorf("the document is None")
 	}
-	dec := json.NewDecoder(bytes.NewReader(raw))
-	dec.DisallowUnknownFields()
-	return dec.Decode(into)
-}
-
-// hostError carries a host failure back into Starlark.
-//
-// The name is not added here: a builtin's error becomes an EvalError whose
-// Backtrace() already opens with "Error in <builtin>", and saying it twice
-// reads as two failures.
-func hostError(b *starlark.Builtin, err error) error {
-	return err
+	return host.DecodeStrict(raw, into)
 }

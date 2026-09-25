@@ -22,13 +22,28 @@
 package host
 
 import (
-	"github.com/git-bug/git-bug/cache"
+	"bytes"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
 )
 
-// resolveIssue reads the issue named by an id prefix or by an alias.
+// DecodeStrict decodes one JSON document and refuses anything after it,
+// so that a truncated or doubled document is an error rather than half a write.
+// Unknown keys are refused too: a misspelled key is a mistake, never a no-op.
 //
-// Plumbing has no implicit selection: every call names its issue,
-// and it names it the same way from the shell and from a script.
-func resolveIssue(repo *cache.RepoCache, id string) (*cache.IssueCache, error) {
-	return repo.Issues().ResolvePrefixOrAlias(id)
+// It is the one rule, because a document written at the shell and the same
+// document built in a script have to be refused for the same reasons.
+func DecodeStrict(data []byte, into any) error {
+	dec := json.NewDecoder(bytes.NewReader(data))
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(into); err != nil {
+		return fmt.Errorf("invalid JSON document: %w", err)
+	}
+	var trailing json.RawMessage
+	if err := dec.Decode(&trailing); !errors.Is(err, io.EOF) {
+		return fmt.Errorf("invalid JSON document: more than one value")
+	}
+	return nil
 }

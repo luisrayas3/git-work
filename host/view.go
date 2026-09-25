@@ -3,7 +3,6 @@ package host
 import (
 	"context"
 	"encoding/json"
-	"errors"
 
 	"github.com/git-bug/git-bug/cache"
 	"github.com/git-bug/git-bug/view"
@@ -27,7 +26,7 @@ func View(ctx context.Context, repo *cache.RepoCache, renderer view.Renderer, ki
 	}
 
 	if renderer == nil {
-		return nil, errors.New("no renderer here: a view needs a terminal, or --gui")
+		return nil, view.ErrNoTerminal
 	}
 
 	return renderer.Render(ctx, repo, call)

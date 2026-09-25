@@ -14,16 +14,6 @@ import (
 	"github.com/git-bug/git-bug/view"
 )
 
-// DefaultProgram is the list you get when you name no program.
-//
-// It is view.DefaultQuery rather than a second copy of it:
-// `git work issue` with no program
-// and a view whose `query` argument was not given
-// have to show the same issues,
-// and one constant is the only way to guarantee that.
-// It lives in `view` because that is the lower of the two packages.
-const DefaultProgram = view.DefaultQuery
-
 // IssueDocument is what `issue new` takes: the issue as a document.
 //
 // Fields carries the whole of what the issue is, title included;
@@ -41,7 +31,10 @@ type IssueDocument struct {
 // so that `git work issue` and `work.issue.list()` mean the same thing.
 func IssueList(repo *cache.RepoCache, program string) ([]any, error) {
 	if program == "" {
-		program = DefaultProgram
+		// The same constant a view's `query` argument defaults to:
+		// `git work issue` with no program and a view with no query have to
+		// show the same issues, and one constant is what guarantees it.
+		program = view.DefaultQuery
 	}
 
 	input, err := IssueListInput(repo)
@@ -79,6 +72,57 @@ func IssueListInput(repo *cache.RepoCache) (any, error) {
 	return jq.Input(out)
 }
 
+// IssueItems reads what a jq program emitted as a list of issues, and reports
+// whether it is one.
+//
+// The shape is IssueList's own: objects with an id and a fields map, either as
+// the one array a program usually returns or as a stream of them. Anything
+// else is not a list of issues, and a caller that can only draw issues says so
+// rather than guessing.
+//
+// One array level is unwrapped and no more: a program that returned an array
+// of arrays meant that, and reading it as a flat list would be inventing an
+// answer.
+func IssueItems(values []any) ([]map[string]any, bool) {
+	items := values
+	if len(values) == 1 {
+		if array, ok := values[0].([]any); ok {
+			items = array
+		}
+	}
+	if len(items) == 0 {
+		return nil, false
+	}
+
+	out := make([]map[string]any, 0, len(items))
+	for _, item := range items {
+		object, ok := item.(map[string]any)
+		if !ok {
+			return nil, false
+		}
+		if _, ok := object["id"].(string); !ok {
+			return nil, false
+		}
+		if _, ok := object["fields"].(map[string]any); !ok {
+			return nil, false
+		}
+		out = append(out, object)
+	}
+	return out, true
+}
+
+// StringOr reads a decoded JSON value as a string, or gives the fallback.
+//
+// Everything that reads what a program emitted meets this: the values are
+// whatever the program made of them, so a field that should be a string may
+// be a number, a list, or absent.
+func StringOr(value any, fallback string) string {
+	if s, ok := value.(string); ok {
+		return s
+	}
+	return fallback
+}
+
 // IssueGet returns one issue whole, as the command prints it.
 func IssueGet(repo *cache.RepoCache, id string) (*cmdjson.IssueSnapshot, error) {
 	snap, err := IssueSnapshot(repo, id)
@@ -96,7 +140,7 @@ func IssueGet(repo *cache.RepoCache, id string) (*cmdjson.IssueSnapshot, error) 
 // an identity's email for instance,
 // and it is the same resolution IssueGet does, by prefix or by alias.
 func IssueSnapshot(repo *cache.RepoCache, id string) (*issue.Snapshot, error) {
-	i, err := resolveIssue(repo, id)
+	i, err := repo.Issues().ResolvePrefixOrAlias(id)
 	if err != nil {
 		return nil, err
 	}
@@ -111,7 +155,7 @@ func IssueSnapshot(repo *cache.RepoCache, id string) (*issue.Snapshot, error) {
 
 // IssueLog returns the operations an issue is made of, oldest first.
 func IssueLog(repo *cache.RepoCache, id string) ([]cmdjson.IssueOperation, error) {
-	i, err := resolveIssue(repo, id)
+	i, err := repo.Issues().ResolvePrefixOrAlias(id)
 	if err != nil {
 		return nil, err
 	}
@@ -159,7 +203,7 @@ func IssueNew(repo *cache.RepoCache, doc IssueDocument) (entity.Id, error) {
 // because they are what `--dry-run` prints
 // and what the same call commits a moment later.
 func IssueSet(repo *cache.RepoCache, id string, fields map[string]issue.Value, dryRun bool) ([]issue.Operation, error) {
-	i, err := resolveIssue(repo, id)
+	i, err := repo.Issues().ResolvePrefixOrAlias(id)
 	if err != nil {
 		return nil, err
 	}
@@ -211,7 +255,7 @@ func IssueArchive(repo *cache.RepoCache, id string, dryRun bool) ([]issue.Operat
 
 // IssueRm deletes an issue's local ref; the issue returns on the next pull.
 func IssueRm(repo *cache.RepoCache, id string) error {
-	i, err := resolveIssue(repo, id)
+	i, err := repo.Issues().ResolvePrefixOrAlias(id)
 	if err != nil {
 		return err
 	}
@@ -220,7 +264,7 @@ func IssueRm(repo *cache.RepoCache, id string) error {
 
 // IssueCommentNew adds a comment to an issue and returns the comment's id.
 func IssueCommentNew(repo *cache.RepoCache, id string, body string) (entity.CombinedId, error) {
-	i, err := resolveIssue(repo, id)
+	i, err := repo.Issues().ResolvePrefixOrAlias(id)
 	if err != nil {
 		return entity.UnsetCombinedId, err
 	}
@@ -276,7 +320,7 @@ func commit(i *cache.IssueCache, ops []issue.Operation, dryRun bool) ([]issue.Op
 // resolveIssueAndItems reads the two arguments add and remove share,
 // resolving each item that names another issue by a prefix.
 func resolveIssueAndItems(repo *cache.RepoCache, id string, items map[string][]issue.Value) (*cache.IssueCache, map[string][]issue.Value, error) {
-	i, err := resolveIssue(repo, id)
+	i, err := repo.Issues().ResolvePrefixOrAlias(id)
 	if err != nil {
 		return nil, nil, err
 	}

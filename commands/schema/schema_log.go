@@ -37,8 +37,7 @@ git work schema log task/status`,
 	flags := cmd.Flags()
 	flags.SortFlags = false
 
-	flags.StringVarP(&options.format, "format", "f", "json",
-		"Select the output formatting style. Valid values are [json,text]")
+	execenv.AddFormatFlag(cmd, &options.format, "json", "text")
 
 	return cmd
 }

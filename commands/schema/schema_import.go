@@ -50,7 +50,7 @@ git work schema import - --dry-run < schema.yaml`,
 }
 
 func runSchemaImport(env *execenv.Env, opts importOptions, args []string) error {
-	data, err := readArg(env, args[0])
+	data, err := execenv.ReadFileOrStdin(env, args[0])
 	if err != nil {
 		return err
 	}

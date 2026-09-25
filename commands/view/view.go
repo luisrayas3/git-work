@@ -17,9 +17,7 @@ package viewcmd
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
-	"io"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -29,15 +27,6 @@ import (
 	"github.com/git-bug/git-bug/tui"
 	"github.com/git-bug/git-bug/view"
 )
-
-// ErrNoGui is what --gui hits until the browser renderer exists.
-var ErrNoGui = errors.New("the gui renderer is not built yet (8b06191)")
-
-// ErrNoTerminal is what a view without a surface hits.
-//
-// It is not an error about the call: the call is fine, there is just nowhere
-// to draw it, and the two ways out are both in the message.
-var ErrNoTerminal = errors.New("a view needs a terminal; run it in one, or with --gui")
 
 type viewOptions struct {
 	gui bool
@@ -92,18 +81,32 @@ func newViewKindCommand(env *execenv.Env, kind string) *cobra.Command {
 
 // kindLong documents a kind from its argument table, so that the help and the
 // validation can never drift apart.
+//
+// The note about undrawn arguments is printed only where there is one, so
+// that a kind whose whole table is drawn does not warn about nothing.
 func kindLong(kind string) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "Draw a %s.\n\n", kind)
 	b.WriteString("KWARGS is a JSON object of this view's arguments:\n")
 	b.WriteString(view.Help(kind))
-	b.WriteString("\nA `feature` argument is in the table and not drawn yet.\n")
+	if hasFeatureArg(kind) {
+		b.WriteString("\nA `feature` argument is in the table and not drawn yet.\n")
+	}
 	return b.String()
+}
+
+func hasFeatureArg(kind string) bool {
+	for _, arg := range view.Kinds[kind] {
+		if arg.Tier == view.Feature {
+			return true
+		}
+	}
+	return false
 }
 
 func runView(env *execenv.Env, opts viewOptions, kind string, args []string) error {
 	if opts.gui {
-		return ErrNoGui
+		return view.ErrNoGui
 	}
 
 	kwargs, err := readKwargs(env, args)
@@ -118,7 +121,7 @@ func runView(env *execenv.Env, opts viewOptions, kind string, args []string) err
 		if _, err := view.Parse(kind, kwargs); err != nil {
 			return err
 		}
-		return ErrNoTerminal
+		return view.ErrNoTerminal
 	}
 
 	answer, err := host.View(env.Ctx, env.Backend, renderer, kind, kwargs)
@@ -142,19 +145,5 @@ func readKwargs(env *execenv.Env, args []string) (map[string]json.RawMessage, er
 	if len(args) == 0 {
 		return nil, nil
 	}
-
-	data := []byte(args[0])
-	if args[0] == "-" {
-		read, err := io.ReadAll(env.In)
-		if err != nil {
-			return nil, fmt.Errorf("reading the standard input: %w", err)
-		}
-		data = read
-	}
-
-	var kwargs map[string]json.RawMessage
-	if err := json.Unmarshal(data, &kwargs); err != nil {
-		return nil, fmt.Errorf("the arguments are a JSON object: %w", err)
-	}
-	return kwargs, nil
+	return execenv.ReadKwargs(env, args[0])
 }

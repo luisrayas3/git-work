@@ -31,14 +31,14 @@ git work schema import schema.yaml`,
 		}),
 	}
 
-	addFormatFlag(cmd, &options.format)
+	execenv.AddFormatFlag(cmd, &options.format, "yaml", "json")
 
 	return cmd
 }
 
 func runSchemaExport(env *execenv.Env, opts formatOptions) error {
 	doc, warnings, err := host.SchemaExport(env.Backend)
-	warn(env, warnings)
+	env.Warn(warnings)
 	if err != nil {
 		return err
 	}

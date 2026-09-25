@@ -38,7 +38,7 @@ func runSchemaArchive(env *execenv.Env, args []string) error {
 	// a multi-entity change is not atomic here (AGENTS.md), so nothing else
 	// is archived and the honest thing is to say what is left.
 	warnings, err := host.SchemaArchive(env.Backend, args[0])
-	warn(env, warnings)
+	env.Warn(warnings)
 
 	return err
 }

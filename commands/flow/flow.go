@@ -20,7 +20,6 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/git-bug/git-bug/cache"
 	"github.com/git-bug/git-bug/commands/completion"
 	"github.com/git-bug/git-bug/commands/execenv"
 	"github.com/git-bug/git-bug/entities/config"
@@ -62,7 +61,7 @@ flow's name, its docstring the description and its parameters the arguments
 	flags := cmd.Flags()
 	flags.SortFlags = false
 
-	addFormatFlag(cmd, &options.format)
+	execenv.AddFormatFlag(cmd, &options.format, "json", "text")
 
 	cmd.AddCommand(newFlowArchiveCommand(env))
 	cmd.AddCommand(newFlowExportCommand(env))
@@ -74,13 +73,6 @@ flow's name, its docstring the description and its parameters the arguments
 	return cmd
 }
 
-// addFormatFlag adds the one output flag every reader has.
-func addFormatFlag(cmd *cobra.Command, format *string) {
-	cmd.Flags().StringVarP(format, "format", "f", "json",
-		"Select the output formatting style. Valid values are [json,text]")
-	cmd.RegisterFlagCompletionFunc("format", completion.From([]string{"json", "text"}))
-}
-
 func runFlowList(env *execenv.Env, opts flowListOptions) error {
 	warnDuplicates(env)
 
@@ -88,7 +80,7 @@ func runFlowList(env *execenv.Env, opts flowListOptions) error {
 	if err != nil {
 		return err
 	}
-	warn(env, warnings)
+	env.Warn(warnings)
 
 	switch opts.format {
 	case "json":
@@ -108,14 +100,7 @@ func runFlowList(env *execenv.Env, opts flowListOptions) error {
 // Every flow command calls it, because a team that loses an edit this way
 // is never told otherwise.
 func warnDuplicates(env *execenv.Env) {
-	warn(env, host.FlowWarnings(env.Backend))
-}
-
-// warn prints what a reader should be told about the flows it just read.
-func warn(env *execenv.Env, warnings []string) {
-	for _, warning := range warnings {
-		env.Err.Printf("warning: %s\n", warning)
-	}
+	env.Warn(host.FlowWarnings(env.Backend))
 }
 
 // printIds prints the id of each flow that was created, one per line.
@@ -123,11 +108,6 @@ func printIds(env *execenv.Env, created []entity.Id) {
 	for _, id := range created {
 		env.Out.Println(id.String())
 	}
-}
-
-// scriptOf returns a flow's source.
-func scriptOf(excerpt *cache.ConfigExcerpt) (string, error) {
-	return host.FlowScript(excerpt)
 }
 
 // FlowCompletion completes a flow name.

@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/git-bug/git-bug/commands/execenv"
+	"github.com/git-bug/git-bug/view"
 )
 
 // runnableFlow creates two issues, edits one and returns the ones it kept.
@@ -64,7 +65,7 @@ func TestFlowRunDrawingNeedsASurface(t *testing.T) {
 
 	env.Out.Reset()
 	err := runFlowRun(env, flowRunOptions{}, []string{"kanban_view"})
-	require.ErrorContains(t, err, "no renderer here")
+	require.ErrorContains(t, err, view.ErrNoTerminal.Error())
 	require.Equal(t, "", env.Out.String())
 }
 
@@ -111,7 +112,7 @@ func TestFlowRunGuiHasNoRenderer(t *testing.T) {
 	importScript(t, env, "kanban.star", runnableFlow)
 
 	err := runFlowRun(env, flowRunOptions{gui: true}, []string{"kanban"})
-	require.ErrorIs(t, err, ErrNoGui)
+	require.ErrorIs(t, err, view.ErrNoGui)
 	require.Contains(t, err.Error(), "8b06191")
 	// and it ran nothing
 	require.Empty(t, env.Backend.Issues().AllIds())

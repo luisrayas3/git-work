@@ -33,13 +33,13 @@ echo "$doc" | git work issue new -`,
 }
 
 func runIssueNew(env *execenv.Env, args []string) error {
-	data, err := readArg(env, args[0])
+	data, err := execenv.ReadLiteralOrStdin(env, args[0])
 	if err != nil {
 		return err
 	}
 
 	var doc host.IssueDocument
-	if err := decodeJSON(data, &doc); err != nil {
+	if err := host.DecodeStrict(data, &doc); err != nil {
 		return err
 	}
 
