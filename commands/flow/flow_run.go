@@ -9,6 +9,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/git-bug/git-bug/commands/execenv"
+	"github.com/git-bug/git-bug/flow"
 	"github.com/git-bug/git-bug/flow/run"
 	"github.com/git-bug/git-bug/tui"
 	"github.com/git-bug/git-bug/view"
@@ -18,22 +19,25 @@ import (
 var ErrNoGui = errors.New("the gui renderer is not built yet (8b06191)")
 
 type flowRunOptions struct {
-	format string
-	gui    bool
+	gui bool
 }
 
 func newFlowRunCommand(env *execenv.Env) *cobra.Command {
 	options := flowRunOptions{}
 
 	cmd := &cobra.Command{
-		Use:   "run NAME [KWARGS]",
+		Use:   "run NAME|- [KWARGS|-]",
 		Short: "Run a flow",
 		Long: `Run a flow and print what it returned.
 
+NAME is a flow in the store, or "-" to run a script from standard input
+without importing it: one function, the same shape import takes.
+
 KWARGS is a JSON object of the flow's arguments, given as the argument or on
-standard input as "-". Defaults in the signature fill what the object omits,
-an unknown key is an error naming the arguments, and an argument with no
-default that nobody named is an error too. ` + "`git work flow`" + ` lists them.
+standard input as "-" (not when the script is). Defaults in the signature fill
+what the object omits, an unknown key is an error naming the arguments, and an
+argument with no default that nobody named is an error too. ` + "`git work flow`" + `
+lists them.
 
 A flow that returns a value prints it as JSON; one that returns nothing prints
 nothing.
@@ -43,7 +47,8 @@ saved view is a flow that calls one. That needs a terminal: without one, the
 view call is what fails, and a flow that draws nothing runs as it always did.`,
 		Example: `git work flow run board
 git work flow run board '{"iteration":"2026-Q4-S3"}'
-echo '{"iteration":"current"}' | git work flow run board -`,
+echo '{"iteration":"current"}' | git work flow run board -
+git work flow run - '{"status":"done"}' < scratch.star`,
 		Args:    cobra.RangeArgs(1, 2),
 		PreRunE: execenv.LoadBackendEnsureUser(env),
 		RunE: execenv.CloseBackend(env, func(cmd *cobra.Command, args []string) error {
@@ -55,7 +60,6 @@ echo '{"iteration":"current"}' | git work flow run board -`,
 	flags := cmd.Flags()
 	flags.SortFlags = false
 
-	addFormatFlag(cmd, &options.format)
 	flags.BoolVar(&options.gui, "gui", false,
 		"Draw what the flow renders in the browser")
 
@@ -84,8 +88,13 @@ func runFlowRun(env *execenv.Env, opts flowRunOptions, args []string) error {
 
 	// A flow writes through the cache like any command, as the user that
 	// LoadBackendEnsureUser settled, and print() goes to stderr.
-	raw, err := run.Flow(env.Ctx, env.Backend,
-		run.Options{Stderr: env.Err.Raw(), Renderer: renderer}, args[0], kwargs)
+	options := run.Options{Stderr: env.Err.Raw(), Renderer: renderer}
+	var raw json.RawMessage
+	if args[0] == "-" {
+		raw, err = runScript(env, options, kwargs)
+	} else {
+		raw, err = run.Flow(env.Ctx, env.Backend, options, args[0], kwargs)
+	}
 	if err != nil {
 		return err
 	}
@@ -98,15 +107,23 @@ func runFlowRun(env *execenv.Env, opts flowRunOptions, args []string) error {
 	if err != nil {
 		return err
 	}
+	return env.Out.PrintJSON(value)
+}
 
-	switch opts.format {
-	case "json":
-		return env.Out.PrintJSON(value)
-	case "text":
-		return printText(env, value)
-	default:
-		return fmt.Errorf("unknown format %s", opts.format)
+// runScript runs the flow on standard input without importing it,
+// which is how a flow is tried before it is worth a name in the store.
+func runScript(env *execenv.Env, options run.Options, kwargs map[string]json.RawMessage) (json.RawMessage, error) {
+	src, err := io.ReadAll(env.In)
+	if err != nil {
+		return nil, fmt.Errorf("reading the standard input: %w", err)
 	}
+
+	def, err := flow.Parse(string(src))
+	if err != nil {
+		return nil, err
+	}
+
+	return run.Run(env.Ctx, env.Backend, options, def, string(src), kwargs)
 }
 
 // readKwargs reads the optional JSON object of arguments.
@@ -117,6 +134,9 @@ func readKwargs(env *execenv.Env, args []string) (map[string]json.RawMessage, er
 
 	data := []byte(args[1])
 	if args[1] == "-" {
+		if args[0] == "-" {
+			return nil, errors.New("the script and the arguments can not both come from standard input")
+		}
 		read, err := io.ReadAll(env.In)
 		if err != nil {
 			return nil, fmt.Errorf("reading the standard input: %w", err)

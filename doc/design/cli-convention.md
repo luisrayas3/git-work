@@ -126,7 +126,7 @@ git work schema archive KEY
 git work schema rm KEY
 
 git work flow                                   # names, descriptions, arguments
-git work flow run NAME [KWARGS] [--gui] [--format json|text]
+git work flow run NAME|- [KWARGS|-] [--gui]      # - runs the script on stdin without importing it
 git work flow get NAME [--format json|text]     # text prints the script
 git work flow import FILE|DIR|-... [--prune] [--dry-run]   # one def per file; its name is the flow's
 git work flow export NAME > FILE
