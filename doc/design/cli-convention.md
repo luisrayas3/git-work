@@ -97,12 +97,10 @@ is `terminal-renderer.md`; this document is the command line it is reached by.
   Every kind but `show` takes `query`, a jq program the view runs, re-runs on a
   ref-watcher change and after its own writes, which is what keeps a view live.
   Which other arguments a kind takes, and which of them it cannot do without,
-  is a table in package `view`, read by the view functions, the help and every backend:
-  `list` takes `fields`, `details`, `group_by`, `expand`, `depth` and `rank`;
-  `board` requires `columns` and takes `values`, `card`, `group_by` and `rank`;
-  `gantt` requires `start` and `stop`
-  and takes `label`, `scale`, `from`, `to`, `progress`, `group_by`, `expand`, `depth` and `rank`;
-  `show` requires `id` and takes `fields`.
+  is a table in package `view`, read by the view functions, the help and every backend,
+  and printed by `git work view <kind> --help`, which is the authority.
+  Only what a kind cannot do without is worth repeating here:
+  `list` requires nothing, `board` `columns`, `gantt` `start` and `stop`, `show` `id`.
   Every argument that names a field is one field key, because there are no field roles:
   a script names the fields it means when it calls the view.
   `terminal-renderer.md` is what each one does.
@@ -139,10 +137,11 @@ git work flow log [NAME]
 git work flow archive NAME
 git work flow rm NAME
 
-git work view list  [KWARGS|-] [--gui]          # {"query": PROGRAM, "fields": [KEY, ...], ...}
-git work view board [KWARGS|-] [--gui]          # {"columns": KEY, "values": [...], "card": [KEY, ...], ...}
-git work view gantt [KWARGS|-] [--gui]          # {"start": KEY, "stop": KEY, "scale": "week", ...}
-git work view show  [KWARGS|-] [--gui]          # {"id": ID, "fields": [KEY, ...]}
+git work view list  [KWARGS|-] [--gui]          # requires nothing
+git work view board [KWARGS|-] [--gui]          # requires columns
+git work view gantt [KWARGS|-] [--gui]          # requires start and stop
+git work view show  [KWARGS|-] [--gui]          # requires id
+                                                # git work view KIND --help is the whole argument list
 
 git work push
 git work pull

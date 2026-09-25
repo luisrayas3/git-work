@@ -1,5 +1,13 @@
 # Internal architecture
 
+**This document predates the fork (noted 2026-09-25).**
+It describes upstream git-bug's layering, which is not this tool's any more.
+The current one is
+`entities/{issue,config,identity}` → `cache` → `host` →
+`commands`, `flow/run`, `tui` and `view`.
+It will be rewritten once the migration (`bf6f392`) deletes the bug tree,
+and until then `AGENTS.md` is the accurate map.
+
 This documentation only provides a bird's-eye view of git-bug's internals. For
 more details, you should read the other documentation and the various
 comment/documentation scattered in the codebase.

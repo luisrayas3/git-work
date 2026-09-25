@@ -1,3 +1,11 @@
+> **This is `git-work`**,
+> a fork of [git-bug](https://github.com/git-bug/git-bug) at `e1c21a42`
+> becoming a project-management tool with Jira as a first-class sync backend.
+> The command is `git work`.
+> Its command line and the conventions it follows are [AGENTS.md](./AGENTS.md)
+> and [the command-line map](./doc/design/cli-convention.md).
+> The text below is upstream's: it describes git-bug, not this fork.
+
 <div align="center">
 
 <img width="150px" src="https://cdn.rawgit.com/git-bug/git-bug/trunk/misc/logo/logo-alpha-flat-bg.svg">

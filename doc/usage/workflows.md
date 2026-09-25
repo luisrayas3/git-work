@@ -1,3 +1,11 @@
+> **This is `git-work`**,
+> a fork of [git-bug](https://github.com/git-bug/git-bug) at `e1c21a42`
+> becoming a project-management tool with Jira as a first-class sync backend.
+> The command is `git work`.
+> Its command line and the conventions it follows are [AGENTS.md](../../AGENTS.md)
+> and [the command-line map](../design/cli-convention.md).
+> The text below is upstream's: it describes git-bug, not this fork.
+
 # Workflows
 
 This document provides an overview of different workflows that `git-bug`
@@ -55,7 +63,7 @@ ______________________________________________________________________
 - [Learn about the native interfaces][docs/usage/interfaces]
 - :house: [Documentation home][docs/home]
 
-[docs/cli]: ../md/git-bug.md
+[docs/cli]: ../md/git-work.md
 [docs/home]: ../README.md
 [docs/usage/bridges]: ./third-party.md
 [docs/usage/filter]: ./query-language.md

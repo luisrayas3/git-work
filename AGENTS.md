@@ -186,10 +186,14 @@ and `--gui` errors until the gui process exists (`8b06191`):
 
 | Action | Command |
 | --- | --- |
-| List | `git work view list [KWARGS\|-] [--gui]` (`query`, `fields`, `details`, `group_by`, `expand`, `depth`, `rank`) |
-| Show | `git work view show [KWARGS\|-] [--gui]` (`id` required; `fields`) |
-| Board | `git work view board [KWARGS\|-] [--gui]` (`columns` required; `values`, `card`, `group_by`, `rank`) |
-| Gantt | `git work view gantt [KWARGS\|-] [--gui]` (`start` and `stop` required; `label`, `scale`, `from`, `to`, `progress`, `group_by`, `expand`, `depth`, `rank`) |
+| List | `git work view list [KWARGS\|-] [--gui]` (nothing required) |
+| Show | `git work view show [KWARGS\|-] [--gui]` (`id` required) |
+| Board | `git work view board [KWARGS\|-] [--gui]` (`columns` required) |
+| Gantt | `git work view gantt [KWARGS\|-] [--gui]` (`start` and `stop` required) |
+
+Which other arguments a kind takes is `git work view <kind> --help`,
+generated from the table in package `view`, which is the authority
+(designed in `doc/design/terminal-renderer.md`).
 
 Every kind but `show` takes `query`, a jq program over the same array `git work issue` prints,
 which the view runs itself and re-runs on a ref-watcher change and after its own writes,
@@ -235,6 +239,10 @@ Gotchas, hardened from use:
   so there is no such thing as a stale one to remove;
   `timed out after 5s waiting for the write lock (held by pid N)`
   means a real concurrent writer.
+- `flow archive` and `flow import --prune` did not commit until 2026-09-25:
+  the archive reached the local cache file and nothing else,
+  so it came back on the next cache rebuild.
+  A flow you archived before that day may be back; archive it again.
 - Do not `git work push` without explicit intent;
   it publishes the tracker to `origin`.
 - `termui` and `webui` need a real TTY; a human runs them, not the agent.
