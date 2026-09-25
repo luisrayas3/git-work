@@ -40,7 +40,7 @@ func newFlowRmCommand(env *execenv.Env) *cobra.Command {
 		Long: `Remove a flow's local ref. This is local: the flow comes back on the next
 pull. The replicated removal is archive.`,
 		Args:    cobra.ExactArgs(1),
-		PreRunE: execenv.LoadBackendEnsureUser(env),
+		PreRunE: execenv.LoadBackend(env),
 		RunE: execenv.CloseBackend(env, func(cmd *cobra.Command, args []string) error {
 			return runFlowRm(env, args)
 		}),

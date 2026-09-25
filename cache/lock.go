@@ -38,7 +38,7 @@ var inProcessWriteLock sync.Mutex
 //
 // The lock is advisory and only binds processes that go through this package,
 // which every writer does: the CLI, the TUI, the web UI and the bridge all sit
-// on the cache. Writing refs/issues/* from outside git-work — a stray
+// on the cache. Writing refs/work-issues/* from outside git-work — a stray
 // `git update-ref`, say — is outside what this can protect.
 func lockWrite(repo repository.RepoStorage) (func(), error) {
 	root := repo.LocalStorage().Root()

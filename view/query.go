@@ -7,9 +7,11 @@ import "encoding/json"
 //
 // It is written as a jq program rather than special-cased in Go
 // so that `.` means the whole array and nothing is hidden from it.
-// "mine" would be the better default,
-// but it needs the schema's assignee field to know which one it is,
-// so it waits for the schema (e8d6426).
+// "mine" would be the friendlier default and can never be this one:
+// there are no field roles on the schema (d56e6f1, f4bac00),
+// so nothing here can tell which field is the assignee.
+// "mine" is a flow's to write, naming the field it means
+// and asking work.user.me() who that is.
 //
 // It lives here, in the lowest package that needs it,
 // because two callers apply it and they must apply the same one:

@@ -16,7 +16,7 @@ pull, and removing one that came from a bridge does not remove it on the remote.
 The replicated removal is archive.
 ID is an id prefix or an alias.`,
 		Args:    cobra.ExactArgs(1),
-		PreRunE: execenv.LoadBackendEnsureUser(env),
+		PreRunE: execenv.LoadBackend(env),
 		RunE: execenv.CloseBackend(env, func(cmd *cobra.Command, args []string) error {
 			return runIssueRm(env, args)
 		}),

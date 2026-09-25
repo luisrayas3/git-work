@@ -47,7 +47,7 @@ The titles of the issues of one epic:
 git work issue 'map(select(.fields.parent == "6a1b2c3")) | map(.fields.title)'
 
 A kanban of what is not done:
-git work issue 'map(select(.fields.status != "done"))' | git work view board '{"columns":"status"}'
+git work view board '{"query":"map(select(.fields.status != \"done\"))","columns":"status"}'
 `,
 		Args:    cobra.MaximumNArgs(1),
 		PreRunE: execenv.LoadBackend(env),

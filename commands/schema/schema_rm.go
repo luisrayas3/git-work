@@ -17,7 +17,7 @@ the next pull. The replicated removal is archive.
 KEY is a type key or a field key, <type>/<field>.`,
 		Example: `git work schema rm task/estimate`,
 		Args:    cobra.ExactArgs(1),
-		PreRunE: execenv.LoadBackendEnsureUser(env),
+		PreRunE: execenv.LoadBackend(env),
 		RunE: execenv.CloseBackend(env, func(cmd *cobra.Command, args []string) error {
 			return runSchemaRm(env, args)
 		}),

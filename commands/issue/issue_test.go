@@ -12,6 +12,7 @@ import (
 	"github.com/git-bug/git-bug/commands/execenv"
 	"github.com/git-bug/git-bug/entities/issue"
 	"github.com/git-bug/git-bug/entity"
+	"github.com/git-bug/git-bug/host"
 )
 
 func newTestEnv(t *testing.T) *execenv.Env {
@@ -178,7 +179,9 @@ func TestIssueAddRemove(t *testing.T) {
 	excerpt, err := env.Backend.Issues().ResolveExcerpt(id)
 	require.NoError(t, err)
 	require.JSONEq(t, `["area:core","prio:high"]`, string(excerpt.Fields["labels"]))
-	// an item that is the prefix of one issue is stored as its full id
+	// With no schema, nothing knows which fields hold ids, so an item that is
+	// the prefix of one issue is stored as its full id — the guess that keeps
+	// a bootstrap repository able to write a parent.
 	require.JSONEq(t, `["`+other.String()+`"]`, string(excerpt.Fields["blocks"]))
 
 	// adding what is there is a no-op, removing takes one away
@@ -198,6 +201,30 @@ func TestIssueAddRemove(t *testing.T) {
 	require.Error(t, runIssueAdd(env, writeOptions{}, []string{id.Human(), `{"labels":"area:core"}`}))
 	// null is not an item: clearing a field is set's business
 	require.Error(t, runIssueAdd(env, writeOptions{}, []string{id.Human(), `{"labels":[null]}`}))
+}
+
+// TestIssueAddResolvesOnlyRelations pins the thing the prefix lookup must not
+// do once the schema can tell it apart: rewrite a label that happens to read
+// like an id prefix (bb9e89e).
+func TestIssueAddResolvesOnlyRelations(t *testing.T) {
+	env := newTestEnv(t)
+	_, _, err := host.SchemaInit(env.Backend, "jira", false)
+	require.NoError(t, err)
+
+	id := newTestIssue(t, env, `{"fields":{"title":"one","type":"task"}}`)
+	other := newTestIssue(t, env, `{"fields":{"title":"two","type":"task"}}`)
+	prefix := other.Human()
+
+	require.NoError(t, runIssueAdd(env, writeOptions{}, []string{
+		id.Human(), `{"blocks":["` + prefix + `"],"labels":["` + prefix + `"]}`,
+	}))
+
+	excerpt, err := env.Backend.Issues().ResolveExcerpt(id)
+	require.NoError(t, err)
+	// blocks is a multi-relation: its item is the issue it names
+	require.JSONEq(t, `["`+other.String()+`"]`, string(excerpt.Fields["blocks"]))
+	// labels is not: the item is the label it is, prefix-shaped or not
+	require.JSONEq(t, `["`+prefix+`"]`, string(excerpt.Fields["labels"]))
 }
 
 func TestIssueDryRun(t *testing.T) {

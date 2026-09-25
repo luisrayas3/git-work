@@ -55,7 +55,8 @@ type Call struct {
 // Renderer draws a call and blocks until the user is done with it.
 //
 // The return value is the user's answer — nothing, today, for every kind —
-// so that a flow can one day write `chosen = work.view.list(pick=True)`.
+// so that the deferred questions to the user (choose, confirm, ask) can
+// return what the user answered.
 type Renderer interface {
 	Render(ctx context.Context, repo *cache.RepoCache, call *Call) (json.RawMessage, error)
 }

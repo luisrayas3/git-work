@@ -6,7 +6,6 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/git-bug/git-bug/commands/cmdjson"
-	"github.com/git-bug/git-bug/commands/completion"
 	"github.com/git-bug/git-bug/commands/execenv"
 	"github.com/git-bug/git-bug/host"
 	"github.com/git-bug/git-bug/util/colors"
@@ -24,8 +23,13 @@ func newUserMeCommand(env *execenv.Env) *cobra.Command {
 	options := userOptions{}
 
 	cmd := &cobra.Command{
-		Use:     "me",
-		Short:   "Display the identity you write as",
+		Use:   "me",
+		Short: "Display the identity you write as",
+		Long: `Print the identity this repository writes as, the one the first mutating
+command settled from git's user.name and user.email.
+
+This is the document work.user.me() returns; --format text prints the line
+the bare ` + "`git work user`" + ` prints for it.`,
 		Args:    cobra.NoArgs,
 		PreRunE: execenv.LoadBackendEnsureUser(env),
 		RunE: execenv.CloseBackend(env, func(cmd *cobra.Command, args []string) error {
@@ -36,9 +40,7 @@ func newUserMeCommand(env *execenv.Env) *cobra.Command {
 	flags := cmd.Flags()
 	flags.SortFlags = false
 
-	flags.StringVarP(&options.format, "format", "f", "default",
-		"Select the output formatting style. Valid values are [default,json]")
-	cmd.RegisterFlagCompletionFunc("format", completion.From([]string{"default", "json"}))
+	execenv.AddFormatFlag(cmd, &options.format, "json", "text")
 
 	return cmd
 }
@@ -52,7 +54,7 @@ func runUserMe(env *execenv.Env, opts userOptions) error {
 	switch opts.format {
 	case "json":
 		return env.Out.PrintJSON(me)
-	case "default":
+	case "text":
 		env.Out.Printf("%s %s\n", colors.Cyan(me.HumanId), meDisplayName(*me))
 		return nil
 	default:

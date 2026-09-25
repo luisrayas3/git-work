@@ -48,7 +48,7 @@ func TestParseNoDocstring(t *testing.T) {
 
 func TestParseParams(t *testing.T) {
 	def, err := Parse(`def plan(epic, iteration="current", limit=10, ratio=1.5, dry=True,
-             owner=None, labels=["a","b"], bindings={"start":"start_date"}, offset=-2):
+             owner=None, labels=["a","b"], columns={"status":"In progress"}, offset=-2):
     """Plan."""
     return None
 `)
@@ -70,7 +70,7 @@ func TestParseParams(t *testing.T) {
 		{4, "dry", `true`},
 		{5, "owner", `null`},
 		{6, "labels", `["a","b"]`},
-		{7, "bindings", `{"start":"start_date"}`},
+		{7, "columns", `{"status":"In progress"}`},
 		{8, "offset", `-2`},
 	} {
 		param := def.Params[tc.at]

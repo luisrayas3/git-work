@@ -59,7 +59,7 @@ func newViewKindCommand(env *execenv.Env, kind string) *cobra.Command {
 	options := viewOptions{}
 
 	cmd := &cobra.Command{
-		Use:   kind + " [KWARGS]",
+		Use:   kind + " [KWARGS|-]",
 		Short: "Draw a " + kind,
 		Long:  kindLong(kind),
 		Args:  cobra.MaximumNArgs(1),
@@ -87,7 +87,7 @@ func newViewKindCommand(env *execenv.Env, kind string) *cobra.Command {
 func kindLong(kind string) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "Draw a %s.\n\n", kind)
-	b.WriteString("KWARGS is a JSON object of this view's arguments:\n")
+	b.WriteString("KWARGS is a JSON object of this view's arguments, read from standard\ninput when it is \"-\":\n")
 	b.WriteString(view.Help(kind))
 	if hasFeatureArg(kind) {
 		b.WriteString("\nA `feature` argument is in the table and not drawn yet.\n")

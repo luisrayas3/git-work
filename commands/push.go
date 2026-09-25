@@ -32,7 +32,7 @@ func runPush(env *execenv.Env, args []string) error {
 	case len(args) == 1:
 		remote = args[0]
 	default:
-		v, err := repository.GetDefaultString("git-bug.remote", env.Repo.AnyConfig(), "origin")
+		v, err := repository.GetDefaultString("git-work.remote", env.Repo.AnyConfig(), "origin")
 		if err != nil {
 			return err
 		}
