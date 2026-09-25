@@ -1,1 +1,1 @@
-{"author":{"id":"a3a282966ced55effb4560271fcd98e13241af24ea76b00ec76a0f18154bc8ee"},"ops":[{"type":9,"timestamp":1789760336,"nonce":"XDQQZbD+cniGb8WY3sPIhy+HAbA=","key":"parent","value":"a6b0d3909344bc365eeebb731b7a6a518fb9b2624ae1c66aa3edfb445d3bad3c"}]}
+{"author":{"id":"a3a282966ced55effb4560271fcd98e13241af24ea76b00ec76a0f18154bc8ee"},"ops":[{"type":9,"timestamp":1789760336,"nonce":"8D/kx01+12nWZk91EpDg5NAqDlM=","key":"title","value":"Task: Plumbing CLI: git work issue new|get|list|patch|rm|log with JSON in/out"}]}
