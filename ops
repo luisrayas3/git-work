@@ -1,1 +1,1 @@
-{"author":{"id":"a3a282966ced55effb4560271fcd98e13241af24ea76b00ec76a0f18154bc8ee"},"ops":[{"type":9,"timestamp":1789760337,"nonce":"CF0AalXi4Op7JPbJX1R/foNUBV0=","key":"parent","value":"a6b0d3909344bc365eeebb731b7a6a518fb9b2624ae1c66aa3edfb445d3bad3c"}]}
+{"author":{"id":"a3a282966ced55effb4560271fcd98e13241af24ea76b00ec76a0f18154bc8ee"},"ops":[{"type":9,"timestamp":1789760338,"nonce":"pC4wGj13tpEEeYuAhl6FaQry/Tw=","key":"title","value":"Task: MCP server in-process on the Go library"}]}
