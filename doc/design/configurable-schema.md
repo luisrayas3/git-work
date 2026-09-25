@@ -203,7 +203,7 @@ lamport times, which `dag.Entity.Commit` takes from the repository clocks,
 so the packs are replayed in global lamport order
 with the target clocks witnessed to one below each original time;
 and the namespaces: `refs/issues/*` is deleted locally and on origin once replayed,
-and identities move to `refs/work-identities/*` by editing three ref-name constants
+and identities move to `refs/work-users/*` (named 2026-09-25) by editing three ref-name constants
 in `entities/identity`, the one listed exception to the pristine seven (`483dbe2`),
 in the same change that deletes `entities/bug`.
 
@@ -403,7 +403,7 @@ so either the preset carries a custom one or decisions become Task plus a marker
    Pure library, wired into the issue cache's write path.
 4. `bf6f392` — the one-time migration:
    old operations to new, labels to fields, ids and lamport times preserved;
-   `refs/issues/*` deleted locally and on origin, identities moved to `refs/work-identities/*`;
+   `refs/issues/*` deleted locally and on origin, identities moved to `refs/work-users/*`;
    `entities/bug`, `commands/bug` and their cache files deleted;
    `schema init jira` in the same pass; AGENTS.md rewritten.
 5. `87a48c1` — iterations as a type: per-type field applicability, target-typed relations,

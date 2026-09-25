@@ -35,7 +35,7 @@ If you believe you must edit a pristine package, **stop and flag it** —
 it breaks upstream tracking and is a real architectural decision.
 One such decision is on record:
 the migration (`bf6f392`) changes three ref-name constants in `entities/identity`
-so identities live at `refs/work-identities` like every other namespace (`483dbe2`);
+so identities live at `refs/work-users` like every other namespace (`483dbe2`; named `users` on 2026-09-25, because every word a user meets says user);
 nothing else in the seven is touched.
 
 Design consequence:
@@ -325,7 +325,7 @@ Settled calls (details live in the referenced issues):
   Bleve is dropped; search is a non-goal (`3500366`).
 - Ref namespaces carry the `work-` prefix: `refs/work-issues`,
   `work-schema`, `work-flows`, and
-  `work-identities` after the migration (`483dbe2`). The store is **migrated
+  `work-users` after the migration (`483dbe2`, named 2026-09-25 to match `git work user` and `work.user.me()`). The store is **migrated
   once** to the owned format with entity and comment ids preserved, and
   `formatVersion` bumps so old binaries refuse it rather than misread it
   (`f4bac00`, `bf6f392`). Until then the tracker sits in `refs/issues` in the
