@@ -1,1 +1,1 @@
-{"author":{"id":"a3a282966ced55effb4560271fcd98e13241af24ea76b00ec76a0f18154bc8ee"},"ops":[{"type":3,"timestamp":1790014274,"nonce":"m9rzMuJsAY625V5UhRgQ28Gfbk0=","message":"Closed 2026-09-21 in a prune of pre-workshop items. Superseded by 84dfbde (Bubble Tea TUI, my-work view). The kanban moved to the webui (fd0a02a).","files":null}]}
+{"author":{"id":"a3a282966ced55effb4560271fcd98e13241af24ea76b00ec76a0f18154bc8ee"},"ops":[{"type":9,"timestamp":1790014274,"nonce":"POhCP2c4qNr5qwXAPP0A9LwZPyU=","key":"status","value":"done"}]}
