@@ -9,10 +9,6 @@ import (
 // surface prints, so an id read here is an id that can be typed there.
 const idWidth = 7
 
-// maxColumn caps one field's column, so that one long description can not
-// push every other field off the screen.
-const maxColumn = 40
-
 func (p *listPage) View() string {
 	if p.helping {
 		return strings.Join(helpLines(), "\n")
@@ -169,12 +165,12 @@ func (p *listPage) widths() []int {
 				widths[at] = n
 			}
 		}
-		widths[at] = min(widths[at], maxColumn)
 	}
 
 	// The budget is the window less the id column, the cursor marker and one
 	// space between columns. Over it, the widest column gives way first, so
-	// that a long title shrinks before a short status disappears.
+	// that a long title shrinks before a short status disappears; a column is
+	// never capped below that, so a wide window shows a whole title.
 	budget := p.width - idWidth - 2 - len(p.fields)
 	for budget > 0 && sum(widths) > budget {
 		widest := 0
