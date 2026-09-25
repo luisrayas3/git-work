@@ -49,6 +49,11 @@ is `terminal-renderer.md`; this document is the command line it is reached by.
   nothing else on stdout.
   Mutators that create nothing print nothing;
   diagnostics go to stderr and the exit status is the result.
+- **`log` is one shape on all three trees.**
+  `issue log`, `schema log` and `flow log` print one JSON object per operation, one per line,
+  and take `--format text` like every other reader;
+  a config operation renders by shape and key,
+  so `flow log` prints what `schema log` prints.
 - **`--dry-run`** on every writer that has one prints the operations it would commit.
 - **`new` takes the issue as a document**,
   `{"fields": {"title": "…", "type": "task"}, "body": "the first comment", "aliases": {"jira": "PROJ-12"}}`,
@@ -89,7 +94,7 @@ is `terminal-renderer.md`; this document is the command line it is reached by.
   and `{"view", "bindings", "items"}` is gone.
   No TTY and no `--gui` is an error;
   an agent that wants the data runs `git work issue PROGRAM`, where the data is.
-  Every kind takes `query`, a jq program the view runs, re-runs on a
+  Every kind but `show` takes `query`, a jq program the view runs, re-runs on a
   ref-watcher change and after its own writes, which is what keeps a view live.
   Which other arguments a kind takes, and which of them it cannot do without,
   is a table in package `view`, read by the view functions, the help and every backend:
@@ -134,10 +139,10 @@ git work flow log [NAME]
 git work flow archive NAME
 git work flow rm NAME
 
-git work view list  [KWARGS] [--gui]            # {"query": PROGRAM, "fields": [KEY, ...], ...}
-git work view board [KWARGS] [--gui]            # {"columns": KEY, "values": [...], "card": [KEY, ...], ...}
-git work view gantt [KWARGS] [--gui]            # {"start": KEY, "stop": KEY, "scale": "week", ...}
-git work view show  [KWARGS] [--gui]            # {"id": ID, "fields": [KEY, ...]}
+git work view list  [KWARGS|-] [--gui]          # {"query": PROGRAM, "fields": [KEY, ...], ...}
+git work view board [KWARGS|-] [--gui]          # {"columns": KEY, "values": [...], "card": [KEY, ...], ...}
+git work view gantt [KWARGS|-] [--gui]          # {"start": KEY, "stop": KEY, "scale": "week", ...}
+git work view show  [KWARGS|-] [--gui]          # {"id": ID, "fields": [KEY, ...]}
 
 git work push
 git work pull
@@ -180,10 +185,16 @@ git work view board '{"query":"map(select(.fields.status != \"done\"))","columns
 `work.schema.log(key="")`, `work.schema.archive(key)`, `work.schema.rm(key)`;
 `import` is a reserved word in Starlark,
 so that one verb is spelled with a trailing underscore;
-`work.flow.list()`, `work.flow.export(name)`, `work.flow.run(name, **kwargs)`;
+`work.flow.list()`, `work.flow.export(name)`, `work.flow.run(name, **kwargs)`,
+`work.flow.import_(scripts, prune=False, dry_run=False)`,
+`work.flow.log(name="")`, `work.flow.archive(name)`, `work.flow.rm(name)`;
 `work.view.list(...)`, `work.view.board(...)`, `work.view.gantt(...)`, `work.view.show(id, ...)`;
 `work.user.me()`, which is `git work user me`.
 Every function returns what the command would print, as a Starlark value.
+
+One exception to the one-to-one rule:
+`git work user new` and `git work user adopt` are interactive identity setup,
+a thing a human does once to a checkout, and are not bound in Starlark.
 
 ## Gone
 

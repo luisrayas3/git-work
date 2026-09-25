@@ -75,8 +75,7 @@ the merge tiers run identities, then schema, then issues, then flows.
 Automation is out of scope: a flow runs when invoked and nothing in git-work fires on its own,
 so there is no rule shape, no trigger attribute and no `refs/work-rules` (`47b8430` closed).
 There is no `view` shape either:
-a saved view is a flow whose script calls `work.view.*` (E9),
-and `refs/work-views` exists only if a live view ever needs what a flow cannot express (`d56e6f1`).
+a saved view is a flow whose script calls `work.view.*` (E9).
 
 **Refs are the runtime source of truth; the tree is for authoring** (`0740bf3`).
 `schema.yaml` and the `.star` files in the working tree are reviewed and merged by git,
@@ -558,7 +557,7 @@ so navigation never waits on a script;
 the queue has no clients yet.
 
 **A view's items are a jq query the view owns.**
-Every kind takes `query`, defaulting to the list's default program,
+Every kind but `show` takes `query`, defaulting to the list's default program,
 and the view re-runs it when the ref watcher reports a change (`63c68d1`)
 and after each of its own writes,
 which is what keeps a board live without anyone re-running the flow.
@@ -648,27 +647,8 @@ in the same shape `issue set --dry-run` prints its operations.
 
 ### E10 — Commands
 
-The whole command line, and the rules it follows, is `cli-convention.md`;
-the config part of it:
-
-```
-git work schema [--format yaml|json]              live schema
-git work schema init [PRESET]                     refuses if any field entity exists
-git work schema import FILE|- [--prune] [--dry-run]
-git work schema export [--format yaml|json]
-git work schema log [KEY]                         config operations, rendered by shape and key
-git work schema archive KEY                       the replicated removal (E7)
-git work schema rm KEY                            local ref only; returns on pull
-
-git work flow                                     names, descriptions, arguments
-git work flow run NAME [KWARGS] [--gui] [--format json|text]
-git work flow import FILE|DIR|-... [--prune] [--dry-run]
-git work flow export NAME > FILE
-git work flow export --all DIR
-git work flow log [NAME]
-git work flow archive NAME
-git work flow rm NAME                             local ref only
-```
+The whole command line, and the rules it follows, is `cli-convention.md`,
+which spells the config part of it out and is the authority on every form.
 
 `rm` and `archive` are different verbs on every tree
 because they are different things (Luis, 2026-09-23):

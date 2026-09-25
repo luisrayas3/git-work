@@ -153,7 +153,7 @@ Decided instead:
   status, assignee, priority, estimate, dates, iteration membership.
   There are **no field roles** (`d56e6f1`):
   a flow's script names the fields it needs when it calls the host API,
-  so the Gantt flow tells the timeline command which date is start and which is end,
+  so the Gantt flow tells the timeline command which date is `start` and which is `stop`,
   and presets ship their flows with the keys of their own fields.
   Labels stop being special and become a freeform `multi-enum` in the presets,
   which is what they are in Jira.

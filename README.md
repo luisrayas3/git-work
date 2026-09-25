@@ -225,7 +225,7 @@ The git-bug logo by [Viktor Teplov][gh/vandesign] is released under the [Creativ
 [contrib]: ./CONTRIBUTING.md
 [discuss]: https://github.com/git-bug/git-bug/discussions
 [doc]: ./doc
-[doc/cli]: ./doc/md/git-bug.md
+[doc/cli]: ./doc/md/git-work.md
 [doc/design/arch]: ./doc/design/architecture.md
 [doc/design/model]: ./doc/design/data-model.md
 [doc/feature-matrix]: ./doc/feature-matrix.md

@@ -7,8 +7,8 @@ The documentation listed below aims to help provide insight into the usage of
 
 - Read about the different [types of workflows](./usage/workflows.md) and check
   the [feature matrix](./feature-matrix.md) to learn about `git-bug`
-- Check the [CLI documentation](./md/git-bug.md) for commands and options (or
-  run `man git-bug` after [installation](../INSTALLATION.md))
+- Check the [CLI documentation](./md/git-work.md) for commands and options (or
+  run `man git-work` after [installation](../INSTALLATION.md))
 - Filter results using the [query language](./usage/query-language.md)
 - Learn how to [sync third party issues](./usage/third-party.md) for offline
   reading and editing

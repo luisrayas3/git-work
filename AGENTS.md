@@ -149,7 +149,7 @@ It runs in-process over the same host API a command reaches (`52a2797`):
 | Run | `git work flow run <name>\|- [KWARGS\|-]` (`-` as the name runs the script on standard input without importing it) · `--gui` (errors until the gui process exists) |
 | Import | `git work flow import FILE\|DIR\|-…` `[--prune] [--dry-run]` → prints the id of each flow it creates |
 | Show / export | `git work flow export <name>` prints the script, verbatim (`> FILE`) · `git work flow export --all DIR` |
-| History | `git work flow log [<name>]` (one JSON object per line) |
+| History | `git work flow log [<name>]` · `--format text` (one JSON object per operation) |
 | Archive / remove | `git work flow archive <name>` (an operation, replicated) · `git work flow rm <name>` (the local ref only) |
 
 Import is an upsert keyed on the function's name,
@@ -186,12 +186,12 @@ and `--gui` errors until the gui process exists (`8b06191`):
 
 | Action | Command |
 | --- | --- |
-| List | `git work view list [KWARGS]` (`query`, `fields`, `details`, `group_by`, `expand`, `depth`, `rank`) |
-| Show | `git work view show [KWARGS]` (`id` required; `fields`) |
-| Board | `git work view board [KWARGS]` (`columns` required; `values`, `card`, `group_by`, `rank`) |
-| Gantt | `git work view gantt [KWARGS]` (`start` and `stop` required; `label`, `scale`, `from`, `to`, `progress`, `group_by`, `expand`, `depth`, `rank`) |
+| List | `git work view list [KWARGS\|-] [--gui]` (`query`, `fields`, `details`, `group_by`, `expand`, `depth`, `rank`) |
+| Show | `git work view show [KWARGS\|-] [--gui]` (`id` required; `fields`) |
+| Board | `git work view board [KWARGS\|-] [--gui]` (`columns` required; `values`, `card`, `group_by`, `rank`) |
+| Gantt | `git work view gantt [KWARGS\|-] [--gui]` (`start` and `stop` required; `label`, `scale`, `from`, `to`, `progress`, `group_by`, `expand`, `depth`, `rank`) |
 
-Every kind takes `query`, a jq program over the same array `git work issue` prints,
+Every kind but `show` takes `query`, a jq program over the same array `git work issue` prints,
 which the view runs itself and re-runs on a ref-watcher change and after its own writes,
 so a kanban with no flow at all is one command:
 `git work view board '{"query":"map(select(.fields.status != \"done\"))","columns":"status"}'`.
@@ -211,8 +211,10 @@ Gotchas, hardened from use:
   adopting an existing identity with that email or creating one
   (`cache.RepoCache.EnsureUserIdentity`, our `828c228`).
   `user new`/`user adopt` remain as overrides,
-  and `git work user me` prints the identity it settled on
-  (`--format json`, the same document `work.user.me()` returns).
+  and `git work user me` prints the identity it settled on —
+  the same document `work.user.me()` returns.
+  `git work user` and `git work user me` print JSON like every other reader,
+  `--format text` for a human.
 - Config reads and remote transport go through the `git` CLI
   (package `gitcli`, wired in `execenv.LoadRepo`),
   because go-git reimplements git's environment incompletely:
@@ -224,14 +226,15 @@ Gotchas, hardened from use:
   Local object access stays on go-git.
   `git` must be on `PATH`;
   without it the repo is unwrapped and go-git's behaviour returns.
-- Only one process may hold the store at a time
-  (pid lock at `.git/git-work/lock`).
-  `termui` and `webui` hold it while open, so quit them first;
-  they keep that behaviour until `bf6f392` deletes them.
-  The view renderer holds no lock while open:
-  readers never lock, and each write takes the short write lock
-  and releases it (`d35de2e`).
-  `already locked by … pid N` with a dead pid N is a stale lock, safe to remove.
+- Nothing holds the store open: readers take no lock at all,
+  and a writer takes a short flock on `.git/git-work/write.lock`
+  across one read-modify-commit and releases it at the commit (`d35de2e`).
+  `termui`, `webui` and the view renderer hold nothing while they are open,
+  so any number of commands run alongside them.
+  The kernel drops the lock when the process dies,
+  so there is no such thing as a stale one to remove;
+  `timed out after 5s waiting for the write lock (held by pid N)`
+  means a real concurrent writer.
 - Do not `git work push` without explicit intent;
   it publishes the tracker to `origin`.
 - `termui` and `webui` need a real TTY; a human runs them, not the agent.

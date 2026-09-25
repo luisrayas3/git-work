@@ -1,8 +1,8 @@
 # Story: Many processes share one store safely (`e68d62b`)
 
-**Outcome:** a human keeps the TUI or GUI open while agents and other humans
-mutate the store from short CLI calls; nothing blocks, nothing is lost, and the
-open views update within a second. No daemon.
+**Outcome:** a human keeps the terminal renderer or GUI open while agents and
+other humans mutate the store from short CLI calls; nothing blocks, nothing is
+lost, and the open views update within a second. No daemon.
 
 **Tasks:** `24e82d6` spike · `d35de2e` write lock · `2a51f66` re-read under lock ·
 `d591cb3` staleness · `63c68d1` live invalidation · `f39878f` atomic cache
@@ -97,7 +97,7 @@ current tip, the `UpdateRef` that follows is a fast-forward in fact if not by
 enforcement, and nothing is overwritten.
 
 This is where the no-CAS constraint gets paid for: correctness rests on every
-writer going through `cache/`. Anything writing `refs/issues/*` behind our back
+writer going through `cache/`. Anything writing `refs/work-issues/*` behind our back
 — a stray `git update-ref`, a future daemon, a second implementation — breaks
 it. Given the CLI, the TUI, the webui and the bridge all sit on `cache/`, that
 is an acceptable invariant, and it is the same one upstream already relies on.
@@ -108,7 +108,7 @@ is an acceptable invariant, and it is the same one upstream already relies on.
 for each entity, the ref hash the excerpt was built from, and the format
 version is bumped so old caches rebuild once.
 
-`Load` then lists `refs/issues/*` and diffs:
+`Load` then lists `refs/work-issues/*` and diffs:
 
 - hash unchanged → keep the excerpt, read nothing;
 - hash changed → re-read that one entity, rebuild its excerpt;
@@ -129,8 +129,8 @@ under the D1 write lock.
 
 ### D5 — Watch refs, debounce, re-read only what changed
 
-`63c68d1`. A watcher in `cache/` using `fsnotify` on `.git/refs/issues/`,
-`.git/refs/identities/` and `.git/packed-refs`, debounced ~100ms, feeding the
+`63c68d1`. A watcher in `cache/` using `fsnotify` on `.git/refs/work-issues/`,
+`.git/refs/work-users/` and `.git/packed-refs`, debounced ~100ms, feeding the
 D3 diff and emitting the existing `cache.Event` types so the TUI and webui get
 the same events they already handle for local edits.
 
@@ -152,9 +152,9 @@ consistency check. AGENTS.md already settles that search is a non-goal.
 
 The honest part: bleve currently indexes **comment bodies as well as titles**
 (`cache/bug_subcache.go:28` feeds every `comment.Message` into the indexer),
-and `BugExcerpt` holds no comment text. So filtering over in-memory excerpts —
-what the task asks for — means `git work issue "text"` searches titles and
-labels only, and stops finding issues by something said in a comment.
+and an excerpt holds no comment text. So filtering over in-memory excerpts —
+what the task asks for — means the list is a jq program over the excerpts, and
+nothing it can say will find an issue by something said in a comment.
 
 **Recommendation: take that loss and document it.** None of the five target
 workflows searches comment bodies, and the query language work in `3c9c24d`
@@ -188,8 +188,8 @@ and revisit if it ever bites.
   operations, proven by the `24e82d6` test;
 - `git work issue` runs, and returns, while `git work termui` is open — and
   vice versa;
-- an edit made in one process appears in an open TUI within a second, without
-  a daemon and without a full cache rebuild;
+- an edit made in one process appears in an open terminal renderer within a
+  second, without a daemon and without a full cache rebuild;
 - a pull touching 3 of N issues re-reads 3;
 - `kill -9` during a cache write leaves a loadable cache;
 - no index directory is created, and nothing in `cache/` touches bleve.

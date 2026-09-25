@@ -100,7 +100,7 @@ Every argument falls in one of three tiers:
 - **defaulted** — the view always has one, and the default is usually right;
 - **feature** — off entirely unless named.
 
-`query` is on every kind:
+`query` is on every kind but `show`:
 a jq program, defaulting to the list's default program
 (unarchived, last edited first).
 
