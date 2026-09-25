@@ -1,1 +1,1 @@
-{"author":{"id":"a3a282966ced55effb4560271fcd98e13241af24ea76b00ec76a0f18154bc8ee"},"ops":[{"type":3,"timestamp":1790014272,"nonce":"xDOKyKCXsziUQ4HxSpZyYnSmhoA=","message":"Closed 2026-09-21 in a prune of pre-workshop items. Superseded by story 6555e36 and its design doc (doc/design/configurable-schema.md); the Jira field mapping is 69b7be0.","files":null}]}
+{"author":{"id":"a3a282966ced55effb4560271fcd98e13241af24ea76b00ec76a0f18154bc8ee"},"ops":[{"type":9,"timestamp":1790014272,"nonce":"m6NR+ANToduQLWov59+tEGFjVhY=","key":"status","value":"done"}]}
