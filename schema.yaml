@@ -1,0 +1,266 @@
+# This repository's schema: the jira preset (59fed1c) plus what the tracker
+# needs, applied with `git work schema import schema.yaml` (0740bf3: the tree
+# is for authoring, refs are the runtime truth).
+#
+# Beyond the preset: a `decision` type, because fifteen issues are decisions
+# and Jira has no such type; `area` and `phase` on story, task and decision,
+# which is where the migration (bf6f392, doc/design/store-migration.md) put
+# the labels the tracker used to simulate them with.
+#
+# `shared` is authoring only. The YAML parser expands every anchor, and the
+# store holds one entity per (type, field) (e7e58f2).
+
+shared:
+  # One workflow for every work type. Jira's four states plus a backlog and a
+  # cancellation, so that all five categories are exercised; everything keyed
+  # on "is this done" reads the category, never the name (D2).
+  status: &status
+    kind: enum
+    name: Status
+    description: Where the work stands.
+    values:
+      - {id: backlog,     name: Backlog,     category: backlog}
+      - {id: to-do,       name: To Do,       category: unstarted}
+      - {id: in-progress, name: In Progress, category: started}
+      - {id: in-review,   name: In Review,   category: started}
+      - {id: done,        name: Done,        category: completed}
+      - {id: canceled,    name: Canceled,    category: canceled}
+
+  priority: &priority
+    kind: ordinal-enum
+    name: Priority
+    description: Jira's five priorities, most urgent first.
+    values:
+      - {id: highest, name: Highest}
+      - {id: high,    name: High}
+      - {id: medium,  name: Medium}
+      - {id: low,     name: Low}
+      - {id: lowest,  name: Lowest}
+
+  assignee: &assignee
+    kind: identity
+    name: Assignee
+    description: Who is doing the work.
+
+  # Freeform, because Jira's labels are: anything typed in becomes a label.
+  labels: &labels
+    kind: multi-enum
+    name: Labels
+    description: Free tags; the preset ships none and anything is accepted.
+    freeform: true
+
+  estimate: &estimate
+    kind: number
+    name: Story points
+    description: The estimate a sprint's capacity is measured in.
+
+  due: &due
+    kind: date
+    name: Due date
+
+  rank: &rank
+    kind: rank
+    name: Rank
+    description: Manual board and backlog order, sorted by (rank, id).
+
+  # One side is stored and the inverse is derived (D4): `blocked_by` is what
+  # the other issue reads, never a key an issue writes.
+  blocks: &blocks
+    kind: multi-relation
+    name: Blocks
+    inverse: blocked_by
+
+  sprint: &sprint
+    kind: relation
+    name: Sprint
+    description: The iteration this issue is committed to.
+    inverse: issues
+    target_types: [iteration]
+
+  # The tracker's own two fields, migrated from labels (bf6f392).
+  area: &area
+    kind: multi-enum
+    name: Area
+    description: The parts of the code base the work touches.
+    values:
+      - {id: core,        name: Core}
+      - {id: issue-model, name: Issue model}
+      - {id: bridge,      name: Bridge}
+      - {id: cli,         name: CLI}
+      - {id: tui,         name: Terminal renderer}
+      - {id: gui,         name: GUI}
+      - {id: mcp,         name: MCP}
+      - {id: infra,       name: Infrastructure}
+
+  phase: &phase
+    kind: enum
+    name: Phase
+    description: Ordered by dependency, not calendar; the first six are current.
+    values:
+      - {id: 0-bootstrap,   name: 0 Bootstrap}
+      - {id: 1-concurrency, name: 1 Concurrency}
+      - {id: 2-issue-model, name: 2 Issue model}
+      - {id: 3-jira-sync,   name: 3 Jira sync}
+      - {id: 4-flows,       name: 4 Flows}
+      - {id: 5-surfaces,    name: 5 Surfaces}
+      - {id: 1-issue-model, name: 1 Issue model (retired)}
+      - {id: 2-bridge,      name: 2 Bridge (retired)}
+      - {id: 3-app-reshape, name: 3 App reshape (retired)}
+      - {id: 4-harness,     name: 4 Harness (retired)}
+      - {id: 5-roadmap,     name: 5 Roadmap (retired)}
+
+types:
+  initiative:
+    name: Initiative
+    description: A quarter-scale outcome, above epics.
+    fields:
+      status: *status
+      priority: *priority
+      assignee: *assignee
+      labels: *labels
+      due: *due
+      blocks: *blocks
+      rank: *rank
+
+  epic:
+    name: Epic
+    description: A body of work delivered by stories and tasks.
+    fields:
+      status: *status
+      priority: *priority
+      assignee: *assignee
+      labels: *labels
+      estimate: *estimate
+      due: *due
+      parent:
+        kind: relation
+        name: Parent initiative
+        inverse: children
+        target_types: [initiative]
+      blocks: *blocks
+      rank: *rank
+
+  story:
+    name: Story
+    description: A user-facing change, estimated and sprinted.
+    fields:
+      status: *status
+      priority: *priority
+      assignee: *assignee
+      labels: *labels
+      estimate: *estimate
+      due: *due
+      parent:
+        kind: relation
+        name: Epic
+        inverse: children
+        target_types: [epic]
+      iteration: *sprint
+      blocks: *blocks
+      rank: *rank
+      area: *area
+      phase: *phase
+
+  task:
+    name: Task
+    description: Work that is not a user-facing story.
+    fields:
+      status: *status
+      priority: *priority
+      assignee: *assignee
+      labels: *labels
+      estimate: *estimate
+      due: *due
+      parent:
+        kind: relation
+        name: Parent
+        inverse: children
+        target_types: [epic, story]
+      iteration: *sprint
+      blocks: *blocks
+      rank: *rank
+      area: *area
+      phase: *phase
+
+  # This repository's own: a call made and its reasoning, closed once recorded.
+  decision:
+    name: Decision
+    description: A design call and its reasoning; closed once it is recorded.
+    fields:
+      status: *status
+      priority: *priority
+      assignee: *assignee
+      labels: *labels
+      parent:
+        kind: relation
+        name: Parent
+        inverse: children
+        target_types: [epic, story, task]
+      blocks: *blocks
+      rank: *rank
+      area: *area
+      phase: *phase
+
+  bug:
+    name: Bug
+    description: Something that does not work.
+    fields:
+      status: *status
+      priority: *priority
+      assignee: *assignee
+      labels: *labels
+      estimate: *estimate
+      due: *due
+      parent:
+        kind: relation
+        name: Epic
+        inverse: children
+        target_types: [epic]
+      iteration: *sprint
+      blocks: *blocks
+      rank: *rank
+
+  subtask:
+    name: Sub-task
+    description: One unit of a story or a task; an agent owns one, with one PR.
+    fields:
+      status: *status
+      priority: *priority
+      assignee: *assignee
+      labels: *labels
+      estimate: *estimate
+      due: *due
+      parent:
+        kind: relation
+        name: Parent
+        inverse: children
+        target_types: [story, task]
+      iteration: *sprint
+      blocks: *blocks
+      rank: *rank
+
+  # An iteration is an issue type, not a namespace (D5): it has a title,
+  # comments for the retro, and dates and capacity as ordinary fields.
+  iteration:
+    name: Sprint
+    description: A time-boxed iteration; Jira's sprint, Linear's cycle.
+    fields:
+      status:
+        kind: enum
+        name: State
+        description: Jira's sprint states.
+        values:
+          - {id: future, name: Future, category: unstarted}
+          - {id: active, name: Active, category: started}
+          - {id: closed, name: Closed, category: completed}
+      start:
+        kind: date
+        name: Start date
+      end:
+        kind: date
+        name: End date
+      capacity:
+        kind: number
+        name: Capacity
+        description: Story points the team commits to, in the unit estimate uses.
+      rank: *rank

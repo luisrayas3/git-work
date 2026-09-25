@@ -53,10 +53,10 @@ clean-remote-issues:
 
 .PHONY: clean-local-identities
 clean-local-identities:
-	git for-each-ref refs/identities/ | cut -f 2 | $(XARGS) -n 1 git update-ref -d
-	git for-each-ref refs/remotes/origin/identities/ | cut -f 2 | $(XARGS) -n 1 git update-ref -d
-	rm -f .git/git-work/cache/identities
+	git for-each-ref refs/work-users/ | cut -f 2 | $(XARGS) -n 1 git update-ref -d
+	git for-each-ref refs/remotes/origin/work-users/ | cut -f 2 | $(XARGS) -n 1 git update-ref -d
+	rm -f .git/git-work/cache/work-users
 
 .PHONY: clean-remote-identities
 clean-remote-identities:
-	git ls-remote origin "refs/identities/*" | cut -f 2 | $(XARGS) git push origin -d
+	git ls-remote origin "refs/work-users/*" | cut -f 2 | $(XARGS) git push origin -d

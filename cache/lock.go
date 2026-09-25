@@ -87,3 +87,11 @@ func describeLockHolder(path string) string {
 	}
 	return fmt.Sprintf(" (held by pid %d)", pid)
 }
+
+// LockWrite is lockWrite for the one writer outside this package,
+// the store migration (bf6f392),
+// which rewrites whole entities under the namespaces the cache owns
+// and so holds the same lock a cache write does.
+func LockWrite(repo repository.RepoStorage) (func(), error) {
+	return lockWrite(repo)
+}

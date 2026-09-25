@@ -14,13 +14,13 @@ import (
 	"github.com/git-bug/git-bug/util/timestamp"
 )
 
-const identityRefPattern = "refs/identities/"
-const identityRemoteRefPattern = "refs/remotes/%s/identities/"
+const identityRefPattern = "refs/work-users/"
+const identityRemoteRefPattern = "refs/remotes/%s/work-users/"
 const versionEntryName = "version"
 const identityConfigKey = "git-bug.identity"
 
 const Typename = "identity"
-const Namespace = "identities"
+const Namespace = "work-users"
 
 var ErrNonFastForwardMerge = errors.New("non fast-forward identity merge")
 var ErrNoIdentitySet = errors.New("No identity is set.\n" +

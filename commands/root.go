@@ -78,6 +78,7 @@ git remote you are already using to collaborate with other people.
 
 	cmd.AddCommand(newVersionCommand(env))
 	cmd.AddCommand(newWipeCommand(env))
+	cmd.AddCommand(newMigrateCommand(env))
 
 	return cmd
 }

@@ -29,6 +29,7 @@ git-work [flags]
 * [git-work flow](git-work_flow.md)	 - List the flows
 * [git-work issue](git-work_issue.md)	 - List issues
 * [git-work label](git-work_label.md)	 - List valid labels
+* [git-work migrate](git-work_migrate.md)	 - Migrate the store once from git-bug's format to the owned model
 * [git-work pull](git-work_pull.md)	 - Pull updates from a git remote
 * [git-work push](git-work_push.md)	 - Push updates to a git remote
 * [git-work schema](git-work_schema.md)	 - Show the schema
