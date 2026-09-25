@@ -24,6 +24,7 @@ import (
 	"github.com/git-bug/git-bug/commands/completion"
 	"github.com/git-bug/git-bug/commands/execenv"
 	"github.com/git-bug/git-bug/entities/config"
+	"github.com/git-bug/git-bug/entity"
 	"github.com/git-bug/git-bug/host"
 )
 
@@ -123,36 +124,11 @@ func warn(env *execenv.Env, warnings []string) {
 	}
 }
 
-// currentExcerpt resolves a flow name to the entity it names (E7).
-func currentExcerpt(env *execenv.Env, name string) (*cache.ConfigExcerpt, error) {
-	return host.FlowExcerpt(env.Backend, name)
-}
-
-// archivedToo resolves a flow name to its entity, archived or not.
-//
-// A listing hides the archived and a writer refuses to touch one,
-// but a log is history: an archived flow still has one,
-// and reading why it was archived is the first thing anyone asks.
-func archivedToo(env *execenv.Env, name string) (*cache.ConfigCache, error) {
-	matching := env.Backend.Flows().Query(cache.ConfigQuery{
-		Shape:           config.ShapeFlow,
-		Key:             name,
-		IncludeArchived: true,
-	})
-	if len(matching) == 0 {
-		return nil, fmt.Errorf("no flow named %s", name)
+// printIds prints the id of each flow that was created, one per line.
+func printIds(env *execenv.Env, created []entity.Id) {
+	for _, id := range created {
+		env.Out.Println(id.String())
 	}
-	// ordered by (key, creation, id), so the first is the one E7 resolves to
-	return env.Backend.Flows().Resolve(matching[0].Id())
-}
-
-// current resolves a flow name to the cached entity, for a write.
-func current(env *execenv.Env, name string) (*cache.ConfigCache, error) {
-	cached, err := env.Backend.Flows().Current(config.ShapeFlow, name)
-	if err != nil {
-		return nil, fmt.Errorf("no flow named %s", name)
-	}
-	return cached, nil
 }
 
 // scriptOf returns a flow's source.

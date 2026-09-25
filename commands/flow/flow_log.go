@@ -1,86 +1,56 @@
 package flowcmd
 
 import (
-	"encoding/json"
-
 	"github.com/spf13/cobra"
 
 	"github.com/git-bug/git-bug/commands/cmdjson"
 	"github.com/git-bug/git-bug/commands/execenv"
-	"github.com/git-bug/git-bug/entities/config"
-	"github.com/git-bug/git-bug/entity/dag"
+	"github.com/git-bug/git-bug/host"
 )
 
-// flowOperation is one entry of `git work flow log`:
-// what the operation is, who wrote it and when,
-// plus the operation itself in the shape the store holds it.
-type flowOperation struct {
-	Id       string           `json:"id"`
-	Type     string           `json:"type"`
-	Author   cmdjson.Identity `json:"author"`
-	UnixTime int64            `json:"unix_time"`
-	Op       json.RawMessage  `json:"op"`
+type flowLogOptions struct {
+	format string
 }
 
 func newFlowLogCommand(env *execenv.Env) *cobra.Command {
+	options := flowLogOptions{}
+
 	cmd := &cobra.Command{
 		Use:   "log [NAME]",
 		Short: "Print the flows' history",
 		Long: `Print the history of one flow, or of every flow: every operation, oldest
 first and one JSON object per line, so it says who changed a flow, when, and
-to what.`,
+to what.
+
+--format text prints one line per operation instead.`,
 		Args:    cobra.MaximumNArgs(1),
 		PreRunE: execenv.LoadBackend(env),
 		RunE: execenv.CloseBackend(env, func(cmd *cobra.Command, args []string) error {
-			return runFlowLog(env, args)
+			return runFlowLog(env, options, args)
 		}),
 		ValidArgsFunction: FlowCompletion(env),
 	}
 
+	flags := cmd.Flags()
+	flags.SortFlags = false
+
+	addFormatFlag(cmd, &options.format)
+
 	return cmd
 }
 
-func runFlowLog(env *execenv.Env, args []string) error {
+func runFlowLog(env *execenv.Env, opts flowLogOptions, args []string) error {
 	warnDuplicates(env)
 
-	names := args
-	if len(names) == 0 {
-		names = env.Backend.Flows().Keys(config.ShapeFlow)
+	name := ""
+	if len(args) == 1 {
+		name = args[0]
 	}
 
-	for _, name := range names {
-		cached, err := archivedToo(env, name)
-		if err != nil {
-			return err
-		}
-		for _, op := range cached.Snapshot().AllOperations() {
-			entry, err := newFlowOperation(op)
-			if err != nil {
-				return err
-			}
-			// one object per line: a log is a stream, not a document
-			raw, err := json.Marshal(entry)
-			if err != nil {
-				return err
-			}
-			env.Out.Println(string(raw))
-		}
-	}
-
-	return nil
-}
-
-func newFlowOperation(op dag.Operation) (flowOperation, error) {
-	raw, err := json.Marshal(op)
+	entries, err := host.FlowLog(env.Backend, name)
 	if err != nil {
-		return flowOperation{}, err
+		return err
 	}
 
-	return flowOperation{
-		Id:       op.Id().String(),
-		Type:     config.OperationTypeName(op.Type()),
-		Author:   cmdjson.NewIdentity(op.Author()),
-		UnixTime: op.Time().Unix(),
-		Op:       raw,
-	}, nil
+	return cmdjson.WriteConfigOperations(env.Out.Raw(), opts.format, entries)
 }

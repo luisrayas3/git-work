@@ -4,6 +4,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/git-bug/git-bug/commands/execenv"
+	"github.com/git-bug/git-bug/host"
 )
 
 func newFlowArchiveCommand(env *execenv.Env) *cobra.Command {
@@ -29,14 +30,7 @@ deletes the local one and the flow comes back on the next pull.`,
 func runFlowArchive(env *execenv.Env, args []string) error {
 	warnDuplicates(env)
 
-	cached, err := current(env, args[0])
-	if err != nil {
-		return err
-	}
-
-	_, err = cached.SetArchived(true)
-
-	return err
+	return host.FlowArchive(env.Backend, args[0])
 }
 
 func newFlowRmCommand(env *execenv.Env) *cobra.Command {
@@ -59,10 +53,5 @@ pull. The replicated removal is archive.`,
 func runFlowRm(env *execenv.Env, args []string) error {
 	warnDuplicates(env)
 
-	excerpt, err := currentExcerpt(env, args[0])
-	if err != nil {
-		return err
-	}
-
-	return env.Backend.Flows().Remove(excerpt.Id().String())
+	return host.FlowRm(env.Backend, args[0])
 }

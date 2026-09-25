@@ -50,13 +50,18 @@ func (r *runtime) work() *starlarkstruct.Module {
 				verb("edit", r.issueCommentEdit),
 			),
 		),
+		// `import` is a reserved word in Starlark, so the one verb that can
+		// not keep its name is spelled `import_` (cli-convention.md, E9),
+		// here and in `work.schema`.
 		sub("flow",
 			verb("list", r.flowList),
 			verb("export", r.flowExport),
+			verb("import_", r.flowImport),
 			verb("run", r.flowRun),
+			verb("log", r.flowLog),
+			verb("archive", r.flowArchive),
+			verb("rm", r.flowRm),
 		),
-		// `import` is a reserved word in Starlark, so the one verb that can
-		// not keep its name is spelled `import_` (cli-convention.md, E9).
 		sub("schema",
 			verb("export", r.schemaExport),
 			verb("import_", r.schemaImport),
@@ -430,6 +435,111 @@ func (r *runtime) flowExport(thread *starlark.Thread, b *starlark.Builtin, args 
 		return nil, hostError(b, err)
 	}
 	return starlark.String(script), nil
+}
+
+// work.flow.import_(scripts, prune=False, dry_run=False) — `git work flow import`.
+//
+// The command takes files and a script takes their contents, exactly as
+// `work.schema.import_` takes the document the command reads from a file:
+// finding the bytes is the shell's job, and one for one is about the verb and
+// its arguments, not about who opens the file.
+// The ids created come back, as the command prints them.
+func (r *runtime) flowImport(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+	var value starlark.Value
+	var prune, dryRun bool
+	if err := starlark.UnpackArgs(b.Name(), args, kwargs,
+		"scripts", &value, "prune?", &prune, "dry_run?", &dryRun); err != nil {
+		return nil, err
+	}
+
+	sources, err := flowSources(b, value)
+	if err != nil {
+		return nil, err
+	}
+
+	r.warn(host.FlowWarnings(r.repo))
+
+	_, created, err := host.FlowImport(r.repo, sources, prune, dryRun)
+	if err != nil {
+		return nil, hostError(b, err)
+	}
+
+	ids := make([]string, 0, len(created))
+	for _, id := range created {
+		ids = append(ids, id.String())
+	}
+	return reencode(b, ids)
+}
+
+// flowSources reads the list of scripts an import takes.
+//
+// A single string is not accepted: the argument is a list, so that importing
+// one flow and importing five read the same, as they do on the command line.
+func flowSources(b *starlark.Builtin, value starlark.Value) ([]host.FlowSource, error) {
+	list, ok := value.(*starlark.List)
+	if !ok {
+		return nil, fmt.Errorf("%s: the scripts are a list, not a %s", b.Name(), value.Type())
+	}
+
+	sources := make([]host.FlowSource, 0, list.Len())
+	for i := range list.Len() {
+		script, ok := starlark.AsString(list.Index(i))
+		if !ok {
+			return nil, fmt.Errorf("%s: script %d is a string, not a %s",
+				b.Name(), i+1, list.Index(i).Type())
+		}
+		sources = append(sources, host.FlowSource{
+			Origin: fmt.Sprintf("script %d", i+1),
+			Script: script,
+		})
+	}
+	return sources, nil
+}
+
+// work.flow.log(name="") — `git work flow log [NAME]`, every flow by default.
+func (r *runtime) flowLog(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+	var name string
+	if err := starlark.UnpackArgs(b.Name(), args, kwargs, "name?", &name); err != nil {
+		return nil, err
+	}
+
+	r.warn(host.FlowWarnings(r.repo))
+
+	entries, err := host.FlowLog(r.repo, name)
+	if err != nil {
+		return nil, hostError(b, err)
+	}
+	return reencode(b, entries)
+}
+
+// work.flow.archive(name) — `git work flow archive NAME`, the replicated removal.
+func (r *runtime) flowArchive(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+	var name string
+	if err := starlark.UnpackArgs(b.Name(), args, kwargs, "name", &name); err != nil {
+		return nil, err
+	}
+
+	r.warn(host.FlowWarnings(r.repo))
+
+	if err := host.FlowArchive(r.repo, name); err != nil {
+		return nil, hostError(b, err)
+	}
+	return starlark.None, nil
+}
+
+// work.flow.rm(name) — `git work flow rm NAME`, the local ref only.
+func (r *runtime) flowRm(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+	var name string
+	if err := starlark.UnpackArgs(b.Name(), args, kwargs, "name", &name); err != nil {
+		return nil, err
+	}
+
+	r.warn(host.FlowWarnings(r.repo))
+
+	if err := host.FlowRm(r.repo, name); err != nil {
+		return nil, hostError(b, err)
+	}
+	return starlark.None, nil
 }
 
 // work.flow.run(name, **kwargs) — `git work flow run NAME KWARGS`.

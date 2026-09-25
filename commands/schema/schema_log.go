@@ -1,16 +1,11 @@
 package schemacmd
 
 import (
-	"encoding/json"
-	"fmt"
-	"time"
-
 	"github.com/spf13/cobra"
 
 	"github.com/git-bug/git-bug/commands/cmdjson"
 	"github.com/git-bug/git-bug/commands/execenv"
 	"github.com/git-bug/git-bug/host"
-	"github.com/git-bug/git-bug/util/colors"
 )
 
 type logOptions struct {
@@ -61,37 +56,5 @@ func runSchemaLog(env *execenv.Env, opts logOptions, args []string) error {
 		return err
 	}
 
-	for _, entry := range entries {
-		if err := printOperation(env, opts.format, entry); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-// printOperation prints one entry: a compact JSON object per line, because a
-// log is a stream, or one line a human reads.
-func printOperation(env *execenv.Env, format string, entry cmdjson.ConfigOperation) error {
-	switch format {
-	case "json":
-		raw, err := json.Marshal(entry)
-		if err != nil {
-			return err
-		}
-		env.Out.Println(string(raw))
-		return nil
-	case "text":
-		env.Out.Printf("%s\t%s %s\t%s\t%s\t%s\n",
-			colors.Cyan(entry.HumanId),
-			entry.Shape,
-			colors.Green(entry.Key),
-			colors.Yellow(entry.Type),
-			time.Unix(entry.UnixTime, 0).Format(time.RFC3339),
-			colors.Magenta(entry.Author.Name),
-		)
-		return nil
-	default:
-		return fmt.Errorf("unknown format %s", format)
-	}
+	return cmdjson.WriteConfigOperations(env.Out.Raw(), opts.format, entries)
 }

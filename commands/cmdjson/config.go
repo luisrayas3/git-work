@@ -2,9 +2,13 @@ package cmdjson
 
 import (
 	"encoding/json"
+	"fmt"
+	"io"
+	"time"
 
 	"github.com/git-bug/git-bug/entities/config"
 	"github.com/git-bug/git-bug/entity/dag"
+	"github.com/git-bug/git-bug/util/colors"
 )
 
 // ConfigOperation is one entry of `git work schema log`:
@@ -43,4 +47,45 @@ func NewConfigOperation(snap *config.Snapshot, op dag.Operation) (ConfigOperatio
 		UnixTime: op.Time().Unix(),
 		Op:       raw,
 	}, nil
+}
+
+// WriteConfigOperations prints a config entity's history.
+//
+// Schema and flows are the same entity in two namespaces, so their logs are
+// one shape and one printer: a compact JSON object per line, because a log is
+// a stream and not a document, or one line a human reads.
+func WriteConfigOperations(w io.Writer, format string, entries []ConfigOperation) error {
+	// the format is wrong or right before the first entry, not after it
+	if format != "json" && format != "text" {
+		return fmt.Errorf("unknown format %s", format)
+	}
+
+	for _, entry := range entries {
+		switch format {
+		case "json":
+			raw, err := json.Marshal(entry)
+			if err != nil {
+				return err
+			}
+			if _, err := fmt.Fprintln(w, string(raw)); err != nil {
+				return err
+			}
+		case "text":
+			_, err := fmt.Fprintf(w, "%s\t%s %s\t%s\t%s\t%s\n",
+				colors.Cyan(entry.HumanId),
+				entry.Shape,
+				colors.Green(entry.Key),
+				colors.Yellow(entry.Type),
+				time.Unix(entry.UnixTime, 0).Format(time.RFC3339),
+				colors.Magenta(entry.Author.Name),
+			)
+			if err != nil {
+				return err
+			}
+		default:
+			return fmt.Errorf("unknown format %s", format)
+		}
+	}
+
+	return nil
 }

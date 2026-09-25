@@ -9,36 +9,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/git-bug/git-bug/cache"
 	"github.com/git-bug/git-bug/commands/execenv"
-	"github.com/git-bug/git-bug/entities/config"
-	"github.com/git-bug/git-bug/flow"
+	"github.com/git-bug/git-bug/host"
 )
-
-// The actions an import reports, per flow.
-const (
-	actionCreate    = "create"
-	actionUpdate    = "update"
-	actionArchive   = "archive"
-	actionUnchanged = "unchanged"
-)
-
-// flowChange is what an import does to one flow.
-//
-// Changes is the attributes it writes, in the shape the entity stores them,
-// which is what --dry-run prints and what the write then applies.
-type flowChange struct {
-	Name    string                  `json:"name"`
-	Action  string                  `json:"action"`
-	Changes map[string]config.Value `json:"changes"`
-}
-
-// flowInput is one parsed input file.
-type flowInput struct {
-	origin string
-	def    *flow.Def
-	script string
-}
 
 type flowImportOptions struct {
 	prune  bool
@@ -87,16 +60,25 @@ git work flow export board | git work flow import -`,
 	return cmd
 }
 
+// runFlowImport reads the files and lets the host do the rest.
+//
+// Reading argv, a directory and standard input is this command's own work;
+// parsing, planning and writing is the host's, so that a script importing
+// flows takes the same path as the shell does (cli-convention.md).
+//
+// The ids created before a failure are printed too, because they are in the
+// store whether the rest of the import landed or not.
 func runFlowImport(env *execenv.Env, opts flowImportOptions, args []string) error {
 	warnDuplicates(env)
 
-	inputs, err := readInputs(env, args)
+	sources, err := readSources(env, args)
 	if err != nil {
 		return err
 	}
 
-	changes, err := planImport(env, inputs, opts.prune)
+	changes, created, err := host.FlowImport(env.Backend, sources, opts.prune, opts.dryRun)
 	if err != nil {
+		printIds(env, created)
 		return err
 	}
 
@@ -104,51 +86,33 @@ func runFlowImport(env *execenv.Env, opts flowImportOptions, args []string) erro
 		return env.Out.PrintJSON(changes)
 	}
 
-	return applyImport(env, changes)
+	printIds(env, created)
+	return nil
 }
 
-// readInputs reads and parses every input, and writes nothing.
-//
-// A half-applied import is tolerable — every entity is valid on its own (E9) —
-// but a half-applied import of a file with a typo in it is not,
-// so parsing is separated from writing and comes first.
-func readInputs(env *execenv.Env, args []string) ([]flowInput, error) {
-	var inputs []flowInput
+// readSources turns the arguments into the scripts they name:
+// standard input, one file, or every *.star of a directory, not recursively.
+func readSources(env *execenv.Env, args []string) ([]host.FlowSource, error) {
+	var sources []host.FlowSource
 
 	for _, arg := range args {
-		sources, err := readSources(env, arg)
+		read, err := readSource(env, arg)
 		if err != nil {
 			return nil, err
 		}
-		inputs = append(inputs, sources...)
+		sources = append(sources, read...)
 	}
 
-	byName := make(map[string]string, len(inputs))
-	for i := range inputs {
-		def, err := flow.Parse(inputs[i].script)
-		if err != nil {
-			return nil, fmt.Errorf("%s: %w", inputs[i].origin, err)
-		}
-		if origin, ok := byName[def.Name]; ok {
-			return nil, fmt.Errorf("%s: flow %s is already defined by %s",
-				inputs[i].origin, def.Name, origin)
-		}
-		byName[def.Name] = inputs[i].origin
-		inputs[i].def = def
-	}
-
-	return inputs, nil
+	return sources, nil
 }
 
-// readSources turns one argument into the files it names:
-// standard input, one file, or every *.star of a directory, not recursively.
-func readSources(env *execenv.Env, arg string) ([]flowInput, error) {
+func readSource(env *execenv.Env, arg string) ([]host.FlowSource, error) {
 	if arg == "-" {
 		data, err := io.ReadAll(env.In)
 		if err != nil {
 			return nil, fmt.Errorf("reading the standard input: %w", err)
 		}
-		return []flowInput{{origin: "standard input", script: string(data)}}, nil
+		return []host.FlowSource{{Origin: "standard input", Script: string(data)}}, nil
 	}
 
 	info, err := os.Stat(arg)
@@ -161,7 +125,7 @@ func readSources(env *execenv.Env, arg string) ([]flowInput, error) {
 		if err != nil {
 			return nil, err
 		}
-		return []flowInput{{origin: arg, script: string(data)}}, nil
+		return []host.FlowSource{{Origin: arg, Script: string(data)}}, nil
 	}
 
 	paths, err := filepath.Glob(filepath.Join(arg, "*.star"))
@@ -170,123 +134,13 @@ func readSources(env *execenv.Env, arg string) ([]flowInput, error) {
 	}
 	sort.Strings(paths)
 
-	inputs := make([]flowInput, 0, len(paths))
+	sources := make([]host.FlowSource, 0, len(paths))
 	for _, path := range paths {
 		data, err := os.ReadFile(path)
 		if err != nil {
 			return nil, err
 		}
-		inputs = append(inputs, flowInput{origin: path, script: string(data)})
+		sources = append(sources, host.FlowSource{Origin: path, Script: string(data)})
 	}
-	return inputs, nil
-}
-
-// planImport computes what the import would do, per flow, by name.
-func planImport(env *execenv.Env, inputs []flowInput, prune bool) ([]flowChange, error) {
-	current := make(map[string]*cache.ConfigExcerpt)
-	for _, name := range env.Backend.Flows().Keys(config.ShapeFlow) {
-		excerpt, err := env.Backend.Flows().CurrentExcerpt(config.ShapeFlow, name)
-		if err != nil {
-			return nil, err
-		}
-		current[name] = excerpt
-	}
-
-	var changes []flowChange
-	desired := make(map[string]struct{}, len(inputs))
-
-	for _, input := range inputs {
-		name := input.def.Name
-		desired[name] = struct{}{}
-
-		excerpt, exists := current[name]
-		if !exists {
-			attributes := map[string]config.Value{
-				attrScript: config.StringValue(input.script),
-			}
-			if input.def.Description != "" {
-				attributes[attrDescription] = config.StringValue(input.def.Description)
-			}
-			changes = append(changes, flowChange{
-				Name: name, Action: actionCreate, Changes: attributes,
-			})
-			continue
-		}
-
-		// The comparison is on the decoded value, not on the stored bytes:
-		// what matters is whether the flow differs,
-		// not how a previous binary encoded the same string.
-		set := map[string]config.Value{}
-		if script, _ := excerpt.AttributeString(attrScript); script != input.script {
-			set[attrScript] = config.StringValue(input.script)
-		}
-		if description, _ := excerpt.AttributeString(attrDescription); description != input.def.Description {
-			set[attrDescription] = config.StringValue(input.def.Description)
-		}
-
-		action := actionUpdate
-		if len(set) == 0 {
-			action = actionUnchanged
-		}
-		changes = append(changes, flowChange{Name: name, Action: action, Changes: set})
-	}
-
-	if prune {
-		for name := range current {
-			if _, ok := desired[name]; ok {
-				continue
-			}
-			changes = append(changes, flowChange{
-				Name:    name,
-				Action:  actionArchive,
-				Changes: map[string]config.Value{"archived": config.MustValue(true)},
-			})
-		}
-	}
-
-	sort.Slice(changes, func(i, j int) bool { return changes[i].Name < changes[j].Name })
-
-	return changes, nil
-}
-
-// applyImport writes the plan, one entity at a time through the cache.
-//
-// An import that touches five flows is five commits;
-// a failure on the third leaves two applied,
-// which is the same non-atomicity every multi-entity change has
-// and reads correctly at every step (E9).
-func applyImport(env *execenv.Env, changes []flowChange) error {
-	for _, change := range changes {
-		switch change.Action {
-		case actionCreate:
-			cached, _, err := env.Backend.Flows().New(config.ShapeFlow, change.Name, change.Changes)
-			if err != nil {
-				return fmt.Errorf("flow %s: %w", change.Name, err)
-			}
-			env.Out.Println(cached.Id().String())
-
-		case actionUpdate:
-			cached, err := current(env, change.Name)
-			if err != nil {
-				return err
-			}
-			if err := cached.Update(change.Changes, nil); err != nil {
-				return fmt.Errorf("flow %s: %w", change.Name, err)
-			}
-
-		case actionArchive:
-			cached, err := current(env, change.Name)
-			if err != nil {
-				return err
-			}
-			if _, err := cached.SetArchived(true); err != nil {
-				return fmt.Errorf("flow %s: %w", change.Name, err)
-			}
-
-		case actionUnchanged:
-			// nothing to write, and nothing to say about it
-		}
-	}
-
-	return nil
+	return sources, nil
 }

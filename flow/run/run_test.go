@@ -11,6 +11,7 @@ import (
 
 	"github.com/git-bug/git-bug/cache"
 	"github.com/git-bug/git-bug/entities/config"
+	"github.com/git-bug/git-bug/entity"
 	"github.com/git-bug/git-bug/flow"
 	"github.com/git-bug/git-bug/host"
 	"github.com/git-bug/git-bug/repository"
@@ -19,6 +20,14 @@ import (
 
 // testRepo is a store with an identity set, which is what a writer needs.
 func testRepo(t *testing.T) *cache.RepoCache {
+	t.Helper()
+	backend, _ := testRepoAndStore(t)
+	return backend
+}
+
+// testRepoAndStore is testRepo, plus the repository under it, for a test that
+// reads what is in the refs rather than what the cache remembers.
+func testRepoAndStore(t *testing.T) (*cache.RepoCache, repository.ClockedRepo) {
 	t.Helper()
 
 	repo := repository.CreateGoGitTestRepo(t, false)
@@ -30,7 +39,7 @@ func testRepo(t *testing.T) *cache.RepoCache {
 	require.NoError(t, err)
 	require.NoError(t, backend.SetUserIdentity(i))
 
-	return backend
+	return backend, repo
 }
 
 // fakeRenderer is a surface that draws nothing and remembers what it was
@@ -442,6 +451,128 @@ func TestFlowListAndExport(t *testing.T) {
 	require.Len(t, listed, 1)
 	require.Equal(t, "inner", listed[0].(map[string]any)["name"])
 	require.Equal(t, "def inner(n=1):\n    \"\"\"Double a number.\"\"\"\n    return n * 2\n", pair[1])
+}
+
+// TestFlowImportFromAScript is the flow tree's own import, reached the way a
+// script reaches it: the command takes files, the call takes their contents.
+func TestFlowImportFromAScript(t *testing.T) {
+	repo := testRepo(t)
+
+	value, _, err := run(t, repo, `def install():
+    """Import two flows, then one of them again."""
+    created = work.flow.import_([
+        'def one():\n    """The first."""\n    return 1\n',
+        'def two():\n    """The second."""\n    return 2\n',
+    ])
+    again = work.flow.import_(['def one():\n    """The first."""\n    return 1\n'])
+    return [created, again, work.flow.list()]
+`, nil)
+	require.NoError(t, err)
+
+	triple := value.([]any)
+	require.Len(t, triple[0].([]any), 2)
+	// an upsert: the second import creates nothing, so it returns nothing
+	require.Empty(t, triple[1].([]any))
+	require.Len(t, triple[2].([]any), 2)
+
+	// a script that is not one function is refused, and named
+	_, _, err = run(t, repo, `def broken():
+    """Import a file that is not a flow."""
+    work.flow.import_(["x = 1\n"])
+`, nil)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "script 1")
+}
+
+// TestFlowImportPruneFromAScript archives what the scripts do not mention,
+// and the archive has to be in the refs, not only on the cached entity
+// (589ff1d).
+func TestFlowImportPruneFromAScript(t *testing.T) {
+	repo, store := testRepoAndStore(t)
+	importFlow(t, repo, `def stale():
+    """Nobody's flow."""
+    return None
+`)
+	excerpt, err := repo.Flows().CurrentExcerpt(config.ShapeFlow, "stale")
+	require.NoError(t, err)
+
+	value, _, err := run(t, repo, `def install():
+    """Import one flow and prune the rest."""
+    work.flow.import_(['def kept():\n    """Kept."""\n    return None\n'], prune=True)
+    return work.flow.list()
+`, nil)
+	require.NoError(t, err)
+
+	listed := value.([]any)
+	require.Len(t, listed, 1)
+	require.Equal(t, "kept", listed[0].(map[string]any)["name"])
+	require.True(t, archivedInGit(t, store, excerpt.Id()))
+}
+
+// TestFlowArchiveAndRmFromAScript is the pair of removals a script reaches,
+// the replicated one and the local one.
+func TestFlowArchiveAndRmFromAScript(t *testing.T) {
+	repo, store := testRepoAndStore(t)
+	importFlow(t, repo, `def gone():
+    """Archived in a moment."""
+    return None
+`)
+	importFlow(t, repo, `def dropped():
+    """Removed locally in a moment."""
+    return None
+`)
+	excerpt, err := repo.Flows().CurrentExcerpt(config.ShapeFlow, "gone")
+	require.NoError(t, err)
+
+	value, _, err := run(t, repo, `def clean():
+    """Archive one flow, drop another's local ref."""
+    work.flow.archive("gone")
+    work.flow.rm("dropped")
+    return work.flow.list()
+`, nil)
+	require.NoError(t, err)
+	require.Empty(t, value.([]any))
+
+	// archive is an operation, committed, and replicated
+	require.True(t, archivedInGit(t, store, excerpt.Id()))
+	// rm is the local ref alone, so one entity is left, not two
+	require.Len(t, repo.Flows().AllIds(), 1)
+}
+
+func TestFlowLogFromAScript(t *testing.T) {
+	repo := testRepo(t)
+	importFlow(t, repo, `def one():
+    """The first."""
+    return 1
+`)
+
+	value, _, err := run(t, repo, `def history():
+    """Who wrote this flow, and when."""
+    return [work.flow.log("one"), len(work.flow.log())]
+`, nil)
+	require.NoError(t, err)
+
+	pair := value.([]any)
+	entries := pair[0].([]any)
+	require.NotEmpty(t, entries)
+
+	first := entries[0].(map[string]any)
+	require.Equal(t, "create", first["type"])
+	require.Equal(t, "flow", first["shape"])
+	require.Equal(t, "one", first["key"])
+	require.Equal(t, "John Doe", first["author"].(map[string]any)["name"])
+
+	// with no name, every flow's operations
+	require.EqualValues(t, len(entries), pair[1])
+}
+
+// archivedInGit reads an entity back out of the refs, the way a rebuilt cache
+// does: an archive that was appended and never committed is not there.
+func archivedInGit(t *testing.T, repo repository.ClockedRepo, id entity.Id) bool {
+	t.Helper()
+	stored, err := config.Flows.Read(repo, id)
+	require.NoError(t, err)
+	return stored.Compile().Archived
 }
 
 func TestTheOnlyGlobalIsTheWorkModule(t *testing.T) {

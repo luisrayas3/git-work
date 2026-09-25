@@ -13,6 +13,7 @@ import (
 	"github.com/git-bug/git-bug/commands/execenv"
 	"github.com/git-bug/git-bug/entities/config"
 	"github.com/git-bug/git-bug/entity"
+	"github.com/git-bug/git-bug/host"
 )
 
 const boardFlow = `def board(iteration="current", limit=20):
@@ -64,7 +65,7 @@ func importFlows(t *testing.T, env *execenv.Env, opts flowImportOptions, args ..
 func operationCount(t *testing.T, env *execenv.Env) int {
 	t.Helper()
 	env.Out.Reset()
-	require.NoError(t, runFlowLog(env, nil))
+	require.NoError(t, runFlowLog(env, flowLogOptions{format: "json"}, nil))
 	out := strings.TrimSpace(env.Out.String())
 	env.Out.Reset()
 	if out == "" {
@@ -200,6 +201,8 @@ func TestFlowImportPrune(t *testing.T) {
 	require.Len(t, listEntries(t, env), 2)
 
 	// with it, what the inputs do not mention is archived
+	pruned, err := env.Backend.Flows().CurrentExcerpt(config.ShapeFlow, "report")
+	require.NoError(t, err)
 	importFlows(t, env, flowImportOptions{prune: true}, only)
 	entries := listEntries(t, env)
 	require.Len(t, entries, 1)
@@ -207,6 +210,8 @@ func TestFlowImportPrune(t *testing.T) {
 
 	// archived, not removed: the entity is still there
 	require.Len(t, env.Backend.Flows().AllIds(), 2)
+	// and the archive is committed, not left on the cached entity
+	require.True(t, archivedInGit(t, env, pruned.Id()))
 }
 
 func TestFlowImportDryRun(t *testing.T) {
@@ -231,9 +236,9 @@ func TestFlowImportDryRun(t *testing.T) {
 	require.NoError(t, json.Unmarshal(env.Out.Bytes(), &changes))
 	require.Len(t, changes, 2)
 	require.Equal(t, "board", changes[0].Name)
-	require.Equal(t, actionArchive, changes[0].Action)
+	require.Equal(t, host.FlowActionArchive, changes[0].Action)
 	require.Equal(t, "report", changes[1].Name)
-	require.Equal(t, actionCreate, changes[1].Action)
+	require.Equal(t, host.FlowActionCreate, changes[1].Action)
 	require.JSONEq(t, `"Weekly status, generated from the op log."`,
 		string(changes[1].Changes["description"]))
 
@@ -254,7 +259,7 @@ func TestFlowImportDryRun(t *testing.T) {
 	}
 	require.NoError(t, json.Unmarshal(env.Out.Bytes(), &unchanged))
 	require.Len(t, unchanged, 1)
-	require.Equal(t, actionUnchanged, unchanged[0].Action)
+	require.Equal(t, host.FlowActionUnchanged, unchanged[0].Action)
 	require.Empty(t, unchanged[0].Changes)
 }
 
@@ -362,7 +367,7 @@ func TestFlowLog(t *testing.T) {
 	importFlows(t, env, flowImportOptions{}, path)
 
 	env.Out.Reset()
-	require.NoError(t, runFlowLog(env, []string{"board"}))
+	require.NoError(t, runFlowLog(env, flowLogOptions{format: "json"}, []string{"board"}))
 	// a create with attributes is one Create and one Set per attribute,
 	// in one commit
 	lines := strings.Split(strings.TrimSpace(env.Out.String()), "\n")
@@ -385,16 +390,31 @@ func TestFlowLog(t *testing.T) {
 	// an archive is an operation like any other
 	require.NoError(t, runFlowArchive(env, []string{"board"}))
 	env.Out.Reset()
-	require.NoError(t, runFlowLog(env, []string{"board"}))
+	require.NoError(t, runFlowLog(env, flowLogOptions{format: "json"}, []string{"board"}))
 	lines = strings.Split(strings.TrimSpace(env.Out.String()), "\n")
 	require.Len(t, lines, 4)
 	require.Contains(t, lines[3], `"set-archived"`)
+}
+
+// archivedInGit reads the entity back out of the refs, the way a rebuilt
+// cache does.
+//
+// An archive that is only appended to the cached entity reads as archived
+// everywhere in this process, and in the cache file this process writes at
+// close, and is gone the moment the cache is rebuilt from git — which is why
+// the assertion that matters is this one and not a listing (589ff1d).
+func archivedInGit(t *testing.T, env *execenv.Env, id entity.Id) bool {
+	t.Helper()
+	stored, err := config.Flows.Read(env.Repo, id)
+	require.NoError(t, err)
+	return stored.Compile().Archived
 }
 
 func TestFlowArchive(t *testing.T) {
 	env := newTestEnv(t)
 	path := writeFlow(t, t.TempDir(), "board.star", boardFlow)
 	importFlows(t, env, flowImportOptions{}, path)
+	id := env.Backend.Flows().AllIds()[0]
 
 	env.Out.Reset()
 	require.NoError(t, runFlowArchive(env, []string{"board"}))
@@ -403,6 +423,8 @@ func TestFlowArchive(t *testing.T) {
 	require.Empty(t, listEntries(t, env))
 	// the ref is still there: archive is replicated, not local
 	require.Len(t, env.Backend.Flows().AllIds(), 1)
+	// and it is in the ref, not only in the cache
+	require.True(t, archivedInGit(t, env, id))
 
 	// an importable name again: the archived entity is not in the way
 	ids := importFlows(t, env, flowImportOptions{}, path)
