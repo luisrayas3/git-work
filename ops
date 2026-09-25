@@ -1,1 +1,1 @@
-{"author":{"id":"a3a282966ced55effb4560271fcd98e13241af24ea76b00ec76a0f18154bc8ee"},"ops":[{"type":9,"timestamp":1789760338,"nonce":"twEXfWh+Uu2UO1TDRAsv3Gq+SyQ=","key":"parent","value":"8ade81134de7c2f5d1a16c3a48efc761b35bbf4cc2a58eaf8189fa5c15621e01"}]}
+{"author":{"id":"a3a282966ced55effb4560271fcd98e13241af24ea76b00ec76a0f18154bc8ee"},"ops":[{"type":9,"timestamp":1789760339,"nonce":"UOvcum0Sm8+WUYBfFHW8xZ4cATM=","key":"title","value":"Task: Jira import: hierarchy, assignee, priority, dates, estimate, links, sprint"}]}
