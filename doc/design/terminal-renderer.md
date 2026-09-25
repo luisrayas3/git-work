@@ -106,7 +106,7 @@ a jq program, defaulting to the list's default program
 
 | Kind | Required | Defaulted | Feature |
 | --- | --- | --- | --- |
-| `list` | — | `fields` (`["title"]`) | `details`, `group_by`, `expand`, `depth`, `rank` |
+| `list` | — | `fields` (`["type","title"]`) | `details`, `group_by`, `expand`, `depth`, `rank` |
 | `board` | `columns` | `values` (the field's schema order), `card` (`["title"]`) | `group_by`, `rank` |
 | `gantt` | `start`, `stop` | `label` (title), `scale` (`week`), `from`, `to` (the data's extent) | `progress`, `group_by`, `expand`, `depth`, `rank` |
 | `show` | `id` | `fields` (the type's fields, schema order) | — |

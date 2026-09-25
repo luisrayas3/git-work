@@ -90,7 +90,7 @@ type Arg struct {
 var Kinds = map[string][]Arg{
 	KindList: {
 		queryArg,
-		{Name: "fields", Tier: Defaulted, Kind: FieldKeys, Default: `["title"]`,
+		{Name: "fields", Tier: Defaulted, Kind: FieldKeys, Default: `["type","title"]`,
 			Doc: "the fields shown as columns, in order"},
 		{Name: "details", Tier: Feature, Kind: FieldKeys,
 			Doc: "the fields shown on a dim second line under each row"},

@@ -306,7 +306,7 @@ func TestViewReachesTheRendererParsed(t *testing.T) {
 	require.Equal(t, "status", call.String("group_by"))
 	// the defaults the table carries, applied once, in host.View
 	require.Equal(t, view.DefaultQuery, call.String("query"))
-	require.Equal(t, []string{"title"}, call.Strings("fields"))
+	require.Equal(t, []string{"type", "title"}, call.Strings("fields"))
 }
 
 func TestStepCapTrips(t *testing.T) {

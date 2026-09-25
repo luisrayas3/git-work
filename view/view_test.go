@@ -22,7 +22,7 @@ func TestParseAppliesTheDefaults(t *testing.T) {
 	require.Equal(t, KindList, call.Kind)
 	// every kind that draws more than one issue queries the same way
 	require.Equal(t, DefaultQuery, call.String("query"))
-	require.Equal(t, []string{"title"}, call.Strings("fields"))
+	require.Equal(t, []string{"type", "title"}, call.Strings("fields"))
 	// a feature nobody asked for is simply absent
 	require.False(t, call.Has("group_by"))
 	require.False(t, call.Has("rank"))
@@ -152,5 +152,5 @@ func TestHelpIsGeneratedFromTheTable(t *testing.T) {
 		require.Contains(t, help, arg.Name)
 		require.Contains(t, help, string(arg.Tier))
 	}
-	require.Contains(t, Help(KindList), `["title"]`)
+	require.Contains(t, Help(KindList), `["type","title"]`)
 }
