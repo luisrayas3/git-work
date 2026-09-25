@@ -1,1 +1,1 @@
-{"author":{"id":"a3a282966ced55effb4560271fcd98e13241af24ea76b00ec76a0f18154bc8ee"},"ops":[{"type":9,"timestamp":1789760338,"nonce":"t9ItR2rRWxnSujHK2PQjlD2VZKY=","key":"parent","value":"8ade81134de7c2f5d1a16c3a48efc761b35bbf4cc2a58eaf8189fa5c15621e01"}]}
+{"author":{"id":"a3a282966ced55effb4560271fcd98e13241af24ea76b00ec76a0f18154bc8ee"},"ops":[{"type":9,"timestamp":1789760338,"nonce":"BhAl4991meA+P7FuPAKe+v4MUzg=","key":"title","value":"Task: Jira bridge: schema \u003c-\u003e Jira field and value mapping config"}]}
