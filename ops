@@ -1,1 +1,1 @@
-{"author":{"id":"a3a282966ced55effb4560271fcd98e13241af24ea76b00ec76a0f18154bc8ee"},"ops":[{"type":9,"timestamp":1789760329,"nonce":"LzLNp+WOJoFP6IhkLJvLyNdgWJM=","key":"parent","value":"bc14d4d88d377f01d8cdafffc35fa0ee11b5b4795ec8034742de3e1cc15858ac"}]}
+{"author":{"id":"a3a282966ced55effb4560271fcd98e13241af24ea76b00ec76a0f18154bc8ee"},"ops":[{"type":9,"timestamp":1789760329,"nonce":"xuXQ2PUJmCtKq3VHGTHKs7lC7vI=","key":"title","value":"Task: Auto-create identity from git config on first mutation"}]}
