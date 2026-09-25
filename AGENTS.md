@@ -6,8 +6,8 @@ evolving into a project-management tool
 with **Jira as a first-class sync backend**.
 
 We **dogfood**:
-this project's own tasks live in its own git-bug store
-(`refs/issues/*`, moving to `refs/work-issues/*` with `bf6f392`),
+this project's own tasks live in its own store
+(`refs/work-issues/*`, migrated from git-bug's `refs/issues/*` on 2026-09-25, `bf6f392`),
 managed with the locally-built `git work`.
 
 ## The pristine-library boundary (read first)
@@ -26,15 +26,17 @@ the generalized `issue` entity, the PM schema, bridge changes,
 and the new harness
 (`entities/`, `cache/`, `query/`, `commands/`, `bridge/`, a new TUI).
 `entities/bug` is **ours**, not pristine.
-Its successor `entities/issue` carries our own model and operation set
-and is built as a **peer**: both are live until the store is migrated once
-(`bf6f392`), then `entities/bug` and `commands/bug` are deleted
-(`f4bac00`, 2026-09-22).
+Its successor `entities/issue` carries our own model and operation set;
+the store was migrated once, on 2026-09-25
+(`bf6f392`, `doc/design/store-migration.md`),
+and `entities/bug`, `commands/bug`, `termui` and what serves only them
+are deleted in the round after, once the new surface has proven itself
+on the tracker (`f4bac00`, 2026-09-22; deferred 2026-09-25 as `860d6e0`).
 Cherry-picking upstream fixes into `cache/` and `bridge/` is not a goal.
 If you believe you must edit a pristine package, **stop and flag it** —
 it breaks upstream tracking and is a real architectural decision.
-One such decision is on record:
-the migration (`bf6f392`) changes three ref-name constants in `entities/identity`
+One such decision is on record and done:
+the migration (`bf6f392`) changed three ref-name constants in `entities/identity`
 so identities live at `refs/work-users` like every other namespace (`483dbe2`; named `users` on 2026-09-25, because every word a user meets says user);
 nothing else in the seven is touched.
 
@@ -65,29 +67,37 @@ go build -o git-work .
 
 ## Operating the tracker
 
-The CLI is namespaced, and **two trees coexist** while the store migrates:
-`git work bug` operates on the tracker's current store
-(`refs/issues/*`, old format) and is what the table below uses;
-`git work issue` operates on the new entity
-(`refs/work-issues/*`, empty in this repo until `bf6f392`).
-After the migration the table switches to `issue` and `bug` is deleted.
-Forms below are verified against 0.10.x.
+The tracker is `git work issue` over `refs/work-issues/*`,
+since the migration of 2026-09-25 (`bf6f392`).
+`git work bug` still reads git-bug's copy under `refs/issues/*`,
+kept as a frozen fallback:
+**nothing written through `git work bug` reaches the tracker**,
+so never write with it.
+The schema is `schema.yaml` at the root of this repository,
+applied with `git work schema import schema.yaml`;
+the recipes below use its keys.
 
 | Action | Command |
 | --- | --- |
-| List all | `git work bug` |
-| Filter | `git work bug --label phase:2-bridge` · `--status open` |
-| Query | `git work bug status:open sort:edit-desc` · `git work bug "text"` |
-| Create | `git work bug new -t "Title" -m "Body"` → `<id> created` |
-| Show | `git work bug show <id>` |
-| Add label(s) | `git work bug label new <id> <label> [<label>…]` |
-| Remove label | `git work bug label rm <id> <label>` |
-| Close / reopen | `git work bug status close <id>` · `status open <id>` |
-| Comment | `git work bug comment new <id> -m "…"` |
-| Sync | `git work push` · `git work pull` (both namespaces) |
-| Interactive | `git work termui` (TTY) · `git work webui` (webui build); `webui` becomes `gui`, and there is no `tui` — the terminal renderer sits behind `view` and `flow run` (8b06191, 84dfbde) |
+| Open work | `git work issue 'map(select(.fields.status != "done"))'` · `--format text` |
+| One type | `git work issue 'map(select(.fields.type == "decision"))'` · by area: `select(.fields.area // [] \| index("cli"))` |
+| Live list | `git work view list '{"fields":["type","status","priority","title"],"group_by":"status"}'` (TTY) |
+| Create | `git work issue new '{"fields":{"title":"Task: …","type":"task","status":"to-do","priority":"medium","area":["cli"],"phase":"5-surfaces","parent":"<story id>"},"body":"…"}'` → prints the id |
+| Show | `git work issue get <id>` · `--format text` |
+| Close / reopen | `git work issue set <id> '{"status":"done"}'` · `'{"status":"to-do"}'` |
+| Comment | `git work issue comment new <id> -` with the body on standard input |
+| Tasks of a story | `git work issue 'map(select(.fields.parent == "<full story id>"))'` |
+| Sync | `git work push` · `git work pull` (every namespace) |
 
-The new tree, plumbing with explicit ids, no editor and no sugar flag,
+Types in use are `story`, `task` and `decision`;
+`status` is the jira workflow (`to-do`, `in-progress`, `in-review`, `done`, …),
+`priority` is `highest` … `lowest`,
+`area` a multi-enum (`core`, `issue-model`, `bridge`, `cli`, `tui`, `gui`, `mcp`, `infra`),
+`phase` an enum ordered by dependency (`0-bootstrap` … `5-surfaces`),
+and `parent` the story a task or decision belongs to.
+Titles carry the type for scanning: `Story: …`, `Task: …`, `Decision: …`.
+
+The whole tree, plumbing with explicit ids, no editor and no sugar flag,
 built to the map in `doc/design/cli-convention.md` (`e8d6426`):
 
 | Action | Command |
@@ -209,7 +219,12 @@ where a value list ends with `(none)` and an emptied box clears the field
 
 Gotchas, hardened from use:
 
-- `ls` is not a command; the list is the bare `git work bug`.
+- `ls` is not a command; the list is the bare `git work issue`.
+- `git work migrate` ran once on 2026-09-25 and refuses to run again;
+  a fresh clone pulls the migrated refs and needs nothing.
+  The migration copies `refs/identities/*` to `refs/work-users/*`
+  before it reads anything; a command run before that copy
+  fails with `identity doesn't exist`.
 - No `user new` needed:
   the first mutating command sets your identity from git's `user.name`/`user.email`,
   adopting an existing identity with that email or creating one
@@ -246,6 +261,7 @@ Gotchas, hardened from use:
 - Do not `git work push` without explicit intent;
   it publishes the tracker to `origin`.
 - `termui` and `webui` need a real TTY; a human runs them, not the agent.
+  Both read the frozen `refs/issues/*` copy, not the tracker.
 
 ## Direction (decided 2026-09-17)
 
@@ -339,9 +355,10 @@ Settled calls (details live in the referenced issues):
   `work-users` after the migration (`483dbe2`, named 2026-09-25 to match `git work user` and `work.user.me()`). The store is **migrated
   once** to the owned format with entity and comment ids preserved, and
   `formatVersion` bumps so old binaries refuse it rather than misread it
-  (`f4bac00`, `bf6f392`). Until then the tracker sits in `refs/issues` in the
-  old format and the new entity in `refs/work-issues`, because the version
-  gate keeps the two formats out of one namespace.
+  (`f4bac00`, `bf6f392`). Done on 2026-09-25 as a copy, not a move:
+  `refs/issues` stays as git-bug's frozen fallback until the deletion round,
+  and the version gate keeps the two formats out of one namespace
+  (`doc/design/store-migration.md`).
 - Jira sync is bidirectional and **Jira is canonical**: 3-way per field,
   Jira wins on double-edit (`3c6d07a`).
   This repo dogfoods the `jira` preset with no Jira instance behind it, because
@@ -353,31 +370,16 @@ Settled calls (details live in the referenced issues):
   The terminal renderer is Bubble Tea v2 behind `view` and `flow run`,
   not a `tui` command (`84dfbde`).
 
-## Label taxonomy
+## The schema
 
-git-bug is flat (no epics, priority, or dates),
-so structure is simulated with labels until the schema work lands
-(`bb9e89e` schema engine, `c090f9b` relations).
-This whole section is scheduled for deletion: `bf6f392` migrates these labels
-onto real fields and rewrites what you are reading.
-
-| Prefix | Values |
-| --- | --- |
-| `type:` | `story` `task` `decision` |
-| `story:` | 7-char id of the parent story (on tasks and decisions) |
-| `phase:` | `0-bootstrap` `1-concurrency` `2-issue-model` `3-jira-sync` `4-flows` `5-surfaces` |
-| `area:` | `core` `issue-model` `bridge` `cli` `tui` `gui` `mcp` `infra` |
-| `prio:` | `high` `med` `low` |
-
-Two levels for now: **stories** (outcomes, roughly one per workflow) contain
-**tasks** and **decisions**. Titles carry the level for easy scanning:
-`Story: …`, `Task: …`, `Decision: …`.
-A story's body lists its tasks; `git work bug --label story:<id>` lists them live.
-Stories carry `type:story` and an `area:`, not a phase.
-
-Phases are ordered by dependency, not calendar:
-concurrency precedes the model because agent + TUI coexistence
-and the mutate path both rest on it.
+`schema.yaml` is the `jira` preset plus what the tracker needs:
+a `decision` type, and `area` and `phase` on `story`, `task` and `decision`
+(the labels the tracker used to simulate a schema with,
+migrated onto fields by `bf6f392`, mapping in `doc/design/store-migration.md`).
+Edit the file and `git work schema import schema.yaml`;
+the import writes only what differs.
+`phase` carries five retired values from earlier renumberings,
+kept so that no history was lost; prune them when nobody needs them.
 
 ## Working conventions
 
@@ -400,7 +402,7 @@ and the mutate path both rest on it.
   unconditional `UpdateRef`, so anything writing the entity refs from outside
   — a stray `git update-ref`, a second implementation — silently erases
   concurrent work. Reads are unrestricted and take no lock.
-- On finishing a task, close its issue (`git work bug status close <id>`)
+- On finishing a task, close its issue (`git work issue set <id> '{"status":"done"}'`)
   and reference the id in the commit message.
   Decisions get closed too, once the decision and its reasoning are recorded
   on the issue.

@@ -206,6 +206,10 @@ and the namespaces: `refs/issues/*` is deleted locally and on origin once replay
 and identities move to `refs/work-users/*` (named 2026-09-25) by editing three ref-name constants
 in `entities/identity`, the one listed exception to the pristine seven (`483dbe2`),
 in the same change that deletes `entities/bug`.
+Run on 2026-09-25 with two revisions, recorded in `store-migration.md`:
+the clocks are reproduced by a decorator handing out the original times
+rather than witnessed to one below, and the old refs are copied, not deleted,
+so that `git work bug` stays as the fallback until the deletion round.
 
 **Values are stored by stable id, never by display name.**
 A status is `{id: "in-review", name: "In Review", category: started}` in the schema,
@@ -406,6 +410,9 @@ so either the preset carries a custom one or decisions become Task plus a marker
    `refs/issues/*` deleted locally and on origin, identities moved to `refs/work-users/*`;
    `entities/bug`, `commands/bug` and their cache files deleted;
    `schema init jira` in the same pass; AGENTS.md rewritten.
+   Done 2026-09-25 (`store-migration.md`): a copy rather than a deletion,
+   the schema from `schema.yaml` in the tree rather than `schema init`,
+   and the deletions moved to the round after.
 5. `87a48c1` — iterations as a type: per-type field applicability, target-typed relations,
    the date and planning fields in the presets.
 6. `59fed1c` — both presets and the round-trip table test, last,
