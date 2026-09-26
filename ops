@@ -1,1 +1,1 @@
-{"author":{"id":"a3a282966ced55effb4560271fcd98e13241af24ea76b00ec76a0f18154bc8ee"},"ops":[{"type":9,"timestamp":1790098363,"nonce":"ypMuCswB43t/qZe6v8nRwu7NXB8=","key":"status","value":"done"}]}
+{"author":{"id":"a3a282966ced55effb4560271fcd98e13241af24ea76b00ec76a0f18154bc8ee"},"ops":[{"type":9,"timestamp":1790382694,"nonce":"vyf89G2sny9JQDZa/AAq7BSPK5A=","key":"phase","value":null},{"type":9,"timestamp":1790382694,"nonce":"sK/pFvS/B4Sd/JTHfCQhXGP3zg4=","key":"title","value":"own the issue model and migrate the store once; config is many entities; four built-in fields"}]}
