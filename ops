@@ -1,1 +1,1 @@
-{"author":{"id":"a3a282966ced55effb4560271fcd98e13241af24ea76b00ec76a0f18154bc8ee"},"ops":[{"type":9,"timestamp":1790194756,"nonce":"YBVHkrq4QoVG65vyM0KiId5K+mU=","key":"status","value":"done"}]}
+{"author":{"id":"a3a282966ced55effb4560271fcd98e13241af24ea76b00ec76a0f18154bc8ee"},"ops":[{"type":9,"timestamp":1790382694,"nonce":"JxsbA49daoCtHZDcBXcspWMmBjM=","key":"phase","value":null},{"type":9,"timestamp":1790382694,"nonce":"f5ILLhdklbtEoo0oVOXP7L8CT4o=","key":"title","value":"Accept external keys (Jira key) as issue aliases everywhere"}]}
