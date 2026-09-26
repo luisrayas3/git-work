@@ -1,1 +1,1 @@
-{"author":{"id":"a3a282966ced55effb4560271fcd98e13241af24ea76b00ec76a0f18154bc8ee"},"ops":[{"type":9,"timestamp":1790110593,"nonce":"ckUnnFDnJKlNfenz1S+Laof7PdE=","key":"status","value":"done"}]}
+{"author":{"id":"a3a282966ced55effb4560271fcd98e13241af24ea76b00ec76a0f18154bc8ee"},"ops":[{"type":9,"timestamp":1790382694,"nonce":"qerLYqsBcs2q6cvMBXHul9ldImI=","key":"phase","value":null},{"type":9,"timestamp":1790382694,"nonce":"UO6LiWt894Zloa39J0/b5fYPsfw=","key":"title","value":"Automation rules: trigger, condition, action over the op log"}]}
