@@ -1,1 +1,1 @@
-{"author":{"id":"a3a282966ced55effb4560271fcd98e13241af24ea76b00ec76a0f18154bc8ee"},"ops":[{"type":9,"timestamp":1790196791,"nonce":"7SvzMiCohuv/tlCd0GB84/urXmA=","key":"status","value":"done"}]}
+{"author":{"id":"a3a282966ced55effb4560271fcd98e13241af24ea76b00ec76a0f18154bc8ee"},"ops":[{"type":9,"timestamp":1790382694,"nonce":"dmTfc/pGQRRjngxRROfEzTKwsvo=","key":"phase","value":null},{"type":9,"timestamp":1790382694,"nonce":"tduCbCRVn/s3cD9bjog48S7uvX4=","key":"title","value":"Schema engine: field kinds, values, categories, validation"}]}
