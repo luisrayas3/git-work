@@ -1,1 +1,1 @@
-{"author":{"id":"7674679dac9170669f752d932f8b5955b1d55717359e13b1c1e687003c7bb99f"},"ops":[{"type":9,"timestamp":1789859485,"nonce":"mgEzu0GQIkwAgH8QXw/eBmU8SFQ=","key":"status","value":"done"}]}
+{"author":{"id":"a3a282966ced55effb4560271fcd98e13241af24ea76b00ec76a0f18154bc8ee"},"ops":[{"type":9,"timestamp":1790382694,"nonce":"nEn0eGz7Yx5lgHwME379l8e5AeM=","key":"phase","value":null},{"type":9,"timestamp":1790382694,"nonce":"blq2sSOG4Q60FV7zaoEFt536FgM=","key":"title","value":"Mutations re-read the entity under the write lock (same-issue conflicts)"}]}
