@@ -17,13 +17,22 @@ import (
 )
 
 // repoSchema compiles the repository's own schema.yaml, the one the
-// migration is written against.
+// migration was written against, plus the phase field it mapped into:
+// phase was archived the day the migration ran (store-migration.md),
+// so the file no longer carries it.
 func repoSchema(t *testing.T) *schema.Schema {
 	t.Helper()
 	data, err := os.ReadFile("../schema.yaml")
 	require.NoError(t, err)
 	doc, err := schema.ParseDocument(data)
 	require.NoError(t, err)
+	for _, typeKey := range []string{"story", "task", "decision"} {
+		typeDoc, ok := doc.Types.Get(typeKey)
+		require.True(t, ok)
+		typeDoc.Fields.Set("phase", schema.FieldDoc{Kind: "enum", Name: "Phase",
+			Values: []schema.ValueDoc{{Id: "4-flows"}, {Id: "5-surfaces"}}})
+		doc.Types.Set(typeKey, typeDoc)
+	}
 	require.NoError(t, doc.Validate(nil))
 
 	changes, err := schema.Reconcile(doc, nil, false)

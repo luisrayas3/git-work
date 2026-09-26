@@ -82,7 +82,7 @@ the recipes below use its keys.
 | Open work | `git work issue 'map(select(.fields.status != "done"))'` · `--format text` |
 | One type | `git work issue 'map(select(.fields.type == "decision"))'` · by area: `select(.fields.area // [] \| index("cli"))` |
 | Live list | `git work view list '{"fields":["type","status","priority","title"],"group_by":"status"}'` (TTY) |
-| Create | `git work issue new '{"fields":{"title":"Task: …","type":"task","status":"to-do","priority":"medium","area":["cli"],"phase":"5-surfaces","parent":"<story id>"},"body":"…"}'` → prints the id |
+| Create | `git work issue new '{"fields":{"title":"…","type":"task","status":"to-do","priority":"medium","area":["cli"],"parent":"<story id>"},"body":"…"}'` → prints the id |
 | Show | `git work issue get <id>` · `--format text` |
 | Close / reopen | `git work issue set <id> '{"status":"done"}'` · `'{"status":"to-do"}'` |
 | Comment | `git work issue comment new <id> -` with the body on standard input |
@@ -93,9 +93,8 @@ Types in use are `story`, `task` and `decision`;
 `status` is the jira workflow (`to-do`, `in-progress`, `in-review`, `done`, …),
 `priority` is `highest` … `lowest`,
 `area` a multi-enum (`core`, `issue-model`, `bridge`, `cli`, `tui`, `gui`, `mcp`, `infra`),
-`phase` an enum ordered by dependency (`0-bootstrap` … `5-surfaces`),
 and `parent` the story a task or decision belongs to.
-Titles carry the type for scanning: `Story: …`, `Task: …`, `Decision: …`.
+A title never repeats the type: the list shows both.
 
 The whole tree, plumbing with explicit ids, no editor and no sugar flag,
 built to the map in `doc/design/cli-convention.md` (`e8d6426`):
@@ -373,13 +372,13 @@ Settled calls (details live in the referenced issues):
 ## The schema
 
 `schema.yaml` is the `jira` preset plus what the tracker needs:
-a `decision` type, and `area` and `phase` on `story`, `task` and `decision`
+a `decision` type, and `area` on `story`, `task` and `decision`
 (the labels the tracker used to simulate a schema with,
-migrated onto fields by `bf6f392`, mapping in `doc/design/store-migration.md`).
+migrated onto fields by `bf6f392`, mapping in `doc/design/store-migration.md`;
+`phase` came the same way and was archived the same day,
+because the parent story orders the work).
 Edit the file and `git work schema import schema.yaml`;
 the import writes only what differs.
-`phase` carries five retired values from earlier renumberings,
-kept so that no history was lost; prune them when nobody needs them.
 
 ## Working conventions
 

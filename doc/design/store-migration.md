@@ -91,6 +91,15 @@ becomes fields of the schema this repository runs on:
 | `story:PREFIX` | `parent` | the issue whose id the prefix names |
 | anything else | `labels` | the label, verbatim |
 
+Two things were undone the same afternoon, by a flow and three archives,
+once the list showed the type as a column (Luis, 2026-09-25):
+the `Story:`, `Task:`, `Decision:` and `Spike:` prefixes came off 75 titles,
+because a title that repeats the type is noise next to the column,
+and `phase` was cleared on 82 issues and archived on its three types,
+because the parent story already orders the work
+and eleven values, five of them retired, said as much.
+The migration itself stays lossless; history holds both.
+
 A label added is a `SetField` for a single-valued field
 and an `AddValue` for a multi-valued one;
 a label removed with nothing added in its place

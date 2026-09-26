@@ -3,9 +3,10 @@
 # is for authoring, refs are the runtime truth).
 #
 # Beyond the preset: a `decision` type, because fifteen issues are decisions
-# and Jira has no such type; `area` and `phase` on story, task and decision,
-# which is where the migration (bf6f392, doc/design/store-migration.md) put
-# the labels the tracker used to simulate them with.
+# and Jira has no such type; `area` on story, task and decision, which is
+# where the migration (bf6f392, doc/design/store-migration.md) put the labels
+# the tracker used to simulate it with. `phase` came the same way and was
+# archived the same day: the parent story orders the work.
 #
 # `shared` is authoring only. The YAML parser expands every anchor, and the
 # store holds one entity per (type, field) (e7e58f2).
@@ -77,7 +78,7 @@ shared:
     inverse: issues
     target_types: [iteration]
 
-  # The tracker's own two fields, migrated from labels (bf6f392).
+  # The tracker's own field, migrated from labels (bf6f392).
   area: &area
     kind: multi-enum
     name: Area
@@ -91,23 +92,6 @@ shared:
       - {id: gui,         name: GUI}
       - {id: mcp,         name: MCP}
       - {id: infra,       name: Infrastructure}
-
-  phase: &phase
-    kind: enum
-    name: Phase
-    description: Ordered by dependency, not calendar; the first six are current.
-    values:
-      - {id: 0-bootstrap,   name: 0 Bootstrap}
-      - {id: 1-concurrency, name: 1 Concurrency}
-      - {id: 2-issue-model, name: 2 Issue model}
-      - {id: 3-jira-sync,   name: 3 Jira sync}
-      - {id: 4-flows,       name: 4 Flows}
-      - {id: 5-surfaces,    name: 5 Surfaces}
-      - {id: 1-issue-model, name: 1 Issue model (retired)}
-      - {id: 2-bridge,      name: 2 Bridge (retired)}
-      - {id: 3-app-reshape, name: 3 App reshape (retired)}
-      - {id: 4-harness,     name: 4 Harness (retired)}
-      - {id: 5-roadmap,     name: 5 Roadmap (retired)}
 
 types:
   initiative:
@@ -159,7 +143,6 @@ types:
       blocks: *blocks
       rank: *rank
       area: *area
-      phase: *phase
 
   task:
     name: Task
@@ -180,7 +163,6 @@ types:
       blocks: *blocks
       rank: *rank
       area: *area
-      phase: *phase
 
   # This repository's own: a call made and its reasoning, closed once recorded.
   decision:
@@ -199,7 +181,6 @@ types:
       blocks: *blocks
       rank: *rank
       area: *area
-      phase: *phase
 
   bug:
     name: Bug
