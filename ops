@@ -1,1 +1,1 @@
-{"author":{"id":"a3a282966ced55effb4560271fcd98e13241af24ea76b00ec76a0f18154bc8ee"},"ops":[{"type":9,"timestamp":1790014521,"nonce":"+UCZZqOsghpBT0XSiDUMqFOxQ/Y=","key":"status","value":"done"}]}
+{"author":{"id":"a3a282966ced55effb4560271fcd98e13241af24ea76b00ec76a0f18154bc8ee"},"ops":[{"type":9,"timestamp":1790382694,"nonce":"iq2aqF8GMz8X1Qr7tH2svT1MC+o=","key":"phase","value":null},{"type":9,"timestamp":1790382694,"nonce":"9bnTN7RU8AL57hMqqFeS5cUw0dY=","key":"title","value":"GUI framework rethink"}]}
