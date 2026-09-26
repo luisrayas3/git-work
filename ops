@@ -1,1 +1,1 @@
-{"author":{"id":"a3a282966ced55effb4560271fcd98e13241af24ea76b00ec76a0f18154bc8ee"},"ops":[{"type":9,"timestamp":1790198196,"nonce":"l9J6tb1/tpOmXv8cuKzxD1r/jzQ=","key":"status","value":"done"}]}
+{"author":{"id":"a3a282966ced55effb4560271fcd98e13241af24ea76b00ec76a0f18154bc8ee"},"ops":[{"type":9,"timestamp":1790382694,"nonce":"Tfqo9xgs3i6uHeN+IC3dVHl2xgo=","key":"phase","value":null},{"type":9,"timestamp":1790382694,"nonce":"zhrpMiL9MSGzcmSn6qnRowFixuk=","key":"title","value":"Ship jira and linear schema presets; both models representable"}]}
