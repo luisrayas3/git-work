@@ -1,1 +1,1 @@
-{"author":{"id":"a3a282966ced55effb4560271fcd98e13241af24ea76b00ec76a0f18154bc8ee"},"ops":[{"type":9,"timestamp":1790014272,"nonce":"X2iVB0W/6fxVBUUZ9SDUDbEKDxc=","key":"status","value":"done"}]}
+{"author":{"id":"a3a282966ced55effb4560271fcd98e13241af24ea76b00ec76a0f18154bc8ee"},"ops":[{"type":9,"timestamp":1790382694,"nonce":"hDm/DtpjMe7LUFZxxw0lOBIMN8Q=","key":"phase","value":null},{"type":9,"timestamp":1790382694,"nonce":"ZIeL4+euhYU5YHPk689TG9ggQa8=","key":"title","value":"stand up entity/dag as a pristine library import"}]}
