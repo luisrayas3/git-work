@@ -23,12 +23,12 @@ type State struct {
 	Cursor  time.Time                  `json:"cursor"`            // Jira's updated, UTC (JS20)
 	Seen    map[entity.Id]lamport.Time `json:"seen,omitempty"`    // edit lamport after the last sync (JS20)
 	Failed  map[string]time.Time       `json:"failed,omitempty"`  // Jira id -> updated of a hit that failed (JS20)
-	Refused map[entity.Id]Refusal      `json:"refused,omitempty"` // creates Jira answered and did not make (JS15)
+	Refused map[entity.Id]refusal      `json:"refused,omitempty"` // creates Jira answered and did not make (JS15)
 }
 
-// Refusal is a create attempt Jira refused: not in doubt, and not tried
+// refusal is a create attempt Jira refused: not in doubt, and not tried
 // again while the issue is unchanged. Losing it costs a Settle's wait.
-type Refusal struct {
+type refusal struct {
 	At      time.Time    `json:"at"` // the attempt's jira-create
 	Lamport lamport.Time `json:"lamport"`
 	Reason  string       `json:"reason"`
@@ -54,7 +54,7 @@ func LoadState(fs repository.LocalStorage) (*State, error) {
 
 func (s *State) init() *State {
 	if s.Refused == nil {
-		s.Refused = map[entity.Id]Refusal{}
+		s.Refused = map[entity.Id]refusal{}
 	}
 	if s.Seen == nil {
 		s.Seen = map[entity.Id]lamport.Time{}

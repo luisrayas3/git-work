@@ -17,8 +17,8 @@ import (
 // Jira's normal form). A set's base stays: the second merge against it
 // reaches the merged set on both sides. pairs are the comments it created,
 // by Jira id; wrote says anything landed. Only a run failure is returned.
-func (e *engine) write(ri *jiraapi.Issue, remote Doc, plan Plan, b2 *Base, line *Line) (pairs map[string]entity.Id, wrote bool, err error) {
-	writes, skips := e.m.ToJira(remote.Type, plan.Remote, ri, e.ix)
+func (e *engine) write(ri *jiraapi.Issue, remote Doc, plan mergePlan, b2 *Base, line *Line) (pairs map[string]entity.Id, wrote bool, err error) {
+	writes, skips := e.m.toWrites(remote.Type, plan.Remote, ri, e.ix)
 	line.Pending = append(line.Pending, skips...)
 	failed := map[string]bool{}
 	for _, s := range skips {
@@ -42,9 +42,9 @@ func (e *engine) write(ri *jiraapi.Issue, remote Doc, plan Plan, b2 *Base, line 
 	}
 
 	// one PUT with every edit; per-field refusals are retried once without them
-	var edits []Write
+	var edits []jiraWrite
 	for _, w := range writes {
-		if w.Kind == WriteEdit {
+		if w.Kind == writeEdit {
 			edits = append(edits, w)
 		}
 	}
@@ -67,7 +67,7 @@ func (e *engine) write(ri *jiraapi.Issue, remote Doc, plan Plan, b2 *Base, line 
 			}
 			break
 		}
-		var rest []Write
+		var rest []jiraWrite
 		for _, w := range edits {
 			if msg, bad := apiErr.Fields[w.Field]; bad {
 				pend(w.Key, "Jira refused "+w.Field+": "+msg)
@@ -86,7 +86,7 @@ func (e *engine) write(ri *jiraapi.Issue, remote Doc, plan Plan, b2 *Base, line 
 
 	for _, w := range writes {
 		switch w.Kind {
-		case WriteTransition:
+		case writeTransition:
 			reason, err := e.transition(ri, w.Status)
 			if err == nil && reason != "" {
 				pend(w.Key, reason)
@@ -95,7 +95,7 @@ func (e *engine) write(ri *jiraapi.Issue, remote Doc, plan Plan, b2 *Base, line 
 			if err := try(w.Key, err); err != nil {
 				return nil, wrote, err
 			}
-		case WriteLink:
+		case writeLink:
 			for _, l := range w.Add {
 				if err := try(w.Key, e.c.CreateIssueLink(e.ctx, l.LinkType, l.Source, l.Destination)); err != nil {
 					return nil, wrote, err
@@ -136,7 +136,7 @@ func (e *engine) write(ri *jiraapi.Issue, remote Doc, plan Plan, b2 *Base, line 
 			if b2.Comments == nil {
 				b2.Comments = map[string]string{}
 			}
-			b2.Comments[cw.JiraId] = Digest(cw.Text)
+			b2.Comments[cw.JiraId] = digest(cw.Text)
 		}
 	}
 	line.exports(plan, remote, failed)
@@ -160,7 +160,7 @@ func (e *engine) transition(ri *jiraapi.Issue, statusId string) (string, error) 
 			}
 		}
 		if t == nil {
-			return fmt.Sprintf("no transition from %s to %s", orId(e.m.FromJira(ri, nil, e.ix).Status, "the current status"), e.statusName(statusId)), nil
+			return fmt.Sprintf("no transition from %s to %s", orId(e.m.fromIssue(ri, nil, e.ix).Status, "the current status"), e.statusName(statusId)), nil
 		}
 		fields := map[string]any{}
 		for _, id := range sorted.Keys(t.Fields) {

@@ -64,7 +64,7 @@ func (e *engine) scan() (*local, error) {
 // exports every unarchived issue of a mapped type (JS15).
 func (e *engine) unexportable(fields map[string]issue.Value) string {
 	typ, _ := issue.String(fields[typeKey])
-	if _, ok := e.m.IssueType(typ); !ok {
+	if _, ok := e.m.issueType(typ); !ok {
 		return "type " + typ + " is local-only"
 	}
 	if isArchived(fields) {
@@ -239,7 +239,7 @@ func (e *engine) hitOf(ri *jiraapi.Issue) hit {
 	}
 	var it jiraapi.IssueType
 	if _, err := ri.Decode("issuetype", &it); err == nil {
-		_, h.mapped = e.m.LocalType(it.ID)
+		_, h.mapped = e.m.localType(it.ID)
 	}
 	return h
 }
@@ -266,7 +266,7 @@ func (e *engine) refetch(failed []string, hits []hit) ([]hit, error) {
 			if err := stop(err); err != nil {
 				return nil, err
 			}
-		case !e.p.Owns(ri.Key):
+		case !e.p.owns(ri.Key):
 			delete(e.st.Failed, id)
 		default:
 			h := e.hitOf(ri)
@@ -380,7 +380,7 @@ func (e *engine) changed(snap *issue.Snapshot, b *Base) bool {
 	typ, _ := issue.String(snap.Fields[typeKey])
 	l := e.m.Local(snap, typ)
 	for k, v := range l.Fields {
-		multi := e.m.Multi(typ, k)
+		multi := e.m.multi(typ, k)
 		if !same(canonical(form(k, v), multi), canonical(b.Fields[k], multi)) {
 			return true
 		}
@@ -395,7 +395,7 @@ func (e *engine) changed(snap *issue.Snapshot, b *Base) bool {
 			if !IsTombstone(c.Text.Text) {
 				return true
 			}
-		case Digest(c.Text.Text) != bd:
+		case digest(c.Text.Text) != bd:
 			return true
 		}
 	}

@@ -27,7 +27,7 @@ func Compile(s *schema.Schema, p *Project) (*Mapping, []Note, error) {
 	var aliases []string
 	owners := map[string][]string{}
 	for _, key := range s.TypeKeys() {
-		if a := s.Types[key].Aliases[System]; a != "" {
+		if a := s.Types[key].Aliases[system]; a != "" {
 			aliases = append(aliases, a)
 			owners[a] = append(owners[a], key)
 		}
@@ -50,7 +50,7 @@ func Compile(s *schema.Schema, p *Project) (*Mapping, []Note, error) {
 
 	for _, key := range s.TypeKeys() {
 		t := s.Types[key]
-		it, ok := p.IssueType(t.Aliases[System])
+		it, ok := p.issueType(t.Aliases[system])
 		if !ok {
 			continue
 		}
@@ -67,7 +67,7 @@ func Compile(s *schema.Schema, p *Project) (*Mapping, []Note, error) {
 		refs := map[string][]string{}
 		for _, fk := range t.FieldKeys() {
 			f := t.Fields[fk]
-			ref := f.Aliases[System]
+			ref := f.Aliases[system]
 			if f.Builtin || ref == "" {
 				continue
 			}
@@ -75,16 +75,16 @@ func Compile(s *schema.Schema, p *Project) (*Mapping, []Note, error) {
 			refs[ref] = append(refs[ref], fk)
 			fm, problem := compileField(f, ref, p, points)
 			if problem != "" {
-				note(Warn, where, "%s", problem)
+				note(LevelWarn, where, "%s", problem)
 				continue
 			}
 			ids := map[string]string{}
 			for _, v := range f.Values {
-				a := v.Aliases[System]
+				a := v.Aliases[system]
 				if a == "" {
-					if _, stated := v.Aliases[System]; stated {
-						// Derive excluded the Jira value by name (JS6), so FromJira knows it by name too
-						fm.excluded[Norm(v.Id)], fm.excluded[Norm(v.Name)] = true, true
+					if _, stated := v.Aliases[system]; stated {
+						// Derive excluded the Jira value by name (JS6), so fromIssue knows it by name too
+						fm.excluded[normName(v.Id)], fm.excluded[normName(v.Name)] = true, true
 					}
 					continue
 				}
@@ -125,7 +125,7 @@ func Compile(s *schema.Schema, p *Project) (*Mapping, []Note, error) {
 // reviewed, never derived and imported by a sync (JS5).
 func Mapped(s *schema.Schema) error {
 	for _, t := range s.Types {
-		if t.Aliases[System] != "" {
+		if t.Aliases[system] != "" {
 			return nil
 		}
 	}
@@ -159,7 +159,7 @@ func compileField(f *schema.Field, ref string, p *Project, points string) (*fiel
 		fm.link = id
 		want = schema.KindMultiRelation
 	default:
-		jf, ok := p.Field(ref)
+		jf, ok := p.field(ref)
 		if !ok || jf.Schema == nil {
 			return nil, fmt.Sprintf("dead alias: %s has no field %s", p.Key, ref)
 		}

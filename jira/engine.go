@@ -159,7 +159,7 @@ func (e *engine) setup() error {
 			if err := me.Commit(); err != nil {
 				return err
 			}
-			e.ix.AddUser(acc, me.Id())
+			e.ix.addUser(acc, me.Id())
 		}
 	}
 	e.checker, err = e.repo.Checker()
@@ -196,25 +196,25 @@ func (e *engine) report(l Line) {
 }
 
 // record reports a plan's local changes on its line.
-func (l *Line) record(lcs []LocalChange, remote Doc) {
+func (l *Line) record(lcs []localChange, remote Doc) {
 	for _, lc := range lcs {
 		switch lc.Kind {
-		case LocalSet:
+		case localSet:
 			l.imported(lc.Key, lc.Value)
-		case LocalAdd, LocalRemove:
+		case localAdd, localRemove:
 			l.imported(lc.Key, remote.Fields[lc.Key])
-		case LocalAddComment:
+		case localAddComment:
 			l.comments().Imported++
-		case LocalEditComment:
+		case localEditComment:
 			l.comments().Edited++
-		case LocalTombstone:
+		case localTombstone:
 			l.comments().Tombstoned++
 		}
 	}
 }
 
 // exports reports what plan writes to Jira, but for the keys that failed.
-func (l *Line) exports(plan Plan, remote Doc, failed map[string]bool) {
+func (l *Line) exports(plan mergePlan, remote Doc, failed map[string]bool) {
 	for _, ch := range plan.Remote {
 		if !failed[ch.Key] {
 			l.exported(ch.Key, changeValue(ch, remote.Fields[ch.Key]))

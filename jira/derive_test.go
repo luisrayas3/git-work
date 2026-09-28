@@ -202,9 +202,9 @@ func TestDeriveJiraChanges(t *testing.T) {
 	status := fieldDoc(t, doc, "story", "status")
 	blocked := valueDoc(t, status, "blocked")
 	require.Equal(t, "started", blocked.Category)
-	require.Equal(t, "10009", blocked.Aliases[System])
-	require.Equal(t, "3", valueDoc(t, status, "in-progress").Aliases[System], "a dead alias is kept")
-	require.True(t, hasNote(notes, Warn, "story/status:in-progress", "dead alias"))
+	require.Equal(t, "10009", blocked.Aliases[system])
+	require.Equal(t, "3", valueDoc(t, status, "in-progress").Aliases[system], "a dead alias is kept")
+	require.True(t, hasNote(notes, LevelWarn, "story/status:in-progress", "dead alias"))
 	changes = s.importDoc(t, doc)
 	require.Len(t, changes, 1)
 	require.Equal(t, "story/status", changes[0].Key)
@@ -216,18 +216,18 @@ func TestDeriveExcluded(t *testing.T) {
 	p, _ := discover(t, "company")
 	start := starts(t)["preset"]
 	bug := typeDoc(t, start, "bug")
-	bug.Aliases = map[string]string{System: ""}
+	bug.Aliases = map[string]string{system: ""}
 	start.SetType("bug", bug)
 	task := typeDoc(t, start, "task")
 	est, _ := task.Fields.Get("estimate")
-	est.Aliases = map[string]string{System: ""}
+	est.Aliases = map[string]string{system: ""}
 	task.SetField("estimate", est)
 	start.SetType("task", task)
 
 	s, doc, _, _ := derived(t, start, p)
 	for _, d := range []*schema.Document{doc, s.export(t)} {
-		require.Equal(t, "", typeDoc(t, d, "bug").Aliases[System])
-		require.Equal(t, "", fieldDoc(t, d, "task", "estimate").Aliases[System])
+		require.Equal(t, "", typeDoc(t, d, "bug").Aliases[system])
+		require.Equal(t, "", fieldDoc(t, d, "task", "estimate").Aliases[system])
 		_, ok := d.Types.Get("bug-2")
 		require.False(t, ok)
 		_, ok = typeDoc(t, d, "task").Fields.Get("estimate-2")
@@ -239,7 +239,7 @@ func TestDeriveExcluded(t *testing.T) {
 
 	m, _, err := Compile(s.schema(t), p)
 	require.NoError(t, err)
-	_, ok := m.LocalType("10004")
+	_, ok := m.localType("10004")
 	require.False(t, ok, "an excluded type maps nothing")
 }
 
@@ -266,7 +266,7 @@ func TestDeriveCategories(t *testing.T) {
 
 	m, _, err := Compile(s.schema(t), p)
 	require.NoError(t, err)
-	_, v, ok := m.Canceled("task")
+	_, v, ok := m.canceled("task")
 	require.True(t, ok)
 	require.JSONEq(t, `"canceled"`, string(v), "the first canceled value, local-only or not")
 
@@ -275,7 +275,7 @@ func TestDeriveCategories(t *testing.T) {
 	moved, notes, err := Derive(s.export(t), p)
 	require.NoError(t, err)
 	require.Equal(t, "started", valueDoc(t, fieldDoc(t, moved, "task", "status"), "wont-do").Category)
-	require.True(t, hasNote(notes, Warn, "task/status:wont-do", "reset to started"))
+	require.True(t, hasNote(notes, LevelWarn, "task/status:wont-do", "reset to started"))
 }
 
 // D8: a schema mapped against the company project refuses the team one,
@@ -324,10 +324,10 @@ func TestSlug(t *testing.T) {
 		strings.Repeat("abcdefghij ", 6): "abcdefghij-abcdefghij-abcdefghij-abcdefghij",
 		strings.Repeat("x", 60):          strings.Repeat("x", 48),
 	} {
-		require.Equal(t, want, Slug(name), name)
+		require.Equal(t, want, slug(name), name)
 	}
 	for name, want := range map[string]string{"Sub-task": "subtask", "Subtask": "subtask", "SUB_TASK": "subtask", "完了": ""} {
-		require.Equal(t, want, Norm(name), name)
+		require.Equal(t, want, normName(name), name)
 	}
 	none := func(string) bool { return false }
 	taken := func(k string) bool { return k == "done" || k == "done-2" }

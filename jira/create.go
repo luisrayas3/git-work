@@ -53,7 +53,7 @@ func (e *engine) create(ic *cache.IssueCache) error {
 	}
 	typ, _ := issue.String(snap.Fields[typeKey])
 	local := e.m.Local(snap, typ)
-	body, sent, skips := e.m.Create(local, id, e.ix)
+	body, sent, skips := e.m.createBody(local, id, e.ix)
 	line.Pending = append(line.Pending, skips...)
 	if e.opts.DryRun {
 		line.DryRun = true
@@ -74,11 +74,11 @@ func (e *engine) create(ic *cache.IssueCache) error {
 	ref, err := e.c.CreateIssue(e.ctx, body.Fields, body.Properties)
 	if err != nil {
 		if refused(err) {
-			e.st.Refused[id] = Refusal{At: at, Lamport: ic.EditLamportTime(), Reason: err.Error()}
+			e.st.Refused[id] = refusal{At: at, Lamport: ic.EditLamportTime(), Reason: err.Error()}
 		}
 		return e.fail(line, err)
 	}
-	e.ix.AddIssue(ref.ID, id)
+	e.ix.addIssue(ref.ID, id)
 	e.grew = true
 	line.Jira = ref.Key
 	for _, k := range sent {
@@ -111,7 +111,7 @@ func (e *engine) inDoubt(ic *cache.IssueCache) (time.Time, bool) {
 // resume continues a create whose POST landed, from its create base.
 func (e *engine) resume(ic *cache.IssueCache, ri *jiraapi.Issue, cs []jiraapi.Comment, local Doc, sent []string, line Line) error {
 	line.Jira = ri.Key
-	b := createBase(local, e.m.FromJira(ri, cs, e.ix), sent)
+	b := createBase(local, e.m.fromIssue(ri, cs, e.ix), sent)
 	return e.converge(ic, b, ri, cs, map[string]string{MetaId: ri.ID, MetaAlias: ri.Key}, line)
 }
 
@@ -188,11 +188,11 @@ func (e *engine) linkCreated(ic *cache.IssueCache, jiraId string) error {
 		e.report(line)
 		return nil
 	}
-	e.ix.AddIssue(ri.ID, id)
+	e.ix.addIssue(ri.ID, id)
 	snap := ic.Snapshot()
 	typ, _ := issue.String(snap.Fields[typeKey])
 	local := e.m.Local(snap, typ)
-	_, sent, _ := e.m.Create(local, id, e.ix)
+	_, sent, _ := e.m.createBody(local, id, e.ix)
 	return e.resume(ic, ri, cs, local, sent, line)
 }
 
@@ -216,7 +216,7 @@ func (e *engine) linkRequest(ic *cache.IssueCache) error {
 	if err != nil {
 		return e.fail(line, err)
 	}
-	if !e.p.Owns(ri.Key) {
+	if !e.p.owns(ri.Key) {
 		return skip("alias " + key + " names an issue of another project")
 	}
 	if other, ok := e.ix.Issue(ri.ID); ok && other != id {
@@ -225,7 +225,7 @@ func (e *engine) linkRequest(ic *cache.IssueCache) error {
 	if from := propertyOf(ri.Properties[PropertyKey]).Id; from != "" && from != id {
 		return skip(key + " was created from another issue, " + from.Human())
 	}
-	e.ix.AddIssue(ri.ID, id)
+	e.ix.addIssue(ri.ID, id)
 	b := &Base{V: baseVersion, Id: ri.ID, Key: ri.Key, Fields: map[string]issue.Value{}}
 	return e.converge(ic, b, ri, cs, map[string]string{MetaId: ri.ID}, line)
 }
@@ -241,12 +241,12 @@ func (e *engine) importIssue(jiraId string) error {
 		return e.fail(line, err)
 	}
 	line.Jira = ri.Key
-	remote := e.m.FromJira(ri, cs, e.ix)
+	remote := e.m.fromIssue(ri, cs, e.ix)
 	if remote.Type == "" {
 		e.sum.Unchanged++ // after Derive, an unmapped type is one the schema excludes
 		return nil
 	}
-	plan := Merge(nil, Doc{Type: remote.Type, Fields: map[string]issue.Value{}}, remote, e.multi(remote.Type), false)
+	plan := merge(nil, Doc{Type: remote.Type, Fields: map[string]issue.Value{}}, remote, e.multi(remote.Type), false)
 	line.Pending = append(line.Pending, plan.Pending...)
 	if e.opts.DryRun {
 		line.DryRun = true
@@ -257,14 +257,14 @@ func (e *engine) importIssue(jiraId string) error {
 	line.Pending = append(line.Pending, e.admit(&plan, remote.Type, &Base{})...)
 
 	fields, sets := map[string]issue.Value{}, map[string]itemSet{}
-	var head []LocalChange
+	var head []localChange
 	for _, lc := range plan.Local {
 		switch lc.Kind {
-		case LocalSet:
+		case localSet:
 			if lc.Key != issue.TitleKey && lc.Key != BodyKey {
 				fields[lc.Key] = lc.Value
 			}
-		case LocalAdd:
+		case localAdd:
 			if sets[lc.Key] == nil {
 				sets[lc.Key] = itemSet{}
 			}
@@ -286,11 +286,11 @@ func (e *engine) importIssue(jiraId string) error {
 	title, _ := issue.String(remote.Fields[issue.TitleKey])
 	body, _ := issue.String(remote.Fields[BodyKey])
 	ic, _, err := e.repo.Issues().NewRaw(e.author(remote.Reporter), created.Unix(), title, body, nil, fields,
-		map[string]string{MetaId: ri.ID, MetaAlias: ri.Key, MetaSync: plan.Base.Marshal()})
+		map[string]string{MetaId: ri.ID, MetaAlias: ri.Key, MetaSync: plan.Base.marshal()})
 	if err != nil {
 		return e.fail(line, err)
 	}
-	e.ix.AddIssue(ri.ID, ic.Id())
+	e.ix.addIssue(ri.ID, ic.Id())
 	e.grew = true
 	e.done[ic.Id()] = true
 	line.Issue = ic.Id()
@@ -343,7 +343,7 @@ func (e *engine) runGone(hits []hit, l *local) error {
 			if err := stop(e.fail(Line{Issue: id, Jira: b.Key}, err)); err != nil {
 				return err
 			}
-		case !e.p.Owns(ri.Key):
+		case !e.p.owns(ri.Key):
 			found = append(found, gone{ic, b, GoneMoved, ri.Key})
 		case !e.done[id]: // the index lagged: an ordinary sync
 			if err := stop(e.syncLinked(ic)); err != nil {
@@ -382,7 +382,7 @@ func (e *engine) markGone(ic *cache.IssueCache, b *Base, kind, key string) error
 		nb := b.clone()
 		nb.Gone = kind
 		var ops []issue.Operation
-		if key, v, ok := e.m.Canceled(typ); ok {
+		if key, v, ok := e.m.canceled(typ); ok {
 			nb.Fields[key] = canon(v)
 			if !same(snap.Fields[key], v) {
 				ops = append(ops, issue.NewSetFieldOp(e.me, now.Unix(), key, v))
@@ -396,7 +396,7 @@ func (e *engine) markGone(ic *cache.IssueCache, b *Base, kind, key string) error
 		note := issue.NewAddCommentOp(e.me, now.Unix(),
 			fmt.Sprintf("Jira sync, %s: the Jira issue %s %s; it is no longer synced.", now.Format("2006-01-02 15:04 MST"), b.Key, what), nil)
 		note.SetMetadata(MetaNote, NoteDeleted)
-		ops = append(ops, note, issue.NewNoOpOp(e.me, now.Unix(), map[string]string{MetaSync: nb.Marshal()}))
+		ops = append(ops, note, issue.NewNoOpOp(e.me, now.Unix(), map[string]string{MetaSync: nb.marshal()}))
 		return ops, nil
 	})
 	if err != nil {

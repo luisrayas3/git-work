@@ -12,8 +12,8 @@ import (
 	"github.com/git-bug/git-bug/schema"
 )
 
-// System is the alias system name this package reads and writes (JS2).
-const System = "jira"
+// system is the alias system name this package reads and writes (JS2).
+const system = "jira"
 
 // Field references of the fixed table (JS7); a link type is linkRef.
 const (
@@ -73,18 +73,18 @@ type candidate struct {
 // entity took, which is how the lower id wins.
 func match(cs []candidate, jiraId, jiraName, tableKey string, claimed map[string]bool) (key string, adopted, excluded bool) {
 	for _, c := range cs {
-		if a, ok := c.aliases[System]; ok && a != "" && a == jiraId {
+		if a, ok := c.aliases[system]; ok && a != "" && a == jiraId {
 			return c.key, false, false
 		}
 	}
-	n := Norm(jiraName)
+	n := normName(jiraName)
 	found := ""
 	for _, c := range cs {
-		same := c.key == tableKey || n != "" && (Norm(c.key) == n || Norm(c.name) == n)
+		same := c.key == tableKey || n != "" && (normName(c.key) == n || normName(c.name) == n)
 		if !same || claimed[c.key] {
 			continue
 		}
-		a, aliased := c.aliases[System]
+		a, aliased := c.aliases[system]
 		switch {
 		case aliased && a == "":
 			return "", false, true
@@ -99,7 +99,7 @@ func setAlias(aliases *map[string]string, id string) {
 	if *aliases == nil {
 		*aliases = map[string]string{}
 	}
-	(*aliases)[System] = id
+	(*aliases)[system] = id
 }
 
 // types matches every issue type, in (level desc, id) order.
@@ -120,13 +120,13 @@ func (d *deriver) types() {
 			t := schema.TypeDoc{Name: it.Name, Description: it.Description}
 			setAlias(&t.Aliases, it.Id)
 			d.doc.SetType(key, t)
-			d.note(Info, key, "new type for Jira issue type %s (%s)", it.Name, it.Id)
+			d.note(LevelInfo, key, "new type for Jira issue type %s (%s)", it.Name, it.Id)
 		} else {
 			t, _ := d.doc.Types.Get(key)
 			if adopted {
-				d.note(Info, key, "adopts Jira issue type %s (%s)", it.Name, it.Id)
+				d.note(LevelInfo, key, "adopts Jira issue type %s (%s)", it.Name, it.Id)
 			} else if t.Name != it.Name {
-				d.note(Info, key, "renamed %q after Jira", it.Name)
+				d.note(LevelInfo, key, "renamed %q after Jira", it.Name)
 			}
 			t.Name = it.Name
 			if it.Description != "" {
@@ -140,11 +140,11 @@ func (d *deriver) types() {
 	}
 	for _, key := range d.doc.Types.Keys() {
 		t, _ := d.doc.Types.Get(key)
-		switch a, ok := t.Aliases[System]; {
+		switch a, ok := t.Aliases[system]; {
 		case !ok:
-			d.note(Info, key, "local-only type: never exported")
+			d.note(LevelInfo, key, "local-only type: never exported")
 		case a != "" && !claimed[key]:
-			d.note(Warn, key, "dead alias: %s has no issue type %s", d.p.Key, a)
+			d.note(LevelWarn, key, "dead alias: %s has no issue type %s", d.p.Key, a)
 		}
 	}
 }
@@ -168,12 +168,12 @@ type jiraValue struct{ id, name, class string }
 // wants lists what maps onto one type, table before custom fields, then by id.
 func (d *deriver) wants(it IssueType) []want {
 	name := func(id, fallback string) string {
-		if f, ok := d.p.Field(id); ok && f.Name != "" {
+		if f, ok := d.p.field(id); ok && f.Name != "" {
 			return f.Name
 		}
 		return fallback
 	}
-	on := func(id string) bool { _, ok := it.OnScreen(id); return ok }
+	on := func(id string) bool { _, ok := it.onScreen(id); return ok }
 
 	var ws []want
 	if len(it.Statuses) > 0 {
@@ -214,9 +214,9 @@ func (d *deriver) wants(it IssueType) []want {
 		if lt.Outward != "" {
 			name = strings.ToUpper(lt.Outward[:1]) + lt.Outward[1:]
 		}
-		w := want{ref: linkPrefix + lt.ID, key: Slug(lt.Outward), name: name, kind: schema.KindMultiRelation}
+		w := want{ref: linkPrefix + lt.ID, key: slug(lt.Outward), name: name, kind: schema.KindMultiRelation}
 		if lt.Inward != lt.Outward {
-			w.inverse = Slug(lt.Inward)
+			w.inverse = slug(lt.Inward)
 		}
 		ws = append(ws, w)
 	}
@@ -232,7 +232,7 @@ func (d *deriver) wants(it IssueType) []want {
 		}
 		kind, ok := customKind(m.Schema)
 		if !ok {
-			d.note(Warn, d.mapped[it.Id]+"/"+id, "Jira field %s (%s, %s) is not mapped", m.Name, id, customName(m.Schema))
+			d.note(LevelWarn, d.mapped[it.Id]+"/"+id, "Jira field %s (%s, %s) is not mapped", m.Name, id, customName(m.Schema))
 			continue
 		}
 		w := want{ref: id, name: m.Name, kind: kind}
@@ -326,14 +326,14 @@ func (d *deriver) fields(typeKey string, it IssueType) {
 			where = typeKey + "/" + key
 			f = schema.FieldDoc{Kind: string(w.kind), Name: w.name}
 			if w.key != "" && key != w.key {
-				d.note(Warn, where, "%s is taken by a field of another kind or mapping; Jira's %s is %s", w.key, w.name, key)
+				d.note(LevelWarn, where, "%s is taken by a field of another kind or mapping; Jira's %s is %s", w.key, w.name, key)
 			} else {
-				d.note(Info, where, "new field for Jira field %s (%s)", w.name, w.ref)
+				d.note(LevelInfo, where, "new field for Jira field %s (%s)", w.name, w.ref)
 			}
 		} else {
 			f, _ = t.Fields.Get(key)
 			if adopted {
-				d.note(Info, where, "adopts Jira field %s (%s)", w.name, w.ref)
+				d.note(LevelInfo, where, "adopts Jira field %s (%s)", w.name, w.ref)
 			}
 			f.Name = orElse(w.name, f.Name)
 		}
@@ -357,12 +357,12 @@ func (d *deriver) fields(typeKey string, it IssueType) {
 	}
 	for _, key := range t.Fields.Keys() {
 		f, _ := t.Fields.Get(key)
-		switch a, ok := f.Aliases[System]; {
+		switch a, ok := f.Aliases[system]; {
 		case schema.IsBuiltin(key):
 		case !ok:
-			d.note(Info, typeKey+"/"+key, "local-only field: never exported")
+			d.note(LevelInfo, typeKey+"/"+key, "local-only field: never exported")
 		case a != "" && !claimed[key]:
-			d.note(Warn, typeKey+"/"+key, "dead alias: Jira field %s is not mapped on %s", a, it.Name)
+			d.note(LevelWarn, typeKey+"/"+key, "dead alias: Jira field %s is not mapped on %s", a, it.Name)
 		}
 	}
 	d.doc.SetType(typeKey, t)
@@ -432,14 +432,14 @@ func (d *deriver) values(where string, current []schema.ValueDoc, w want) []sche
 			i := index(id)
 			v := &vs[i]
 			if adopted {
-				d.note(Info, at, "adopts Jira value %s (%s)", jv.name, jv.id)
+				d.note(LevelInfo, at, "adopts Jira value %s (%s)", jv.name, jv.id)
 			} else if v.Name != jv.name {
-				d.note(Info, at, "renamed %q after Jira", jv.name)
+				d.note(LevelInfo, at, "renamed %q after Jira", jv.name)
 			}
 			v.Name = jv.name
 			setAlias(&v.Aliases, jv.id)
 			if allowed := classOf(jv.class); w.status && !slices.Contains(allowed, schema.Category(v.Category)) {
-				d.note(Warn, at, "category %s is outside Jira's %s; reset to %s", orElse(v.Category, "(none)"), jv.class, allowed[0])
+				d.note(LevelWarn, at, "category %s is outside Jira's %s; reset to %s", orElse(v.Category, "(none)"), jv.class, allowed[0])
 				v.Category = string(allowed[0])
 			}
 		} else {
@@ -458,18 +458,18 @@ func (d *deriver) values(where string, current []schema.ValueDoc, w want) []sche
 				}
 			}
 			vs = slices.Insert(vs, pos, v)
-			d.note(Info, where+":"+id, "new value for Jira's %s (%s)", jv.name, jv.id)
+			d.note(LevelInfo, where+":"+id, "new value for Jira's %s (%s)", jv.name, jv.id)
 		}
 		claimed[id] = true
 		order = append(order, id)
 	}
 
 	for _, v := range vs {
-		switch a, ok := v.Aliases[System]; {
+		switch a, ok := v.Aliases[system]; {
 		case !ok:
-			d.note(Info, where+":"+v.Id, "local-only value: never exported")
+			d.note(LevelInfo, where+":"+v.Id, "local-only value: never exported")
 		case a != "" && !claimed[v.Id]:
-			d.note(Warn, where+":"+v.Id, "dead alias: Jira has no value %s here any more", a)
+			d.note(LevelWarn, where+":"+v.Id, "dead alias: Jira has no value %s here any more", a)
 		}
 	}
 
@@ -514,7 +514,7 @@ func typeAliases(doc *schema.Document) []string {
 	var out []string
 	for _, key := range doc.Types.Keys() {
 		t, _ := doc.Types.Get(key)
-		if a := t.Aliases[System]; a != "" {
+		if a := t.Aliases[system]; a != "" {
 			out = append(out, a)
 		}
 	}
@@ -529,7 +529,7 @@ func checkBinding(aliases []string, p *Project) error {
 		return nil
 	}
 	for _, a := range aliases {
-		if _, ok := p.IssueType(a); ok {
+		if _, ok := p.issueType(a); ok {
 			return nil
 		}
 	}

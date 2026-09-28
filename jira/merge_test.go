@@ -76,11 +76,11 @@ func TestMergeScalars(t *testing.T) {
 			if c.l != nil {
 				l.Fields[key] = c.l
 			}
-			p := Merge(c.b, l, r, isMulti, true)
+			p := merge(c.b, l, r, isMulti, true)
 
 			var gotLocal, gotRemote issue.Value
 			for _, lc := range p.Local {
-				require.Equal(t, LocalSet, lc.Kind)
+				require.Equal(t, localSet, lc.Kind)
 				require.Equal(t, "", lc.Author, "field imports are the runner's")
 				require.Equal(t, t0, lc.At, "at Jira's updated")
 				gotLocal = lc.Value
@@ -113,12 +113,12 @@ func canonOrNil(v issue.Value) issue.Value {
 // I1: a merge of three equal documents emits nothing.
 func TestMergeFixpoint(t *testing.T) {
 	b := base("the body", "title", str("T"), "status", str("done"), "labels", set("a", "b"))
-	b.Comments = map[string]string{"100": Digest("hi")}
+	b.Comments = map[string]string{"100": digest("hi")}
 	d := doc("the body", "title", str("T"), "status", str("done"), "labels", set("b", "a"))
 	l, r := d, d
-	l.Comments = []Comment{{JiraId: "100", Op: "op1", Text: Text{"hi", true}}}
-	r.Comments = []Comment{{JiraId: "100", Text: Text{"hi", true}}}
-	p := Merge(b, l, r, isMulti, true)
+	l.Comments = []docComment{{JiraId: "100", Op: "op1", Text: docText{"hi", true}}}
+	r.Comments = []docComment{{JiraId: "100", Text: docText{"hi", true}}}
+	p := merge(b, l, r, isMulti, true)
 	require.Empty(t, p.Local)
 	require.Empty(t, p.Remote)
 	require.Empty(t, p.Comments)
@@ -126,8 +126,8 @@ func TestMergeFixpoint(t *testing.T) {
 	require.Empty(t, p.Pending)
 
 	// and recording its base again changes nothing
-	again := Merge(&p.Base, l, r, isMulti, true).Base
-	require.True(t, p.Base.Equal(&again))
+	again := merge(&p.Base, l, r, isMulti, true).Base
+	require.True(t, p.Base.equal(&again))
 }
 
 func TestMergeSets(t *testing.T) {
@@ -135,15 +135,15 @@ func TestMergeSets(t *testing.T) {
 	b := base("", "labels", set("keep", "gone-local", "gone-jira"))
 	l := doc("", "labels", set("keep", "gone-jira", "new-local"))
 	r := doc("", "labels", set("keep", "gone-local", "new-jira"))
-	p := Merge(b, l, r, isMulti, true)
+	p := merge(b, l, r, isMulti, true)
 	require.Empty(t, p.Conflicts)
 	var adds, removes []string
 	for _, lc := range p.Local {
 		s, _ := issue.String(lc.Value)
-		if lc.Kind == LocalAdd {
+		if lc.Kind == localAdd {
 			adds = append(adds, s)
 		} else {
-			require.Equal(t, LocalRemove, lc.Kind)
+			require.Equal(t, localRemove, lc.Kind)
 			removes = append(removes, s)
 		}
 	}
@@ -155,45 +155,45 @@ func TestMergeSets(t *testing.T) {
 	require.Equal(t, string(b.Fields["labels"]), string(p.Base.Fields["labels"]), "base waits for the write")
 
 	// M6: a missing base is a union
-	p = Merge(base(""), doc("", "labels", set("a")), doc("", "labels", set("b")), isMulti, true)
+	p = merge(base(""), doc("", "labels", set("a")), doc("", "labels", set("b")), isMulti, true)
 	require.Len(t, p.Local, 1)
-	require.Equal(t, LocalAdd, p.Local[0].Kind)
+	require.Equal(t, localAdd, p.Local[0].Kind)
 	require.Equal(t, []issue.Value{str("a")}, p.Remote[0].Add)
 
 	// converged sets record the base
-	p = Merge(base(""), doc("", "labels", set("a")), doc("", "labels", set("a")), isMulti, true)
+	p = merge(base(""), doc("", "labels", set("a")), doc("", "labels", set("a")), isMulti, true)
 	require.Empty(t, p.Local)
 	require.JSONEq(t, `["a"]`, string(p.Base.Fields["labels"]))
 }
 
 func TestMergeBody(t *testing.T) {
 	// Jira edit imported
-	p := Merge(base("old"), doc("old"), doc("new"), isMulti, true)
+	p := merge(base("old"), doc("old"), doc("new"), isMulti, true)
 	require.Len(t, p.Local, 1)
-	require.Equal(t, LocalChange{Kind: LocalSet, Key: BodyKey, Value: str("new"), At: t0}, p.Local[0])
+	require.Equal(t, localChange{Kind: localSet, Key: BodyKey, Value: str("new"), At: t0}, p.Local[0])
 	require.Equal(t, form(BodyKey, str("new")), p.Base.Fields[BodyKey])
 
 	// local edit exported
-	p = Merge(base("old"), doc("mine"), doc("old"), isMulti, true)
+	p = merge(base("old"), doc("mine"), doc("old"), isMulti, true)
 	require.Empty(t, p.Local)
-	require.Equal(t, []Change{{Key: BodyKey, Set: str("mine")}}, p.Remote)
+	require.Equal(t, []change{{Key: BodyKey, Set: str("mine")}}, p.Remote)
 	require.Equal(t, form(BodyKey, str("old")), p.Base.Fields[BodyKey])
 
 	// M7: over a lossy Jira text, pending
 	r := doc("old")
 	r.Lossy = true
-	p = Merge(base("old"), doc("mine"), r, isMulti, true)
+	p = merge(base("old"), doc("mine"), r, isMulti, true)
 	require.Empty(t, p.Remote)
 	require.Equal(t, []Skip{{Key: BodyKey, Reason: reasonLossy}}, p.Pending)
 
 	// both: Jira wins, noted
-	p = Merge(base("old"), doc("mine"), doc("theirs"), isMulti, true)
+	p = merge(base("old"), doc("mine"), doc("theirs"), isMulti, true)
 	require.Len(t, p.Local, 1)
 	require.Len(t, p.Conflicts, 1)
 	require.Equal(t, BodyKey, p.Conflicts[0].Key)
 
 	// normalisation alone is no change
-	p = Merge(base("a"), doc("a  \r\n\n"), doc("a"), isMulti, true)
+	p = merge(base("a"), doc("a  \r\n\n"), doc("a"), isMulti, true)
 	require.Empty(t, p.Local)
 	require.Empty(t, p.Remote)
 }
@@ -204,7 +204,7 @@ func TestMergeSkipAndExport(t *testing.T) {
 	l := doc("", "parent", str("y"))
 	r := doc("")
 	r.Skip = []Skip{{Key: "parent", Reason: "not imported yet", Retry: true}}
-	p := Merge(b, l, r, isMulti, true)
+	p := merge(b, l, r, isMulti, true)
 	require.Empty(t, p.Local)
 	require.Empty(t, p.Remote)
 	require.Equal(t, r.Skip, p.Pending)
@@ -214,9 +214,9 @@ func TestMergeSkipAndExport(t *testing.T) {
 	// M9: export=false makes every local change pending
 	b = base("old", "status", str("to-do"), "labels", set())
 	l = doc("mine", "status", str("done"), "labels", set("a"))
-	l.Comments = []Comment{{Op: "op1", Text: Text{"new", true}}}
+	l.Comments = []docComment{{Op: "op1", Text: docText{"new", true}}}
 	r = doc("old", "status", str("to-do"), "labels", set())
-	p = Merge(b, l, r, isMulti, false)
+	p = merge(b, l, r, isMulti, false)
 	require.Empty(t, p.Remote)
 	require.Empty(t, p.Comments)
 	require.Empty(t, p.Local)
@@ -224,7 +224,7 @@ func TestMergeSkipAndExport(t *testing.T) {
 	for _, s := range p.Pending {
 		keys = append(keys, s.Key)
 	}
-	require.ElementsMatch(t, []string{"status", "labels", BodyKey, CommentKey + ":op1"}, keys)
+	require.ElementsMatch(t, []string{"status", "labels", BodyKey, commentKey + ":op1"}, keys)
 }
 
 // M11: Jira normalised our write back to what it held; the second merge
@@ -234,12 +234,12 @@ func TestMergeNormalisedWrite(t *testing.T) {
 	// we wrote "T  x" (step 6: B'[title] = written); Jira trimmed it to "T x"
 	b.Fields["title"] = str("T  x")
 	l, r := doc("", "title", str("T  x")), doc("", "title", str("T x"))
-	p := Merge(b, l, r, isMulti, false)
+	p := merge(b, l, r, isMulti, false)
 	require.Len(t, p.Local, 1)
 	require.Empty(t, p.Pending)
 	require.Empty(t, p.Conflicts)
 	l.Fields["title"] = str("T x")
-	p = Merge(&p.Base, l, r, isMulti, true)
+	p = merge(&p.Base, l, r, isMulti, true)
 	require.Empty(t, p.Local)
 	require.Empty(t, p.Remote)
 }
@@ -247,24 +247,24 @@ func TestMergeNormalisedWrite(t *testing.T) {
 func TestMergeType(t *testing.T) {
 	// M12: a Jira type change imports, first
 	b := base("", "type", str("task"), "status", str("to-do"))
-	p := Merge(b, doc("", "type", str("task"), "status", str("to-do")), doc("", "type", str("bug"), "status", str("done")), isMulti, true)
+	p := merge(b, doc("", "type", str("task"), "status", str("to-do")), doc("", "type", str("bug"), "status", str("done")), isMulti, true)
 	require.Len(t, p.Local, 2)
 	require.Equal(t, "type", p.Local[0].Key)
 
 	// a local type change is pending, never exported
-	p = Merge(b, doc("", "type", str("bug"), "status", str("to-do")), doc("", "type", str("task"), "status", str("to-do")), isMulti, true)
+	p = merge(b, doc("", "type", str("bug"), "status", str("to-do")), doc("", "type", str("task"), "status", str("to-do")), isMulti, true)
 	require.Empty(t, p.Remote)
 	require.Equal(t, []Skip{{Key: "type", Reason: reasonTypeChange}}, p.Pending)
 }
 
 func TestMergeComments(t *testing.T) {
-	c := func(jiraId string, op entity.Id, text string) Comment {
-		return Comment{JiraId: jiraId, Op: op, Author: "acc", Editor: "ed", At: t0, Edited: t0.Add(time.Minute), Text: Text{text, true}}
+	c := func(jiraId string, op entity.Id, text string) docComment {
+		return docComment{JiraId: jiraId, Op: op, Author: "acc", Editor: "ed", At: t0, Edited: t0.Add(time.Minute), Text: docText{text, true}}
 	}
 	b := base("")
-	b.Comments = map[string]string{"1": Digest("one"), "2": Digest("two"), "3": Digest("three"), "4": Digest("four"), "5": Digest("five"), "6": ""}
+	b.Comments = map[string]string{"1": digest("one"), "2": digest("two"), "3": digest("three"), "4": digest("four"), "5": digest("five"), "6": ""}
 	l, r := doc(""), doc("")
-	l.Comments = []Comment{
+	l.Comments = []docComment{
 		c("1", "op1", "one"),         // Jira edit → imported
 		c("2", "op2", "two, mine"),   // local edit → exported
 		c("3", "op3", "three, mine"), // both → Jira's, conflict
@@ -273,33 +273,33 @@ func TestMergeComments(t *testing.T) {
 		c("6", "op6", "six, edited"), // deleted before, edited since → pending
 		c("", "op7", "new local"),    // → exported
 		c("", "op8", "exported, crashed"),
-		{Op: "op9", Text: Text{"a note", true}, Note: true}, // never exported
+		{Op: "op9", Text: docText{"a note", true}, Note: true}, // never exported
 	}
-	r.Comments = []Comment{
+	r.Comments = []docComment{
 		c("1", "", "one, theirs"),
 		c("2", "", "two"),
 		c("3", "", "three, theirs"),
 		c("10", "", "new in Jira"),
 		c("11", "op8", "exported, crashed"),
 	}
-	p := Merge(b, l, r, isMulti, true)
+	p := merge(b, l, r, isMulti, true)
 
-	byOp := map[entity.Id]LocalChange{}
-	var added []LocalChange
+	byOp := map[entity.Id]localChange{}
+	var added []localChange
 	for _, lc := range p.Local {
-		if lc.Kind == LocalAddComment {
+		if lc.Kind == localAddComment {
 			added = append(added, lc)
 		} else {
 			byOp[lc.Op] = lc
 		}
 	}
-	require.Equal(t, LocalEditComment, byOp["op1"].Kind)
+	require.Equal(t, localEditComment, byOp["op1"].Kind)
 	require.Equal(t, "one, theirs", byOp["op1"].Text)
 	require.Equal(t, "ed", byOp["op1"].Author)
-	require.Equal(t, LocalEditComment, byOp["op3"].Kind)
-	require.Equal(t, Tombstone(t0), byOp["op4"].Text)
-	require.Equal(t, Tombstone(t0), byOp["op5"].Text)
-	require.Equal(t, LocalPairComment, byOp["op8"].Kind)
+	require.Equal(t, localEditComment, byOp["op3"].Kind)
+	require.Equal(t, tombstone(t0), byOp["op4"].Text)
+	require.Equal(t, tombstone(t0), byOp["op5"].Text)
+	require.Equal(t, localPairComment, byOp["op8"].Kind)
 	require.Equal(t, "11", byOp["op8"].JiraId)
 	require.NotContains(t, byOp, entity.Id("op2"))
 	require.NotContains(t, byOp, entity.Id("op6"))
@@ -308,17 +308,17 @@ func TestMergeComments(t *testing.T) {
 	require.Equal(t, "acc", added[0].Author)
 	require.Equal(t, t0, added[0].At)
 
-	require.ElementsMatch(t, []CommentWrite{{Op: "op2", JiraId: "2", Text: "two, mine"}, {Op: "op7", Text: "new local"}}, p.Comments)
+	require.ElementsMatch(t, []commentWrite{{Op: "op2", JiraId: "2", Text: "two, mine"}, {Op: "op7", Text: "new local"}}, p.Comments)
 	var conflicted []string
 	for _, cf := range p.Conflicts {
 		conflicted = append(conflicted, cf.Comment)
 	}
 	require.ElementsMatch(t, []string{"3", "5"}, conflicted)
-	require.Equal(t, []Skip{{Key: CommentKey + ":6", Reason: reasonDeleted}}, p.Pending)
+	require.Equal(t, []Skip{{Key: commentKey + ":6", Reason: reasonDeleted}}, p.Pending)
 
 	require.Equal(t, map[string]string{
-		"1": Digest("one, theirs"), "2": Digest("two"), "3": Digest("three, theirs"),
-		"4": "", "5": "", "6": "", "10": Digest("new in Jira"), "11": Digest("exported, crashed"),
+		"1": digest("one, theirs"), "2": digest("two"), "3": digest("three, theirs"),
+		"4": "", "5": "", "6": "", "10": digest("new in Jira"), "11": digest("exported, crashed"),
 	}, p.Base.Comments)
 }
 
@@ -337,7 +337,7 @@ func TestCurrentBase(t *testing.T) {
 	require.Empty(t, problems)
 
 	marker := func(updated time.Time, status string) string {
-		return (&Base{V: 1, Updated: updated, Fields: map[string]issue.Value{"status": str(status)}}).Marshal()
+		return (&Base{V: 1, Updated: updated, Fields: map[string]issue.Value{"status": str(status)}}).marshal()
 	}
 	i, _, err = issue.Create(me, t0.Unix(), "title", "", nil, nil, map[string]string{
 		MetaId: "10001", MetaSync: marker(t0, "first"),
@@ -356,12 +356,12 @@ func TestCurrentBase(t *testing.T) {
 
 	// Marshal round-trips
 	var back Base
-	require.NoError(t, json.Unmarshal([]byte(b.Marshal()), &back))
-	require.True(t, b.Equal(&back))
+	require.NoError(t, json.Unmarshal([]byte(b.marshal()), &back))
+	require.True(t, b.equal(&back))
 }
 
 func TestDigest(t *testing.T) {
-	require.Equal(t, Digest("a\nb"), Digest("a  \r\nb\n\n"))
-	require.NotEqual(t, Digest("a"), Digest("b"))
-	require.Regexp(t, `^v1:[0-9a-f]{64}$`, Digest(""))
+	require.Equal(t, digest("a\nb"), digest("a  \r\nb\n\n"))
+	require.NotEqual(t, digest("a"), digest("b"))
+	require.Regexp(t, `^v1:[0-9a-f]{64}$`, digest(""))
 }

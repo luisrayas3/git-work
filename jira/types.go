@@ -32,9 +32,9 @@ const (
 type Level string
 
 const (
-	Info  Level = "info"
-	Warn  Level = "warn"
-	Error Level = "error"
+	LevelInfo  Level = "info"
+	LevelWarn  Level = "warn"
+	LevelError Level = "error"
 )
 
 // Note is one thing the mapping has to say about the schema or an issue,
@@ -46,7 +46,7 @@ type Note struct {
 }
 
 // Doc is one issue in local terms, from either side (JS1):
-// the local snapshot through Mapping.Local, or Jira's through Mapping.FromJira.
+// the local snapshot through Mapping.Local, or Jira's through Mapping.fromIssue.
 type Doc struct {
 	Id, Key  string                 // remote only
 	Updated  time.Time              // remote only
@@ -56,31 +56,31 @@ type Doc struct {
 	Type     string                 // the local type key
 	Fields   map[string]issue.Value // mapped keys, title, type and BodyKey included
 	Lossy    bool                   // remote only: the description holds what git-work cannot write back (JS11)
-	Comments []Comment              // #1 on
+	Comments []docComment           // #1 on
 	Skip     []Skip                 // remote only: what could not convert now
 }
 
-// Text is a comment's text in the local text model (jiraapi.ADFToText).
+// docText is a comment's text in the local text model (jiraapi.ADFToText).
 // Lossless is false when writing the text back would drop something Jira has;
 // such a text is never overwritten (JS11). Local texts are always lossless.
-type Text struct {
+type docText struct {
 	Text     string
 	Lossless bool
 }
 
-// Comment is a comment after #0.
-type Comment struct {
+// docComment is a comment after #0.
+type docComment struct {
 	JiraId         string    // local: the jira-comment-id fact; remote: the Jira id
 	Op             entity.Id // local: the add-comment op; remote: from the git-work property
 	Author, Editor string    // accountIds (remote) or identity ids (local)
 	At, Edited     time.Time
-	Text           Text
+	Text           docText
 	Note           bool // a jira-note: never exported
 }
 
-// Change is one key's merged outcome to write on the other side:
+// change is one key's merged outcome to write on the other side:
 // Set for a scalar, Add and Remove for a multi-value.
-type Change struct {
+type change struct {
 	Key         string
 	Set         issue.Value
 	Add, Remove []issue.Value
@@ -94,30 +94,30 @@ type Skip struct {
 	Retry  bool   `json:"retry,omitempty"`
 }
 
-// WriteKind says how a Write reaches Jira.
-type WriteKind int
+// writeKind says how a Write reaches Jira.
+type writeKind int
 
 const (
-	WriteEdit       WriteKind = iota // batched into one PUT /issue
-	WriteTransition                  // POST /transitions
-	WriteLink                        // POST and DELETE /issueLink
+	writeEdit       writeKind = iota // batched into one PUT /issue
+	writeTransition                  // POST /transitions
+	writeLink                        // POST and DELETE /issueLink
 )
 
-// Write is one local key's change as Jira takes it; success is reported per Write.
-type Write struct {
+// jiraWrite is one local key's change as Jira takes it; success is reported per jiraWrite.
+type jiraWrite struct {
 	Key    string
-	Kind   WriteKind
+	Kind   writeKind
 	Field  string          // Edit: the Jira field id
 	Set    json.RawMessage // Edit: fields.<Field>; null clears
 	Update []jiraapi.Op    // Edit: update.<Field>, when Set cannot say it
 	Status string          // Transition: the target status id
-	Add    []NewLink       // Link
+	Add    []newLink       // Link
 	Remove []string        // Link: issueLink ids
 }
 
-// NewLink is a link to create: Source <LinkType> Destination, as Jira ids,
+// newLink is a link to create: Source <LinkType> Destination, as Jira ids,
 // in the orientation of POST /issueLink (api-vetting.md C1).
-type NewLink struct {
+type newLink struct {
 	LinkType            string
 	Source, Destination string
 }

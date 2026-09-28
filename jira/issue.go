@@ -18,7 +18,7 @@ import (
 // read is step 2: the database copy, its git-work property and its
 // comments, with identities ensured.
 func (e *engine) read(idOrKey string) (*jiraapi.Issue, []jiraapi.Comment, error) {
-	ri, err := e.c.GetIssue(e.ctx, idOrKey, e.m.Request(), nil, PropertyKey)
+	ri, err := e.c.GetIssue(e.ctx, idOrKey, e.m.requestFields(), nil, PropertyKey)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -26,7 +26,7 @@ func (e *engine) read(idOrKey string) (*jiraapi.Issue, []jiraapi.Comment, error)
 	if err != nil {
 		return nil, nil, err
 	}
-	e.ensureUsers(e.m.Users(ri, cs))
+	e.ensureUsers(e.m.users(ri, cs))
 	return ri, cs, nil
 }
 
@@ -44,7 +44,7 @@ func (e *engine) ensureUsers(us []jiraapi.User) {
 		created, err := e.repo.Identities().NewRaw(u.DisplayName, u.EmailAddress, login, "", nil,
 			map[string]string{MetaAccountId: u.AccountID})
 		if err == nil {
-			e.ix.AddUser(u.AccountID, created.Id())
+			e.ix.addUser(u.AccountID, created.Id())
 		}
 	}
 }
@@ -66,10 +66,10 @@ func (e *engine) author(accountId string) identity.Interface {
 	return a
 }
 
-// remote is FromJira with the comments this run posted paired to their ops
+// remote is fromIssue with the comments this run posted paired to their ops
 // even if Jira returned no comment property (JS12).
 func (e *engine) remote(ri *jiraapi.Issue, cs []jiraapi.Comment, pairs map[string]entity.Id) Doc {
-	r := e.m.FromJira(ri, cs, e.ix)
+	r := e.m.fromIssue(ri, cs, e.ix)
 	for i := range r.Comments {
 		if op, ok := pairs[r.Comments[i].JiraId]; ok {
 			r.Comments[i].Op = op
@@ -79,7 +79,7 @@ func (e *engine) remote(ri *jiraapi.Issue, cs []jiraapi.Comment, pairs map[strin
 }
 
 func (e *engine) multi(typ string) func(string) bool {
-	return func(k string) bool { return e.m.Multi(typ, k) }
+	return func(k string) bool { return e.m.multi(typ, k) }
 }
 
 // syncLinked syncs an issue whose create op carries jira-id.
@@ -98,7 +98,7 @@ func (e *engine) syncLinked(ic *cache.IssueCache) error {
 		gone = "not in Jira: deleted, or hidden from the sync's account"
 	case err != nil:
 		return e.fail(line, err)
-	case !e.p.Owns(ri.Key):
+	case !e.p.owns(ri.Key):
 		gone = "moved to " + ri.Key
 	}
 	if gone != "" {
@@ -121,7 +121,7 @@ func (e *engine) syncLinked(ic *cache.IssueCache) error {
 func (e *engine) converge(ic *cache.IssueCache, b *Base, ri *jiraapi.Issue, cs []jiraapi.Comment, meta map[string]string, line Line) error {
 	remote := e.remote(ri, cs, nil)
 	local := e.m.Local(ic.Snapshot(), remote.Type)
-	plan1 := Merge(b, local, remote, e.multi(remote.Type), true)
+	plan1 := merge(b, local, remote, e.multi(remote.Type), true)
 	if e.opts.DryRun {
 		line.DryRun = true
 		line.record(plan1.Local, remote)
@@ -145,7 +145,7 @@ func (e *engine) converge(ic *cache.IssueCache, b *Base, ri *jiraapi.Issue, cs [
 		if ri2, cs2, err = e.read(ri.ID); err != nil {
 			return e.fail(line, err)
 		}
-		unconfirmed = e.unconfirmed(plan1.Remote, b2, remote, e.m.FromJira(ri2, cs2, e.ix))
+		unconfirmed = e.unconfirmed(plan1.Remote, b2, remote, e.m.fromIssue(ri2, cs2, e.ix))
 		// I2: a write Jira does not show yet is not a base; the prior one stays,
 		// so if Jira keeps the old value the next run exports again rather than
 		// importing the old value over the local edit
@@ -159,7 +159,7 @@ func (e *engine) converge(ic *cache.IssueCache, b *Base, ri *jiraapi.Issue, cs [
 // unconfirmed are the keys written this run that the re-read still shows
 // with their pre-write value: a stale read, not a Jira edit, so plan₂ must
 // not import it over local. They are left alone and retried (I2).
-func (e *engine) unconfirmed(written []Change, b2 *Base, r, r2 Doc) []string {
+func (e *engine) unconfirmed(written []change, b2 *Base, r, r2 Doc) []string {
 	var keys []string
 	for _, ch := range written {
 		switch {
@@ -198,15 +198,15 @@ func (e *engine) commit(ic *cache.IssueCache, b2 *Base, ri *jiraapi.Issue, cs []
 		for _, k := range unconfirmed {
 			r.Skip = append(r.Skip, Skip{Key: k, Reason: "Jira does not show this run's write yet", Retry: true})
 		}
-		plan := Merge(b2, e.m.Local(snap, r.Type), r, e.multi(r.Type), false)
+		plan := merge(b2, e.m.Local(snap, r.Type), r, e.multi(r.Type), false)
 		typ, _ := issue.String(snap.Fields[typeKey])
 		decided.Pending = append(decided.Pending, e.admit(&plan, typ, b2)...)
 		ops := e.ops(snap, plan, &decided, r)
 		if len(meta) > 0 {
 			ops = append(ops, issue.NewSetMetadataOp(e.me, e.now().Unix(), snap.Operations[0].Id(), meta))
 		}
-		if cur, _ := CurrentBase(snap); !plan.Base.Equal(cur) {
-			ops = append(ops, issue.NewNoOpOp(e.me, e.now().Unix(), map[string]string{MetaSync: plan.Base.Marshal()}))
+		if cur, _ := CurrentBase(snap); !plan.Base.equal(cur) {
+			ops = append(ops, issue.NewNoOpOp(e.me, e.now().Unix(), map[string]string{MetaSync: plan.Base.marshal()}))
 		}
 		decided.Conflicts = append(decided.Conflicts, plan.Conflicts...)
 		// a key step 4 already reported pending keeps step 4's reason
@@ -241,9 +241,9 @@ func (e *engine) commit(ic *cache.IssueCache, b2 *Base, ri *jiraapi.Issue, cs []
 // admit drops from plan.Local each field change the schema refuses, against
 // the type the plan leaves the issue with: the key keeps its prior base and
 // is retried (JS13 step 6), so Update's own check never refuses the batch.
-func (e *engine) admit(plan *Plan, typ string, prior *Base) []Skip {
+func (e *engine) admit(plan *mergePlan, typ string, prior *Base) []Skip {
 	for _, lc := range plan.Local {
-		if lc.Kind == LocalSet && lc.Key == typeKey {
+		if lc.Kind == localSet && lc.Key == typeKey {
 			typ, _ = issue.String(lc.Value)
 		}
 	}
@@ -253,7 +253,7 @@ func (e *engine) admit(plan *Plan, typ string, prior *Base) []Skip {
 		var err error
 		switch {
 		case !lc.isField():
-		case lc.Kind == LocalSet:
+		case lc.Kind == localSet:
 			err = e.checker.CheckFields(typ, map[string]json.RawMessage{lc.Key: json.RawMessage(lc.Value)})
 		default:
 			err = e.checker.CheckItems(typ, map[string][]json.RawMessage{lc.Key: {json.RawMessage(lc.Value)}})
@@ -277,9 +277,9 @@ func (e *engine) admit(plan *Plan, typ string, prior *Base) []Skip {
 }
 
 // ops turns plan's local changes into operations and reports them.
-func (e *engine) ops(snap *issue.Snapshot, plan Plan, line *Line, remote Doc) []issue.Operation {
+func (e *engine) ops(snap *issue.Snapshot, plan mergePlan, line *Line, remote Doc) []issue.Operation {
 	now := e.now()
-	unix := func(lc LocalChange) int64 {
+	unix := func(lc localChange) int64 {
 		if lc.At.IsZero() {
 			return now.Unix()
 		}
@@ -290,24 +290,24 @@ func (e *engine) ops(snap *issue.Snapshot, plan Plan, line *Line, remote Doc) []
 	for _, lc := range plan.Local {
 		a, t := e.author(lc.Author), unix(lc)
 		switch lc.Kind {
-		case LocalSet:
+		case localSet:
 			if lc.Key == BodyKey {
 				text, _ := issue.String(lc.Value)
 				ops = append(ops, issue.NewEditCommentOp(a, t, snap.Operations[0].Id(), text, nil))
 			} else {
 				ops = append(ops, issue.NewSetFieldOp(a, t, lc.Key, lc.Value))
 			}
-		case LocalAdd:
+		case localAdd:
 			ops = append(ops, issue.NewAddValueOp(a, t, lc.Key, lc.Value))
-		case LocalRemove:
+		case localRemove:
 			ops = append(ops, issue.NewRemoveValueOp(a, t, lc.Key, lc.Value))
-		case LocalAddComment:
+		case localAddComment:
 			op := issue.NewAddCommentOp(a, t, lc.Text, nil)
 			op.SetMetadata(MetaCommentId, lc.JiraId)
 			ops = append(ops, op)
-		case LocalEditComment, LocalTombstone:
+		case localEditComment, localTombstone:
 			ops = append(ops, issue.NewEditCommentOp(a, t, lc.Op, lc.Text, nil))
-		case LocalPairComment:
+		case localPairComment:
 			ops = append(ops, issue.NewSetMetadataOp(e.me, now.Unix(), lc.Op, map[string]string{MetaCommentId: lc.JiraId}))
 		}
 	}
@@ -327,7 +327,7 @@ func conflictNote(now time.Time, cs []Conflict) string {
 		switch c.Key {
 		case BodyKey:
 			sb.WriteString("- body: the local description edit is kept in its history\n")
-		case CommentKey:
+		case commentKey:
 			fmt.Fprintf(&sb, "- comment %s: the local edit is kept in its history\n", c.Comment)
 		default:
 			fmt.Fprintf(&sb, "- %s: local %s -> Jira %s\n", c.Key, c.Local, c.Jira)
@@ -337,7 +337,7 @@ func conflictNote(now time.Time, cs []Conflict) string {
 }
 
 // changeValue is what a multi key holds once a Change applies to cur.
-func changeValue(ch Change, cur issue.Value) issue.Value {
+func changeValue(ch change, cur issue.Value) issue.Value {
 	if ch.Set != nil {
 		return ch.Set
 	}

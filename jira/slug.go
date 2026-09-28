@@ -27,10 +27,10 @@ func fold(name string) string {
 
 func alnum(r rune) bool { return r >= 'a' && r <= 'z' || r >= '0' && r <= '9' }
 
-// Norm is what names are matched by (JS6): lower-case letters and digits
+// normName is what names are matched by (JS6): lower-case letters and digits
 // only, so "Sub-task", "Subtask" and `subtask` are one name.
 // An empty result matches nothing.
-func Norm(name string) string {
+func normName(name string) string {
 	var b strings.Builder
 	for _, r := range fold(name) {
 		if alnum(r) {
@@ -40,10 +40,10 @@ func Norm(name string) string {
 	return b.String()
 }
 
-// Slug makes a key from a Jira name (JS6): "Won't Do" is `wont-do`.
+// slug makes a key from a Jira name (JS6): "Won't Do" is `wont-do`.
 // It is empty when nothing Latin is left; keyFor supplies that fallback,
 // the leading-letter rule and the collision suffix.
-func Slug(name string) string {
+func slug(name string) string {
 	var b strings.Builder
 	dash := false
 	for _, r := range fold(name) {
@@ -75,9 +75,9 @@ func Slug(name string) string {
 // start with a letter, "" for a value id. taken says whether a key is used;
 // a built-in field key always is.
 func keyFor(name, jiraId, prefix string, taken func(string) bool) string {
-	base := Slug(name)
+	base := slug(name)
 	if base == "" {
-		base = "jira-" + Slug(jiraId)
+		base = "jira-" + slug(jiraId)
 	}
 	if prefix != "" && (base[0] < 'a' || base[0] > 'z') {
 		base = prefix + base

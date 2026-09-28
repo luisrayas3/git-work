@@ -63,12 +63,12 @@ func newConv(t *testing.T) *conv {
 	s, _, _, _ := derived(t, starts(t)["preset"], p)
 	m, _, err := Compile(s.schema(t), p)
 	require.NoError(t, err)
-	ix := IndexOf(nil, map[string]entity.Id{jiratest.MiaID: eid('1'), jiratest.RaviID: eid('2')})
+	ix := indexOf(nil, map[string]entity.Id{jiratest.MiaID: eid('1'), jiratest.RaviID: eid('2')})
 	return &conv{t: t, srv: srv, c: c, p: p, m: m, ix: ix}
 }
 
 func (cv *conv) raw(key string) *jiraapi.Issue {
-	ri, err := cv.c.GetIssue(context.Background(), key, cv.m.Request(), nil)
+	ri, err := cv.c.GetIssue(context.Background(), key, cv.m.requestFields(), nil)
 	require.NoError(cv.t, err)
 	return ri
 }
@@ -76,7 +76,7 @@ func (cv *conv) raw(key string) *jiraapi.Issue {
 func (cv *conv) get(key string) Doc {
 	cs, err := cv.c.Comments(context.Background(), key)
 	require.NoError(cv.t, err)
-	return cv.m.FromJira(cv.raw(key), cs, cv.ix)
+	return cv.m.fromIssue(cv.raw(key), cs, cv.ix)
 }
 
 // create posts Create's body, then writes the rest as the engine's
@@ -84,24 +84,24 @@ func (cv *conv) get(key string) Doc {
 // Jira's normal form of our create is our value (P1).
 func (cv *conv) create(local Doc, id entity.Id) string {
 	t := cv.t
-	body, sent, skips := cv.m.Create(local, id, cv.ix)
+	body, sent, skips := cv.m.createBody(local, id, cv.ix)
 	require.Empty(t, skips)
 	require.Subset(t, sent, []string{"title", "type"})
 	ref, err := cv.c.CreateIssue(context.Background(), body.Fields, body.Properties)
 	require.NoError(t, err)
-	cv.ix.AddIssue(ref.ID, id)
-	var rest []Change
+	cv.ix.addIssue(ref.ID, id)
+	var rest []change
 	for k, v := range local.Fields {
 		switch {
 		case slices.Contains(sent, k) || issue.IsNull(v):
-		case cv.m.Multi(local.Type, k):
+		case cv.m.multi(local.Type, k):
 			vs, _ := issue.Items(v)
-			rest = append(rest, Change{Key: k, Add: vs})
+			rest = append(rest, change{Key: k, Add: vs})
 		default:
-			rest = append(rest, Change{Key: k, Set: v})
+			rest = append(rest, change{Key: k, Set: v})
 		}
 	}
-	ws, skips := cv.m.ToJira(local.Type, rest, cv.raw(ref.Key), cv.ix)
+	ws, skips := cv.m.toWrites(local.Type, rest, cv.raw(ref.Key), cv.ix)
 	require.Empty(t, skips)
 	cv.apply(ref.Key, ws)
 	remote := cv.get(ref.Key)
@@ -114,18 +114,18 @@ func (cv *conv) create(local Doc, id entity.Id) string {
 }
 
 // apply is the engine's step 4 in miniature: one PUT, the transition, links.
-func (cv *conv) apply(key string, ws []Write) {
+func (cv *conv) apply(key string, ws []jiraWrite) {
 	t, ctx := cv.t, context.Background()
 	fields, update := map[string]any{}, map[string][]jiraapi.Op{}
 	for _, w := range ws {
 		switch w.Kind {
-		case WriteEdit:
+		case writeEdit:
 			if w.Set != nil {
 				fields[w.Field] = w.Set
 				continue
 			}
 			update[w.Field] = append(update[w.Field], w.Update...)
-		case WriteTransition:
+		case writeTransition:
 			trs, err := cv.c.Transitions(ctx, key)
 			require.NoError(t, err)
 			found := false
@@ -137,7 +137,7 @@ func (cv *conv) apply(key string, ws []Write) {
 				}
 			}
 			require.True(t, found, "a transition to %s", w.Status)
-		case WriteLink:
+		case writeLink:
 			for _, l := range w.Add {
 				require.NoError(t, cv.c.CreateIssueLink(ctx, l.LinkType, l.Source, l.Destination))
 			}
@@ -168,7 +168,7 @@ func TestConversionRoundTrip(t *testing.T) {
 	}}
 	storyKey := cv.create(story, eid('s'))
 
-	changes := []Change{
+	changes := []change{
 		{Key: "title", Set: sv("Guest checkout, v2")},
 		{Key: "status", Set: sv("in-progress")},
 		{Key: "priority", Set: sv("lowest")},
@@ -182,7 +182,7 @@ func TestConversionRoundTrip(t *testing.T) {
 		{Key: "code-name", Set: sv("Falcon")},
 		{Key: "start-date", Set: sv("2026-10-02")},
 	}
-	ws, skips := cv.m.ToJira("story", changes, cv.raw(storyKey), cv.ix)
+	ws, skips := cv.m.toWrites("story", changes, cv.raw(storyKey), cv.ix)
 	require.Empty(t, skips)
 	require.Len(t, ws, len(changes))
 	cv.apply(storyKey, ws)
@@ -201,16 +201,16 @@ func TestConversionRoundTrip(t *testing.T) {
 	require.Equal(t, "[]", string(cv.get(epicKey).Fields["blocks"]))
 
 	// converting Jira's value back and forth is a fixpoint
-	var again []Change
+	var again []change
 	for _, key := range []string{"title", "priority", "estimate", "team", "code-name", "start-date"} {
-		again = append(again, Change{Key: key, Set: after.Fields[key]})
+		again = append(again, change{Key: key, Set: after.Fields[key]})
 	}
-	ws, skips = cv.m.ToJira("story", again, cv.raw(storyKey), cv.ix)
+	ws, skips = cv.m.toWrites("story", again, cv.raw(storyKey), cv.ix)
 	require.Empty(t, skips)
 	cv.apply(storyKey, ws)
 	require.Equal(t, after.Fields, cv.get(storyKey).Fields)
 
-	ws, skips = cv.m.ToJira("story", []Change{{Key: "blocks", Remove: []issue.Value{sv(eid('e').String())}}}, cv.raw(storyKey), cv.ix)
+	ws, skips = cv.m.toWrites("story", []change{{Key: "blocks", Remove: []issue.Value{sv(eid('e').String())}}}, cv.raw(storyKey), cv.ix)
 	require.Empty(t, skips)
 	require.Len(t, ws[0].Remove, 1)
 	cv.apply(storyKey, ws)
@@ -222,8 +222,8 @@ func TestLinkDirection(t *testing.T) {
 	cv := newConv(t)
 	a := cv.srv.CreateIssue(jiratest.IssueSpec{Project: "PROJ", Type: "Task", Summary: "A"})
 	b := cv.srv.CreateIssue(jiratest.IssueSpec{Project: "PROJ", Type: "Task", Summary: "B"})
-	cv.ix.AddIssue(cv.raw(a).ID, eid('a'))
-	cv.ix.AddIssue(cv.raw(b).ID, eid('b'))
+	cv.ix.addIssue(cv.raw(a).ID, eid('a'))
+	cv.ix.addIssue(cv.raw(b).ID, eid('b'))
 	cv.srv.Link(a, "Blocks", b)
 	require.Equal(t, string(items(eid('b').String())), string(cv.get(a).Fields["blocks"]))
 	require.Equal(t, "[]", string(cv.get(b).Fields["blocks"]))
@@ -242,7 +242,7 @@ func TestFromJiraSkips(t *testing.T) {
 			{"id":"2","type":{"id":"10003"},"outwardIssue":{"id":"30002","key":"ELSE-5"}}]`),
 		"updated": json.RawMessage(`"2026-09-28T16:03:00.000+0200"`),
 	}}
-	doc := cv.m.FromJira(ri, nil, cv.ix)
+	doc := cv.m.fromIssue(ri, nil, cv.ix)
 	require.Equal(t, "task", doc.Type)
 	require.Equal(t, "2026-09-28T14:03:00Z", doc.Updated.Format("2006-01-02T15:04:05Z07:00"))
 	skipped := map[string]bool{}
@@ -256,14 +256,14 @@ func TestFromJiraSkips(t *testing.T) {
 	require.Equal(t, "[]", string(doc.Fields["relates-to"]), "an out-of-project link item is dropped")
 
 	ri.Fields["issuetype"] = json.RawMessage(`{"id":"99999"}`)
-	require.Equal(t, "", cv.m.FromJira(ri, nil, cv.ix).Type, "an unmapped type is skipped by the engine")
+	require.Equal(t, "", cv.m.fromIssue(ri, nil, cv.ix).Type, "an unmapped type is skipped by the engine")
 }
 
 // JS17: a local value Jira cannot hold is a Skip, never a Retry: the issue
 // stays a candidate because local differs from its base.
 func TestToJiraSkips(t *testing.T) {
 	cv := newConv(t)
-	ws, skips := cv.m.ToJira("task", []Change{
+	ws, skips := cv.m.toWrites("task", []change{
 		{Key: "title", Set: sv(strings.Repeat("é", 256))},
 		{Key: "type", Set: sv("bug")},
 		{Key: "status", Set: sv("in-review")},
@@ -280,9 +280,9 @@ func TestToJiraSkips(t *testing.T) {
 	require.Equal(t, map[string]bool{"title": false, "type": false, "status": false, "labels": false,
 		"assignee": false, "parent": false, "rank": false}, retry)
 
-	_, ok := cv.m.IssueType("iteration")
+	_, ok := cv.m.issueType("iteration")
 	require.False(t, ok, "a local-only type is never exported")
-	_, skips = cv.m.ToJira("iteration", []Change{{Key: "title", Set: sv("x")}}, nil, cv.ix)
+	_, skips = cv.m.toWrites("iteration", []change{{Key: "title", Set: sv("x")}}, nil, cv.ix)
 	require.Len(t, skips, 1)
 }
 
@@ -296,7 +296,7 @@ func TestDatetime(t *testing.T) {
 	require.Nil(t, skip)
 	require.Equal(t, `"2026-09-28T14:03:00Z"`, string(v))
 
-	w, skip := m.toJira(tm, Change{Key: "at", Set: v}, nil, cv0())
+	w, skip := m.toJira(tm, change{Key: "at", Set: v}, nil, cv0())
 	require.Nil(t, skip)
 	require.Equal(t, `"2026-09-28T14:03:00.000+0000"`, string(w.Set))
 	ri.Fields["customfield_1"] = w.Set
@@ -304,7 +304,7 @@ func TestDatetime(t *testing.T) {
 	require.Equal(t, string(v), string(back))
 }
 
-func cv0() *Index { return IndexOf(nil, nil) }
+func cv0() *Index { return indexOf(nil, nil) }
 
 // JS16: every account an issue and its comments name, once, in order.
 func TestUsers(t *testing.T) {
@@ -317,7 +317,7 @@ func TestUsers(t *testing.T) {
 	}}
 	cs := []jiraapi.Comment{{Author: &jiraapi.User{AccountID: "c"}, UpdateAuthor: &jiraapi.User{AccountID: "a"}}}
 	var got []string
-	for _, u := range cv.m.Users(ri, cs) {
+	for _, u := range cv.m.users(ri, cs) {
 		got = append(got, u.AccountID)
 	}
 	require.Equal(t, []string{"r", "a", "c"}, got)

@@ -41,11 +41,11 @@ type fieldMap struct {
 	link     string              // link type id, for link:<id>
 	toJira   map[string]string   // value id -> Jira id
 	fromJira map[string]string
-	excluded map[string]bool // Norm of the names of values aliased "": never synced
+	excluded map[string]bool // normName of the names of values aliased "": never synced
 }
 
-// NewIssue is the body of POST /issue: jiraapi.Client.CreateIssue's arguments.
-type NewIssue struct {
+// newIssue is the body of POST /issue: jiraapi.Client.CreateIssue's arguments.
+type newIssue struct {
 	Fields     map[string]any
 	Properties []jiraapi.Property
 }
@@ -53,33 +53,33 @@ type NewIssue struct {
 // maxSummary is Jira's limit on a summary, in runes.
 const maxSummary = 255
 
-// Request is the fields= of every GET /issue.
-func (m *Mapping) Request() []string { return slices.Clone(m.request) }
+// requestFields is the fields= of every GET /issue.
+func (m *Mapping) requestFields() []string { return slices.Clone(m.request) }
 
-// LocalType is the type an issue type maps to; an unmapped one is skipped.
-func (m *Mapping) LocalType(issueTypeId string) (string, bool) {
+// localType is the type an issue type maps to; an unmapped one is skipped.
+func (m *Mapping) localType(issueTypeId string) (string, bool) {
 	k, ok := m.byIssueType[issueTypeId]
 	return k, ok
 }
 
-// IssueType is the issue type a type maps to; a local-only one is never exported.
-func (m *Mapping) IssueType(typeKey string) (string, bool) {
+// issueType is the issue type a type maps to; a local-only one is never exported.
+func (m *Mapping) issueType(typeKey string) (string, bool) {
 	if tm, ok := m.types[typeKey]; ok {
 		return tm.issueType, true
 	}
 	return "", false
 }
 
-// Keys lists the mapped keys of a type, title and type included.
-func (m *Mapping) Keys(typeKey string) []string {
+// keys lists the mapped keys of a type, title and type included.
+func (m *Mapping) keys(typeKey string) []string {
 	if tm, ok := m.types[typeKey]; ok {
 		return slices.Clone(tm.keys)
 	}
 	return nil
 }
 
-// Multi says a mapped key merges item-wise (JS10).
-func (m *Mapping) Multi(typeKey, key string) bool {
+// multi says a mapped key merges item-wise (JS10).
+func (m *Mapping) multi(typeKey, key string) bool {
 	if tm, ok := m.types[typeKey]; ok {
 		if fm, ok := tm.fields[key]; ok {
 			return fm.kind.IsMulti()
@@ -88,9 +88,9 @@ func (m *Mapping) Multi(typeKey, key string) bool {
 	return false
 }
 
-// Canceled is the status a Gone issue is set to (JS19): the first value in
+// canceled is the status a Gone issue is set to (JS19): the first value in
 // the canceled category of its type's status field.
-func (m *Mapping) Canceled(typeKey string) (key string, v issue.Value, ok bool) {
+func (m *Mapping) canceled(typeKey string) (key string, v issue.Value, ok bool) {
 	tm, ok := m.types[typeKey]
 	if !ok || tm.status == "" {
 		return "", nil, false
@@ -102,9 +102,9 @@ func (m *Mapping) Canceled(typeKey string) (key string, v issue.Value, ok bool) 
 	return tm.status, issue.StringValue(vs[0].Id), true
 }
 
-// Users are the accounts an issue and its comments name, in order of first
+// users are the accounts an issue and its comments name, in order of first
 // appearance, for the engine to ensure as identities before it converts (JS16).
-func (m *Mapping) Users(ri *jiraapi.Issue, cs []jiraapi.Comment) []jiraapi.User {
+func (m *Mapping) users(ri *jiraapi.Issue, cs []jiraapi.Comment) []jiraapi.User {
 	var out []jiraapi.User
 	seen := map[string]bool{}
 	add := func(u *jiraapi.User) {
@@ -146,7 +146,7 @@ func (m *Mapping) Local(snap *issue.Snapshot, typeKey string) Doc {
 	doc := Doc{Type: typeKey, Fields: map[string]issue.Value{BodyKey: issue.StringValue("")}}
 	if tm, ok := m.types[typeKey]; ok {
 		for _, key := range tm.keys {
-			doc.Fields[key] = canonical(snap.Fields[key], m.Multi(typeKey, key))
+			doc.Fields[key] = canonical(snap.Fields[key], m.multi(typeKey, key))
 		}
 	}
 	if len(snap.Comments) == 0 {
@@ -154,10 +154,10 @@ func (m *Mapping) Local(snap *issue.Snapshot, typeKey string) Doc {
 	}
 	doc.Fields[BodyKey] = issue.StringValue(snap.Comments[0].Message)
 	// one pass over the operations: each comment's creation and last edit
-	byOp := map[entity.Id]*Comment{}
-	at := func(id entity.Id) *Comment {
+	byOp := map[entity.Id]*docComment{}
+	at := func(id entity.Id) *docComment {
 		if byOp[id] == nil {
-			byOp[id] = &Comment{}
+			byOp[id] = &docComment{}
 		}
 		return byOp[id]
 	}
@@ -174,7 +174,7 @@ func (m *Mapping) Local(snap *issue.Snapshot, typeKey string) Doc {
 	}
 	for _, sc := range snap.Comments[1:] {
 		lc := *at(sc.TargetId())
-		lc.Op, lc.Text = sc.TargetId(), Text{Text: sc.Message, Lossless: true}
+		lc.Op, lc.Text = sc.TargetId(), docText{Text: sc.Message, Lossless: true}
 		if sc.Author != nil {
 			lc.Author = sc.Author.Id().String()
 		}
@@ -183,11 +183,11 @@ func (m *Mapping) Local(snap *issue.Snapshot, typeKey string) Doc {
 	return doc
 }
 
-// FromJira converts one issue and its comments (JS7, JS11, JS17): canonical
+// fromIssue converts one issue and its comments (JS7, JS11, JS17): canonical
 // values, texts through ADFToText, out-of-project relations dropped, and
 // what cannot convert now in Skip. An issue of an unmapped type has no Type
 // and no fields.
-func (m *Mapping) FromJira(ri *jiraapi.Issue, cs []jiraapi.Comment, ix *Index) Doc {
+func (m *Mapping) fromIssue(ri *jiraapi.Issue, cs []jiraapi.Comment, ix *Index) Doc {
 	doc := Doc{Id: ri.ID, Key: ri.Key, Fields: map[string]issue.Value{}}
 	sf, _ := ri.System()
 	doc.Updated, doc.Created = sf.Updated.UTC(), sf.Created.UTC()
@@ -223,7 +223,7 @@ func (m *Mapping) FromJira(ri *jiraapi.Issue, cs []jiraapi.Comment, ix *Index) D
 	}
 
 	for _, c := range cs {
-		rc := Comment{JiraId: c.ID, At: c.Created.UTC()}
+		rc := docComment{JiraId: c.ID, At: c.Created.UTC()}
 		rc.Text.Text, rc.Text.Lossless = jiraapi.ADFToText(c.Body)
 		if raw, ok := c.Property(PropertyKey); ok {
 			var p struct {
@@ -260,7 +260,7 @@ func (m *Mapping) fromJira(ri *jiraapi.Issue, fm *fieldMap, ix *Index) (v issue.
 		if local, ok := fm.fromJira[id]; ok {
 			return issue.StringValue(local), nil, false
 		}
-		if n := Norm(name); n != "" && fm.excluded[n] {
+		if n := normName(name); n != "" && fm.excluded[n] {
 			return nil, &Skip{Key: fm.key, Reason: fmt.Sprintf("Jira %s %q is excluded from sync", fm.ref, name)}, false
 		}
 		return retry("Jira %s %q (%s) is not a value of %s", fm.ref, name, id, fm.key)
@@ -405,21 +405,21 @@ func (m *Mapping) syncable(ref jiraapi.IssueRef, ix *Index) bool {
 	return true
 }
 
-// ToJira turns merged changes into writes, one per local key, the
+// toWrites turns merged changes into writes, one per local key, the
 // description included; remote gives the link ids a removal deletes. A value
 // Jira cannot hold is a Skip (JS17): pending, and a candidate anyway because
 // local differs from the base.
-func (m *Mapping) ToJira(typeKey string, ch []Change, remote *jiraapi.Issue, ix *Index) ([]Write, []Skip) {
-	var writes []Write
+func (m *Mapping) toWrites(typeKey string, ch []change, remote *jiraapi.Issue, ix *Index) ([]jiraWrite, []Skip) {
+	var writes []jiraWrite
 	var skips []Skip
 	tm := m.types[typeKey]
 	for _, c := range ch {
-		var w Write
+		var w jiraWrite
 		var skip *Skip
 		switch {
 		case c.Key == BodyKey:
 			text, _ := issue.String(c.Set)
-			w = Write{Key: BodyKey, Kind: WriteEdit, Field: "description", Set: jiraapi.TextToADF(text)}
+			w = jiraWrite{Key: BodyKey, Kind: writeEdit, Field: "description", Set: jiraapi.TextToADF(text)}
 		case tm == nil:
 			skip = &Skip{Key: c.Key, Reason: "type " + typeKey + " is local-only"}
 		default:
@@ -435,12 +435,12 @@ func (m *Mapping) ToJira(typeKey string, ch []Change, remote *jiraapi.Issue, ix 
 	return writes, skips
 }
 
-func (m *Mapping) toJira(tm *typeMap, c Change, remote *jiraapi.Issue, ix *Index) (Write, *Skip) {
-	no := func(format string, args ...any) (Write, *Skip) {
-		return Write{}, &Skip{Key: c.Key, Reason: fmt.Sprintf(format, args...)}
+func (m *Mapping) toJira(tm *typeMap, c change, remote *jiraapi.Issue, ix *Index) (jiraWrite, *Skip) {
+	no := func(format string, args ...any) (jiraWrite, *Skip) {
+		return jiraWrite{}, &Skip{Key: c.Key, Reason: fmt.Sprintf(format, args...)}
 	}
-	edit := func(field string, v any) (Write, *Skip) {
-		return Write{Key: c.Key, Kind: WriteEdit, Field: field, Set: mustJSON(v)}, nil
+	edit := func(field string, v any) (jiraWrite, *Skip) {
+		return jiraWrite{Key: c.Key, Kind: writeEdit, Field: field, Set: mustJSON(v)}, nil
 	}
 
 	switch c.Key {
@@ -470,10 +470,10 @@ func (m *Mapping) toJira(tm *typeMap, c Change, remote *jiraapi.Issue, ix *Index
 		case refStatus:
 			return no("Jira has no issue without a status")
 		case refParent:
-			return Write{Key: c.Key, Kind: WriteEdit, Field: refParent,
+			return jiraWrite{Key: c.Key, Kind: writeEdit, Field: refParent,
 				Update: []jiraapi.Op{jiraapi.OpSet(map[string]bool{"none": true})}}, nil
 		}
-		return Write{Key: c.Key, Kind: WriteEdit, Field: fm.ref, Set: null}, nil
+		return jiraWrite{Key: c.Key, Kind: writeEdit, Field: fm.ref, Set: null}, nil
 	}
 
 	switch fm.kind {
@@ -484,7 +484,7 @@ func (m *Mapping) toJira(tm *typeMap, c Change, remote *jiraapi.Issue, ix *Index
 			return no("%s is local-only: Jira has no %s for it", id, fm.ref)
 		}
 		if fm.ref == refStatus {
-			return Write{Key: c.Key, Kind: WriteTransition, Status: jid}, nil
+			return jiraWrite{Key: c.Key, Kind: writeTransition, Status: jid}, nil
 		}
 		return edit(fm.ref, map[string]string{"id": jid})
 	case schema.KindIdentity:
@@ -496,7 +496,7 @@ func (m *Mapping) toJira(tm *typeMap, c Change, remote *jiraapi.Issue, ix *Index
 		return edit(fm.ref, map[string]string{"accountId": account})
 	case schema.KindRelation:
 		id, _ := issue.String(c.Set)
-		jid, ok := ix.JiraIssue(entity.Id(id))
+		jid, ok := ix.jiraIssue(entity.Id(id))
 		if !ok {
 			return no("%s is not in Jira", entity.Id(id).Human())
 		}
@@ -531,28 +531,28 @@ func (m *Mapping) toJira(tm *typeMap, c Change, remote *jiraapi.Issue, ix *Index
 // toJiraItems writes a set's added and removed items (JS10): labels and
 // multi-selects by update, links by POST and DELETE /issueLink. A link to an
 // issue not in Jira is skipped alone; the other items are still written.
-func (m *Mapping) toJiraItems(fm *fieldMap, c Change, remote *jiraapi.Issue, ix *Index) (Write, *Skip) {
+func (m *Mapping) toJiraItems(fm *fieldMap, c change, remote *jiraapi.Issue, ix *Index) (jiraWrite, *Skip) {
 	if fm.link != "" {
 		if remote == nil {
-			return Write{}, &Skip{Key: c.Key, Reason: "links are written once the issue is in Jira"}
+			return jiraWrite{}, &Skip{Key: c.Key, Reason: "links are written once the issue is in Jira"}
 		}
 		var links []jiraapi.IssueLink
 		_, _ = remote.Decode("issuelinks", &links)
-		w := Write{Key: c.Key, Kind: WriteLink}
+		w := jiraWrite{Key: c.Key, Kind: writeLink}
 		var missing []string
 		for _, item := range c.Add {
 			id, _ := issue.String(item)
-			jid, ok := ix.JiraIssue(entity.Id(id))
+			jid, ok := ix.jiraIssue(entity.Id(id))
 			if !ok {
 				missing = append(missing, entity.Id(id).Human())
 				continue
 			}
 			// POST /issueLink's inwardIssue is the source (C1)
-			w.Add = append(w.Add, NewLink{LinkType: fm.link, Source: remote.ID, Destination: jid})
+			w.Add = append(w.Add, newLink{LinkType: fm.link, Source: remote.ID, Destination: jid})
 		}
 		for _, item := range c.Remove {
 			id, _ := issue.String(item)
-			jid, _ := ix.JiraIssue(entity.Id(id))
+			jid, _ := ix.jiraIssue(entity.Id(id))
 			for _, l := range links {
 				if l.Type.ID == fm.link && l.OutwardIssue != nil && l.OutwardIssue.ID == jid {
 					w.Remove = append(w.Remove, l.ID)
@@ -564,23 +564,23 @@ func (m *Mapping) toJiraItems(fm *fieldMap, c Change, remote *jiraapi.Issue, ix 
 			skip = &Skip{Key: c.Key, Reason: strings.Join(missing, ", ") + " not in Jira"}
 		}
 		if len(w.Add)+len(w.Remove) == 0 {
-			w = Write{}
+			w = jiraWrite{}
 		}
 		return w, skip
 	}
 
-	w := Write{Key: c.Key, Kind: WriteEdit, Field: fm.ref}
+	w := jiraWrite{Key: c.Key, Kind: writeEdit, Field: fm.ref}
 	for i, v := range append(slices.Clone(c.Add), c.Remove...) {
 		s, _ := issue.String(v)
 		var x any = s
 		if fm.ref == refLabels {
 			if s == "" || strings.ContainsFunc(s, func(r rune) bool { return r == ' ' || r == '\t' || r == '\n' }) {
-				return Write{}, &Skip{Key: c.Key, Reason: fmt.Sprintf("Jira labels have no spaces: %q", s)}
+				return jiraWrite{}, &Skip{Key: c.Key, Reason: fmt.Sprintf("Jira labels have no spaces: %q", s)}
 			}
 		} else if jid, ok := fm.toJira[s]; ok {
 			x = map[string]string{"id": jid}
 		} else {
-			return Write{}, &Skip{Key: c.Key, Reason: fmt.Sprintf("%s is local-only: Jira has no option for it", s)}
+			return jiraWrite{}, &Skip{Key: c.Key, Reason: fmt.Sprintf("%s is local-only: Jira has no option for it", s)}
 		}
 		if i < len(c.Add) {
 			w.Update = append(w.Update, jiraapi.OpAdd(x))
@@ -591,12 +591,12 @@ func (m *Mapping) toJiraItems(fm *fieldMap, c Change, remote *jiraapi.Issue, ix 
 	return w, nil
 }
 
-// Create is the POST /issue body for a local issue and the keys it sends,
+// createBody is the POST /issue body for a local issue and the keys it sends,
 // which make JS15's create base: project, type, summary, description and the
 // property, plus each field the create screen requires, without a default,
 // that local holds. Everything else is written by the ordinary merge after.
-func (m *Mapping) Create(local Doc, id entity.Id, ix *Index) (NewIssue, []string, []Skip) {
-	body := NewIssue{
+func (m *Mapping) createBody(local Doc, id entity.Id, ix *Index) (newIssue, []string, []Skip) {
+	body := newIssue{
 		Fields:     map[string]any{},
 		Properties: []jiraapi.Property{{Key: PropertyKey, Value: map[string]string{"id": id.String()}}},
 	}
@@ -618,10 +618,10 @@ func (m *Mapping) Create(local Doc, id entity.Id, ix *Index) (NewIssue, []string
 		if !tm.required[fm.ref] || fm.ref == refStatus || fm.link != "" || issue.IsNull(v) || string(v) == "[]" {
 			continue
 		}
-		c := Change{Key: key, Set: v}
+		c := change{Key: key, Set: v}
 		if fm.kind.IsMulti() {
 			items, _ := issue.Items(v)
-			c = Change{Key: key, Add: items}
+			c = change{Key: key, Add: items}
 		}
 		w, skip := m.toJira(tm, c, nil, ix)
 		if skip != nil {

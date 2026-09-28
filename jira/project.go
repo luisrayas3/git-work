@@ -112,8 +112,8 @@ func Discover(ctx context.Context, c *jiraapi.Client, projectKey string) (*Proje
 	return p, nil
 }
 
-// Field returns one visible field by id.
-func (p *Project) Field(id string) (jiraapi.Field, bool) {
+// field returns one visible field by id.
+func (p *Project) field(id string) (jiraapi.Field, bool) {
 	i := slices.IndexFunc(p.Fields, func(f jiraapi.Field) bool { return f.ID == id })
 	if i < 0 {
 		return jiraapi.Field{}, false
@@ -121,8 +121,8 @@ func (p *Project) Field(id string) (jiraapi.Field, bool) {
 	return p.Fields[i], true
 }
 
-// IssueType returns one issue type by id.
-func (p *Project) IssueType(id string) (IssueType, bool) {
+// issueType returns one issue type by id.
+func (p *Project) issueType(id string) (IssueType, bool) {
 	i := slices.IndexFunc(p.IssueTypes, func(t IssueType) bool { return t.Id == id })
 	if i < 0 {
 		return IssueType{}, false
@@ -130,8 +130,8 @@ func (p *Project) IssueType(id string) (IssueType, bool) {
 	return p.IssueTypes[i], true
 }
 
-// OnScreen reports whether a field is on the create screen.
-func (t IssueType) OnScreen(fieldId string) (jiraapi.FieldMeta, bool) {
+// onScreen reports whether a field is on the create screen.
+func (t IssueType) onScreen(fieldId string) (jiraapi.FieldMeta, bool) {
 	i := slices.IndexFunc(t.Screen, func(m jiraapi.FieldMeta) bool { return metaId(m) == fieldId })
 	if i < 0 {
 		return jiraapi.FieldMeta{}, false
@@ -146,8 +146,8 @@ func metaId(m jiraapi.FieldMeta) string {
 	return m.Key
 }
 
-// Owns says a Jira key is this project's, by its prefix.
-func (p *Project) Owns(key string) bool { return strings.HasPrefix(key, p.Key+"-") }
+// owns says a Jira key is this project's, by its prefix.
+func (p *Project) owns(key string) bool { return strings.HasPrefix(key, p.Key+"-") }
 
 // cmpId orders Jira ids numerically where they are numbers, "3" before
 // "10000", and textually otherwise, `customfield_9` before `customfield_10`.

@@ -53,24 +53,24 @@ func NewIndex(repo *cache.RepoCache) (*Index, error) {
 			}
 		}
 	}
-	ix := IndexOf(issues, users)
+	ix := indexOf(issues, users)
 	for i, id := range holders {
 		ix.accounts[id] = accounts[i]
 	}
 	return ix, nil
 }
 
-// IndexOf builds an index from its tables, for tests.
-func IndexOf(issues, users map[string]entity.Id) *Index {
+// indexOf builds an index from its tables, for tests.
+func indexOf(issues, users map[string]entity.Id) *Index {
 	ix := &Index{
 		issues: map[string]entity.Id{}, jiraIssues: map[entity.Id]string{},
 		users: map[string]entity.Id{}, accounts: map[entity.Id]string{},
 	}
 	for jid, id := range issues {
-		ix.AddIssue(jid, id)
+		ix.addIssue(jid, id)
 	}
 	for account, id := range users {
-		ix.AddUser(account, id)
+		ix.addUser(account, id)
 	}
 	return ix
 }
@@ -84,7 +84,7 @@ func (ix *Index) Issue(jiraId string) (entity.Id, bool) {
 	return id, ok
 }
 
-func (ix *Index) JiraIssue(id entity.Id) (string, bool) {
+func (ix *Index) jiraIssue(id entity.Id) (string, bool) {
 	jid, ok := ix.jiraIssues[id]
 	return jid, ok
 }
@@ -99,12 +99,12 @@ func (ix *Index) Account(id entity.Id) (string, bool) {
 	return account, ok
 }
 
-func (ix *Index) AddIssue(jiraId string, id entity.Id) {
+func (ix *Index) addIssue(jiraId string, id entity.Id) {
 	ix.issues[jiraId] = id
 	ix.jiraIssues[id] = jiraId
 }
 
-func (ix *Index) AddUser(accountId string, id entity.Id) {
+func (ix *Index) addUser(accountId string, id entity.Id) {
 	ix.users[accountId] = id
 	ix.accounts[id] = accountId
 }

@@ -46,7 +46,7 @@ git work schema import jira.yaml`,
 func runJiraSchema(env *execenv.Env, format string, verbose bool) error {
 	doc, notes, err := host.JiraSchema(env.Ctx, env.Backend)
 	if !verbose {
-		notes = slices.DeleteFunc(notes, func(n jira.Note) bool { return n.Level == jira.Info })
+		notes = slices.DeleteFunc(notes, func(n jira.Note) bool { return n.Level == jira.LevelInfo })
 	}
 	warnNotes(env, notes)
 	if err != nil {

@@ -36,9 +36,9 @@ type Base struct {
 
 const baseVersion = 1
 
-// Marshal is the marker's metadata value; values are compacted, so two equal
+// marshal is the marker's metadata value; values are compacted, so two equal
 // bases marshal to equal bytes.
-func (b *Base) Marshal() string {
+func (b *Base) marshal() string {
 	c := b.clone()
 	for k, v := range c.Fields {
 		c.Fields[k] = canon(v)
@@ -51,17 +51,17 @@ func (b *Base) Marshal() string {
 	return string(data)
 }
 
-// Equal reports whether recording o over b would say nothing new. Updated
+// equal reports whether recording o over b would say nothing new. Updated
 // alone is not news: Jira bumps it for what the mapping does not cover, and
 // for a link's other end, and a marker for it would be a commit per bump
 // (E1); the cost is a GET while the overlap re-returns the issue.
-func (b *Base) Equal(o *Base) bool {
+func (b *Base) equal(o *Base) bool {
 	if b == nil || o == nil {
 		return b == o
 	}
 	c := o.clone()
 	c.Updated = b.Updated
-	return b.Marshal() == c.Marshal()
+	return b.marshal() == c.marshal()
 }
 
 func (b *Base) clone() *Base {
@@ -110,9 +110,9 @@ func CurrentBase(snap *issue.Snapshot) (*Base, []string) {
 	return cur, problems
 }
 
-// Digest is the one text comparison (JS11). The normalisation is the one
+// digest is the one text comparison (JS11). The normalisation is the one
 // TextToADF preserves, so two texts Jira cannot tell apart share a digest.
-func Digest(text string) string {
+func digest(text string) string {
 	sum := sha256.Sum256([]byte("v1\n" + jiraapi.NormalizeText(text)))
 	return "v1:" + hex.EncodeToString(sum[:])
 }
