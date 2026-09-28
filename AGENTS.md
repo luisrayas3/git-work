@@ -224,13 +224,13 @@ where a value list ends with `(none)` and an emptied box clears the field
 The terminal's own copy and paste keys stay the terminal's,
 `C-c`/`y`/`M-w` copy the cell under the cursor and `M-c`/`Y` the id,
 a paste opens the editor with the text in it, `/` or `C-s` filters.
-Show is a header — type, title, archived, each a cell `Enter` edits or flips —
+Show is a header — type, title, `[ ] archived`, each a cell `Enter` edits or flips —
 then the fields table, the comment box, and comments/description/log tabs switched with ←/→;
 it opens in the comment box, and `↓` then `Enter` sends the comment
 (`Tab` skips the box whole; its buttons are reached from its text).
 `Esc` (or vim's `q`, emacs's `C-g`) is always back;
-from the first view it parks on the call line, unfolded into the whole
-`git work view …` command (`C-c` copies it), and from there it quits;
+from the first view it parks on the call line, the query unfolded under it
+one line per top-level `|` (`C-c` copies the whole `git work view …` command), and from there it quits;
 `C-q` quits at once; `C-c` does not.
 Every view's first line is the call that drew it.
 

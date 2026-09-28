@@ -162,8 +162,8 @@ func newShowPage(repo *cache.RepoCache, id string, fields []string) (*showPage, 
 	return p, nil
 }
 
-func (p *showPage) Call() *view.Call {
-	return p.call
+func (p *showPage) Call() (*view.Call, string, string) {
+	return p.call, p.snapshot.Id().Human(), "id"
 }
 
 func (p *showPage) load() error {
@@ -791,8 +791,9 @@ func (p *showPage) topLines(here position) []string {
 // headerLines is the three built-in fields as three cells: the type, dim,
 // left of the title as the list has it; the title bold over a rule as long
 // as the two of them, which is the heading a terminal's one size of text
-// allows; and archived, in the warning colour, when the issue is — when it
-// is not, drawn only under the cursor, as the thing enter would do.
+// allows; and archived as a checkbox, ticked in the warning colour when the
+// issue is and dim when it is not, so that the toggle enter flips is always
+// in sight (Luis, 2026-09-28).
 func (p *showPage) headerLines(here position) []string {
 	snap := p.snapshot
 	on := here.stop == stopHeader
@@ -811,14 +812,15 @@ func (p *showPage) headerLines(here position) []string {
 	if focused(cellTitle) {
 		cells[1] = styleCell.Bold(true).Render(title)
 	}
-	switch archived := p.archived(); {
-	case archived && focused(cellArchived):
-		cells = append(cells, styleCell.Render("archived"))
-	case archived:
-		cells = append(cells, styleArchived.Render("archived"))
-	case focused(cellArchived):
-		cells = append(cells, styleCell.Faint(true).Render("archive"))
+	box := "[ ] archived"
+	style := styleDim
+	if p.archived() {
+		box, style = "[x] archived", styleArchived
 	}
+	if focused(cellArchived) {
+		style = styleCell
+	}
+	cells = append(cells, style.Render(box))
 
 	marker := " "
 	if on {

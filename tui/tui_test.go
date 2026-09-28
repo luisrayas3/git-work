@@ -168,17 +168,22 @@ func TestBackFromTheFirstViewLandsOnTheCall(t *testing.T) {
 		require.Nil(t, cmd, "the first back does not quit")
 		require.True(t, stack.onCall)
 		drawn := ansiPattern.ReplaceAllString(stack.View().Content, "")
-		require.Contains(t, drawn, `› git work view list '{"fields":["type","title"],"group_by":"status","query":"map(select(.fields.archived != true))`)
-		require.Contains(t, drawn, "esc: quit")
-		require.Len(t, strings.Split(drawn, "\n"), 20, "the page keeps its height")
-
-		// narrow, the command wraps and the page still keeps its height
-		stack.Update(tea.WindowSizeMsg{Width: 40, Height: 20})
-		drawn = ansiPattern.ReplaceAllString(stack.View().Content, "")
 		lines := strings.Split(drawn, "\n")
+		require.Len(t, lines, 20, "the page keeps its height")
+		// the call line stays the call line, and the query unfolds under it
+		// as the pipeline it is, one line per top-level pipe
+		require.Equal(t, "› list  group_by=status", strings.TrimSpace(lines[0]))
+		require.Equal(t, "  map(select(.fields.archived != true))", strings.TrimRight(lines[1], " "))
+		require.Equal(t, "  | sort_by(.edit_time.lamport, .edit_time.timestamp)", strings.TrimRight(lines[2], " "))
+		require.Equal(t, "  | reverse", strings.TrimRight(lines[3], " "))
+		require.Contains(t, drawn, "esc: quit")
+
+		// narrow, a long segment wraps and the page still keeps its height
+		stack.Update(tea.WindowSizeMsg{Width: 30, Height: 20})
+		drawn = ansiPattern.ReplaceAllString(stack.View().Content, "")
+		lines = strings.Split(drawn, "\n")
 		require.Len(t, lines, 20)
-		require.True(t, strings.HasPrefix(lines[0], "› git work view list '{"), lines[0])
-		require.True(t, strings.HasPrefix(lines[1], "  "), "the wrapped lines are indented under the mark")
+		require.True(t, strings.HasPrefix(lines[2], "    "), "a wrapped continuation is indented under its segment")
 
 		// a key in between goes back into the view, and means what it means there
 		stack.Update(press("j"))
@@ -198,7 +203,20 @@ func TestBackFromTheFirstViewLandsOnTheCall(t *testing.T) {
 	}
 }
 
-// TestTheCommandIsOneShellWord: a query holding a quote still pastes.
+// TestPipelineCutsAtTopLevelPipesOnly: a pipe inside a call, a string or
+// an assignment is the program's own.
+func TestPipelineCutsAtTopLevelPipesOnly(t *testing.T) {
+	require.Equal(t, []string{
+		`map(select(.fields.title | test("a|b")))`,
+		`| .[0] |= . + 1`,
+		`| length`,
+	}, pipeline("map(select(.fields.title | test(\"a|b\")))\n\t| .[0] |= . + 1 | length"))
+	require.Empty(t, pipeline(""))
+	require.Equal(t, []string{"."}, pipeline(" . "))
+}
+
+// TestTheCommandIsOneShellWord: a query holding a quote still pastes, which
+// is what copy on the call line puts on the clipboard.
 func TestTheCommandIsOneShellWord(t *testing.T) {
 	var values map[string]json.RawMessage
 	require.NoError(t, json.Unmarshal([]byte(`{"query":"map(select(.fields.title == \"it's\"))"}`), &values))

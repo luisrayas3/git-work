@@ -35,8 +35,8 @@ func TestShowDrawsTheIssue(t *testing.T) {
 	require.Contains(t, drawn, "status")
 	require.Contains(t, drawn, "in-progress")
 	require.Contains(t, drawn, "estimate")
-	// the built-ins are the header, not rows; archived is invisible until it is
-	require.NotContains(t, drawn, "archived")
+	// the built-ins are the header, not rows; archived is a checkbox there
+	require.Contains(t, drawn, "task  write the renderer  [ ] archived")
 	require.NotContains(t, drawn, " type ")
 	require.Less(t, indexOf(drawn, "estimate"), indexOf(drawn, "Submit comment"), "the box is under the fields")
 	require.Less(t, indexOf(drawn, "Submit comment"), indexOf(drawn, "comments"), "and the tabs under the box")
@@ -234,8 +234,8 @@ func TestShowEditsTheFieldUnderTheCursor(t *testing.T) {
 	page = send(page, "esc").(*showPage)
 }
 
-// TestArchivedIsAHeaderCellThatFlips: right of the title, drawn only under
-// the cursor until it is true, and enter toggles it both ways.
+// TestArchivedIsAHeaderCellThatFlips: right of the title, a checkbox, and
+// enter toggles it both ways.
 func TestArchivedIsAHeaderCellThatFlips(t *testing.T) {
 	repo := testRepo(t)
 	id := newIssue(t, repo, map[string]any{"title": "one"})
@@ -243,16 +243,17 @@ func TestArchivedIsAHeaderCellThatFlips(t *testing.T) {
 	page := show(t, repo, id, nil)
 	page = send(page, "shift+tab", "shift+tab", "l", "l").(*showPage)
 	require.Equal(t, "archived", page.field())
-	require.Contains(t, plainView(page), "archive")
+	require.Contains(t, plainView(page), "one  [ ] archived")
 
 	page = send(page, "enter").(*showPage)
 	require.Equal(t, "true", fieldOf(t, repo, id, "archived"))
 	drawn := plainView(page)
-	require.Contains(t, drawn, "one  archived")
-	require.Contains(t, drawn, "archived", "the status says so")
+	require.Contains(t, drawn, "one  [x] archived")
+	require.Contains(t, drawn, "\narchived", "the status says so")
 
 	page = send(page, "enter").(*showPage)
 	require.Equal(t, "false", fieldOf(t, repo, id, "archived"))
+	require.Contains(t, plainView(page), "one  [ ] archived")
 	require.Contains(t, plainView(page), "unarchived")
 }
 

@@ -22,12 +22,25 @@ import (
 // lead is what follows the kind before the arguments, and replaces the one
 // argument it names: `show abc1234` rather than `show id=abc1234`.
 func callLine(call *view.Call, lead, leadArg string, width int) string {
-	parts := []string{styleHeader.Render(call.Kind)}
+	head, query, dim := callParts(call, lead, leadArg)
+	if query != "" {
+		if dim {
+			query = styleDim.Render(query)
+		}
+		head = append(head, query)
+	}
+	return fit(strings.Join(head, "  "), width)
+}
+
+// callParts is the call line in pieces: the kind, the lead and every named
+// argument, rendered; the query as plain text on one line; and whether the
+// query is the default.
+func callParts(call *view.Call, lead, leadArg string) (head []string, query string, dim bool) {
+	head = []string{styleHeader.Render(call.Kind)}
 	if lead != "" {
-		parts = append(parts, styleHeader.Render(lead))
+		head = append(head, styleHeader.Render(lead))
 	}
 
-	var query string
 	for _, arg := range view.Kinds[call.Kind] {
 		if arg.Name == leadArg || arg.Name == "fields" {
 			continue
@@ -37,25 +50,95 @@ func callLine(call *view.Call, lead, leadArg string, width int) string {
 			continue
 		}
 		defaulted := arg.Default != "" && bytes.Equal(compactJSON(raw), compactJSON(json.RawMessage(arg.Default)))
-
-		part := arg.Name + "=" + argText(raw)
 		if arg.Name == "query" {
-			part = argText(raw)
+			query, dim = argText(raw), defaulted
+			continue
 		}
+		part := arg.Name + "=" + argText(raw)
 		if defaulted {
 			part = styleDim.Render(part)
 		}
-		if arg.Name == "query" {
-			query = part
-			continue
-		}
-		parts = append(parts, part)
+		head = append(head, part)
 	}
-	if query != "" {
-		parts = append(parts, query)
+	return head, query, dim
+}
+
+// callLines is the call line unfolded, for when the cursor is on it: the
+// same first line, less the query, marked and reversed as the cell under
+// the cursor is, and under it the query laid out as the pipeline it is —
+// one line per top-level `|`, the pipe starting the line, and a line for
+// each of its own line breaks — because a jq program folded onto one line
+// is a readability nightmare (Luis, 2026-09-28).
+func callLines(call *view.Call, lead, leadArg string, width int) []string {
+	head, query, dim := callParts(call, lead, leadArg)
+	inner := max(width-2, 10)
+	lines := []string{"› " + styleCell.Render(pad(strings.Join(head, "  "), inner))}
+
+	style := styleDim.Faint(false)
+	if dim {
+		style = styleDim
+	}
+	for _, segment := range pipeline(query) {
+		for at, wrapped := range strings.Split(ansi.Hardwrap(segment, inner-2, false), "\n") {
+			indent := "    "
+			if at == 0 {
+				indent = "  "
+			}
+			lines = append(lines, fit(indent+style.Render(wrapped), width))
+		}
+	}
+	return lines
+}
+
+// pipeline is a jq program cut at its top-level pipes and its own line
+// breaks, whitespace within a segment collapsed, every segment after the
+// first starting with the pipe it follows. Pipes inside parentheses,
+// brackets, braces or a string are the program's own and are left alone,
+// as is `|=`, which is an assignment and not a pipe.
+func pipeline(program string) []string {
+	var segments []string
+	var current strings.Builder
+	flush := func() {
+		if text := strings.Join(strings.Fields(current.String()), " "); text != "" {
+			segments = append(segments, text)
+		}
+		current.Reset()
 	}
 
-	return fit(strings.Join(parts, "  "), width)
+	depth := 0
+	inString := false
+	runes := []rune(program)
+	for at := 0; at < len(runes); at++ {
+		r := runes[at]
+		switch {
+		case inString:
+			current.WriteRune(r)
+			if r == '\\' && at+1 < len(runes) {
+				at++
+				current.WriteRune(runes[at])
+			} else if r == '"' {
+				inString = false
+			}
+		case r == '"':
+			inString = true
+			current.WriteRune(r)
+		case r == '(' || r == '[' || r == '{':
+			depth++
+			current.WriteRune(r)
+		case r == ')' || r == ']' || r == '}':
+			depth--
+			current.WriteRune(r)
+		case r == '\n' && depth == 0:
+			flush()
+		case r == '|' && depth == 0 && !(at+1 < len(runes) && runes[at+1] == '='):
+			flush()
+			current.WriteString("| ")
+		default:
+			current.WriteRune(r)
+		}
+	}
+	flush()
+	return segments
 }
 
 // command is the whole call as the shell command that draws it, which is
@@ -73,21 +156,6 @@ func command(call *view.Call) string {
 // every recipe in AGENTS.md writes a document argument.
 func shellQuote(s string) string {
 	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
-}
-
-// commandLines is the command wrapped to the window, the cursor's mark on
-// the first line, every line reversed as the cell under the cursor is.
-func commandLines(call *view.Call, width int) []string {
-	inner := max(width-2, 10)
-	var lines []string
-	for at, line := range strings.Split(ansi.Hardwrap(command(call), inner, false), "\n") {
-		marker := "  "
-		if at == 0 {
-			marker = "› "
-		}
-		lines = append(lines, marker+styleCell.Render(pad(line, inner)))
-	}
-	return lines
 }
 
 // argText is an argument as it reads: a string is itself, on one line, and

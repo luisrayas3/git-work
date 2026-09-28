@@ -20,8 +20,9 @@ type page interface {
 	Update(msg tea.Msg) (page, tea.Cmd)
 	// View draws the page, already fitted to the size it was last given.
 	View() string
-	// Call is the call the page is drawing, its first line.
-	Call() *view.Call
+	// Call is the call the page is drawing, its first line: the call, and
+	// what follows the kind in place of the argument it names (callLine).
+	Call() (call *view.Call, lead, leadArg string)
 }
 
 // The messages the pages send each other through the program.
@@ -123,7 +124,8 @@ func (r *root) callKey(press tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case keys.back.matches(press):
 		return r, tea.Quit
 	case keys.copy.matches(press):
-		return r, tea.Batch(tea.SetClipboard(command(r.top().Call())), r.say("copied the command"))
+		call, _, _ := r.top().Call()
+		return r, tea.Batch(tea.SetClipboard(command(call)), r.say("copied the command"))
 	}
 	r.onCall = false
 	cmd := r.say("")
@@ -154,15 +156,16 @@ func (r *root) View() tea.View {
 	return view
 }
 
-// withCallUnfolded replaces the page's first line, the call, with the whole
-// command it stands for, as many lines as that takes, keeping the status line
-// and giving up what is under the call to make the room.
+// withCallUnfolded replaces the page's first line, the call, with the call
+// unfolded — the query laid out as a pipeline under it — keeping the status
+// line and giving up what is under the call to make the room.
 func (r *root) withCallUnfolded(content string) string {
 	lines := strings.Split(content, "\n")
 	if len(lines) < 2 {
 		return content
 	}
-	unfolded := commandLines(r.top().Call(), r.width)
+	call, lead, leadArg := r.top().Call()
+	unfolded := callLines(call, lead, leadArg, r.width)
 	status := lines[len(lines)-1]
 	rest := lines[1 : len(lines)-1]
 	room := max(r.height-len(unfolded)-1, 0)

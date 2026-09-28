@@ -78,8 +78,8 @@ type listRow struct {
 	text string
 }
 
-func (p *listPage) Call() *view.Call {
-	return p.call
+func (p *listPage) Call() (*view.Call, string, string) {
+	return p.call, "", ""
 }
 
 func newListPage(repo *cache.RepoCache, call *view.Call) (*listPage, error) {
