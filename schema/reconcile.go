@@ -135,6 +135,8 @@ func Reconcile(desired *Document, current []Entry, prune bool) ([]Change, error)
 
 // typeAttributeNames are the attributes an import owns on a type entity.
 // Anything else an entity carries — a newer binary's attribute — is left alone.
+// No alias is owned: an import writes the aliases a document states and never
+// removes one, so an alias-free file unmaps nothing (JS2).
 func typeAttributeNames(name string) bool {
 	switch name {
 	case AttrName, AttrDescription, AttrOrdinal:
@@ -163,6 +165,7 @@ func typeAttributes(t TypeDoc, ordinal int) map[string]config.Value {
 	if t.Description != "" {
 		attributes[AttrDescription] = mustValue(t.Description)
 	}
+	aliasAttributes(attributes, t.Aliases, AliasName)
 	return attributes
 }
 
@@ -186,6 +189,7 @@ func fieldAttributes(fieldKey string, field FieldDoc, ordinal int, entry Entry, 
 	for _, target := range field.TargetTypes {
 		attributes[targetTypeName(target)] = mustValue(struct{}{})
 	}
+	aliasAttributes(attributes, field.Aliases, AliasName)
 
 	ids := make([]string, len(field.Values))
 	for i, value := range field.Values {
@@ -204,6 +208,9 @@ func fieldAttributes(fieldKey string, field FieldDoc, ordinal int, entry Entry, 
 			Category:    Category(value.Category),
 			Description: value.Description,
 			Color:       value.Color,
+		})
+		aliasAttributes(attributes, value.Aliases, func(system string) string {
+			return ValueAliasName(system, value.Id)
 		})
 	}
 

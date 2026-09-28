@@ -30,6 +30,10 @@ type Value struct {
 	Category    Category `json:"category,omitempty"`
 	Description string   `json:"description,omitempty"`
 	Color       string   `json:"color,omitempty"`
+
+	// Aliases are what the value is in other systems, by system,
+	// held on the field entity as `alias_<system>/<id>` (JS2).
+	Aliases map[string]string `json:"aliases,omitempty"`
 }
 
 // Field is one (type, field) config entity, compiled.
@@ -59,6 +63,10 @@ type Field struct {
 	// TargetTypes restricts what a relation may point at; empty is anything.
 	TargetTypes []string `json:"target_types,omitempty"`
 
+	// Aliases are what the field is in other systems, by system (JS2):
+	// for Jira a field reference, `customfield_10016` or `link:10000`.
+	Aliases map[string]string `json:"aliases,omitempty"`
+
 	// Builtin marks the three fields that exist in code on every type (E4).
 	Builtin bool `json:"builtin,omitempty"`
 	// Configured marks a field an entity defines,
@@ -87,12 +95,27 @@ func (f *Field) ValueIds() []string {
 	return ids
 }
 
+// ValuesInCategory lists the field's values of one category, in order.
+func (f *Field) ValuesInCategory(c Category) []Value {
+	var values []Value
+	for _, value := range f.Values {
+		if value.Category == c {
+			values = append(values, value)
+		}
+	}
+	return values
+}
+
 // Type is one type config entity, compiled, with its fields.
 type Type struct {
 	Key         string `json:"key"`
 	Name        string `json:"name,omitempty"`
 	Description string `json:"description,omitempty"`
 	Ordinal     int    `json:"ordinal"`
+
+	// Aliases are what the type is in other systems, by system (JS2):
+	// for Jira an issue type id.
+	Aliases map[string]string `json:"aliases,omitempty"`
 
 	// Fields are the type's fields by key, built-ins included.
 	Fields map[string]*Field `json:"fields"`

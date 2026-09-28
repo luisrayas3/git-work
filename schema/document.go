@@ -2,11 +2,13 @@ package schema
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 
 	"github.com/goccy/go-yaml"
 
 	"github.com/git-bug/git-bug/entities/config"
+	"github.com/git-bug/git-bug/util/sorted"
 )
 
 // The document a human edits is a view over the entities (E9).
@@ -20,6 +22,7 @@ import (
 //	types:
 //	  epic:
 //	    name: Epic
+//	    aliases: {jira: "10000"}  # what it is in another system (JS2)
 //	    fields:
 //	      status: *status
 //	      parent: {kind: relation, inverse: children, target_types: [initiative]}
@@ -42,9 +45,14 @@ type Document struct {
 
 // TypeDoc is one type in the document.
 type TypeDoc struct {
-	Name        string    `yaml:"name,omitempty"`
-	Description string    `yaml:"description,omitempty"`
-	Fields      *fieldMap `yaml:"fields,omitempty"`
+	Name        string `yaml:"name,omitempty"`
+	Description string `yaml:"description,omitempty"`
+	// Aliases are what the entity is in other systems, by system name,
+	// here and on a field and a value alike (JS2). A stated alias is
+	// written and an unstated one left alone, so a file without them unmaps
+	// nothing; the empty string is stated, and means "never sync this".
+	Aliases map[string]string `yaml:"aliases,omitempty"`
+	Fields  *fieldMap         `yaml:"fields,omitempty"`
 }
 
 // FieldDoc is one field in the document.
@@ -52,13 +60,14 @@ type TypeDoc struct {
 // The type is the mapping it sits under, never a member here:
 // a field belongs to exactly one type, and its key is `<type>/<field>` (E2).
 type FieldDoc struct {
-	Kind        string     `yaml:"kind,omitempty"`
-	Name        string     `yaml:"name,omitempty"`
-	Description string     `yaml:"description,omitempty"`
-	Freeform    bool       `yaml:"freeform,omitempty"`
-	Inverse     string     `yaml:"inverse,omitempty"`
-	TargetTypes []string   `yaml:"target_types,omitempty"`
-	Values      []ValueDoc `yaml:"values,omitempty"`
+	Kind        string            `yaml:"kind,omitempty"`
+	Name        string            `yaml:"name,omitempty"`
+	Description string            `yaml:"description,omitempty"`
+	Aliases     map[string]string `yaml:"aliases,omitempty"`
+	Freeform    bool              `yaml:"freeform,omitempty"`
+	Inverse     string            `yaml:"inverse,omitempty"`
+	TargetTypes []string          `yaml:"target_types,omitempty"`
+	Values      []ValueDoc        `yaml:"values,omitempty"`
 }
 
 // ValueDoc is one enum value in the document.
@@ -68,6 +77,8 @@ type ValueDoc struct {
 	Category    string `yaml:"category,omitempty"`
 	Description string `yaml:"description,omitempty"`
 	Color       string `yaml:"color,omitempty"`
+	// Aliases are stored on the field entity, `alias_<system>/<id>`.
+	Aliases map[string]string `yaml:"aliases,omitempty"`
 }
 
 type typeMap = orderedMap[TypeDoc]
@@ -87,6 +98,28 @@ type orderedMap[T any] struct {
 
 func newOrderedMap[T any]() *orderedMap[T] {
 	return &orderedMap[T]{values: map[string]T{}}
+}
+
+// NewDocument returns an empty document, for building one in code:
+// the Jira sync derives the schema it wants and imports it (JS5).
+func NewDocument() *Document {
+	return &Document{Types: newOrderedMap[TypeDoc]()}
+}
+
+// SetType appends or replaces one type, keeping the document's order.
+func (d *Document) SetType(key string, t TypeDoc) {
+	if d.Types == nil {
+		d.Types = newOrderedMap[TypeDoc]()
+	}
+	d.Types.Set(key, t)
+}
+
+// SetField appends or replaces one field of the type, keeping its order.
+func (t *TypeDoc) SetField(key string, f FieldDoc) {
+	if t.Fields == nil {
+		t.Fields = newOrderedMap[FieldDoc]()
+	}
+	t.Fields.Set(key, f)
 }
 
 // Keys returns the mapping's keys in file order.
@@ -206,6 +239,7 @@ func Export(s *Schema) *Document {
 		entry := TypeDoc{
 			Name:        t.Name,
 			Description: t.Description,
+			Aliases:     copyAliases(t.Aliases),
 			Fields:      newOrderedMap[FieldDoc](),
 		}
 
@@ -237,6 +271,7 @@ func exportField(field *Field) FieldDoc {
 		return out
 	}
 
+	out.Aliases = copyAliases(field.Aliases)
 	out.Freeform = field.Freeform
 	out.Inverse = field.Inverse
 	out.TargetTypes = append([]string(nil), field.TargetTypes...)
@@ -248,9 +283,22 @@ func exportField(field *Field) FieldDoc {
 			Category:    string(value.Category),
 			Description: value.Description,
 			Color:       value.Color,
+			Aliases:     copyAliases(value.Aliases),
 		})
 	}
 
+	return out
+}
+
+// copyAliases keeps a document from sharing a map with the schema it came from.
+func copyAliases(aliases map[string]string) map[string]string {
+	if len(aliases) == 0 {
+		return nil
+	}
+	out := make(map[string]string, len(aliases))
+	for system, value := range aliases {
+		out[system] = value
+	}
 	return out
 }
 
@@ -269,12 +317,16 @@ func (d *Document) Validate(knownTypes []string) error {
 		known[key] = struct{}{}
 	}
 
+	typeAliases := aliasOwners{}
 	for _, typeKey := range d.Types.Keys() {
 		if err := config.ValidateKey(config.ShapeType, typeKey); err != nil {
 			problems.add("type %s: %v", typeKey, err)
 			continue
 		}
 		t, _ := d.Types.Get(typeKey)
+		where := "type " + typeKey
+		validateAliases(problems, where, t.Aliases, AliasName)
+		typeAliases.claim(problems, where, t.Aliases)
 		d.validateType(problems, typeKey, t, known)
 	}
 
@@ -283,6 +335,7 @@ func (d *Document) Validate(knownTypes []string) error {
 
 func (d *Document) validateType(problems *Problems, typeKey string, t TypeDoc, known map[string]struct{}) {
 	inverses := map[string]string{}
+	fieldAliases := aliasOwners{}
 
 	for _, fieldKey := range t.Fields.Keys() {
 		field, _ := t.Fields.Get(fieldKey)
@@ -306,12 +359,16 @@ func (d *Document) validateType(problems *Problems, typeKey string, t TypeDoc, k
 				problems.add("%s: %s is built in with kind %s and can not be changed to %s",
 					where, fieldKey, builtinKind, kind)
 			}
-			if len(field.Values) > 0 || len(field.TargetTypes) > 0 || field.Inverse != "" || field.Freeform {
+			if len(field.Values) > 0 || len(field.TargetTypes) > 0 || field.Inverse != "" || field.Freeform ||
+				len(field.Aliases) > 0 {
 				problems.add("%s: %s is built in; only its name and description are configurable",
 					where, fieldKey)
 			}
 			continue
 		}
+
+		validateAliases(problems, where, field.Aliases, AliasName)
+		fieldAliases.claim(problems, where, field.Aliases)
 
 		if kind.IsEnum() {
 			d.validateValues(problems, where, field)
@@ -354,6 +411,7 @@ func (d *Document) validateType(problems *Problems, typeKey string, t TypeDoc, k
 
 func (d *Document) validateValues(problems *Problems, where string, field FieldDoc) {
 	seen := map[string]struct{}{}
+	valueAliases := aliasOwners{}
 	for _, value := range field.Values {
 		if value.Id == "" {
 			problems.add("%s: a value has no id", where)
@@ -371,6 +429,51 @@ func (d *Document) validateValues(problems *Problems, where string, field FieldD
 		if _, err := ParseCategory(value.Category); err != nil {
 			problems.add("%s: value %s: %v", where, value.Id, err)
 		}
+		at := fmt.Sprintf("%s: value %s", where, value.Id)
+		validateAliases(problems, at, value.Aliases, func(system string) string {
+			return ValueAliasName(system, value.Id)
+		})
+		valueAliases.claim(problems, at, value.Aliases)
+	}
+}
+
+// aliasSystemPattern is what a system name looks like, `jira` or `linear`:
+// one segment of an attribute name, after `alias_`.
+var aliasSystemPattern = regexp.MustCompile(`^[a-z][a-z0-9_]*$`)
+
+// validateAliases checks that every alias can be stored under its name.
+func validateAliases(problems *Problems, where string, aliases map[string]string, name func(system string) string) {
+	for _, system := range sorted.Keys(aliases) {
+		if !aliasSystemPattern.MatchString(system) {
+			problems.add("%s: alias system %q must match %s", where, system, aliasSystemPattern.String())
+			continue
+		}
+		if err := config.ValidateName(name(system)); err != nil {
+			problems.add("%s: alias %s: %v", where, system, err)
+		}
+	}
+}
+
+// aliasOwners finds two entities of one document naming one thing of
+// another system: two types, two fields of one type, or two values of one
+// field. Fields of different types share aliases as they share keys (E2),
+// and the empty string excludes rather than names, so it is never a duplicate.
+type aliasOwners map[string]map[string]string
+
+func (o aliasOwners) claim(problems *Problems, where string, aliases map[string]string) {
+	for _, system := range sorted.Keys(aliases) {
+		value := aliases[system]
+		if value == "" {
+			continue
+		}
+		if o[system] == nil {
+			o[system] = map[string]string{}
+		}
+		if other, twice := o[system][value]; twice {
+			problems.add("%s: alias %s %q is already %s's", where, system, value, other)
+			continue
+		}
+		o[system][value] = where
 	}
 }
 

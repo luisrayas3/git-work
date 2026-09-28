@@ -3,8 +3,10 @@ package schema
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/git-bug/git-bug/entities/config"
+	"github.com/git-bug/git-bug/util/sorted"
 )
 
 // The attribute names a type or a field entity carries (E3).
@@ -25,7 +27,78 @@ const (
 	ValuesPrefix = "values"
 	// TargetTypesPrefix folds a relation's allowed targets the same way.
 	TargetTypesPrefix = "target_types"
+
+	// AliasPrefix starts every attribute naming what an entity is in another
+	// system: `alias_<system>` on a type or a field, and
+	// `alias_<system>/<value-id>` on a field for one of its values
+	// (jira-sync.md, JS2). The whole family is reserved, for every system to
+	// come: no other attribute may ever start with it.
+	//
+	// Reconcile owns no name in it, so an import writes the aliases a
+	// document states and never removes one; an alias-free file maps nothing
+	// away. The empty string is a stated alias, meaning "never sync this".
+	AliasPrefix = "alias_"
 )
+
+// AliasName is the attribute a type or a field carries its alias in one
+// system under: `alias_jira`.
+func AliasName(system string) string {
+	return AliasPrefix + system
+}
+
+// ValueAliasName is the attribute, on the field entity, that one enum value
+// carries its alias in one system under: `alias_jira/<value-id>`.
+func ValueAliasName(system, valueId string) string {
+	return AliasName(system) + "/" + valueId
+}
+
+// aliasSystem reads an attribute name as an entity alias, `alias_<system>`.
+func aliasSystem(name string) (string, bool) {
+	if _, _, folded := config.SplitName(name); folded {
+		return "", false
+	}
+	system, ok := strings.CutPrefix(name, AliasPrefix)
+	return system, ok && system != ""
+}
+
+// valueAliasSystem reads an attribute name as a value alias,
+// `alias_<system>/<value-id>`.
+func valueAliasSystem(name string) (system, valueId string, ok bool) {
+	prefix, id, folded := config.SplitName(name)
+	if !folded {
+		return "", "", false
+	}
+	system, ok = strings.CutPrefix(prefix, AliasPrefix)
+	return system, id, ok && system != ""
+}
+
+// compileAliases reads an entity's own aliases, one per system.
+func compileAliases(attrs map[string]config.Value) (map[string]string, error) {
+	var aliases map[string]string
+	for _, name := range sorted.Keys(attrs) {
+		system, ok := aliasSystem(name)
+		if !ok {
+			continue
+		}
+		value, err := attrString(attrs, name)
+		if err != nil {
+			return nil, err
+		}
+		if aliases == nil {
+			aliases = map[string]string{}
+		}
+		aliases[system] = value
+	}
+	return aliases, nil
+}
+
+// aliasAttributes writes aliases as the attributes a document states,
+// the empty string included.
+func aliasAttributes(attributes map[string]config.Value, aliases map[string]string, name func(system string) string) {
+	for system, value := range aliases {
+		attributes[name(system)] = mustValue(value)
+	}
+}
 
 // ValueAttr is the JSON one `values/<id>` attribute holds.
 //

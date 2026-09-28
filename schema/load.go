@@ -150,12 +150,17 @@ func compileType(e Entry) (*Type, error) {
 	if err != nil {
 		return nil, err
 	}
+	aliases, err := compileAliases(e.Attributes)
+	if err != nil {
+		return nil, err
+	}
 
 	return &Type{
 		Key:         e.Key,
 		Name:        name,
 		Description: description,
 		Ordinal:     ordinal,
+		Aliases:     aliases,
 		Fields:      map[string]*Field{},
 		EntityId:    e.Id,
 	}, nil
@@ -220,11 +225,15 @@ func compileField(typeKey, fieldKey string, e Entry) (*Field, error) {
 	}
 
 	if field.Builtin {
-		// values and targets are meaningless on a built-in,
+		// values, targets and aliases are meaningless on a built-in,
 		// and the type field's values are the types (see Compile)
 		return field, nil
 	}
 
+	field.Aliases, err = compileAliases(e.Attributes)
+	if err != nil {
+		return nil, err
+	}
 	values, err := compileValues(e.Attributes)
 	if err != nil {
 		return nil, err
@@ -258,6 +267,31 @@ func compileValues(attrs map[string]config.Value) ([]Value, error) {
 			Description: attr.Description,
 			Color:       attr.Color,
 		})
+	}
+
+	// a value's aliases sit beside it; one naming no value is kept in the
+	// store, since nothing removes an alias, and means nothing here
+	at := make(map[string]int, len(values))
+	for i, value := range values {
+		at[value.Id] = i
+	}
+	for _, name := range sorted.Keys(attrs) {
+		system, id, ok := valueAliasSystem(name)
+		if !ok {
+			continue
+		}
+		i, known := at[id]
+		if !known {
+			continue
+		}
+		alias, err := attrString(attrs, name)
+		if err != nil {
+			return nil, fmt.Errorf("value %s: %w", id, err)
+		}
+		if values[i].Aliases == nil {
+			values[i].Aliases = map[string]string{}
+		}
+		values[i].Aliases[system] = alias
 	}
 
 	sort.Slice(values, func(i, j int) bool {
