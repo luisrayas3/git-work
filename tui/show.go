@@ -28,7 +28,7 @@ import (
 //
 // The page is four stops, top to bottom: the header (type, title, archived),
 // the fields table, the comment box with its buttons inside it, and the tabs
-// — comments, description, log. The cursor opens in the box, because opening
+// — description, comments, log. The cursor opens in the box, because opening
 // an issue to say something about it is the common case
 // (doc/design/terminal-renderer.md, revised 2026-09-28).
 type showPage struct {
@@ -108,14 +108,14 @@ const (
 type tab int
 
 const (
-	tabComments tab = iota
-	tabDescription
+	tabDescription tab = iota
+	tabComments
 	tabLog
 	tabCount
 )
 
 func (t tab) String() string {
-	return [...]string{"comments", "description", "log"}[t]
+	return [...]string{"description", "comments", "log"}[t]
 }
 
 // position is where the cursor is: a stop, and inside the box, which part of
@@ -436,7 +436,7 @@ func (p *showPage) key(press tea.KeyPressMsg) (page, tea.Cmd) {
 
 	case keys.copyId.matches(press):
 		p.status = "copied " + p.id
-		return p, tea.SetClipboard(p.id)
+		return p, setClipboard(p.id)
 	case keys.copy.matches(press):
 		return p, p.copyHere(here)
 	case keys.paste.matches(press):
@@ -648,7 +648,7 @@ func (p *showPage) copyHere(here position) tea.Cmd {
 		return bell()
 	}
 	p.status = "copied " + what
-	return tea.SetClipboard(value)
+	return setClipboard(value)
 }
 
 func (p *showPage) paste(text string) tea.Cmd {
@@ -976,15 +976,13 @@ func (p *showPage) commentLines() []string {
 			lines = append(lines, "")
 		}
 		lines = append(lines, styleHeader.Render(fit(fmt.Sprintf(" %s  %s", comment.Author.DisplayName(), comment.FormatTimeRel()), p.width)))
-		for _, line := range strings.Split(comment.Message, "\n") {
-			lines = append(lines, fit(" "+line, p.width))
-		}
+		lines = append(lines, prose(comment.Message, p.width)...)
 	}
 	return lines
 }
 
 // descriptionLines is the issue's body, the first comment, which it always
-// has.
+// has, wrapped: a description is read, not scanned.
 func (p *showPage) descriptionLines() []string {
 	if len(p.snapshot.Comments) == 0 {
 		return []string{styleDim.Render(" (no description)")}
@@ -994,10 +992,7 @@ func (p *showPage) descriptionLines() []string {
 	if strings.TrimSpace(body.Message) == "" {
 		return append(lines, styleDim.Render(" (no description)"))
 	}
-	for _, line := range strings.Split(body.Message, "\n") {
-		lines = append(lines, fit(" "+line, p.width))
-	}
-	return lines
+	return append(lines, prose(body.Message, p.width)...)
 }
 
 // logLines is what was done to the issue, one operation to a line, the

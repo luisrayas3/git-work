@@ -121,6 +121,20 @@ func pad(s string, width int) string {
 	return s
 }
 
+// prose wraps a body of text to the window, indented one column, each of
+// its own lines wrapped on its own so that paragraphs stay paragraphs: a
+// description or a comment is read, not scanned, and a cut line is a
+// sentence lost. A word longer than the window is broken rather than cut.
+func prose(text string, width int) []string {
+	var lines []string
+	for _, line := range strings.Split(text, "\n") {
+		for _, piece := range strings.Split(ansi.Wrap(line, max(width-1, 1), ""), "\n") {
+			lines = append(lines, fit(" "+piece, width))
+		}
+	}
+	return lines
+}
+
 // fit cuts a whole rendered line to the window, so nothing ever wraps.
 func fit(line string, width int) string {
 	if width <= 0 {

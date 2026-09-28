@@ -223,10 +223,11 @@ where a value list ends with `(none)` and an emptied box clears the field
 (`title` excepted, it cannot be cleared) and a bool flips at once.
 `C-Enter` and `F2` are gone, because `C-Enter` is `Enter` on most terminals (2026-09-28).
 The terminal's own copy and paste keys stay the terminal's,
-`C-c`/`y`/`M-w` copy the cell under the cursor and `M-c`/`Y` the id,
+`C-c`/`y`/`M-w` copy the cell under the cursor and `M-c`/`Y` the id
+(over OSC 52 and, where the machine has `wl-copy`/`xclip`/`xsel`/`pbcopy`, through that too),
 a paste opens the editor with the text in it, `/` or `C-s` filters.
 Show is a header — type, title, `[ ] archived`, each a cell `Enter` edits or flips —
-then the fields table, the comment box, and comments/description/log tabs switched with ←/→;
+then the fields table, the comment box, and description/comments/log tabs switched with ←/→;
 it opens in the comment box, and `↓` then `Enter` sends the comment
 (`Tab` skips the box whole; its buttons are reached from its text).
 `Esc` (or vim's `q`, emacs's `C-g`) is always back;

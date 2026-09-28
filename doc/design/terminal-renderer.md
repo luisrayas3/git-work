@@ -266,6 +266,12 @@ because no terminal keeps it.
 **Copy is the cell, over OSC 52**, as `y` was:
 the escape sequence puts it on the clipboard of whatever terminal is in front,
 including one on the other end of ssh.
+Not every terminal honours it —
+the VTE 0.76 one this was found on, under GNOME, did not —
+so the same text also goes through the machine's clipboard tool
+where there is one and a display to own the clipboard
+(`wl-copy`, `xclip`, `xsel`, `pbcopy`; 2026-09-28, Luis):
+both land the same text, and a terminal that honours OSC 52 copies once.
 The id is a column the cursor can stand on, and **the cursor starts there**,
 so copying on arrival is copying the id,
 which is the chat pin `ca81145` asked for;
@@ -421,7 +427,7 @@ The page is **four stops**, top to bottom (revised again 2026-09-28, Luis):
 1. the **header**: the type, the title, and whether the issue is archived;
 2. the **fields table**;
 3. the **comment box**, with its buttons inside it;
-4. the **tabs**: comments, description and log.
+4. the **tabs**: description, comments and log.
 
 The header is the three built-in fields,
 which are on every type and are not rows of the table:
@@ -483,8 +489,12 @@ which is the tab key of every browser and editor;
 vim's `gt` and `gT` work outside the box.
 `t` is gone: a letter is a bad universal key on a page that opens in a text box.
 
-- **comments**, the default, is what was said: every comment after the body, in full, as it reads now, newest first.
-- **description** is the issue's body, its first comment.
+- **description**, the first tab and the one the page opens on
+  (2026-09-28, Luis), is the issue's body, its first comment,
+  as Jira's page leads with it; the text wraps to the window,
+  because a description is read, not scanned, and a cut line is a sentence lost.
+- **comments** is what was said: every comment after the body, in full,
+  as it reads now, newest first, wrapped the same way.
 - **log** is what was done, an operation to a line, latest first —
   *set status to in-progress*, *added cli to area*, *commented: …*.
 

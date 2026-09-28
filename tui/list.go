@@ -465,9 +465,7 @@ func (p *listPage) fieldKey() string {
 	return p.fields[p.column-1]
 }
 
-// copyCell puts the cell under the cursor on the clipboard with OSC 52, which
-// is the one way that works over ssh and in a multiplexer, because it is the
-// terminal that copies and not the machine the program runs on.
+// copyCell puts the cell under the cursor on the clipboard (setClipboard).
 //
 // On the id column that is the id, which is where the cursor starts: the
 // chat pin (ca81145) is the first key anybody presses.
@@ -487,7 +485,7 @@ func (p *listPage) copyCell() tea.Cmd {
 		return bell()
 	}
 	p.status = "copied " + fieldKey
-	return tea.SetClipboard(value)
+	return setClipboard(value)
 }
 
 // copyId copies the issue's whole id, whatever column the cursor is on.
@@ -497,7 +495,7 @@ func (p *listPage) copyId() tea.Cmd {
 		return bell()
 	}
 	p.status = "copied " + row.id
-	return tea.SetClipboard(row.id)
+	return setClipboard(row.id)
 }
 
 // paste opens the editor on the field under the cursor with the text in it.

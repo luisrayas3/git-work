@@ -85,8 +85,8 @@ func TestShowStartsWithTheCall(t *testing.T) {
 	require.Equal(t, "show  "+id[:7], strings.TrimSpace(first))
 }
 
-// TestShowHasThreeTabs: comments, description and log, one stop, switched
-// with left and right.
+// TestShowHasThreeTabs: description, comments and log, one stop, switched
+// with left and right; the description opens first, as Jira's page does.
 func TestShowHasThreeTabs(t *testing.T) {
 	repo := testRepo(t)
 	id := newIssue(t, repo, map[string]any{"title": "one", "status": "to-do"})
@@ -96,21 +96,24 @@ func TestShowHasThreeTabs(t *testing.T) {
 	require.NoError(t, err)
 
 	page := show(t, repo, id, []string{"status"})
-	require.Equal(t, tabComments, page.tab)
+	require.Equal(t, tabDescription, page.tab)
 	drawn := plainView(page)
-	for _, name := range []string{"comments", "description", "log"} {
+	for _, name := range []string{"description", "comments", "log"} {
 		require.Contains(t, drawn, name)
 	}
-	require.Contains(t, drawn, "a later word")
-	require.NotContains(t, drawn, "the body")
+	require.Less(t, indexOf(drawn, "description"), indexOf(drawn, "comments"), "description is the first tab")
+	require.Contains(t, drawn, "the body")
+	require.NotContains(t, drawn, "a later word")
 
 	// box → tabs: the buttons are the box's own, not stops
 	page = send(page, "tab").(*showPage)
 	require.Equal(t, stopTabs, page.current().stop)
 
 	page = send(page, "right").(*showPage)
-	require.Equal(t, tabDescription, page.tab)
-	require.Contains(t, plainView(page), "the body")
+	require.Equal(t, tabComments, page.tab)
+	drawn = plainView(page)
+	require.Contains(t, drawn, "a later word")
+	require.NotContains(t, drawn, "the body")
 
 	page = send(page, "right").(*showPage)
 	require.Equal(t, tabLog, page.tab)
@@ -121,21 +124,49 @@ func TestShowHasThreeTabs(t *testing.T) {
 	require.Less(t, indexOf(drawn, "commented: a later word"), indexOf(drawn, "created"))
 
 	page = send(page, "right").(*showPage)
-	require.Equal(t, tabComments, page.tab, "it wraps")
+	require.Equal(t, tabDescription, page.tab, "it wraps")
 	page = send(page, "h").(*showPage)
 	require.Equal(t, tabLog, page.tab)
 
 	// ctrl+pgdown and vim's gt switch too
 	page = send(page, "ctrl+pgdown").(*showPage)
-	require.Equal(t, tabComments, page.tab)
-	page = send(page, "g", "t").(*showPage)
 	require.Equal(t, tabDescription, page.tab)
+	page = send(page, "g", "t").(*showPage)
+	require.Equal(t, tabComments, page.tab)
 
 	// and in the box, where letters and arrows are text, ctrl+pgdown still
 	page = show(t, repo, id, nil)
 	page = send(page, "t", "ctrl+pgdown").(*showPage)
 	require.Equal(t, "t", page.box.draft())
-	require.Equal(t, tabDescription, page.tab)
+	require.Equal(t, tabComments, page.tab)
+}
+
+// TestShowWrapsProse: a description or a comment is read, so a long line
+// wraps to the window instead of being cut at it.
+func TestShowWrapsProse(t *testing.T) {
+	repo := testRepo(t)
+	long := strings.Repeat("word ", 30) + "end"
+	created, err := host.IssueNew(repo, host.IssueDocument{
+		Fields: map[string]issue.Value{"type": issue.StringValue("task"), "title": issue.StringValue("one")},
+		Body:   long,
+	})
+	require.NoError(t, err)
+	id := created.String()
+	_, err = host.IssueCommentNew(repo, id, "said "+long)
+	require.NoError(t, err)
+
+	page := show(t, repo, id, nil)
+	page.Update(tea.WindowSizeMsg{Width: 40, Height: 60})
+	drawn := plainView(page)
+	require.Contains(t, drawn, "end", "the description's last word is drawn")
+	require.NotContains(t, drawn, "…", "nothing is cut")
+
+	page = send(page, "tab", "tab", "tab", "right").(*showPage)
+	require.Equal(t, tabComments, page.tab)
+	drawn = plainView(page)
+	require.Contains(t, drawn, "said word")
+	require.Contains(t, drawn, "end")
+	require.NotContains(t, drawn, "…")
 }
 
 // TestCommentsAreNewestFirst: an issue is opened to see what changed, and
@@ -148,7 +179,9 @@ func TestCommentsAreNewestFirst(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	drawn := plainView(show(t, repo, id, nil))
+	page := show(t, repo, id, nil)
+	page.tab = tabComments
+	drawn := plainView(page)
 	require.Less(t, indexOf(drawn, "second word"), indexOf(drawn, "first word"))
 }
 
