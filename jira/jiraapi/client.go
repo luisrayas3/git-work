@@ -33,7 +33,7 @@ type Config struct {
 	Email   string
 	Token   string
 
-	HTTPClient *http.Client // nil means http.DefaultClient
+	HTTPClient *http.Client // nil means one with DefaultTimeout
 
 	// MaxRetries bounds the retries of one call; 0 means 4 (§12.1), and a
 	// negative value disables retrying.
@@ -63,6 +63,10 @@ type Client struct {
 	date time.Time
 }
 
+// DefaultTimeout bounds one request, so a stalled connection cannot hang a
+// cron run forever; retries then apply as to any transport error.
+const DefaultTimeout = 60 * time.Second
+
 // New returns a client authenticating with Basic email:token (§1.1).
 func New(cfg Config) *Client {
 	c := &Client{
@@ -75,7 +79,7 @@ func New(cfg Config) *Client {
 		rand:       cfg.Rand,
 	}
 	if c.hc == nil {
-		c.hc = http.DefaultClient
+		c.hc = &http.Client{Timeout: DefaultTimeout}
 	}
 	switch {
 	case c.maxRetries == 0:

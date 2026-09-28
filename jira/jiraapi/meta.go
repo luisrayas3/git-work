@@ -3,6 +3,7 @@ package jiraapi
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -126,6 +127,10 @@ func (c *Client) DeleteComment(ctx context.Context, idOrKey, commentID string) e
 	return err
 }
 
+// maxPaged bounds pages: a server ignoring startAt and sending neither
+// isLast nor total would otherwise page forever.
+const maxPaged = 10000
+
 // pages collects an offset-paged resource. Both shapes are handled (§0):
 // the page bean with isLast, and the legacy one with only total and a named
 // array, whose name is the first of keys present. Paging stops on isLast,
@@ -160,6 +165,9 @@ func pages[T any](ctx context.Context, c *Client, path string, q url.Values, siz
 		}
 		all = append(all, items...)
 		start += len(items)
+		if len(all) > maxPaged {
+			return nil, fmt.Errorf("jira: %s: more than %d items; the server may be ignoring startAt", path, maxPaged)
+		}
 		switch {
 		case len(items) == 0,
 			meta.IsLast != nil && *meta.IsLast,
