@@ -147,11 +147,58 @@ func TestTheFirstLineIsTheCall(t *testing.T) {
 	page := list(t, repo, `{"fields":["title","status"],"group_by":"status"}`)
 	first := strings.SplitN(plainView(page), "\n", 2)[0]
 
-	require.True(t, strings.HasPrefix(first, "list"))
-	require.Contains(t, first, "query=map(select(.fields.archived != true))")
-	require.Contains(t, first, `fields=["title","status"]`)
-	require.Contains(t, first, "group_by=status")
-	require.NotContains(t, plainView(page), "? for keys · 1 issues · map", "the query left the status line")
+	// the fields are the columns, so they are not said twice, and the query
+	// needs no name: it is last and always there
+	require.True(t, strings.HasPrefix(first, "list  group_by=status  map(select(.fields.archived != true))"), first)
+	require.NotContains(t, first, "fields=")
+	require.NotContains(t, first, "query=")
+	require.NotContains(t, plainView(page), "? keys · 1 issue · map", "the query left the status line")
+}
+
+// TestBackTwiceFromTheFirstViewQuits: back is always back, and back from
+// the first view asks once more, because a stray esc must not end a session.
+func TestBackTwiceFromTheFirstViewQuits(t *testing.T) {
+	repo := testRepo(t)
+	newIssue(t, repo, map[string]any{"title": "one"})
+
+	for _, spelling := range []string{"esc", "q"} {
+		stack := &root{pages: []page{list(t, repo, "")}, width: 100, height: 20}
+
+		_, cmd := stack.Update(press(spelling))
+		_, cmd = stack.Update(cmd())
+		require.Nil(t, cmd, "the first back only warns")
+		require.Contains(t, ansiPattern.ReplaceAllString(stack.View().Content, ""), "back again to quit")
+
+		// another key in between disarms it
+		stack.Update(press("j"))
+		_, cmd = stack.Update(press(spelling))
+		_, cmd = stack.Update(cmd())
+		require.Nil(t, cmd)
+
+		_, cmd = stack.Update(press(spelling))
+		_, cmd = stack.Update(cmd())
+		require.NotNil(t, cmd)
+		require.IsType(t, tea.QuitMsg{}, cmd())
+	}
+}
+
+// TestALinkIsTheIssueItNames: a relation cell is the short id and title of
+// the issue it holds, and enter on it opens that issue, not the row's.
+func TestALinkIsTheIssueItNames(t *testing.T) {
+	repo := testRepo(t)
+	story := newIssue(t, repo, map[string]any{"type": "story", "title": "the story"})
+	newIssue(t, repo, map[string]any{"title": "the task", "parent": story})
+
+	page := list(t, repo, `{"fields":["title","parent"],"query":"map(select(.fields.type == \"task\"))"}`)
+	drawn := plainView(page)
+	require.Contains(t, drawn, story[:7]+" the story")
+	require.NotContains(t, drawn, story)
+
+	page = send(page, "l", "l").(*listPage)
+	_, cmd := page.Update(press("enter"))
+	require.NotNil(t, cmd)
+	pushed := cmd().(pushMsg)
+	require.Equal(t, story, pushed.page.(*showPage).id)
 }
 
 func TestCursorMoves(t *testing.T) {
@@ -209,7 +256,7 @@ func TestFilterHidesRows(t *testing.T) {
 	drawn := plainView(page)
 	require.Contains(t, drawn, "write the renderer")
 	require.NotContains(t, drawn, "read the design")
-	require.Contains(t, drawn, "1 of 2 issues")
+	require.Contains(t, drawn, "1 of 2 issues · /rend")
 
 	// esc puts them back
 	page = send(page, "esc").(*listPage)
@@ -300,6 +347,7 @@ func TestHelpHasATabPerFamily(t *testing.T) {
 	}
 
 	// a stray key keeps it open; esc closes it
+	page = send(page, "1").(*listPage)
 	page = send(page, "x").(*listPage)
 	require.NotNil(t, page.help)
 	page = send(page, "esc").(*listPage)

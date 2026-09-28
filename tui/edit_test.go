@@ -52,7 +52,7 @@ func TestEditAnEnumPicksFromTheSchema(t *testing.T) {
 	page = send(page, "j", "enter").(*listPage)
 	require.Nil(t, page.editor)
 	require.Equal(t, "in-progress", fieldOf(t, repo, id, "status"))
-	require.Contains(t, plainView(page), "status set on")
+	require.Contains(t, plainView(page), "status set")
 }
 
 func TestEditCanBeCancelled(t *testing.T) {
@@ -122,7 +122,7 @@ func TestTheIdIsNotEditable(t *testing.T) {
 
 	require.NotNil(t, cmd, "the bell")
 	require.Nil(t, updated.(*listPage).editor)
-	require.Contains(t, plainView(updated), "cannot be edited")
+	require.Contains(t, plainView(updated), "id not editable")
 }
 
 // TestPasteOpensTheEditor: a paste is text for the field under the cursor,
@@ -151,7 +151,7 @@ func TestPasteOpensTheEditor(t *testing.T) {
 	updated, cmd := page.Update(tea.PasteMsg{Content: "sideways"})
 	require.NotNil(t, cmd, "the bell")
 	require.Nil(t, updated.(*listPage).editor)
-	require.Contains(t, plainView(updated), "not a value of status")
+	require.Contains(t, plainView(updated), `status: no value "sideways"`)
 }
 
 // TestGrabNeedsARank says why: without a rank field there is nowhere to write
@@ -164,7 +164,7 @@ func TestGrabNeedsARank(t *testing.T) {
 	page = send(page, "space").(*listPage)
 
 	require.Equal(t, -1, page.grabbed)
-	require.Contains(t, plainView(page), "no rank bound")
+	require.Contains(t, plainView(page), "no rank")
 }
 
 // TestGrabAndDropWritesARankBetweenTheNeighbours is the drag: one key, one

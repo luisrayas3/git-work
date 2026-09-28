@@ -1,7 +1,6 @@
 package tui
 
 import (
-	"fmt"
 	"sort"
 	"strings"
 	"time"
@@ -49,7 +48,9 @@ type listPage struct {
 	filter    string
 	filtering *textinput.Model
 	editor    *editor
-	help      *help
+	// choosing is the picker enter opens on a cell that links several issues
+	choosing *picker
+	help     *help
 
 	// grabbed is the row being dragged, by index into rows, or -1.
 	grabbed int
@@ -64,6 +65,12 @@ type listRow struct {
 	human   string
 	typeKey string
 	fields  map[string]any
+
+	// cells are the fields as drawn: a relation is the issues it names,
+	// everything else its plain value; links are the ids a relation cell
+	// holds, which enter follows
+	cells map[string]string
+	links map[string][]string
 
 	group string
 	rank  string
@@ -112,9 +119,10 @@ func (p *listPage) load() error {
 	// list is a list of issues, and inventing rows out of whatever came back
 	// would be worse than an empty one.
 	items, _ := host.IssueItems(values)
+	known := newKinds(p.repo)
 	p.rows = make([]listRow, 0, len(items))
 	for _, item := range items {
-		p.rows = append(p.rows, p.newRow(item))
+		p.rows = append(p.rows, p.newRow(item, known))
 	}
 
 	p.reorder()
@@ -122,7 +130,7 @@ func (p *listPage) load() error {
 	return nil
 }
 
-func (p *listPage) newRow(item map[string]any) listRow {
+func (p *listPage) newRow(item map[string]any, known *kinds) listRow {
 	fields, _ := item["fields"].(map[string]any)
 	if fields == nil {
 		fields = map[string]any{}
@@ -138,9 +146,24 @@ func (p *listPage) newRow(item map[string]any) listRow {
 		row.human = row.id[:7]
 	}
 
+	row.cells = map[string]string{}
+	row.links = map[string][]string{}
+	for _, key := range append(append([]string{p.groupBy}, p.fields...), p.details...) {
+		if key == "" {
+			continue
+		}
+		if isRelation(known.of(row.typeKey, key)) {
+			ids := linkIds(fields[key])
+			row.links[key] = ids
+			row.cells[key] = linkText(p.repo, ids)
+			continue
+		}
+		row.cells[key] = plainValue(fields[key])
+	}
+
 	row.group = noGroup
 	if p.groupBy != "" {
-		if value := plainValue(fields[p.groupBy]); value != "" {
+		if value := row.cells[p.groupBy]; value != "" {
 			row.group = value
 		}
 	}
@@ -152,7 +175,7 @@ func (p *listPage) newRow(item map[string]any) listRow {
 	text.WriteString(row.human)
 	for _, key := range append(append([]string{}, p.fields...), p.details...) {
 		text.WriteString(" ")
-		text.WriteString(plainValue(fields[key]))
+		text.WriteString(row.cells[key])
 	}
 	row.text = strings.ToLower(text.String())
 
@@ -259,6 +282,10 @@ func (p *listPage) Update(msg tea.Msg) (page, tea.Cmd) {
 		p.width, p.height = msg.Width, msg.Height
 		return p, nil
 
+	case statusMsg:
+		p.status = string(msg)
+		return p, nil
+
 	case refreshMsg:
 		if err := p.load(); err != nil {
 			p.status = err.Error()
@@ -308,6 +335,8 @@ func (p *listPage) key(press tea.KeyPressMsg) (page, tea.Cmd) {
 		return p, nil
 	case p.editor != nil:
 		return p.updateEditor(press)
+	case p.choosing != nil:
+		return p.updateChoice(press)
 	case p.filtering != nil:
 		return p.updateFilter(press)
 	case p.grabbed >= 0:
@@ -348,7 +377,7 @@ func (p *listPage) key(press tea.KeyPressMsg) (page, tea.Cmd) {
 	case keys.copy.matches(press):
 		return p, p.copyCell()
 	case keys.paste.matches(press):
-		p.status = "asking the terminal for its clipboard"
+		p.status = "reading clipboard…"
 		return p, tea.ReadClipboard
 	case keys.filter.matches(press):
 		p.startFilter()
@@ -358,11 +387,14 @@ func (p *listPage) key(press tea.KeyPressMsg) (page, tea.Cmd) {
 		p.help = &help{}
 
 	case keys.back.matches(press):
+		// back out of the filter first; out of the view after that
 		if p.filter != "" {
 			p.filter = ""
 			p.reorder()
 			p.status = ""
+			return p, nil
 		}
+		return p, func() tea.Msg { return popMsg{} }
 	}
 
 	p.clamp()
@@ -373,17 +405,52 @@ func (p *listPage) move(by int) {
 	p.cursor = min(max(p.cursor+by, 0), max(len(p.order)-1, 0))
 }
 
+// open opens the issue under the cursor, or, on a cell that links other
+// issues, the one it links: a link is followed where it is drawn.
 func (p *listPage) open() (page, tea.Cmd) {
 	row := p.current()
 	if row == nil {
 		return p, nil
 	}
-	shown, err := newShowPage(p.repo, row.id, nil)
-	if err != nil {
-		p.status = err.Error()
+	switch links := row.links[p.fieldKey()]; len(links) {
+	case 0:
+		return p, p.push(row.id)
+	case 1:
+		return p, p.push(links[0])
+	default:
+		items := make([]choice, 0, len(links))
+		for _, id := range links {
+			items = append(items, choice{label: linkLabel(p.repo, id), value: id})
+		}
+		p.choosing = newPicker(items, "")
 		return p, nil
 	}
-	return p, func() tea.Msg { return pushMsg{page: shown} }
+}
+
+func (p *listPage) updateChoice(press tea.KeyPressMsg) (page, tea.Cmd) {
+	switch {
+	case keys.cancel.matches(press):
+		p.choosing = nil
+	case keys.up.matches(press):
+		p.choosing.cursor = max(0, p.choosing.cursor-1)
+	case keys.down.matches(press):
+		p.choosing.cursor = min(len(p.choosing.items)-1, p.choosing.cursor+1)
+	case keys.open.matches(press):
+		id := p.choosing.items[p.choosing.cursor].value
+		p.choosing = nil
+		return p, p.push(id)
+	}
+	return p, nil
+}
+
+// push opens an issue over the list.
+func (p *listPage) push(id string) tea.Cmd {
+	shown, err := newShowPage(p.repo, id, nil)
+	if err != nil {
+		p.status = err.Error()
+		return bell()
+	}
+	return func() tea.Msg { return pushMsg{page: shown} }
 }
 
 // fieldKey is the field under the column cursor, or "" on the id.
@@ -409,12 +476,13 @@ func (p *listPage) copyCell() tea.Cmd {
 	if fieldKey == "" {
 		return p.copyId()
 	}
+	// a link copies the ids it holds, which is what another command takes
 	value := plainValue(row.fields[fieldKey])
 	if value == "" {
-		p.status = fieldKey + " is empty: nothing copied"
+		p.status = fieldKey + " empty"
 		return bell()
 	}
-	p.status = "copied " + fieldKey + " of " + row.human
+	p.status = "copied " + fieldKey
 	return tea.SetClipboard(value)
 }
 
@@ -432,7 +500,7 @@ func (p *listPage) copyId() tea.Cmd {
 // Enter writes it; a paste alone never does.
 func (p *listPage) paste(text string) tea.Cmd {
 	if strings.TrimSpace(text) == "" {
-		p.status = "the clipboard is empty"
+		p.status = "clipboard empty"
 		return bell()
 	}
 	return p.startEdit(&text)
@@ -480,7 +548,7 @@ func (p *listPage) startEdit(pasted *string) tea.Cmd {
 	}
 	fieldKey := p.fieldKey()
 	if fieldKey == "" {
-		p.status = "the id is not a field: it cannot be edited"
+		p.status = "id not editable"
 		return bell()
 	}
 
@@ -543,7 +611,7 @@ func (p *listPage) write(id, key string, value issue.Value) {
 		p.status = err.Error()
 		return
 	}
-	p.status = fmt.Sprintf("%s set on %s", key, id[:7])
+	p.status = key + " set"
 	if err := p.load(); err != nil {
 		p.status = err.Error()
 	}
@@ -555,7 +623,7 @@ func (p *listPage) write(id, key string, value issue.Value) {
 // row would be a change with nowhere to be written.
 func (p *listPage) startGrab() (page, tea.Cmd) {
 	if p.rankKey == "" {
-		p.status = "no rank bound: a view orders by rank to be able to reorder"
+		p.status = "no rank: cannot reorder"
 		return p, nil
 	}
 	if p.current() == nil {

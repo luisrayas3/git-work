@@ -5,6 +5,7 @@ import (
 
 	"charm.land/bubbles/v2/textarea"
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 )
 
 // commentBox is where a comment is written, on `show`, under the title.
@@ -17,18 +18,40 @@ type commentBox struct {
 	area textarea.Model
 }
 
-// commentHeight is the box's lines: enough to see a sentence being written,
-// few enough that the fields under it stay on the screen.
-const commentHeight = 3
+// The box opens two lines tall, which is a sentence and the start of a
+// second, and grows with what is typed up to a paragraph; past that it
+// scrolls, so the fields under it stay on the screen.
+const (
+	commentMinHeight = 2
+	commentMaxHeight = 8
+)
 
 func newCommentBox(width int) *commentBox {
 	area := textarea.New()
 	area.Placeholder = "add a comment"
 	area.ShowLineNumbers = false
-	area.SetHeight(commentHeight)
+	area.DynamicHeight = true
+	area.MinHeight = commentMinHeight
+	area.MaxHeight = commentMaxHeight
+	area.SetHeight(commentMinHeight)
 	area.SetWidth(max(width-2, 20))
-	area.Focus()
-	return &commentBox{area: area}
+	c := &commentBox{area: area}
+	c.restyle()
+	c.area.Focus()
+	return c
+}
+
+// restyle takes the textarea's styles for the terminal's background, less
+// the cursor line's own background: on the wrong kind of terminal that shade
+// is the colour of the text, and what is typed disappears into it.
+func (c *commentBox) restyle() {
+	styles := textarea.DefaultStyles(darkBackground)
+	styles.Focused.CursorLine = lipgloss.NewStyle()
+	styles.Focused.Text = lipgloss.NewStyle()
+	styles.Focused.EndOfBuffer = lipgloss.NewStyle()
+	styles.Blurred.CursorLine = styles.Blurred.Text
+	styles.Blurred.EndOfBuffer = lipgloss.NewStyle()
+	c.area.SetStyles(styles)
 }
 
 func (c *commentBox) Update(msg tea.Msg) tea.Cmd {
@@ -55,7 +78,7 @@ func (c *commentBox) resize(width int) {
 }
 
 func (c *commentBox) View(width int) []string {
-	lines := make([]string, 0, commentHeight)
+	lines := make([]string, 0, commentMaxHeight)
 	for _, line := range strings.Split(c.area.View(), "\n") {
 		lines = append(lines, fit(line, width))
 	}

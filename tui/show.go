@@ -7,6 +7,7 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/git-bug/git-bug/cache"
 	"github.com/git-bug/git-bug/commands/cmdjson"
@@ -24,10 +25,10 @@ import (
 // enter opens from the list, because they are the same page and there is no
 // reason for two.
 //
-// The page is five stops, top to bottom: the title, the comment box right
-// under it, the fields table, and the description and log tabs. The cursor
-// opens in the box, because opening an issue to say something about it is
-// the common case (doc/design/terminal-renderer.md, revised 2026-09-27).
+// The page is four stops, top to bottom: the title, the comment box right
+// under it, the fields table, and the tabs — comments, description, log. The
+// cursor opens in the box, because opening an issue to say something about
+// it is the common case (doc/design/terminal-renderer.md, revised 2026-09-28).
 type showPage struct {
 	repo *cache.RepoCache
 
@@ -37,17 +38,19 @@ type showPage struct {
 
 	snapshot *issue.Snapshot
 	log      []cmdjson.IssueOperation
+	// rows is the fields table as drawn, rebuilt on every load
+	rows []tableRow
 
 	box     *commentBox
 	buttons []button
 
 	// focus indexes positions(); it opens on the box.
 	focus int
-	// row is the field under the cursor, kept while the cursor is elsewhere
-	// so that coming back to the table comes back to the same row.
+	// row is the table row under the cursor, kept while the cursor is
+	// elsewhere so that coming back to the table comes back to the same row.
 	row int
-	// tab is the tab drawn under the fields: stopDescription or stopLog.
-	tab stopKind
+	// tab is the tab drawn under the fields.
+	tab tab
 	// afterG says the last key was vim's g, so t and T are gt and gT.
 	afterG bool
 	// warned says leaving has already said a draft would be lost; a second
@@ -74,16 +77,29 @@ type button struct {
 	press func(p *showPage) tea.Cmd
 }
 
-// stopKind is one of the five places the cursor can be.
+// stopKind is one of the four places the cursor can be.
 type stopKind int
 
 const (
 	stopTitle stopKind = iota
 	stopBox
 	stopFields
-	stopDescription
-	stopLog
+	stopTabs
 )
+
+// tab is one of the three tabs under the fields.
+type tab int
+
+const (
+	tabComments tab = iota
+	tabDescription
+	tabLog
+	tabCount
+)
+
+func (t tab) String() string {
+	return [...]string{"comments", "description", "log"}[t]
+}
 
 // position is one step of Tab: a stop, and inside the box, which part of it —
 // the text, or one of its buttons. The buttons are the box's own, not stops
@@ -94,8 +110,19 @@ type position struct {
 	button int // -1 for the text
 }
 
+// tableRow is one line of the fields table. A field that links several
+// issues is a line per issue, so that each is a link the cursor can stand on.
+type tableRow struct {
+	key string
+	// label is the value as drawn; the key is drawn on a field's first line
+	label string
+	first bool
+	// link is the issue this line names, or ""
+	link string
+}
+
 func newShowPage(repo *cache.RepoCache, id string, fields []string) (*showPage, error) {
-	p := &showPage{repo: repo, id: id, order: fields, width: 80, height: 24, tab: stopDescription}
+	p := &showPage{repo: repo, id: id, order: fields, width: 80, height: 24}
 	if err := p.load(); err != nil {
 		return nil, err
 	}
@@ -129,6 +156,8 @@ func (p *showPage) load() error {
 		return err
 	}
 	p.log = entries
+
+	p.rows = p.tableRows()
 	return nil
 }
 
@@ -157,14 +186,28 @@ func (p *showPage) fieldOrder() []string {
 	return sorted.Keys(p.snapshot.Fields)
 }
 
-// tableFields are the rows of the fields table: every field but the title,
-// which has a stop of its own.
-func (p *showPage) tableFields() []string {
-	out := make([]string, 0, len(p.fieldOrder()))
+// tableRows is every field but the title, which has a stop of its own; a
+// relation is drawn as the issues it names.
+func (p *showPage) tableRows() []tableRow {
+	typeKey, _ := issue.String(p.snapshot.Fields[schema.TypeKey])
+	known := newKinds(p.repo)
+
+	var out []tableRow
 	for _, key := range p.fieldOrder() {
-		if key != schema.TitleKey {
-			out = append(out, key)
+		if key == schema.TitleKey {
+			continue
 		}
+		if isRelation(known.of(typeKey, key)) {
+			value, _ := decodeValue(p.snapshot.Fields[key])
+			ids := linkIds(value)
+			for at, id := range ids {
+				out = append(out, tableRow{key: key, label: linkLabel(p.repo, id), first: at == 0, link: id})
+			}
+			if len(ids) > 0 {
+				continue
+			}
+		}
+		out = append(out, tableRow{key: key, label: plain(p.snapshot.Fields[key]), first: true})
 	}
 	return out
 }
@@ -175,12 +218,10 @@ func (p *showPage) positions() []position {
 	for at := range p.buttons {
 		out = append(out, position{stop: stopBox, button: at})
 	}
-	if len(p.tableFields()) > 0 {
+	if len(p.rows) > 0 {
 		out = append(out, position{stop: stopFields, button: -1})
 	}
-	return append(out,
-		position{stop: stopDescription, button: -1},
-		position{stop: stopLog, button: -1})
+	return append(out, position{stop: stopTabs, button: -1})
 }
 
 func (p *showPage) current() position {
@@ -195,15 +236,23 @@ func (p *showPage) inText() bool {
 	return here.stop == stopBox && here.button < 0
 }
 
+// currentRow is the table row under the cursor, when the cursor is in the
+// table.
+func (p *showPage) currentRow() *tableRow {
+	if p.current().stop != stopFields || len(p.rows) == 0 {
+		return nil
+	}
+	p.row = min(max(p.row, 0), len(p.rows)-1)
+	return &p.rows[p.row]
+}
+
 // field is the field under the cursor, or "" where the cursor is on no field.
 func (p *showPage) field() string {
-	switch p.current().stop {
-	case stopTitle:
+	if p.current().stop == stopTitle {
 		return schema.TitleKey
-	case stopFields:
-		fields := p.tableFields()
-		p.row = min(max(p.row, 0), len(fields)-1)
-		return fields[p.row]
+	}
+	if row := p.currentRow(); row != nil {
+		return row.key
 	}
 	return ""
 }
@@ -220,11 +269,8 @@ func (p *showPage) focusOn(at int) {
 	p.focus = at
 	p.box.focus(here.stop == stopBox && here.button < 0)
 	p.warned = false
-
-	if here.stop == stopDescription || here.stop == stopLog {
-		// focus follows selection, as on any tab strip: the tab the cursor
-		// is on is the tab drawn, and it is scrolled to the top
-		p.tab = here.stop
+	if here.stop == stopTabs {
+		// the strip comes to the top, so the tab under it has the room
 		p.offset = p.tabBarLine()
 	}
 }
@@ -239,19 +285,9 @@ func (p *showPage) focusStop(stop stopKind, button int) {
 	}
 }
 
-// switchTab shows the other tab, and takes the cursor with it when the
-// cursor was on the tab strip.
-func (p *showPage) switchTab() {
-	next := stopLog
-	if p.tab == stopLog {
-		next = stopDescription
-	}
-	here := p.current().stop
-	if here == stopDescription || here == stopLog {
-		p.focusStop(next, -1)
-		return
-	}
-	p.tab = next
+// switchTab shows the next or the previous tab, where the cursor is.
+func (p *showPage) switchTab(by int) {
+	p.tab = tab((int(p.tab) + by + int(tabCount)) % int(tabCount))
 	p.offset = min(p.offset, p.tabBarLine())
 }
 
@@ -260,6 +296,14 @@ func (p *showPage) Update(msg tea.Msg) (page, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		p.width, p.height = msg.Width, msg.Height
 		p.box.resize(p.width)
+		return p, nil
+
+	case tea.BackgroundColorMsg:
+		p.box.restyle()
+		return p, nil
+
+	case statusMsg:
+		p.status = string(msg)
 		return p, nil
 
 	case refreshMsg:
@@ -315,30 +359,38 @@ func (p *showPage) key(press tea.KeyPressMsg) (page, tea.Cmd) {
 	// which a new tab does anyway
 	if p.afterG {
 		p.afterG = false
-		if press.String() == "t" || press.String() == "T" {
-			p.switchTab()
+		switch press.String() {
+		case "t":
+			p.switchTab(1)
+			return p, nil
+		case "T":
+			p.switchTab(-1)
 			return p, nil
 		}
 	}
 
 	here := p.current()
 	switch {
-	case keys.back.matches(press), keys.quit.matches(press):
+	case keys.back.matches(press):
 		return p.leave()
 
 	case keys.next.matches(press):
 		p.moveFocus(1)
 	case keys.previous.matches(press):
 		p.moveFocus(-1)
-	case keys.nextTab.matches(press), keys.previousTab.matches(press):
-		p.switchTab()
+	case keys.nextTab.matches(press):
+		p.switchTab(1)
+	case keys.previousTab.matches(press):
+		p.switchTab(-1)
 
 	case keys.down.matches(press):
 		p.down(here)
 	case keys.up.matches(press):
 		p.up(here)
-	case keys.left.matches(press), keys.right.matches(press):
-		p.sideways(here, keys.right.matches(press))
+	case keys.left.matches(press):
+		p.sideways(here, -1)
+	case keys.right.matches(press):
+		p.sideways(here, 1)
 
 	case keys.pageUp.matches(press):
 		p.offset = max(0, p.offset-max(p.height-4, 1))
@@ -353,9 +405,7 @@ func (p *showPage) key(press tea.KeyPressMsg) (page, tea.Cmd) {
 	case keys.edit.matches(press):
 		return p, p.editHere(here)
 	case keys.open.matches(press):
-		if here.stop == stopBox {
-			return p, p.buttons[here.button].press(p)
-		}
+		return p, p.openHere(here)
 
 	case keys.copyId.matches(press):
 		p.status = "copied " + p.id
@@ -363,7 +413,7 @@ func (p *showPage) key(press tea.KeyPressMsg) (page, tea.Cmd) {
 	case keys.copy.matches(press):
 		return p, p.copyHere(here)
 	case keys.paste.matches(press):
-		p.status = "asking the terminal for its clipboard"
+		p.status = "reading clipboard…"
 		return p, tea.ReadClipboard
 
 	case keys.help.matches(press):
@@ -383,12 +433,12 @@ func (p *showPage) down(here position) {
 		// from a button, past the others, to what is under the box
 		p.moveFocus(len(p.buttons) - here.button)
 	case stopFields:
-		if p.row < len(p.tableFields())-1 {
+		if p.row < len(p.rows)-1 {
 			p.row++
 			return
 		}
-		p.focusStop(p.tab, -1)
-	case stopDescription, stopLog:
+		p.focusStop(stopTabs, -1)
+	case stopTabs:
 		p.offset++
 	}
 }
@@ -403,30 +453,31 @@ func (p *showPage) up(here position) {
 			return
 		}
 		p.focusStop(stopBox, 0)
-	case stopDescription, stopLog:
+	case stopTabs:
 		if p.offset > p.tabBarLine() {
 			p.offset--
 			return
 		}
-		if len(p.tableFields()) == 0 {
+		if len(p.rows) == 0 {
 			p.focusStop(stopBox, 0)
 			return
 		}
-		p.row = len(p.tableFields()) - 1
+		p.row = len(p.rows) - 1
 		p.focusStop(stopFields, -1)
 	}
 }
 
-// sideways moves between the buttons, and between the tabs.
-func (p *showPage) sideways(here position, right bool) {
-	switch {
-	case here.stop == stopBox && right && here.button < len(p.buttons)-1:
-		p.moveFocus(1)
-	case here.stop == stopBox && !right && here.button > 0:
-		p.moveFocus(-1)
-	case here.stop == stopDescription && right, here.stop == stopLog && !right:
-		p.switchTab()
+// sideways moves between the buttons when there are several to move
+// between, and switches the tab everywhere else: left and right are the tab
+// keys of this page.
+func (p *showPage) sideways(here position, by int) {
+	if here.stop == stopBox && len(p.buttons) > 1 {
+		if at := here.button + by; at >= 0 && at < len(p.buttons) {
+			p.moveFocus(by)
+		}
+		return
 	}
+	p.switchTab(by)
 }
 
 // textKey is a key typed with the cursor in the comment box, where every
@@ -441,8 +492,11 @@ func (p *showPage) textKey(press tea.KeyPressMsg) (page, tea.Cmd) {
 	case keys.previous.matches(press):
 		p.moveFocus(-1)
 		return p, nil
-	case keys.nextTab.matches(press), keys.previousTab.matches(press):
-		p.switchTab()
+	case keys.nextTab.matches(press):
+		p.switchTab(1)
+		return p, nil
+	case keys.previousTab.matches(press):
+		p.switchTab(-1)
 		return p, nil
 	case keys.cancel.matches(press):
 		if p.box.draft() == "" {
@@ -450,7 +504,7 @@ func (p *showPage) textKey(press tea.KeyPressMsg) (page, tea.Cmd) {
 		}
 		// out of the box, onto the button that sends it, draft kept
 		p.moveFocus(1)
-		p.status = "draft kept: enter sends it, esc twice goes back without it"
+		p.status = "draft kept"
 		return p, nil
 	}
 	return p, p.box.Update(press)
@@ -461,18 +515,18 @@ func (p *showPage) textKey(press tea.KeyPressMsg) (page, tea.Cmd) {
 func (p *showPage) leave() (page, tea.Cmd) {
 	if p.box.draft() != "" && !p.warned {
 		p.warned = true
-		p.status = "a comment is being written: esc again drops it"
+		p.status = "esc again drops draft"
 		return p, nil
 	}
-	// the list is underneath, where it was; with nothing underneath the
-	// stack quits, which is what `git work view show` should do.
+	// the list is underneath, where it was; with nothing underneath, the
+	// stack asks for a second back before it quits
 	return p, func() tea.Msg { return popMsg{} }
 }
 
 func (p *showPage) submitComment() tea.Cmd {
 	body := p.box.draft()
 	if body == "" {
-		p.status = "nothing to send: the comment is empty"
+		p.status = "empty comment"
 		return bell()
 	}
 
@@ -482,22 +536,37 @@ func (p *showPage) submitComment() tea.Cmd {
 	}
 	p.box.area.Reset()
 	p.warned = false
-	p.status = "commented: it is on the log tab"
+	p.tab = tabComments
+	p.status = "commented"
 	if err := p.load(); err != nil {
 		p.status = err.Error()
 	}
 	return nil
 }
 
+// openHere presses a button, or follows the link under the cursor.
+func (p *showPage) openHere(here position) tea.Cmd {
+	if here.stop == stopBox {
+		return p.buttons[here.button].press(p)
+	}
+	row := p.currentRow()
+	if row == nil || row.link == "" {
+		return nil
+	}
+	shown, err := newShowPage(p.repo, row.link, nil)
+	if err != nil {
+		p.status = err.Error()
+		return bell()
+	}
+	return func() tea.Msg { return pushMsg{page: shown} }
+}
+
 func (p *showPage) editHere(here position) tea.Cmd {
 	switch here.stop {
 	case stopBox:
 		return p.buttons[here.button].press(p)
-	case stopDescription:
-		p.status = "the description is edited with git work issue comment edit, for now"
-		return bell()
-	case stopLog:
-		p.status = "the log is what happened: it is not edited"
+	case stopTabs:
+		p.status = "not editable"
 		return bell()
 	}
 	return p.startEdit(p.field(), nil)
@@ -506,11 +575,20 @@ func (p *showPage) editHere(here position) tea.Cmd {
 func (p *showPage) copyHere(here position) tea.Cmd {
 	var what, value string
 	switch here.stop {
-	case stopTitle, stopFields:
-		what = p.field()
-		value = plain(p.snapshot.Fields[what])
-	case stopDescription:
-		what = "the description"
+	case stopTitle:
+		what, value = "title", p.snapshot.Title()
+	case stopFields:
+		row := p.currentRow()
+		what, value = row.key, plain(p.snapshot.Fields[row.key])
+		if row.link != "" {
+			// a link copies the id it names, which is what a command takes
+			value = row.link
+		}
+	case stopTabs:
+		if p.tab != tabDescription {
+			return bell()
+		}
+		what = "description"
 		if len(p.snapshot.Comments) > 0 {
 			value = p.snapshot.Comments[0].Message
 		}
@@ -518,7 +596,7 @@ func (p *showPage) copyHere(here position) tea.Cmd {
 		return bell()
 	}
 	if strings.TrimSpace(value) == "" {
-		p.status = what + " is empty: nothing copied"
+		p.status = what + " empty"
 		return bell()
 	}
 	p.status = "copied " + what
@@ -531,7 +609,7 @@ func (p *showPage) paste(text string) tea.Cmd {
 		return bell()
 	}
 	if strings.TrimSpace(text) == "" {
-		p.status = "the clipboard is empty"
+		p.status = "clipboard empty"
 		return bell()
 	}
 	return p.startEdit(fieldKey, &text)
@@ -650,22 +728,32 @@ func (p *showPage) View() string {
 // topLines is what never scrolls: the call, the title, and the box under it
 // with its buttons, because the box is where the page opens and it must not
 // move away.
+//
+// A terminal has one size of text, so the title is made to read as a
+// heading the other ways: bold, in the accent colour, over a rule as long as
+// it is, with a blank line on either side.
 func (p *showPage) topLines(here position) []string {
 	snap := p.snapshot
 	typeKey, _ := issue.String(snap.Fields[schema.TypeKey])
 
-	title := styleHeader.Render(snap.Title())
-	marker := " "
+	title := truncate(snap.Title(), max(p.width-4, 1))
+	marker, drawn := " ", styleTitle.Render(title)
 	if here.stop == stopTitle {
-		title = styleCell.Render(snap.Title())
-		marker = "›"
+		marker, drawn = "›", styleCell.Bold(true).Render(title)
 	}
-	head := marker + title
+	head := marker + " " + drawn
 	if typeKey != "" {
-		head += "  " + styleDim.Render("("+typeKey+")")
+		head += "  " + styleDim.Render(typeKey)
 	}
+	rule := "  " + styleTitle.Render(strings.Repeat("━", max(ansi.StringWidth(title), 1)))
 
-	lines := []string{callLine(p.call, snap.Id().Human(), "id", p.width), fit(head, p.width)}
+	lines := []string{
+		callLine(p.call, snap.Id().Human(), "id", p.width),
+		"",
+		fit(head, p.width),
+		fit(rule, p.width),
+		"",
+	}
 	lines = append(lines, p.box.View(p.width)...)
 
 	cells := make([]string, 0, len(p.buttons))
@@ -678,77 +766,86 @@ func (p *showPage) topLines(here position) []string {
 		}
 		cells = append(cells, label)
 	}
-	hint := styleDim.Render("ctrl+enter sends · tab moves on")
+	hint := styleDim.Render("ctrl+enter sends")
 	return append(lines, fit(" "+strings.Join(cells, " ")+"  "+hint, p.width), "")
 }
 
 // body is the part that scrolls, unwindowed: the fields table, the tab
-// strip, and the tab drawn. It says which line the field under the cursor is
+// strip, and the tab drawn. It says which line the row under the cursor is
 // on, or -1 when the cursor is not in the table.
 func (p *showPage) body(here position) ([]string, int) {
 	lines, cursorLine := p.fieldLines(here)
-	lines = append(lines, tabStrip(p.tab, here.stop == p.tab, p.width)...)
-	if p.tab == stopLog {
-		return append(lines, p.logLines()...), cursorLine
+	lines = append(lines, tabStrip(p.tab, here.stop == stopTabs, p.width)...)
+	switch p.tab {
+	case tabComments:
+		lines = append(lines, p.commentLines()...)
+	case tabDescription:
+		lines = append(lines, p.descriptionLines()...)
+	case tabLog:
+		lines = append(lines, p.logLines()...)
 	}
-	return append(lines, p.descriptionLines()...), cursorLine
+	return lines, cursorLine
 }
 
-// tabBarLine is where the tab strip starts in body: what a tab scrolls to
-// when the cursor moves onto it.
+// tabBarLine is where the tab strip starts in body: what the page scrolls to
+// when the cursor moves onto the tabs.
 func (p *showPage) tabBarLine() int {
 	lines, _ := p.fieldLines(position{stop: stopTitle})
 	return len(lines)
 }
 
-// fieldLines is the fields table: a key column and a value column, the row
-// under the cursor marked while the cursor is in the table.
+// fieldLines is the fields table: the key, then the value, a link
+// underlined; the row under the cursor marked while the cursor is in it.
 func (p *showPage) fieldLines(here position) ([]string, int) {
-	fields := p.tableFields()
-	if len(fields) == 0 {
+	if len(p.rows) == 0 {
 		return nil, -1
 	}
 
 	cursorLine := -1
-	lines := []string{styleDim.Render(fit(" "+pad("field", 16)+"value", p.width))}
-	for at, key := range fields {
+	lines := make([]string, 0, len(p.rows)+1)
+	for at, row := range p.rows {
+		key := ""
+		if row.first {
+			key = row.key
+		}
+		value := row.label
+		style := styleDim.Faint(false)
+		if row.link != "" {
+			style = styleLink
+		}
 		marker := " "
-		value := plain(p.snapshot.Fields[key])
 		if here.stop == stopFields && at == p.row {
 			marker = "›"
 			cursorLine = len(lines)
-			value = styleCell.Render(pad(value, max(len([]rune(value)), 1)))
+			style = styleCell.Underline(row.link != "")
+			value = pad(value, max(ansi.StringWidth(value), 1))
 		}
-		lines = append(lines, fit(marker+pad(key, 16)+value, p.width))
+		lines = append(lines, fit(marker+styleDim.Render(pad(key, 16))+style.Render(value), p.width))
 	}
 	return append(lines, ""), cursorLine
 }
 
-// tabStrip draws the two tabs as tabs: boxes on a rule, the drawn one open
-// into what is under it, its name reversed while the cursor is on it.
-func tabStrip(active stopKind, focused bool, width int) []string {
-	tabs := []struct {
-		stop  stopKind
-		label string
-	}{{stopDescription, "description"}, {stopLog, "log"}}
-
+// tabStrip draws the tabs as tabs: boxes on a rule, the drawn one open into
+// what is under it, its name reversed while the cursor is on the strip.
+func tabStrip(active tab, focused bool, width int) []string {
 	var top, middle, bottom strings.Builder
 	top.WriteString(" ")
 	middle.WriteString(" ")
 	bottom.WriteString("─")
 	used := 1
-	for _, tab := range tabs {
-		span := len(tab.label) + 2
-		label := styleDim.Render(tab.label)
-		if tab.stop == active {
-			label = styleHeader.Render(tab.label)
+	for t := tab(0); t < tabCount; t++ {
+		name := t.String()
+		span := len(name) + 2
+		label := styleDim.Render(name)
+		if t == active {
+			label = styleHeader.Render(name)
 			if focused {
-				label = styleCell.Render(tab.label)
+				label = styleCell.Render(name)
 			}
 		}
 		top.WriteString("╭" + strings.Repeat("─", span) + "╮")
 		middle.WriteString("│ " + label + " │")
-		if tab.stop == active {
+		if t == active {
 			bottom.WriteString("┘" + strings.Repeat(" ", span) + "└")
 		} else {
 			bottom.WriteString("┴" + strings.Repeat("─", span) + "┴")
@@ -758,7 +855,30 @@ func tabStrip(active stopKind, focused bool, width int) []string {
 	if width > used {
 		bottom.WriteString(strings.Repeat("─", width-used))
 	}
-	return []string{fit(top.String(), width), fit(middle.String(), width), fit(bottom.String(), width)}
+	hint := ""
+	if focused {
+		hint = "  " + styleDim.Render("←→")
+	}
+	return []string{fit(top.String(), width), fit(middle.String()+hint, width), fit(bottom.String(), width)}
+}
+
+// commentLines is what was said about the issue, after its body: each
+// comment in full, as it reads now.
+func (p *showPage) commentLines() []string {
+	if len(p.snapshot.Comments) <= 1 {
+		return []string{styleDim.Render(" (no comments)")}
+	}
+	var lines []string
+	for at, comment := range p.snapshot.Comments[1:] {
+		if at > 0 {
+			lines = append(lines, "")
+		}
+		lines = append(lines, styleHeader.Render(fit(fmt.Sprintf(" %s  %s", comment.Author.DisplayName(), comment.FormatTimeRel()), p.width)))
+		for _, line := range strings.Split(comment.Message, "\n") {
+			lines = append(lines, fit(" "+line, p.width))
+		}
+	}
+	return lines
 }
 
 // descriptionLines is the issue's body, the first comment, which it always
@@ -778,38 +898,21 @@ func (p *showPage) descriptionLines() []string {
 	return lines
 }
 
-// logLines is what happened to the issue, in the order it happened: the
-// comments in full, as they read now, and every other operation on a line.
-// One timeline rather than a comments pane and a history pane, because what
-// was said and what was done answer the same question.
+// logLines is what was done to the issue, one operation to a line, in the
+// order it was done; a comment is its first line, the comments tab being
+// where it is read.
 func (p *showPage) logLines() []string {
-	comments := make(map[string]issue.Comment, len(p.snapshot.Comments))
-	for _, comment := range p.snapshot.Comments {
-		comments[comment.TargetId().String()] = comment
-	}
-
 	var lines []string
 	for _, entry := range p.log {
-		when := time.Unix(entry.UnixTime, 0).Format("2006-01-02 15:04")
-		switch entry.Type {
-		case "noop":
-			continue
-		case "add-comment":
-			message := ""
-			if comment, ok := comments[entry.Id]; ok {
-				message = comment.Message
-			}
-			lines = append(lines, "", styleHeader.Render(fit(fmt.Sprintf(" %s  %s", entry.Author.Name, when), p.width)))
-			for _, line := range strings.Split(message, "\n") {
-				lines = append(lines, fit(" "+line, p.width))
-			}
-			lines = append(lines, "")
+		if entry.Type == "noop" {
 			continue
 		}
-		lines = append(lines, styleDim.Render(fit(fmt.Sprintf(" %s  %s  %s", when, entry.Author.Name, opSummary(entry)), p.width)))
+		when := time.Unix(entry.UnixTime, 0).Format("2006-01-02 15:04")
+		lines = append(lines, fit(fmt.Sprintf(" %s  %s  %s",
+			styleDim.Render(when), entry.Author.Name, opSummary(entry)), p.width))
 	}
 	if len(lines) == 0 {
-		return []string{styleDim.Render(" (nothing yet)")}
+		return []string{styleDim.Render(" (empty)")}
 	}
 	return lines
 }
@@ -817,9 +920,9 @@ func (p *showPage) logLines() []string {
 func (p *showPage) statusLine() string {
 	left := p.status
 	if left == "" {
-		left = "? for keys"
+		left = "? keys"
 		if p.inText() {
-			left = "tab leaves the box"
+			left = "tab: leave box"
 		}
 	}
 	return styleStatus.Render(fit(left, p.width))
@@ -828,9 +931,10 @@ func (p *showPage) statusLine() string {
 // opSummary is one operation in one line, the way a person would say it.
 func opSummary(entry cmdjson.IssueOperation) string {
 	var op struct {
-		Key   string          `json:"key"`
-		Value json.RawMessage `json:"value"`
-		Item  json.RawMessage `json:"item"`
+		Key     string          `json:"key"`
+		Value   json.RawMessage `json:"value"`
+		Item    json.RawMessage `json:"item"`
+		Message string          `json:"message"`
 	}
 	if err := decodeInto(entry.Op, &op); err != nil {
 		return entry.Type
@@ -838,9 +942,11 @@ func opSummary(entry cmdjson.IssueOperation) string {
 
 	switch entry.Type {
 	case "create":
-		return "created it"
+		return "created"
+	case "add-comment":
+		return "commented: " + truncate(strings.SplitN(op.Message, "\n", 2)[0], 60)
 	case "edit-comment":
-		return "edited a comment"
+		return "edited comment"
 	case "set-field":
 		if value := plain(op.Value); value != "" {
 			return fmt.Sprintf("set %s to %s", op.Key, value)

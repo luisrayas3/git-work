@@ -136,8 +136,8 @@ type keymap struct {
 var keys = keymap{
 	up:     newChord("up", one("up"), one("k"), one("ctrl+p")),
 	down:   newChord("down", one("down"), one("j"), one("ctrl+n")),
-	left:   newChord("previous column", one("left"), one("h"), one("ctrl+b")),
-	right:  newChord("next column", one("right"), one("l"), one("ctrl+f")),
+	left:   newChord("previous column / tab", one("left"), one("h"), one("ctrl+b")),
+	right:  newChord("next column / tab", one("right"), one("l"), one("ctrl+f")),
 	pageUp: newChord("page up", one("pgup"), one("ctrl+u"), one("alt+v")),
 	pageDn: newChord("page down", one("pgdown"), one("ctrl+d"), one("ctrl+v")),
 	// alt+< and alt+> are shift keys, and a terminal spells them either as
@@ -145,44 +145,45 @@ var keys = keymap{
 	top:    newChord("first", one("home"), one("g"), one("alt+<", "alt+shift+,")),
 	bottom: newChord("last", one("end"), one("G", "shift+g"), one("alt+>", "alt+shift+.")),
 
-	next:     newChord("on an issue: next stop", one("tab"), nil, nil),
-	previous: newChord("on an issue: previous stop", one("shift+tab"), nil, nil),
+	next:     newChord("next stop", one("tab"), nil, nil),
+	previous: newChord("previous stop", one("shift+tab"), nil, nil),
 	// the tab keys of browsers and editors; vim's gt and gT are read by the
 	// show page itself, because g alone is already a key
-	nextTab: newChord("on an issue: next tab", one("ctrl+pgdown"), nil, nil).
+	nextTab: newChord("next tab", one("ctrl+pgdown"), nil, nil).
 		show(vim, "gt ctrl+pgdown"),
-	previousTab: newChord("on an issue: previous tab", one("ctrl+pgup"), nil, nil).
+	previousTab: newChord("previous tab", one("ctrl+pgup"), nil, nil).
 		show(vim, "gT ctrl+pgup"),
 
-	open: newChord("open the issue, or press the button", one("enter"), nil, nil),
+	open: newChord("open, follow link, press", one("enter"), nil, nil),
 	// ctrl+enter and super+enter need the kitty keyboard protocol; f2 is the
 	// edit key every terminal sends (doc/design/terminal-renderer.md).
-	edit: newChord("edit the field under the cursor", one("ctrl+enter", "super+enter", "f2"), nil, nil),
+	edit: newChord("edit field", one("ctrl+enter", "super+enter", "f2"), nil, nil),
 
 	// Copy and paste are the terminal's first: cmd+c and ctrl+shift+c copy
 	// what the mouse selected, and cmd+v and ctrl+shift+v paste, arriving as
 	// a bracketed paste rather than a key. Where the terminal hands a copy
 	// key over instead of keeping it, it copies the cell under the cursor;
 	// ctrl+c is that key everywhere, because no terminal keeps it.
-	copy: newChord("copy the cell under the cursor",
+	copy: newChord("copy cell",
 		one("ctrl+c", "super+c", "ctrl+shift+c", "super+shift+c"), one("y"), one("alt+w")),
-	copyId: newChord("copy the issue id, from any column", one("alt+c"), one("Y", "shift+y"), nil),
+	copyId: newChord("copy id", one("alt+c"), one("Y", "shift+y"), nil),
 	// A paste key that reaches the program asks the terminal for its
 	// clipboard over OSC 52. ctrl+v stays emacs's page down: a standard
 	// user's ctrl+v is the terminal's paste, or ^V, and never a paste here.
-	paste: newChord("paste into the field under the cursor",
+	paste: newChord("paste into field",
 		one("super+v", "ctrl+shift+v", "super+shift+v"), one("p"), one("ctrl+y")).
-		show(standard, "the terminal's paste: cmd+v, ctrl+shift+v"),
+		show(standard, "terminal paste (cmd+v, ctrl+shift+v)"),
 
-	filter: newChord("filter the rows", one("/"), one("/"), one("ctrl+s")),
-	grab:   newChord("grab a row, then drop it (needs rank)", one("space", " "), nil, nil),
-	help:   newChord("this help", one("?"), nil, nil),
-	back:   newChord("back, or clear the filter", one("esc"), one("esc"), one("esc", "ctrl+g")),
-	// ctrl+q is the quit nothing swallows; q is a letter, and a text box
-	// takes it.
-	quit: newChord("quit", one("ctrl+q"), one("q"), one("ctrl+q")),
+	filter: newChord("filter", one("/"), one("/"), one("ctrl+s")),
+	grab:   newChord("grab / drop row (needs rank)", one("space", " "), nil, nil),
+	help:   newChord("help", one("?"), nil, nil),
+	// Back is always back: out of a filter, out of an issue, and from the
+	// first view, twice, out of the program (doc/design/terminal-renderer.md).
+	back: newChord("back (twice at top: quit)", one("esc"), one("esc", "q"), one("esc", "ctrl+g")),
+	// ctrl+q is the quit nothing swallows, at once, from anywhere.
+	quit: newChord("quit now", one("ctrl+q"), nil, nil),
 
-	submit: newChord("send the comment", one("ctrl+enter", "super+enter"), nil, nil),
+	submit: newChord("send comment", one("ctrl+enter", "super+enter"), nil, nil),
 	cancel: newChord("cancel", one("esc"), one("esc"), one("esc", "ctrl+g")),
 }
 
@@ -240,8 +241,8 @@ func (h *help) View(width int) string {
 		lines = append(lines, fit("  "+pad(row.spelling(h.tab), 30)+row.what, width))
 	}
 	lines = append(lines, "",
-		styleDim.Render(fit("  cmd and ctrl+enter need a terminal that reports them (kitty protocol); a terminal's own copy and paste keys stay its own", width)),
-		styleDim.Render(fit("  ←/→ or tab or 1 2 3 switch tabs · esc or ? closes", width)))
+		styleDim.Render(fit("  cmd and ctrl+enter need the kitty keyboard protocol", width)),
+		styleDim.Render(fit("  ←/→ tab 1-3: switch · esc ?: close", width)))
 	return strings.Join(lines, "\n")
 }
 

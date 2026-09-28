@@ -54,7 +54,7 @@ type choice struct {
 func editable(repo *cache.RepoCache, typeKey, fieldKey string, current any) (*editor, string, error) {
 	kind, ok := fieldKind(repo, typeKey, fieldKey)
 	if !ok {
-		return nil, fmt.Sprintf("no schema for %s: %s is not a field this renderer knows", typeKey, fieldKey), nil
+		return nil, fmt.Sprintf("%s: not a field of %s", fieldKey, typeKey), nil
 	}
 
 	switch kind {
@@ -82,7 +82,7 @@ func editable(repo *cache.RepoCache, typeKey, fieldKey string, current any) (*ed
 		return &editor{key: fieldKey, kind: kind, input: input, clearable: fieldKey != schema.TitleKey}, "", nil
 
 	default:
-		return nil, fmt.Sprintf("edit %s with git work issue add/remove for now", fieldKey), nil
+		return nil, fmt.Sprintf("%s: use git work issue add/remove", fieldKey), nil
 	}
 }
 
@@ -123,7 +123,7 @@ func enumChoices(repo *cache.RepoCache, typeKey, fieldKey string) ([]choice, err
 	// Clearing is a choice like any other, because `set` with a null clears
 	// a field, and a picker that could not do it would send the user to the
 	// shell for the one edit a picker is best at.
-	out = append(out, choice{label: "(none)", dim: "clears the field", value: ""})
+	out = append(out, choice{label: "(none)", dim: "clear", value: ""})
 	return out, nil
 }
 
@@ -138,7 +138,7 @@ func identityChoices(repo *cache.RepoCache) ([]choice, error) {
 		}
 		out = append(out, choice{label: identity.Name(), dim: identity.Email(), value: id.String()})
 	}
-	out = append(out, choice{label: "(nobody)", dim: "clears the field", value: ""})
+	out = append(out, choice{label: "(nobody)", dim: "clear", value: ""})
 	return out, nil
 }
 
@@ -168,7 +168,7 @@ func (e *editor) paste(text string) string {
 			return ""
 		}
 	}
-	return fmt.Sprintf("%q is not a value of %s", text, e.key)
+	return fmt.Sprintf("%s: no value %q", e.key, text)
 }
 
 // Update runs the widget, and says when the user is done with it.
@@ -232,7 +232,7 @@ func (e *editor) View(width int) []string {
 	title := styleHeader.Render(e.key)
 
 	if e.picker == nil {
-		return []string{title, fit(e.input.View(), width), styleDim.Render("enter writes it, esc cancels")}
+		return []string{title, fit(e.input.View(), width), styleDim.Render("enter saves · esc cancels")}
 	}
 
 	lines := []string{title}
@@ -247,5 +247,5 @@ func (e *editor) View(width int) []string {
 		}
 		lines = append(lines, marker+label+styleDim.Render(item.dim))
 	}
-	return append(lines, styleDim.Render("enter writes it, esc cancels"))
+	return append(lines, styleDim.Render("enter saves · esc cancels"))
 }

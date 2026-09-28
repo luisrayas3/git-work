@@ -26,15 +26,20 @@ func TestShowDrawsTheIssue(t *testing.T) {
 	repo := testRepo(t)
 	id := newIssue(t, repo, map[string]any{"title": "write the renderer", "status": "in-progress", "estimate": 3})
 
-	drawn := plainView(show(t, repo, id, nil))
+	page := show(t, repo, id, nil)
+	drawn := plainView(page)
 
 	require.Contains(t, drawn, id[:7])
-	require.Contains(t, drawn, "write the renderer")
-	require.Contains(t, drawn, "(task)")
+	require.Contains(t, drawn, "write the renderer  task")
+	require.Contains(t, drawn, "━━━━", "the title is a heading, over a rule")
 	require.Contains(t, drawn, "status")
 	require.Contains(t, drawn, "in-progress")
 	require.Contains(t, drawn, "estimate")
-	// the body is the first comment, which an issue always has
+
+	// the body is the first comment, which an issue always has, and the
+	// description tab is where it is read
+	page.tab = tabDescription
+	drawn = plainView(page)
 	require.Contains(t, drawn, "the body")
 	require.Contains(t, drawn, "John Doe")
 }
@@ -75,9 +80,9 @@ func TestShowStartsWithTheCall(t *testing.T) {
 	require.Equal(t, "show  "+id[:7], strings.TrimSpace(first))
 }
 
-// TestShowHasDescriptionAndLogTabs: the tabs are the last two stops, the
-// cursor on one draws it, and the tab keys switch from anywhere.
-func TestShowHasDescriptionAndLogTabs(t *testing.T) {
+// TestShowHasThreeTabs: comments, description and log, one stop, switched
+// with left and right.
+func TestShowHasThreeTabs(t *testing.T) {
 	repo := testRepo(t)
 	id := newIssue(t, repo, map[string]any{"title": "one", "status": "to-do"})
 	_, err := host.IssueCommentNew(repo, id, "a later word")
@@ -86,33 +91,44 @@ func TestShowHasDescriptionAndLogTabs(t *testing.T) {
 	require.NoError(t, err)
 
 	page := show(t, repo, id, []string{"status"})
+	require.Equal(t, tabComments, page.tab)
 	drawn := plainView(page)
-	require.Contains(t, drawn, "description")
-	require.Contains(t, drawn, "the body")
-	require.NotContains(t, drawn, "a later word")
-
-	// box → button → fields → description → log
-	page = send(page, "tab", "tab", "tab").(*showPage)
-	require.Equal(t, stopDescription, page.current().stop)
-	page = send(page, "l").(*showPage)
-	require.Equal(t, stopLog, page.current().stop)
-
-	drawn = plainView(page)
+	for _, name := range []string{"comments", "description", "log"} {
+		require.Contains(t, drawn, name)
+	}
 	require.Contains(t, drawn, "a later word")
-	require.Contains(t, drawn, "set status to in-progress")
 	require.NotContains(t, drawn, "the body")
 
-	// ctrl+pgdown and vim's gt switch too, the cursor going along
-	page = send(page, "ctrl+pgdown").(*showPage)
-	require.Equal(t, stopDescription, page.tab)
-	page = send(page, "g", "t").(*showPage)
-	require.Equal(t, stopLog, page.tab)
+	// box → button → fields → tabs
+	page = send(page, "tab", "tab", "tab").(*showPage)
+	require.Equal(t, stopTabs, page.current().stop)
 
-	// and from the box, where t is a letter, ctrl+pgdown still switches
+	page = send(page, "right").(*showPage)
+	require.Equal(t, tabDescription, page.tab)
+	require.Contains(t, plainView(page), "the body")
+
+	page = send(page, "right").(*showPage)
+	require.Equal(t, tabLog, page.tab)
+	drawn = plainView(page)
+	require.Contains(t, drawn, "set status to in-progress")
+	require.Contains(t, drawn, "commented: a later word")
+
+	page = send(page, "right").(*showPage)
+	require.Equal(t, tabComments, page.tab, "it wraps")
+	page = send(page, "h").(*showPage)
+	require.Equal(t, tabLog, page.tab)
+
+	// ctrl+pgdown and vim's gt switch too
+	page = send(page, "ctrl+pgdown").(*showPage)
+	require.Equal(t, tabComments, page.tab)
+	page = send(page, "g", "t").(*showPage)
+	require.Equal(t, tabDescription, page.tab)
+
+	// and in the box, where letters and arrows are text, ctrl+pgdown still
 	page = show(t, repo, id, nil)
 	page = send(page, "t", "ctrl+pgdown").(*showPage)
 	require.Equal(t, "t", page.box.draft())
-	require.Equal(t, stopLog, page.tab)
+	require.Equal(t, tabDescription, page.tab)
 }
 
 // TestShowFieldsAreATable: once the cursor is in the table, up and down walk
@@ -122,6 +138,8 @@ func TestShowFieldsAreATable(t *testing.T) {
 	id := newIssue(t, repo, map[string]any{"title": "one", "status": "to-do", "priority": "high"})
 
 	page := show(t, repo, id, []string{"status", "priority"})
+	require.NotContains(t, plainView(page), "value", "no column headers")
+
 	page = send(page, "tab", "tab").(*showPage)
 	require.Equal(t, stopFields, page.current().stop)
 	require.Equal(t, "status", page.field())
@@ -129,7 +147,7 @@ func TestShowFieldsAreATable(t *testing.T) {
 	page = send(page, "j").(*showPage)
 	require.Equal(t, "priority", page.field())
 	page = send(page, "j").(*showPage)
-	require.Equal(t, stopDescription, page.current().stop)
+	require.Equal(t, stopTabs, page.current().stop)
 	page = send(page, "k").(*showPage)
 	require.Equal(t, "priority", page.field())
 	page = send(page, "k", "k").(*showPage)
@@ -139,6 +157,24 @@ func TestShowFieldsAreATable(t *testing.T) {
 	updated, cmd := page.Update(press("alt+c"))
 	require.NotNil(t, cmd)
 	require.Contains(t, plainView(updated), "copied "+id[:7])
+}
+
+// TestShowFollowsALink: a relation row is the issue it names, and enter on
+// it opens that issue.
+func TestShowFollowsALink(t *testing.T) {
+	repo := testRepo(t)
+	story := newIssue(t, repo, map[string]any{"type": "story", "title": "the story"})
+	id := newIssue(t, repo, map[string]any{"title": "the task", "parent": story})
+
+	page := show(t, repo, id, []string{"parent"})
+	drawn := plainView(page)
+	require.Contains(t, drawn, story[:7]+" the story")
+	require.NotContains(t, drawn, story)
+
+	page = send(page, "tab", "tab").(*showPage)
+	_, cmd := page.Update(press("enter"))
+	require.NotNil(t, cmd)
+	require.Equal(t, story, cmd().(pushMsg).page.(*showPage).id)
 }
 
 // TestShowEditsTheFieldUnderTheCursor: ctrl+enter edits the row the cursor
@@ -179,7 +215,7 @@ func TestShowOpensInTheCommentBox(t *testing.T) {
 
 	page = send(page, "ctrl+enter").(*showPage)
 	require.Empty(t, page.box.draft())
-	require.Contains(t, plainView(page), "on the log tab")
+	require.Contains(t, plainView(page), "hiq", "the comments tab shows it")
 
 	document, err := host.IssueGet(repo, id)
 	require.NoError(t, err)
@@ -262,4 +298,17 @@ func join(list []string) string {
 		out += item + " "
 	}
 	return out
+}
+
+// TestTheCommentBoxGrows: two lines to start, then as tall as what is typed,
+// up to a paragraph.
+func TestTheCommentBoxGrows(t *testing.T) {
+	repo := testRepo(t)
+	id := newIssue(t, repo, map[string]any{"title": "one"})
+
+	page := show(t, repo, id, nil)
+	require.Len(t, page.box.View(page.width), commentMinHeight)
+
+	page = send(page, "a", "enter", "b", "enter", "c", "enter", "d").(*showPage)
+	require.Len(t, page.box.View(page.width), 4)
 }

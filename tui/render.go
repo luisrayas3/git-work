@@ -22,6 +22,26 @@ var (
 	styleGrab   = lipgloss.NewStyle().Foreground(lipgloss.Color("3")).Bold(true)
 )
 
+// darkBackground is whether the terminal is dark, as it answered when asked;
+// dark until it answers, because most are.
+var darkBackground = true
+
+// styleRow is the light wash over the row under the cursor: a shade off the
+// background, whichever way the background goes.
+func styleRow() lipgloss.Style {
+	if darkBackground {
+		return lipgloss.NewStyle().Background(lipgloss.Color("236"))
+	}
+	return lipgloss.NewStyle().Background(lipgloss.Color("254"))
+}
+
+// styleTitle is the issue's title on show: as large as a terminal allows,
+// which is bold, in the accent colour, over a rule.
+var styleTitle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("6"))
+
+// styleLink is a value that names another issue: enter follows it.
+var styleLink = lipgloss.NewStyle().Underline(true)
+
 // noGroup is what a row with no value for the grouping field is filed under.
 const noGroup = "(none)"
 

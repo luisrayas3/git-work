@@ -74,18 +74,20 @@ and an agent has a better one.
 
 ## The first line is the call
 
-Every view's first line is **the call that drew it**,
-spelled the way it was made:
-the kind, then each argument —
-`list  fields=["type","title"]  query=map(…)`,
+Every view's first line is **the call that drew it**:
+the kind, then its arguments —
+`list  group_by=status  map(select(…))`,
 `show abc1234`.
 The command is the spec, so the one line that answers
 "what am I looking at?" is the call itself.
-The query is always on it, default or not,
-because it is the answer to "why these issues?".
-An argument left at its default is dim, and comes after the ones somebody chose,
-so a long default query is what a narrow window cuts
-and not the argument that was typed.
+Two arguments are not spelled on it, because the screen already says them
+(revised 2026-09-28, Luis):
+`fields` is the columns of a list and the rows of a show's table,
+and the query goes **last, without its name** —
+it is on every kind but `show`, it is the answer to "why these issues?",
+and it is the one argument that runs long,
+so it is what a narrow window cuts.
+An argument left at its default is dim, so the ones somebody chose stand out.
 The status line at the bottom keeps the last message and the count,
 and no longer carries the query (revised 2026-09-27, Luis).
 
@@ -168,10 +170,10 @@ put three spellings in every cell, which read as noise to all three).
 | copy the cell under the cursor | `C-c`, and `⌘-c` `C-S-c` where the terminal hands them over | `y` | `M-w` |
 | copy the issue id, from any column | `M-c` | `Y` | |
 | paste into the field under the cursor | the terminal's paste (`⌘-v`, `C-S-v`) | `p` | `C-y` |
-| next / previous tab (show) | `C-PgDn` `C-PgUp` | `gt` `gT` | |
+| next / previous tab (show) | `→` `←`, `C-PgDn` `C-PgUp` | `l` `h`, `gt` `gT` | `C-f` `C-b` |
 | narrow the rows by text | `/` | `/` | `C-s` |
-| cancel, back | `Esc` | `Esc` | `Esc` `C-g` |
-| quit | `C-q` | `q` | `C-q` |
+| back; twice from the first view, quit | `Esc` | `Esc` `q` | `Esc` `C-g` |
+| quit, at once | `C-q` | | |
 
 A blank cell is the standard key, which every family also reads.
 `Enter` opens, `Space` grabs and `?` is the help in every family.
@@ -183,6 +185,18 @@ so the renderer is free to give it that meaning.
 `C-q` is the quit that nothing swallows —
 grabbed, in a text box, in a picker —
 which is the guarantee `C-c` used to carry.
+
+**Back is always back** (revised 2026-09-28, Luis).
+`Esc`, vim's `q` and emacs's `C-g` leave whatever is open —
+a filter, a picker, an issue —
+and from the first view they leave the program,
+but only on the second press:
+the first says *back again quits*,
+and any other key in between disarms it.
+Back from the first view is the one back that loses the view,
+and a stray `Esc` must not end a session.
+`q` is therefore not a quit key any more, and there is no single-key quit
+except `C-q`.
 
 **`C-Enter` edits; `e` is gone.**
 A letter that edits is a letter that cannot be typed,
@@ -264,12 +278,26 @@ The rest is the same on every kind:
 
 | Key | Action |
 | --- | --- |
-| `Enter` | open `show` for the issue under the cursor; `Esc` returns to the view where it was |
+| `Enter` | open `show` for the issue under the cursor, or for the one a link cell names; `Esc` returns to the view where it was |
 | edit | edit the field under the cursor in place, or ask which field on a card or a bar |
 | copy | copy the cell under the cursor to the clipboard over OSC 52 |
 | `/` `C-s` | narrow the visible rows by text, locally |
 | `?` | list the keys |
-| `q` `C-q` | quit |
+| back | back; twice from the first view, quit |
+
+On a list, the row under the cursor has **a light wash across the window**,
+a shade off the terminal's background, which the renderer asks the terminal for,
+and the cell under the column cursor is reversed within it:
+the wash says which issue, the cell says which field.
+
+**A relation is a link** (2026-09-28, Luis).
+A field of kind `relation` or `multi-relation` holds the other issue's whole id,
+and nobody reads a 64-character hash,
+so it is drawn as the issue it names: short id and title, underlined.
+`Enter` on it opens that issue rather than the row's;
+a cell that names several asks which.
+Copy on it copies the id, which is what another command takes.
+A link to an issue the store does not have yet is its short id alone.
 
 There is no comment key on a list.
 A comment is written on `show`, where the issue it is about is on the screen
@@ -284,6 +312,12 @@ Editing a relation waits for questions to the user (choose), below.
 `/` is a local narrowing of what is drawn.
 It never writes, and it never changes the query —
 the query is the view's input, and changing it is re-running the call.
+
+**What the renderer says is terse** (2026-09-28, Luis):
+a status line, a hint, an empty tab and a log line are the fewest words that
+carry them — *copied status*, *id not editable*, *back again to quit*,
+*(no comments)*, *created* — with no pronouns, no instructions the help
+already gives, and the reasoning left to this document.
 
 Every write goes through package `host`,
 so the renderer gets the schema check and the write lock for free
@@ -340,17 +374,26 @@ and because `Enter` from any kind opens it.
 It takes `id`, and `fields` to narrow and order what it prints;
 by default it prints the type's fields in schema order.
 
-The page is **five stops**, top to bottom (revised 2026-09-27, Luis):
+The page is **four stops**, top to bottom (revised 2026-09-28, Luis):
 
 1. the **title**;
 2. the **comment box**, immediately below it, with its buttons under it;
-3. the **fields table**, a key column and a value column;
-4. the **description** tab;
-5. the **log** tab.
+3. the **fields table**;
+4. the **tabs**: comments, description and log.
+
+The title is a heading.
+A terminal has one size of text,
+so it is made to read as one the other ways:
+bold, in the accent colour, over a rule as long as it is,
+with a blank line on either side, the type dim beside it.
 
 The cursor opens **in the comment box**,
 because opening an issue to say something about it is the common case,
 and the box is where the typing goes.
+It opens two lines tall and grows with what is typed, up to a paragraph.
+The textarea's highlighted cursor line is turned off:
+its shade is the colour of the text on the wrong kind of terminal,
+and what was typed disappeared into it.
 `Tab` and `S-Tab` move between stops from anywhere, the box included,
 and step through the box's buttons on the way,
 because a button that `Tab` cannot reach is one a terminal without `C-Enter`
@@ -359,28 +402,33 @@ Outside the box's text the directions work within a stop first
 and move to the next stop at its edge:
 in the table, up and down walk the rows,
 and past the last row is the tab strip;
-on a tab, up and down scroll it, and left and right switch tabs.
+on the tabs, up and down scroll.
 Edit and copy work on the title and on each row as on a list cell;
 copy on the description copies the description.
 
-The two tabs are drawn **as tabs**, under the fields table:
-two boxes on a rule, the one drawn open into what is under it.
-Focus follows selection, as on any tab strip:
-the tab the cursor is on is the tab drawn.
-`C-PgDn` and `C-PgUp` switch tabs from anywhere, the box included,
-which is the tab key of every browser and editor,
-and vim's `gt` and `gT` switch them outside the box.
-`t` is gone: a letter is a bad universal key on a page that opens in a text box,
-and a toggle is a bad name for two tabs.
+The fields table is two columns, the key dim and the value,
+with no header row: a key and its value need no caption.
+A relation is a link here as on a list,
+and a `multi-relation` is a line per issue it names,
+so that each is a link the cursor can stand on and `Enter` can follow.
 
-The **description** is the issue's body, its first comment.
-The **log** is one timeline of what happened, in the order it happened:
-each comment in full, as it reads now,
-and each other operation on a line of its own —
-*set status to in-progress*, *added cli to area*.
-It replaces the comments pane and the op-log pane that `t` switched between,
-because what was said and what was done answer the same question,
-and reading one to find the other is what the toggle made people do.
+The tabs are drawn **as tabs**, under the fields table:
+boxes on a rule, the one drawn open into what is under it.
+**Left and right switch them**, from anywhere but the box's text —
+the tab keys of this page, since nothing else on it goes sideways —
+and `C-PgDn` and `C-PgUp` from anywhere, the box included,
+which is the tab key of every browser and editor;
+vim's `gt` and `gT` work outside the box.
+`t` is gone: a letter is a bad universal key on a page that opens in a text box.
+
+- **comments**, the default, is what was said: every comment after the body, in full, as it reads now.
+- **description** is the issue's body, its first comment.
+- **log** is what was done, an operation to a line, in the order it was done —
+  *set status to in-progress*, *added cli to area*, *commented: …*.
+
+Comments and the log were one timeline for a day;
+they are two tabs again because reading a discussion
+and reading what changed are two different reasons to open an issue.
 
 The box submits with `C-Enter`,
 or with `Tab` to a button and `Enter`, which every terminal can send.

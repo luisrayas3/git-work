@@ -29,16 +29,26 @@ type (
 	refreshMsg struct{}
 	// blinkMsg drives the grabbed row's blink.
 	blinkMsg struct{}
+	// statusMsg is a line for the top page's status line, from the stack.
+	statusMsg string
 )
 
 // root is the stack of pages, and the two keys that are the program's own.
 type root struct {
 	pages         []page
 	width, height int
+
+	// armed says the last key went back from the first view: the next back
+	// quits. It is disarmed by any other key.
+	armed bool
+	// confirming is armed as it stood before the key being handled.
+	confirming bool
 }
 
 func (r *root) Init() tea.Cmd {
-	return nil
+	// the terminal's background decides the highlight colours, which have to
+	// be light on a dark terminal and dark on a light one
+	return tea.RequestBackgroundColor
 }
 
 func (r *root) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -63,6 +73,11 @@ func (r *root) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.String() == "ctrl+q" {
 			return r, tea.Quit
 		}
+		r.confirming, r.armed = r.armed, false
+
+	case tea.BackgroundColorMsg:
+		darkBackground = msg.IsDark()
+		return r, r.broadcast(msg)
 
 	case pushMsg:
 		r.pages = append(r.pages, msg.page)
@@ -71,8 +86,16 @@ func (r *root) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return r, cmd
 
 	case popMsg:
+		// Back from the first view is the one back that loses the view, so it
+		// asks for a second one: a stray esc must not end a session.
 		if len(r.pages) <= 1 {
-			return r, tea.Quit
+			if r.confirming {
+				return r, tea.Quit
+			}
+			r.armed = true
+			top, cmd := r.top().Update(statusMsg("back again to quit"))
+			r.pages[0] = top
+			return r, cmd
 		}
 		r.pages = r.pages[:len(r.pages)-1]
 		return r, nil

@@ -3,6 +3,9 @@ package tui
 import (
 	"fmt"
 	"strings"
+
+	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
 )
 
 // idWidth is the short id's column: the same seven characters every other
@@ -43,6 +46,15 @@ func (p *listPage) bottom() []string {
 		lines = p.editor.View(p.width)
 	case p.filtering != nil:
 		lines = []string{fit("/"+p.filtering.View(), p.width)}
+	case p.choosing != nil:
+		lines = []string{styleHeader.Render("open which?")}
+		for at, item := range p.choosing.items {
+			marker, label := "  ", item.label
+			if at == p.choosing.cursor {
+				marker, label = "> ", styleCursor.Render(label)
+			}
+			lines = append(lines, fit(marker+label, p.width))
+		}
 	}
 	return append(lines, p.statusLine())
 }
@@ -51,13 +63,16 @@ func (p *listPage) bottom() []string {
 // write land?"; what am I looking at is the call, on the first line.
 func (p *listPage) statusLine() string {
 	count := fmt.Sprintf("%d issues", len(p.order))
+	if len(p.order) == 1 {
+		count = "1 issue"
+	}
 	if p.filter != "" {
-		count = fmt.Sprintf("%d of %d issues, filter %q", len(p.order), len(p.rows), p.filter)
+		count = fmt.Sprintf("%d of %d issues · /%s", len(p.order), len(p.rows), p.filter)
 	}
 
 	left := p.status
 	if left == "" {
-		left = "? for keys"
+		left = "? keys"
 	}
 
 	line := fmt.Sprintf("%s · %s", left, count)
@@ -101,38 +116,62 @@ func (p *listPage) body() (header string, rows []string, cursorLine int) {
 
 // rowLine draws one issue: the short id, then the fields as columns.
 //
-// The cell under the column cursor is reversed, which is what says that edit
-// and copy act on that one and not the row. The id is a cell like the others,
-// and the one the cursor starts on.
+// The row under the cursor has a light wash across the whole window, which
+// says which issue; the cell under the column cursor is reversed within it,
+// which says that edit and copy act on that one. The id is a cell like the
+// others, and the one the cursor starts on. A cell that links other issues
+// is underlined, because enter follows it.
 func (p *listPage) rowLine(row *listRow, widths []int, under bool, grabbed bool) string {
-	cells := make([]string, 0, len(p.fields)+1)
+	// every piece is styled on its own, the wash included: a style ends in
+	// a reset, and a reset inside the row would end the wash with it
+	wash := lipgloss.NewStyle()
+	if under {
+		wash = styleRow()
+	}
+
+	parts := make([]string, 0, 2*len(p.fields)+3)
 	id := pad(row.human, idWidth)
 	if under && p.column == 0 {
-		cells = append(cells, styleCell.Render(id))
+		id = styleCell.Render(id)
 	} else {
-		cells = append(cells, styleDim.Render(id))
+		id = wash.Faint(true).Render(id)
 	}
+	parts = append(parts, id)
 
+	used := idWidth + 1
 	for at, key := range p.fields {
-		cell := pad(plainValue(row.fields[key]), widths[at])
-		if under && at+1 == p.column {
-			cell = styleCell.Render(cell)
+		parts = append(parts, wash.Render(" "))
+		text := truncate(row.cells[key], widths[at])
+		gap := strings.Repeat(" ", max(widths[at]-ansi.StringWidth(text), 0))
+		style := wash
+		if len(row.links[key]) > 0 {
+			style = style.Underline(true)
 		}
-		cells = append(cells, cell)
+		if under && at+1 == p.column {
+			style = styleCell
+			if len(row.links[key]) > 0 {
+				style = style.Underline(true)
+			}
+		}
+		parts = append(parts, style.Render(text)+wash.Render(gap))
+		used += 1 + widths[at]
+	}
+	if under && p.width > used {
+		parts = append(parts, wash.Render(strings.Repeat(" ", p.width-used)))
 	}
 
-	line := strings.Join(cells, " ")
+	line := strings.Join(parts, "")
 	switch {
 	case grabbed && p.blink:
 		line = styleGrab.Render("[") + line + styleGrab.Render("]")
 	case grabbed:
 		line = styleGrab.Render("⟨") + line + styleGrab.Render("⟩")
 	case under:
-		line = "›" + line
+		line = wash.Render("›") + line
 	default:
 		line = " " + line
 	}
-	return line
+	return fit(line, p.width)
 }
 
 // detailLines are the dim second line under a row, one per detail field, so
@@ -144,7 +183,7 @@ func (p *listPage) detailLines(row *listRow) []string {
 
 	parts := make([]string, 0, len(p.details))
 	for _, key := range p.details {
-		value := plainValue(row.fields[key])
+		value := row.cells[key]
 		if value == "" {
 			continue
 		}
@@ -164,7 +203,7 @@ func (p *listPage) widths() []int {
 	for at, key := range p.fields {
 		widths[at] = len([]rune(key))
 		for _, index := range p.order {
-			if n := len([]rune(plainValue(p.rows[index].fields[key]))); n > widths[at] {
+			if n := ansi.StringWidth(p.rows[index].cells[key]); n > widths[at] {
 				widths[at] = n
 			}
 		}
