@@ -48,7 +48,7 @@ func Sync(ctx context.Context, repo *cache.RepoCache, c *jiraapi.Client, p *Proj
 		opts.MaxDeletes = 10
 	}
 	e := &engine{ctx: ctx, repo: repo, c: c, p: p, m: m, st: st, opts: opts, emit: emit,
-		authors: map[string]identity.Interface{}, done: map[entity.Id]bool{}, cursor: st.Cursor}
+		authors: map[string]identity.Interface{}, done: map[entity.Id]bool{}, missing: map[string]bool{}, cursor: st.Cursor}
 
 	err := e.setup()
 	if err == nil {
@@ -88,6 +88,7 @@ type engine struct {
 	grew    bool        // the run imported or created an issue
 	cursor  time.Time
 	sum     Summary
+	missing map[string]bool      // Jira ids a GET found deleted or moved out (JS19)
 	created map[entity.Id]string // in-doubt creates found by the created search (JS15); nil until searched
 }
 

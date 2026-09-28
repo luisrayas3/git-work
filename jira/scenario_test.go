@@ -297,6 +297,33 @@ func TestJiraDeleteGone(t *testing.T) {
 	require.NotEmpty(t, lines[0].Pending)
 }
 
+// JS19: a GET finding a linked issue deleted is not a failure: an
+// incremental run reports it pending, and --full marks it gone even while
+// the lagging index still returns it (review2 #2).
+func TestJiraDeleteSeenByGet(t *testing.T) {
+	w := newWorld(t)
+	key, ic := w.imported("Edited, then deleted")
+	w.set(ic.Id(), "title", str("local edit"))
+	w.srv.Delete(key)
+	lines, _ := w.mustSync(jira.Options{})
+	require.Len(t, lines, 1)
+	require.Equal(t, jira.ActionSkipped, lines[0].Action)
+	require.Contains(t, lines[0].Pending[0].Reason, "--full marks it gone")
+	_, sum := w.mustSync(jira.Options{Full: true})
+	require.Equal(t, 1, sum.Gone)
+
+	lag := newWorld(t, jiratest.WithIndexLag(1, 0))
+	key = lag.srv.CreateIssue(jiratest.IssueSpec{Project: "PROJ", Type: "Task", Summary: "Deleted, still indexed"})
+	lag.mustSync(jira.Options{})
+	lag.mustSync(jira.Options{})
+	ic = lag.byKey(key)
+	lag.srv.Delete(key)
+	lines, sum = lag.mustSync(jira.Options{Full: true})
+	require.Equal(t, 1, sum.Gone, "%+v", lines)
+	b, _ := jira.CurrentBase(ic.Snapshot())
+	require.Equal(t, jira.GoneDeleted, b.Gone)
+}
+
 func TestMassDeleteHeld(t *testing.T) {
 	w := newWorld(t)
 	var keys []string

@@ -91,14 +91,23 @@ func (e *engine) syncLinked(ic *cache.IssueCache) error {
 		line.Pending = append(line.Pending, Skip{Key: MetaSync, Reason: p})
 	}
 	ri, cs, err := e.read(b.Id)
-	if err != nil {
+	gone := ""
+	switch {
+	case jiraapi.StatusCode(err) == 404:
+		gone = "not in Jira: deleted, or hidden from the sync's account"
+	case err != nil:
 		return e.fail(line, err)
+	case !e.p.Owns(ri.Key):
+		gone = "moved to " + ri.Key
 	}
-	if !e.p.Owns(ri.Key) {
-		// moved out of the project: Gone, but only under --full (JS19)
-		line.Action = ActionSkipped
-		line.Pending = append(line.Pending, Skip{Key: "*", Reason: "moved to " + ri.Key + "; --full marks it gone"})
-		e.report(line)
+	if gone != "" {
+		// Gone, but only under --full, whose Gone pass then decides (JS19)
+		e.missing[b.Id] = true
+		if !e.opts.Full {
+			line.Action = ActionSkipped
+			line.Pending = append(line.Pending, Skip{Key: "*", Reason: gone + "; --full marks it gone"})
+			e.report(line)
+		}
 		return nil
 	}
 	line.Jira = ri.Key

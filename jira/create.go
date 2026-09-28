@@ -288,7 +288,7 @@ func (e *engine) runGone(hits []hit, l *local) error {
 	var found []gone
 	for _, id := range l.linked {
 		jid := l.byId[id].CreateMetadata[MetaId]
-		if present[jid] {
+		if present[jid] && !e.missing[jid] { // a lagging index still shows a deleted or moved issue
 			continue
 		}
 		ic, err := e.repo.Issues().Resolve(id)
