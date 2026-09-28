@@ -1277,6 +1277,19 @@ func TestAdvUnconfirmedWriteNotBase(t *testing.T) {
 	require.Equal(t, "edited here", w.srv.Issue(key).Summary, "and is exported again")
 }
 
+// I1 with I2: a local value Jira normalises back to the value it held is
+// unconfirmed twice, then Jira's is imported with a note: never an export
+// every run, never a silent revert.
+func TestAdvNormalisedBackToOld(t *testing.T) {
+	w := newWorld(t)
+	_, ic := w.imported("Fix")
+	w.set(ic.Id(), "title", str("Fix  "))
+	w.converge(4)
+	require.Equal(t, `"Fix"`, field(t, ic, "title"))
+	require.Contains(t, notesText(ic), `title: local "Fix  " -> Jira "Fix"`)
+	w.quietFull()
+}
+
 // I4: a link repair by property trusts the database, not the search's
 // copy: a property changed in Jira while the index lags links nothing.
 func TestAdvLinkRepairReadsProperty(t *testing.T) {

@@ -3,6 +3,7 @@ package jira
 import (
 	"encoding/json"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -145,12 +146,19 @@ func (e *engine) converge(ic *cache.IssueCache, b *Base, ri *jiraapi.Issue, cs [
 		if ri2, cs2, err = e.read(ri.ID); err != nil {
 			return e.fail(line, err)
 		}
-		unconfirmed = e.unconfirmed(plan1.Remote, b2, remote, e.m.fromIssue(ri2, cs2, e.ix))
 		// I2: a write Jira does not show yet is not a base; the prior one stays,
 		// so if Jira keeps the old value the next run exports again rather than
-		// importing the old value over the local edit
-		for _, k := range unconfirmed {
+		// importing it over the local edit. Unconfirmed a second run in a row,
+		// Jira holds its value (it normalised ours back to it, or someone set
+		// it): the key loses its base, so plan₂ imports Jira's with a note
+		// instead of exporting every run (I1).
+		for _, k := range e.unconfirmed(plan1.Remote, b2, remote, e.m.fromIssue(ri2, cs2, e.ix)) {
+			if b != nil && slices.Contains(b.Retry, k) {
+				delete(b2.Fields, k)
+				continue
+			}
 			restore(b2, b, k)
+			unconfirmed = append(unconfirmed, k)
 		}
 	}
 	return e.commit(ic, b2, ri2, cs2, pairs, meta, unconfirmed, line)
