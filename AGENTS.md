@@ -358,7 +358,9 @@ Settled calls (details live in the referenced issues):
   (`47b8430` closed, `483dbe2`).
 - Concurrency: no daemon. Lock-free readers, a short write lock,
   ref→hash staleness diff, a ref watcher for live views (`d35de2e`, `d591cb3`, `63c68d1`).
-  Bleve is dropped; search is a non-goal (`3500366`).
+  Nothing uses bleve and search is a non-goal for now (`3500366`);
+  the dependency stays, unused, in the pristine `repository/`,
+  so full-text search can come back on it if a workflow needs it (`0578918`).
 - Ref namespaces carry the `work-` prefix: `refs/work-issues`,
   `work-schema`, `work-flows`, and
   `work-users` after the migration (`483dbe2`, named 2026-09-25 to match `git work user` and `work.user.me()`). The store is **migrated

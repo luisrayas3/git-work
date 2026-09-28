@@ -201,6 +201,11 @@ and revisit if it ever bites.
   on-disk index, the writes during build, and the doc-count heuristic that was
   `Load`'s only consistency check.
 
+  Revised 2026-09-28 (`0578918`): the dependency stays on purpose, not only
+  as dead weight. Deleting it is a pristine-package edit, and bleve is the
+  full-text search we would otherwise design ourselves if comment search ever
+  bites; keeping `repository/` unmodified keeps that door open.
+
 ## Risks
 
 - **A short lock is only as good as its coverage.** If any mutation path

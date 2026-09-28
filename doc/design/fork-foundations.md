@@ -56,6 +56,8 @@ A `make migrate/issues-namespace` target, idempotent, in this order:
 6. print what to do about origin, and stop.
 
 The backup refs stay until the next story starts, then get deleted by hand.
+The script and its target were deleted on 2026-09-28 (`c4a4afe`),
+after the second migration (`bf6f392`) brought its own `git work migrate`.
 
 **Alternative rejected:** a `git work migrate` command that detects legacy refs.
 It is permanent code for a problem exactly one repository has, exactly once.

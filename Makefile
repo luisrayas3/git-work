@@ -37,10 +37,6 @@ secure:
 test:
 	go test -v -bench=. ./...
 
-.PHONY: migrate/issues-namespace
-migrate/issues-namespace:
-	./misc/migrate/bugs-to-issues.sh
-
 .PHONY: clean-local-issues
 clean-local-issues:
 	git for-each-ref refs/issues/ | cut -f 2 | $(XARGS) -n 1 git update-ref -d
