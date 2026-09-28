@@ -1,0 +1,410 @@
+package jiratest
+
+import (
+	"fmt"
+	"net/http"
+	"slices"
+	"strconv"
+	"strings"
+)
+
+func (s *Server) getMyself(c *call) (int, any, error) {
+	m := s.userJSON(c.user.AccountID).(map[string]any)
+	m["locale"] = "en_US"
+	m["groups"] = map[string]any{"size": 1, "items": []any{}}
+	m["applicationRoles"] = map[string]any{"size": 1, "items": []any{}}
+	return http.StatusOK, m, nil
+}
+
+func (s *Server) getServerInfo(c *call) (int, any, error) {
+	return http.StatusOK, map[string]any{
+		"baseUrl":        s.srv.URL,
+		"displayUrl":     s.srv.URL,
+		"version":        "1001.0.0-SNAPSHOT",
+		"versionNumbers": []int{1001, 0, 0},
+		"deploymentType": "Cloud",
+		"buildNumber":    100280,
+		"buildDate":      s.ts(s.cfg.start.AddDate(0, 0, -3)),
+		"serverTime":     s.ts(s.clock()),
+		"scmInfo":        "1f51473f5c7b75c1a69a0090f4832cdc5053702a",
+		"serverTitle":    s.site.Title,
+		"serverTimeZone": s.siteZone.String(),
+		"defaultLocale":  map[string]any{"locale": "en_US"},
+	}, nil
+}
+
+// getFields is /field: system fields, then custom ones; a caller who can
+// browse no project sees the system fields only (api.md §8.1).
+func (s *Server) getFields(c *call) (int, any, error) {
+	out := []map[string]any{}
+	for _, f := range systemFields {
+		out = append(out, map[string]any{
+			"id": f.id, "key": f.id, "name": f.name, "custom": false,
+			"orderable": f.orderable, "navigable": f.navigable, "searchable": true,
+			"clauseNames": []string{f.id}, "schema": f.schema,
+		})
+	}
+	if c.denied {
+		return http.StatusOK, out, nil
+	}
+	for _, f := range s.fields {
+		m := map[string]any{
+			"id": f.ID, "key": f.ID, "name": f.Name, "untranslatedName": f.Name, "custom": true,
+			"orderable": true, "navigable": true, "searchable": true,
+			"clauseNames": []string{fmt.Sprintf("cf[%d]", f.numericID()), f.Name},
+			"schema":      f.schema(),
+		}
+		if f.ProjectID != "" {
+			m["scope"] = map[string]any{"type": "PROJECT", "project": map[string]any{"id": f.ProjectID}}
+		}
+		out = append(out, m)
+	}
+	return http.StatusOK, out, nil
+}
+
+func (s *Server) projectOr404(key string) (*project, error) {
+	p := s.projectByKey(key)
+	if p == nil {
+		return nil, notFound(fmt.Sprintf("No project could be found with key '%s'.", key))
+	}
+	return p, nil
+}
+
+func (s *Server) getProject(c *call) (int, any, error) {
+	p, err := s.projectOr404(c.v("projectIdOrKey"))
+	if err != nil {
+		return 0, nil, err
+	}
+	types := []map[string]any{}
+	for i := range p.def.IssueTypes {
+		types = append(types, s.issueTypeJSON(p, &p.def.IssueTypes[i]))
+	}
+	style := "classic"
+	if p.def.TeamManaged {
+		style = "next-gen"
+	}
+	m := s.projectRefJSON(p)
+	m["description"] = ""
+	m["lead"] = s.userJSON(p.def.Lead)
+	m["assigneeType"] = "UNASSIGNED"
+	m["style"] = style
+	m["isPrivate"] = false
+	m["archived"] = false
+	m["issueTypes"] = types
+	m["versions"] = []any{}
+	m["components"] = []any{}
+	m["roles"] = map[string]any{}
+	if parseExpand(c.q["expand"]...)["projectKeys"] {
+		m["projectKeys"] = []string{p.def.Key}
+	}
+	return http.StatusOK, m, nil
+}
+
+// workflowStatuses are the statuses a type's workflow uses, in project order.
+func workflowStatuses(p *project, t *IssueType) []*Status {
+	used := map[string]bool{t.Workflow.Initial: true}
+	for _, tr := range t.Workflow.Transitions {
+		used[tr.To] = true
+		for _, f := range tr.From {
+			used[f] = true
+		}
+	}
+	var out []*Status
+	for i := range p.def.Statuses {
+		if used[p.def.Statuses[i].ID] {
+			out = append(out, &p.def.Statuses[i])
+		}
+	}
+	return out
+}
+
+func (s *Server) getProjectStatuses(c *call) (int, any, error) {
+	p, err := s.projectOr404(c.v("projectIdOrKey"))
+	if err != nil {
+		return 0, nil, err
+	}
+	out := []map[string]any{}
+	for i := range p.def.IssueTypes {
+		t := &p.def.IssueTypes[i]
+		sts := []map[string]any{}
+		for _, st := range workflowStatuses(p, t) {
+			sts = append(sts, s.statusJSON(p, st))
+		}
+		out = append(out, map[string]any{
+			"self": s.self(v3 + "/issueType/" + t.ID), "id": t.ID, "name": t.Name,
+			"subtask": t.Subtask(), "statuses": sts,
+		})
+	}
+	return http.StatusOK, out, nil
+}
+
+// getHierarchy has integer ids, unlike the rest of the platform API (api.md §8.4).
+func (s *Server) getHierarchy(c *call) (int, any, error) {
+	p, err := s.projectOr404(c.v("projectId"))
+	if err != nil {
+		return 0, nil, err
+	}
+	levels := map[int][]map[string]any{}
+	for _, t := range p.def.IssueTypes {
+		id, _ := strconv.Atoi(t.ID)
+		levels[t.HierarchyLevel] = append(levels[t.HierarchyLevel], map[string]any{"id": id, "name": t.Name, "avatarId": 10300})
+	}
+	names := map[int]string{-1: "Subtask", 0: "Base", 1: "Epic"}
+	var keys []int
+	for l := range levels {
+		keys = append(keys, l)
+	}
+	slices.Sort(keys)
+	out := []map[string]any{}
+	for _, l := range keys {
+		name := names[l]
+		if name == "" {
+			name = "Level " + strconv.Itoa(l)
+		}
+		out = append(out, map[string]any{"level": l, "name": name, "issueTypes": levels[l]})
+	}
+	pid, _ := strconv.Atoi(p.def.ID)
+	return http.StatusOK, map[string]any{"projectId": pid, "hierarchy": out}, nil
+}
+
+func (s *Server) getTypesForProject(c *call) (int, any, error) {
+	id := c.q.Get("projectId")
+	if _, err := strconv.ParseInt(id, 10, 64); err != nil {
+		return 0, nil, badRequest("The projectId parameter must be a number.")
+	}
+	p := s.projectByKey(id)
+	if p == nil || c.denied {
+		return 0, nil, notFound(fmt.Sprintf("No project could be found with id '%s'.", id))
+	}
+	out := []map[string]any{}
+	for i := range p.def.IssueTypes {
+		t := &p.def.IssueTypes[i]
+		if l := c.q.Get("level"); l != "" && l != strconv.Itoa(t.HierarchyLevel) {
+			continue
+		}
+		out = append(out, s.issueTypeJSON(p, t))
+	}
+	return http.StatusOK, out, nil
+}
+
+// createMetaTypes is the paginated createmeta (api.md §8.8); a caller
+// without Create issues gets no types.
+func (s *Server) createMetaTypes(c *call) (int, any, error) {
+	p, err := s.projectOr404(c.v("projectIdOrKey"))
+	if err != nil {
+		return 0, nil, err
+	}
+	start, max, err := createMetaPaging(c)
+	if err != nil {
+		return 0, nil, err
+	}
+	var all []map[string]any
+	if !c.denied {
+		for i := range p.def.IssueTypes {
+			all = append(all, s.issueTypeJSON(p, &p.def.IssueTypes[i]))
+		}
+	}
+	page := window(all, start, max)
+	return http.StatusOK, map[string]any{"issueTypes": page, "startAt": start, "maxResults": max, "total": len(all)}, nil
+}
+
+func (s *Server) createMetaFields(c *call) (int, any, error) {
+	p, err := s.projectOr404(c.v("projectIdOrKey"))
+	if err != nil {
+		return 0, nil, err
+	}
+	t := p.issueType(c.v("issueTypeId"))
+	if t == nil || t.ID != c.v("issueTypeId") {
+		return 0, nil, notFound("Issue type with id '" + c.v("issueTypeId") + "' does not exist or is not in the project.")
+	}
+	start, max, err := createMetaPaging(c)
+	if err != nil {
+		return 0, nil, err
+	}
+	var all []map[string]any
+	if !c.denied {
+		for _, id := range s.fieldIDs(t) {
+			if id == "resolution" || !onCreateScreen(t, id) {
+				continue
+			}
+			required := id == "summary" || id == "issuetype" || id == "project" ||
+				slices.Contains(t.Required, id) || (id == "parent" && t.Subtask())
+			m := s.fieldMeta(p, t, id, required)
+			m["fieldId"] = id
+			all = append(all, m)
+		}
+	}
+	page := window(all, start, max)
+	return http.StatusOK, map[string]any{"fields": page, "startAt": start, "maxResults": max, "total": len(all)}, nil
+}
+
+func createMetaPaging(c *call) (int, int, error) {
+	if v := c.q.Get("maxResults"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 200 {
+			return 0, 0, badRequest("Parameter 'maxResults' must not exceed the limit '200'")
+		}
+	}
+	return paging(c, 50, 200)
+}
+
+func window[T any](all []T, start, max int) []T {
+	out := []T{}
+	for i := start; i < len(all) && i < start+max; i++ {
+		out = append(out, all[i])
+	}
+	return out
+}
+
+func (s *Server) priorityFull(p Priority) map[string]any {
+	m := s.priorityJSON(p.ID).(map[string]any)
+	m["statusColor"] = p.Color
+	m["description"] = p.Name
+	return m
+}
+
+func (s *Server) getPriorities(c *call) (int, any, error) {
+	out := []map[string]any{}
+	for _, p := range s.priorities {
+		out = append(out, s.priorityFull(p))
+	}
+	return http.StatusOK, out, nil
+}
+
+// pageBean is the offset page bean with isLast (api.md §0).
+func (s *Server) pageBean(path string, all []map[string]any, start, max int) map[string]any {
+	page := window(all, start, max)
+	m := map[string]any{
+		"self": s.self(fmt.Sprintf("%s?startAt=%d&maxResults=%d", path, start, max)), "maxResults": max, "startAt": start,
+		"total": len(all), "isLast": start+max >= len(all), "values": page,
+	}
+	if start+max < len(all) {
+		m["nextPage"] = s.self(fmt.Sprintf("%s?startAt=%d&maxResults=%d", path, start+max, max))
+	}
+	return m
+}
+
+func (s *Server) searchPriorities(c *call) (int, any, error) {
+	start, max, err := paging(c, 50, 50)
+	if err != nil {
+		return 0, nil, err
+	}
+	ids := splitList(c.q["id"])
+	var all []map[string]any
+	for _, p := range s.priorities {
+		if len(ids) > 0 && !slices.Contains(ids, p.ID) {
+			continue
+		}
+		if n := c.q.Get("priorityName"); n != "" && !strings.Contains(strings.ToLower(p.Name), strings.ToLower(n)) {
+			continue
+		}
+		m := s.priorityFull(p)
+		m["isDefault"] = p.Default
+		all = append(all, m)
+	}
+	return http.StatusOK, s.pageBean(v3+"/priority/search", all, start, max), nil
+}
+
+func (s *Server) getResolutions(c *call) (int, any, error) {
+	out := []any{}
+	for _, r := range s.resolutions {
+		out = append(out, s.resolutionJSON(r.ID))
+	}
+	return http.StatusOK, out, nil
+}
+
+func (s *Server) searchResolutions(c *call) (int, any, error) {
+	start, max, err := paging(c, 50, 50)
+	if err != nil {
+		return 0, nil, err
+	}
+	ids := splitList(c.q["id"])
+	var all []map[string]any
+	for i, r := range s.resolutions {
+		if len(ids) > 0 && !slices.Contains(ids, r.ID) {
+			continue
+		}
+		m := s.resolutionJSON(r.ID).(map[string]any)
+		m["isDefault"] = i == 0
+		all = append(all, m)
+	}
+	return http.StatusOK, s.pageBean(v3+"/resolution/search", all, start, max), nil
+}
+
+func (s *Server) getStatusCategories(c *call) (int, any, error) {
+	out := []map[string]any{}
+	for _, cat := range categories {
+		out = append(out, s.categoryJSON(cat.key))
+	}
+	return http.StatusOK, out, nil
+}
+
+func (s *Server) getStatusCategory(c *call) (int, any, error) {
+	for _, cat := range categories {
+		if strconv.Itoa(cat.id) == c.v("idOrKey") || cat.key == c.v("idOrKey") {
+			return http.StatusOK, s.categoryJSON(cat.key), nil
+		}
+	}
+	return 0, nil, notFound(fmt.Sprintf("The status category with id '%s' does not exist.", c.v("idOrKey")))
+}
+
+func (s *Server) getStatuses(c *call) (int, any, error) {
+	out := []map[string]any{}
+	seen := map[string]bool{}
+	for _, p := range s.projects {
+		for i := range p.def.Statuses {
+			st := &p.def.Statuses[i]
+			if !seen[st.ID] {
+				seen[st.ID] = true
+				out = append(out, s.statusJSON(p, st))
+			}
+		}
+	}
+	return http.StatusOK, out, nil
+}
+
+func (s *Server) getUser(c *call) (int, any, error) {
+	id := c.q.Get("accountId")
+	if id == "" {
+		return 0, nil, badRequest("The accountId query parameter needs to be provided.")
+	}
+	u := s.userJSON(id)
+	if u == nil {
+		return 0, nil, notFound("Specified user does not exist or you do not have required permissions")
+	}
+	return http.StatusOK, u, nil
+}
+
+// findUsers is /user/search: a bare array, empty rather than an error for
+// a caller who may not browse users; a hidden email matches only exactly
+// (api.md §10.2).
+func (s *Server) findUsers(c *call) (int, any, error) {
+	q, acc := c.q.Get("query"), c.q.Get("accountId")
+	switch {
+	case q == "" && acc == "" && c.q.Get("property") == "":
+		return 0, nil, badRequest("One of 'accountId', 'query' or 'property' query parameters is required.")
+	case q != "" && acc != "":
+		return 0, nil, badRequest("The 'query' and 'accountId' query parameters cannot be combined.")
+	}
+	start, max, err := paging(c, 50, 1000)
+	if err != nil {
+		return 0, nil, err
+	}
+	var all []any
+	if c.user != nil && !c.denied {
+		lq := strings.ToLower(q)
+		for _, u := range s.users {
+			match := acc != "" && u.AccountID == acc
+			if q != "" {
+				for _, w := range append([]string{u.DisplayName}, strings.Fields(u.DisplayName)...) {
+					match = match || strings.HasPrefix(strings.ToLower(w), lq)
+				}
+				email := strings.ToLower(u.Email)
+				match = match || (u.Email != "" && (email == lq || (!u.EmailHidden && strings.HasPrefix(email, lq))))
+			}
+			if match {
+				all = append(all, s.userJSON(u.AccountID))
+			}
+		}
+	}
+	return http.StatusOK, window(all, start, max), nil
+}
