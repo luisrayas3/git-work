@@ -142,7 +142,7 @@ func (e *engine) converge(ic *cache.IssueCache, b *Base, ri *jiraapi.Issue, cs [
 	// against R, where every written key is still pending (I2)
 	w := &written{pairs: pairs, echo: map[string]bool{}}
 	for k := range b2.Sent {
-		if _, before := b.Sent[k]; b == nil || !before {
+		if b == nil || b.Sent[k] == nil {
 			w.echo[k] = true
 		}
 	}

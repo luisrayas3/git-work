@@ -1,6 +1,6 @@
 package jira_test
 
-// Adversarial scenarios, round 3: the two-strike rule, the jira-create
+// Adversarial scenarios, round 3: staleness by Jira's clock, the jira-create
 // marker, failed-hit re-reads, the body as an ordinary key, the report and
 // --dry-run, and a long random run with the fake's harshest switches. A test
 // that found a bug skips itself with a "BUG:" reason only when the bug
@@ -145,12 +145,11 @@ func exchange(t *testing.T, ws ...*world) {
 	}
 }
 
-// ---- the two-strike rule ----
+// ---- staleness by Jira's clock ----
 
-// A local clear that Jira does not show two runs in a row (a slow GET) loses
-// its base, and plan₂ then takes Jira's old value with no conflict note:
-// decide() notes a missing-base take only when local is not empty.
-func TestAdv2TwoStrikeClearIsSilent(t *testing.T) {
+// A local clear that Jira does not show two runs in a row (a slow GET) is
+// pending, never reverted: once the GET catches up, both sides are clear.
+func TestAdv2StaleClearNeverSilent(t *testing.T) {
 	for _, tc := range []struct {
 		key, note string
 	}{{"due", "due: local null"}, {jira.BodyKey, "- body:"}} {
@@ -163,11 +162,11 @@ func TestAdv2TwoStrikeClearIsSilent(t *testing.T) {
 			} else {
 				w.set(ic.Id(), "due", issue.Value("null"))
 			}
-			w.mustSync(jira.Options{}) // strike one: unconfirmed, prior base kept
-			w.mustSync(jira.Options{}) // strike two: the base is dropped
+			w.mustSync(jira.Options{}) // written, the GET stale: pending
+			w.mustSync(jira.Options{}) // still stale: pending, not written again
 			reverted := tc.key == "due" && field(t, ic, "due") == old || tc.key == jira.BodyKey && w.body(ic) == "the old body"
 			silent := reverted && !strings.Contains(notesText(ic), tc.note)
-			t.Logf("after two strikes: due=%s body=%q notes=%q", field(t, ic, "due"), w.body(ic), notesText(ic))
+			t.Logf("after two stale runs: due=%s body=%q notes=%q", field(t, ic, "due"), w.body(ic), notesText(ic))
 
 			// Jira did clear it: once the GET catches up, the clear comes back
 			w.srv.Advance(11 * time.Minute)
@@ -184,10 +183,8 @@ func TestAdv2TwoStrikeClearIsSilent(t *testing.T) {
 	}
 }
 
-// The same with a value: two strikes import Jira's stale value with a note
-// saying Jira replaced the local edit, then the next runs import the local
-// edit back from Jira, which held it all along.
-func TestAdv2TwoStrikeSlowGetFlaps(t *testing.T) {
+// The same with a value: no stale value imported, no false note, no flap.
+func TestAdv2SlowGetNoFlap(t *testing.T) {
 	w := slowWorld(t)
 	key, ic := w.importedSlow(jiratest.IssueSpec{Summary: "Old title"})
 	w.set(ic.Id(), "title", str("New title"))
@@ -205,8 +202,7 @@ func TestAdv2TwoStrikeSlowGetFlaps(t *testing.T) {
 }
 
 // A write unconfirmed once, then a new local edit of that key: when Jira's
-// GET shows the first write, it looks like a Jira edit against the kept
-// base, and the user's newer edit loses to the sync's own older export.
+// GET shows the first write, it confirms it, and the newer edit is exported.
 func TestAdv2UnconfirmedThenLocalEdit(t *testing.T) {
 	w := slowWorld(t)
 	key, ic := w.importedSlow(jiratest.IssueSpec{Summary: "Old"})
@@ -787,6 +783,9 @@ func harshRun(t *testing.T, seed uint64, rounds int, opts ...jiratest.Option) []
 				}
 				w.setBody(p.ic, text)
 				wants[[2]any{i, jira.BodyKey}] = want2{text, nconf(p.ic)}
+				if baseOf(t, p.ic, jira.BodyKey) == bodyForm(text) {
+					delete(wants, [2]any{i, jira.BodyKey}) // back to the base: to a state merge, no edit
+				}
 				continue
 			case 8:
 				w.comment(p.ic, "local "+word())
@@ -802,6 +801,9 @@ func harshRun(t *testing.T, seed uint64, rounds int, opts ...jiratest.Option) []
 			}
 			w.set(p.ic.Id(), key, v)
 			wants[[2]any{i, key}] = want2{string(canonJSON(v)), nconf(p.ic)}
+			if baseOf(t, p.ic, key) == string(canonJSON(v)) {
+				delete(wants, [2]any{i, key}) // back to the base: to a state merge, no edit
+			}
 		}
 		for n := r.IntN(4); n > 0; n-- {
 			p := is[r.IntN(len(is))]
