@@ -245,6 +245,23 @@ from the first view it parks on the call line, the query formatted under it
 `C-q` quits at once; `C-c` does not.
 Every view's first line is the call that drew it.
 
+The Jira sync, one bound clone against one Jira Cloud project
+(design in `doc/design/jira-sync.md`, `8ade811`):
+
+| Action | Command |
+| --- | --- |
+| Bind | `git config git-work.jira.url https://<site>.atlassian.net` · `.project KEY` · `.email ME`; the token is `JIRA_API_TOKEN`, else `git credential approve` |
+| Review the first mapping | `git work jira schema > jira.yaml` · edit · `git work schema import jira.yaml [--dry-run]` |
+| Sync | `git work jira sync [ID...] [--dry-run] [--full] [--accept-deletes]` · `--format text` |
+| Cron | `git work jira sync` every minute, `git work jira sync --full` nightly |
+
+`sync` refuses until one type carries a Jira alias, derives and imports the
+schema itself after that, prints one JSON object per line (schema changes,
+one line per issue touched, a summary) and exits 1 when an issue failed or
+deletes were held. Jira wins a field edited on both sides, with a
+`jira-note: conflict` comment on the issue. It **never pushes**; bind one
+clone only. Run state is `.git/git-work/jira/state.json`, disposable.
+
 Gotchas, hardened from use:
 
 - `ls` is not a command; the list is the bare `git work issue`.

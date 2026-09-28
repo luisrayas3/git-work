@@ -1249,3 +1249,29 @@ Each is also a comment on its task, per the working conventions.
   "reconcile writes stated aliases and never removes them".
 - **`AGENTS.md`**, when the command lands: the recipe, one bound clone, `sync`
   never pushes, and the cron lines.
+
+## As implemented
+
+Deviations the code made, each for a reason found while building it:
+
+- **JS11**: `Digest` normalises with `jiraapi.NormalizeText`, the exact
+  normal form `TextToADF` preserves, not only CRLF and trailing space: two
+  texts Jira cannot tell apart never differ.
+- **JS12**: comment properties are sent on create and read with
+  `expand=properties`, which api.md does not vouch for on the list endpoint.
+  So the dropped fallback is back, narrowed: a Jira comment by the token's
+  account, unknown to the base, pairs with an unpaired local comment of the
+  same digest. `jiratest.WithCommentProperties(false)` tests it.
+- **JS13 step 6**: `B′[k] = written` for scalars and texts only. A set's
+  base stays `b`: against `r′ = merged`, the second merge then reaches the
+  merged set locally, where `B′ = merged` would remove Jira's additions.
+  `Seen` records an issue only when nothing is pending, so a pending key
+  stays a candidate. A `POST /issue` refused per field is retried once
+  without those fields, and the create base then counts no key as carried,
+  so each is written, or pending, by the ordinary merge.
+- **JS20**: a Gone issue edited locally is reported pending by every
+  incremental run, without a `GET`.
+- **E14**: `entity/dag` (pristine) fails to read a merged history whose two
+  branches differ in length ("creation lamport time not set": its reversed
+  BFS is not a topological order). It is independent of the sync and flagged
+  rather than fixed; the two-clone scenario diverges by one commit per side.

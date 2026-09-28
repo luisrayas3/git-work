@@ -11,6 +11,7 @@ import (
 	"github.com/git-bug/git-bug/commands/execenv"
 	"github.com/git-bug/git-bug/commands/flow"
 	"github.com/git-bug/git-bug/commands/issue"
+	jiracmd "github.com/git-bug/git-bug/commands/jira"
 	schemacmd "github.com/git-bug/git-bug/commands/schema"
 	"github.com/git-bug/git-bug/commands/user"
 	"github.com/git-bug/git-bug/commands/view"
@@ -74,6 +75,7 @@ git remote you are already using to collaborate with other people.
 
 	addCmdWithGroup(newPullCommand(env), remoteGroup)
 	addCmdWithGroup(newPushCommand(env), remoteGroup)
+	addCmdWithGroup(jiracmd.NewJiraCommand(env), remoteGroup)
 	addCmdWithGroup(bridgecmd.NewBridgeCommand(env), remoteGroup)
 
 	cmd.AddCommand(newVersionCommand(env))
