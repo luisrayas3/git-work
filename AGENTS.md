@@ -251,20 +251,24 @@ The Jira sync, one bound clone against one Jira Cloud project
 | Action | Command |
 | --- | --- |
 | Bind | `git config git-work.jira.url https://<site>.atlassian.net` · `.project KEY` · `.email ME`; the token is `JIRA_API_TOKEN`, else `git credential approve` |
-| Review the first mapping | `git work jira schema > jira.yaml` · edit · `git work schema import jira.yaml [--dry-run]` |
+| Review the first mapping | `git work jira schema > jira.yaml` (warnings on stderr; `-v` adds the info notes) · edit · `git work schema import jira.yaml [--dry-run]` |
 | Sync | `git work jira sync [ID...] [--dry-run] [--full] [--accept-deletes]` · `--format text` |
 | Cron | `git work jira sync` every minute, `git work jira sync --full` nightly |
 
 `sync` refuses until one type carries a Jira alias, derives and imports the
 schema itself after that, prints one JSON object per line (schema changes,
-one line per issue touched, a summary) and exits 1 when an issue failed or
-deletes were held. Jira wins a field edited on both sides, with a
+one line per issue touched, pending, skipped or failed, a summary whose
+`unchanged` counts the rest) and exits 1 when an issue failed or
+deletes were held; the mapping's notes reach stderr only in a run that changed
+the schema, so cron stays quiet. Jira wins a field edited on both sides, with a
 `jira-note: conflict` comment on the issue. It **never pushes**; bind one
 clone only: two bound clones syncing before they exchange duplicate issues,
 which the sync then reports but cannot undo (JS25). One run at a time: a
 second exits 1 with `a jira sync is already running`, having done nothing.
-Run state is `.git/git-work/jira/state.json`; it holds the create journal,
-written before every `POST`, so do not delete it while a create is pending.
+Run state is `.git/git-work/jira/state.json` (cursor, failed hits, refused
+creates); it is disposable: deleting it costs a slower run, never a wrong one,
+because a create's attempt is a `jira-create` marker committed on the issue
+before its `POST`.
 There is no `work.jira.*` in Starlark yet (v2), a known gap in the 1:1 rule.
 
 Gotchas, hardened from use:

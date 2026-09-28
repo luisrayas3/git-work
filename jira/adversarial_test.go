@@ -699,9 +699,7 @@ func TestAdvIdsArchivedNotExported(t *testing.T) {
 	w.mustSync(jira.Options{})
 	require.Empty(t, w.srv.Keys(), "an incremental run leaves it")
 	w.mustSync(jira.Options{Ids: []entity.Id{id}})
-	if len(w.srv.Keys()) != 0 {
-		t.Skip("BUG: sync ID... exports an archived issue: create() does not check archived (engine.go create)")
-	}
+	require.Empty(t, w.srv.Keys(), "naming it does not export it")
 }
 
 // ID... on an issue of a local-only type writes nothing and says so.

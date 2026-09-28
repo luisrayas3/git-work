@@ -12,11 +12,12 @@ reviewed once, then kept current by the sync itself.
 `32d372e` export · `a3a8d16` the command · `0a4390d` Cloud v3 spike (the
 first live run, when a site exists).
 
-**Status:** design, awaiting approval. Written 2026-09-28 against trunk
-`dcf08a29`. No Jira site exists (`de1d8fb`, `0a4390d`), so every Jira
-behaviour below comes from the vetted API reference, and every behaviour the
-vetting could not settle is a switch on the fake server (JS26), with the
-design choosing what works either way.
+**Status:** implemented against the fake; awaiting live verification
+(`0a4390d`). No Jira site exists (`de1d8fb`), so every Jira behaviour below
+comes from the vetted API reference, and every behaviour the vetting could
+not settle is a switch on the fake server (JS26), with the design choosing
+what works either way. This document describes the code; godoc is the
+authority for signatures.
 
 ## What decides the shape
 
@@ -90,16 +91,21 @@ every robustness question below is one of them applied.
 
 **I1 — Fixpoint.** For every mapped key `k` of a linked issue, after a
 successful per-issue commit, either `local[k] == base[k] == jira[k]`, or `k`
-is reported pending and `base[k]` is unchanged. `Merge(b, l, r)` with
+is reported pending and `base[k]` is unchanged. `merge(b, l, r)` with
 `l == b == r` emits nothing. Everything that could loop violates this.
 
 **I2 — The base is Jira-observed, and moves only with local.** `base[k]` is
 written only in the commit that makes `local[k]` equal to it, and its value
-is one Jira was seen to hold (`R` or the post-write `R′`), converted by
-`FromJira`. The export path never writes a base directly: it sets
-`B′[k] = written` and lets the second merge import Jira's normal form. A
-crash can only leave a base *older* than both sides, which the first merge
-row (`l == r` ⇒ converged) absorbs. One exception, `Gone` (JS19).
+is one Jira was seen to hold (`R` or the post-write `R′`), in local terms
+(the body's as its digest). The export path never writes a base directly:
+`B′[k] = written` is only the second merge's input, which records `R′`'s
+value by row 1 or imports Jira's normal form; a written key `R′` does not
+show yet is *unconfirmed* and keeps its prior base, so it is exported again
+rather than the old value imported over the local edit
+(`TestAdvUnconfirmedWriteNotBase`); unconfirmed twice, it has no base, and
+Jira's value imports with a conflict note (JS13 step 5). A crash can only leave a base *older*
+than both sides, which the first merge row (`l == r` ⇒ converged) absorbs.
+One exception, `Gone` (JS19).
 
 **I3 — Links are immutable facts on operations.** An issue's Jira id is
 metadata on its create operation, a comment's Jira id metadata on its
@@ -108,12 +114,14 @@ add-comment operation, each set once — at creation or by one `SetMetadata`
 un-pair or re-pair anything; two markers can disagree only on values.
 
 **I4 — Destructive decisions come from the database, not the index.**
-Merges, deletes and link repairs use `GET`; search only answers "which ids
-might have changed". A run starts with `GET /myself` and aborts on anything
+Merges, deletes and link repairs use `GET`: a link repair found by the
+search's copy of the `git-work` property links only when `GET`'s
+`properties=git-work` names the same entity. Search only answers "which ids
+might have changed", and never names an id Jira may no longer show (JS20). A run starts with `GET /myself` and aborts on anything
 but 200, because a missing `Authorization` header is 200-with-nothing.
 
-**P1 — `FromJira` is deterministic and idempotent over one round trip:**
-`FromJira(jira(ToJira(FromJira(x)))) == FromJira(x)`, where `jira()` is the
+**P1 — `fromIssue` is deterministic and idempotent over one round trip:**
+`fromIssue(jira(toWrites(fromIssue(x)))) == fromIssue(x)`, where `jira()` is the
 fake's model of Jira's normalisation (sorted labels, trimmed summary, float
 rounding, ADF re-serialised with `localId`s). With I2 a non-idempotent
 converter is not a ping-pong but import churn, one operation per run per
@@ -193,9 +201,8 @@ with `protocol`, `host` and `username = email`, run with
 `git credential approve`. `bridge/core/auth` is bug-era and leaves with the
 bridges; `AGENTS.md` already routes git's environment through `gitcli`, and a
 credential helper is exactly that. There is no `configure` command and a
-token never reaches argv. The review placed the environment override inside
-`gitcli`; it belongs in `host`, because `gitcli` is git's environment and
-`JIRA_API_TOKEN` is not git's.
+token never reaches argv. `JIRA_API_TOKEN` is read in `host`, not `gitcli`,
+because `gitcli` is git's environment and the variable is not git's.
 
 A clone bound to the wrong project is caught by the aliases (JS5), which is
 why the binding need not replicate. **One clone is bound**: two bound clones
@@ -244,16 +251,14 @@ aliased, and nothing removed. `Reconcile` owns every `values/<id>` and
 everything current is what keeps local-only things alive. Its output is a
 fixpoint, so a second run against an unchanged Jira writes nothing; and
 review is `schema import --dry-run`, because it is the same call. `Derive`
-never states `prune`, an archive, or a kind change, and — against the scratch
-design, as the review argued — never removes a `target_types` entry Jira's
-hierarchy forbids: a forbidden local parent is a 400 on export, i.e.
+never states `prune`, an archive, or a kind change, and never removes a
+`target_types` entry Jira's hierarchy forbids: a forbidden local parent is a 400 on export, i.e.
 pending, and "Derive never removes" is one invariant instead of a list of
 exceptions. Schema writes are the runner's, at now, like any import.
 
-**The binding check is in `Derive`, not only in `Compile`.** The review moved
-it to `Compile`, but `Compile` runs after `SchemaImport`, so a clone bound to
-the wrong project would already have adopted that project's types into the
-tracker. `Derive` returns an error when no non-empty type alias names an
+**The binding check is in `Derive`, not only in `Compile`**, because
+`Compile` runs after `SchemaImport`: a clone bound to the wrong project would
+already have adopted that project's types into the tracker. `Derive` returns an error when no non-empty type alias names an
 issue type of `p` (while any type alias exists): "the schema maps issue types
 10001, 10002 that PROJX does not have; is this the project the tracker was
 mapped against?". `Compile` checks it again, with the duplicate-alias check
@@ -263,7 +268,7 @@ mapped against?". `Compile` checks it again, with the duplicate-alias check
 non-empty `alias_jira`, naming the review recipe:
 
 ```sh
-git work jira schema > jira.yaml          # derived document; report on stderr
+git work jira schema > jira.yaml          # derived document; warnings on stderr, -v for info
 $EDITOR jira.yaml                         # rename proposed keys, exclude with aliases: {jira: ""},
                                           # mark "Won't Do" canceled, map by hand
 git work schema import jira.yaml --dry-run
@@ -332,7 +337,7 @@ Rank, `resolution`, `components` and `fixVersions` are not mapped in v1.
 aliased value inside its class keeps its category, so a person marks "Won't
 Do" `canceled` once; one outside is reset to the class default and reported.
 Category is read from `statusCategory.key`, never the name. Many-to-one value
-aliasing is refused (JS25), so `ToJira(FromJira(x)) == x`.
+aliasing is refused (JS25), so `toWrites(fromIssue(x)) == x`.
 
 **Canonical values**, what the store would hold after writing them, so that
 "did it change" is byte equality of compacted JSON: sets sorted by compacted
@@ -362,9 +367,8 @@ type Base struct {
 	Id       string                 `json:"id"`                 // Jira issue id
 	Key      string                 `json:"key"`                // as last seen
 	Updated  time.Time              `json:"updated"`            // Jira updated of the state described, UTC
-	Fields   map[string]issue.Value `json:"fields"`             // mapped keys, local terms, title and type included
-	Body     string                 `json:"body"`               // Digest of comment #0
-	Comments map[string]string      `json:"comments,omitempty"` // Jira comment id -> Digest; "" once deleted in Jira
+	Fields   map[string]issue.Value `json:"fields"`             // each mapped key's form: title, type, "body" (its digest)
+	Comments map[string]string      `json:"comments,omitempty"` // Jira comment id -> digest; "" once deleted in Jira
 	Retry    []string               `json:"retry,omitempty"`    // keys skipped with Retry (JS17)
 	Gone     string                 `json:"gone,omitempty"`     // "deleted" | "moved" | "" (JS19)
 }
@@ -373,11 +377,14 @@ type Base struct {
 Values are in local terms (schema keys, value ids, entity ids), so the base
 compares with the snapshot as it is. Fields are whole, because a set merge
 needs the base's items; texts are digests, because they only need equality.
+The description is the key `body` of both documents (its text) and of the
+base (its digest): `form(key, v)` is the one comparable form, so it merges
+through the scalar table with no case of its own.
 Every marker is the whole base, so reading it is reading one operation.
 **The current base is the marker with the greatest `Updated`**, ties to the
 later in compiled order: the base describing the newest Jira state best
 predicts Jira. An undecodable marker is skipped and reported (D6). A marker
-is written only when `Plan.Base` differs from the current base in anything
+is written only when the plan's base differs from the current one in anything
 but `Updated`, so a quiet run commits nothing: Jira bumps `updated` for what
 the mapping does not cover and for both ends of a link, and a marker per bump
 would be a commit per bump. The cost is a `GET` while the overlap re-returns
@@ -390,6 +397,7 @@ such an issue.
 | create op | `jira-id` | Jira issue id — the link (I3) |
 | create op | `alias:jira` | Jira key at link time; resolves anywhere an id does |
 | create op of an imported issue; `NoOp` | `jira-sync` | `Base` JSON |
+| `NoOp` before a `POST /issue` | `jira-create` | the attempt's time on Jira's clock, RFC 3339 (JS15) |
 | add-comment op | `jira-comment-id` | Jira comment id (I3) |
 | add-comment op of a note | `jira-note` | `conflict` \| `deleted` |
 | identity, immutable | `jira-account-id` | Jira accountId |
@@ -399,12 +407,11 @@ such an issue.
 `jira-id`, `alias:jira` and `jira-comment-id` are set at creation on an
 import and by `SetMetadata` in the step-6 commit on an export, never
 elsewhere. `alias:jira` is never refreshed in v1: after a move the old key
-still resolves locally and in Jira. Local run state — the cursor, the failed hits, the create journal,
-the per-issue edit lamport at last sync — is in
-`.git/git-work/jira/state.json`, written through a temporary file and a
-rename. Losing it costs a slower run, never a wrong one, with one exception:
-an entry of the journal lost inside `Settle` of a `POST` whose answer never
-came can duplicate that issue (JS15).
+still resolves locally and in Jira. Local run state — the cursor, the failed
+hits, the creates Jira refused, the per-issue edit lamport at last sync — is
+in `.git/git-work/jira/state.json`, written through a temporary file and a
+rename. Losing it costs a slower run, never a wrong one: the create journal
+is in the store (JS15).
 
 ### JS9 — The merge rule for scalars
 
@@ -445,9 +452,9 @@ edit of one item.
 
 ### JS11 — Texts merge by digest; a lossy Jira text is not overwritten
 
-The description (comment #0) follows the scalar table on digests; a text is
-never merged within itself. `Digest(t)` is `"v1:" + hex(sha256("v1\n" +
-norm(t)))`, where `norm` is `jiraapi.NormalizeText`, exactly the normal
+The description (comment #0, the key `body`) follows the scalar table on
+digests; a text is never merged within itself. `digest(t)` is
+`"v1:" + hex(sha256("v1\n" + norm(t)))`, where `norm` is `jiraapi.NormalizeText`, exactly the normal
 form `TextToADF` preserves (CRLF to LF, trailing space and newlines, and
 the rest `TextToADF` cannot tell apart), so two texts Jira holds alike never
 differ; the version is in the input, so a later
@@ -497,51 +504,58 @@ comments are keyed `comment:<Jira id>`, or `comment:<op>` before one exists.
 ### JS13 — One issue at a time: Jira writes first, then one commit decided under the lock
 
 1. **Candidate** (JS20). Skip when the search's `updated` equals
-   `base.Updated`, `local == base`, and `base.Retry` is empty.
-2. **Read** `R = GET /issue/{id}?fields=m.Request()&properties=git-work` and
-   its comments; ensure identities for `m.Users` (JS16), each its own commit.
-3. **Plan**, lock-free: `plan₁ = Merge(B, L, FromJira(R), export=true)`;
-   `ToJira` turns `plan₁.Remote` into writes, one per local key.
+   `base.Updated`, `local == base`, `base.Retry` is empty, the issue is not
+   `Gone`, and the run is not `--full`.
+2. **Read** `R = GET /issue/{id}?fields=<the mapping's>&properties=git-work`
+   and its comments; ensure identities for the accounts they name (JS16),
+   each its own commit. A 404 or a key outside the project is not a failure
+   but JS19's business.
+3. **Plan**, lock-free: `plan₁ = merge(B, L, fromIssue(R), export=true)`;
+   `toWrites` turns `plan₁.Remote` into writes, one per local key.
 4. **Write**, each independent, success recorded per key: one `PUT` with every
-   `Edit`; the transition; link adds and removes; comment creates and edits.
+   edit; the transition; link adds and removes; comment creates and edits.
    A `PUT` refused with per-field `errors` is retried once without those
-   fields, which become pending; a 400 naming no field sent fails the edit. `TransitionTo` takes the transition whose
-   `to.id` is the target; a required `resolution` is filled with the first
-   of that transition's `allowedValues` (the review made it pending, which
-   would block "done" on most company-managed workflows, and needs no
-   discovery); any other required field, or no such transition, is pending.
+   fields, which become pending; a 400 naming no field sent fails the edit.
+   The transition is the one whose `to.id` is the target; a required
+   `resolution` is filled with the first of its `allowedValues` (pending
+   would block "done" on most company-managed workflows); any other required
+   field, or no such transition, is pending; a 409 re-reads the transitions
+   and retries once.
 5. **Re-read** `R′ = GET` if anything was written, else `R′ = R`. A key
    written this run that `R′` still shows at its `R` value is
-   *unconfirmed* — a stale read, not a Jira edit — and is a `Skip{Retry}`
-   for step 6, so `plan₂` never imports the pre-write value over local; the
-   next run reads it again. Normalisation back to the old value costs one
-   more run, not a loop: then `l == b′`, and `r` imports.
+   *unconfirmed* — a stale read, not a Jira edit: it keeps its prior base
+   (I2) and is a `Skip{Retry}` for step 6, so `plan₂` never imports the
+   pre-write value over local; the next run reads it again and, if Jira
+   still holds the old value, exports again. Unconfirmed a second run in a
+   row (the key is in the base's `Retry`), Jira holds its value — it
+   normalised ours back to it, as a trimmed summary does, or someone set
+   it — so the key loses its base and `plan₂` imports Jira's value with a
+   conflict note: two runs, never a loop and never a silent revert
+   (`TestAdvNormalisedBackToOld`).
 6. **Commit**, `IssueCache.Update`: `B′ = B` with each written scalar and
-   text set to the value written (a set's base stays `b`: against `r′ =
+   text set to the form written (a set's base stays `b`: against `r′ =
    merged`, the second merge reaches the merged set locally, where `B′ =
-   merged` would remove Jira's additions); under the lock, on the fresh snapshot `L′`,
-   `plan₂ = Merge(B′, L′, FromJira(R′), export=false)`; the ops are
-   `plan₂`'s local changes, each pre-checked per key with the run's checker
-   (`admit`: a refused key keeps its old base and moves to `Retry`, so
-   `Update`'s own check never refuses the batch), the conflict note, the
-   `SetMetadata`s for new pairings, and a marker when `plan₂.Base` differs
+   merged` would remove Jira's additions); under the lock, on the fresh
+   snapshot `L′`, `plan₂ = merge(B′, L′, fromIssue(R′), export=false)`; the
+   ops are `plan₂`'s local changes, each pre-checked per key with the run's
+   checker (`admit`: a refused key keeps its old base and moves to `Retry`,
+   so `Update`'s own check never refuses the batch), the conflict note, the
+   `SetMetadata`s for new pairings, and a marker when `plan₂`'s base differs
    from the current (JS8). Keys `plan₂` still wants to export are reported
    pending, not written.
 
 Every local decision is made under the lock on the entity as it is then, so a
 user editing during steps 3–5 is seen by `plan₂` — a double edit if Jira
 changed that key, pending otherwise. The lock is never held across the
-network. Setting `B′[k]` to what was written makes each success collapse to
-row 1, each failure stay a local change, and each Jira normalisation arrive
-as an ordinary import. The review's call to drop the scratch design's
-"unconfirmed write" guard is accepted: it looped whenever Jira normalised our
-write back to the value it already held.
+network. Setting `B′[k]` to what was written makes each confirmed success
+collapse to row 1, each failure stay a local change, and each Jira
+normalisation arrive as an ordinary import.
 
 | stops after | state | next run |
 | --- | --- | --- |
 | 1–3 | nothing written | identical run |
-| part of 4, or 5 | some Jira writes, nothing local | a written key is `l == r`: converged; an unwritten one is still local: written; comments pair by property, creates by journal and property (JS15) |
-| the `POST /issue` answer lost | the issue may exist in Jira | the journal entry, on disk before the `POST`, is in doubt: found by property, linked; not found, pending until `Settle`, then created again (JS15) |
+| part of 4, or 5 | some Jira writes, nothing local | a written key is `l == r`: converged; an unwritten one is still local: written; comments pair by property, creates by their attempt and property (JS15) |
+| the `POST /issue` answer lost | the issue may exist in Jira | the `jira-create` attempt, committed before the `POST`, is in doubt: found by property, linked; not found, pending until `Settle`, then created again (JS15) |
 | 4, refused (400) | Jira refused a key | pending every run until fixed on either side |
 | 4, no transition | status diverged | pending with the reason; a later Jira status change imports, with a conflict |
 | 6, schema check | a value the schema lacks | that key `Retry`, the rest commits |
@@ -564,11 +578,14 @@ re-return synced issues, which step 1 skips with no `GET`.
 **Local to Jira.** An unarchived local issue of a mapped type with no
 `jira-id` is exported; `sync ID...` of one archived or of a local-only type
 reports why it is not. Jira has no idempotency key and its search lags, so
-the **create journal** is what stands between a lost answer and a duplicate:
+the **create attempt** is what stands between a lost answer and a duplicate:
 
-1. The entry `(entity id, Jira's now)` is saved to the state file **before**
-   `POST /issue`. Jira's now is the `Date` of its last response, so the entry
-   compares with Jira's `created` with no client skew.
+1. A `NoOp` with `jira-create: <Jira's now>` is committed on the issue,
+   under the write lock, **before** `POST /issue`. Jira's now is the `Date`
+   of its last response, so the attempt compares with Jira's `created` with
+   no client skew. It is in the store, not the state file, so losing the
+   state never duplicates (`TestAdvCrashAfterCreateStateLost`), and a clone
+   that pulls the attempt sees it; the cost is one commit per `POST`.
 2. `POST` carries project, `issuetype.id`, summary, description, the property
    `git-work={"id":…}`, and each field the create screen marks required with
    no default that local holds (a set stated whole) — nothing else, so a
@@ -579,23 +596,30 @@ the **create journal** is what stands between a lost answer and a duplicate:
    in the one `PUT` and the transition every create pays anyway) and `L[k]`
    when local is null or empty (so a Jira default such as priority imports
    rather than being cleared forever); comments are local-only and exported.
-   Step 6 adds `jira-id` and `alias:jira` by `SetMetadata` on the create op
-   and drops the entry.
-3. A `POST` error keeps the entry, except a definitive answer — a 4xx other
-   than 408 and 429 — which says nothing was made and drops it.
-4. An entry left **in doubt** is resolved in `create` itself, the path `sync
-   ID...` shares: one search per run, `project = P AND created >= "<oldest
-   entry − Overlap>"` with the property, and the lower Jira id whose
-   `git-work.id` names the issue is linked (`linkCreated`, which resumes as a
-   create). Not found, the issue is pending while the entry is younger than
-   `Settle` (15 minutes, an option: longer than any index lag seen), and
-   created again after.
+   Step 6 adds `jira-id` and `alias:jira` by `SetMetadata` on the create op,
+   which ends the doubt. An ordinary merge against the created issue as base
+   would export `null` over every Jira default; the create base is why it
+   differs.
+3. A definitive answer — a 4xx other than 408 and 429 — says nothing was
+   made: the attempt is recorded in the state's `Refused` with the issue's
+   edit lamport, is not in doubt, and is neither `POST`ed nor committed again
+   until the issue changes (the line is `failed` every run with Jira's
+   reason). Any other error leaves the attempt in doubt.
+4. The latest attempt of an unlinked issue, unless refused, is **in doubt**,
+   resolved in `create` itself, the path `sync ID...` shares: one search per
+   run, `project = P AND created >= "<oldest attempt in doubt − Overlap>"`
+   with the property, and the lower Jira id whose `git-work.id` names the
+   issue is linked (`linkCreated`, which checks the property by `GET` (I4)
+   and resumes as a create). Not found, the issue is pending while the
+   attempt is younger than `Settle` (15 minutes, an option: longer than any
+   index lag seen), and created again after. A lost `Refused` makes a refused
+   attempt look in doubt: one `Settle` of waiting, never a duplicate.
 
 A crash between `POST` and step 6 is also repaired by the ordinary search:
 every hit whose `git-work.id` names a local entity without `jira-id` is
 linked, not imported; one whose entity this clone has not pulled is skipped
 ("pull first"), never imported, which would make a second entity. The search's
-lower bound needs no journal term: a created issue is always later than the
+lower bound needs no attempt term: a created issue is always later than the
 cursor, which only moves to hits seen before any `POST`. Two Jira issues
 naming one entity: the lower id links, the other is skipped and reported as a
 duplicate every run. A run holds a non-blocking `flock` on
@@ -604,11 +628,8 @@ both `POST` one issue; the second exits with "a jira sync is already running",
 having done nothing, and the kernel drops the lock when a process dies, like
 the write lock's. `--dry-run` takes no lock.
 
-The review's "ordinary merge against the created issue as base" would export
-`null` over every Jira default; the create base is why it differs.
-
 **Jira to local.** A search hit with no link and no property is imported:
-`Merge(nil, empty, R)` decides it like any issue, the same pre-check as step 6
+`merge(nil, empty, R)` decides it like any issue, the same pre-check as step 6
 (`admit`) drops what the schema refuses into `Retry`, and the admitted fields
 and body go to `Issues().NewRaw(reporter identity, created, summary,
 description text, fields, {jira-id, alias:jira, jira-sync})` — the create op
@@ -618,8 +639,8 @@ the ordinary step 6. A hit of an unmapped type is skipped silently, before any
 (`aliases: {jira: ""}`).
 
 **Link requests.** A local issue with `alias:jira` and no `jira-id` is linked,
-never created: `GET` by key; its `git-work` property naming another entity is
-a skip; a 404 is a skip ("alias PROJ-9 names no Jira issue") — creating would
+never created: `GET` by key, with the property; its `git-work` property
+naming another entity is a skip; a 404 is a skip ("alias PROJ-9 names no Jira issue") — creating would
 give a different key that the immutable alias could never follow. Otherwise
 step 6 adds `jira-id` and the merge runs with no base: scalars take Jira's
 value with a conflict note where they differed, sets union. This is how a
@@ -646,7 +667,7 @@ Relations resolve through the `Index`, built once per run from excerpts'
 and creates. Links follow `api-vetting.md` C1: in `POST /issueLink`
 `inwardIssue` is the source, so `{inwardIssue:A, outwardIssue:B, type:Blocks}`
 means A blocks B; viewing A, `issuelinks` holds `{outwardIssue:B}`. The
-relation is stored on the source only, so `FromJira` reads only entries with
+relation is stored on the source only, so `fromIssue` reads only entries with
 `outwardIssue`, and removal deletes the link id found there. `comment` is
 never sent on a link. Parent is `fields.parent {id}`; its removal is
 `update.parent [{"set":{"none":true}}]`.
@@ -660,11 +681,12 @@ in-project target not yet in the `Index`, an account whose identity creation
 failed, or a Jira value the schema lacks is a `Skip{Key, Reason, Retry:
 true}` on the remote side: the key is left alone and recorded in the
 marker's `Retry`, which makes the issue a candidate every run until it
-converts. At the end of a run, issues that came back with `Retry` keys are
-re-run once, which resolves a child imported before its parent. A local
+converts. At the end of a run that imported or created an issue, the issues
+that came back with `Retry` keys are re-run once, which resolves a child
+imported before its parent. A local
 value Jira cannot hold — a local-only status or target, a target not in Jira
 yet, a dead alias, a label with a space, a summary over 255 runes, an identity
-without an account — is a `Skip` from `ToJira`, never `Retry`: pending, and a
+without an account — is a `Skip` from `toWrites`, never `Retry`: pending, and a
 candidate anyway because `local ≠ base`. A link item whose target is not in
 Jira is skipped alone; the key's other items are still written.
 
@@ -682,13 +704,18 @@ Jira".
 Polling by `updated` never sees an issue vanish. Under `--full` the search
 returns every id of the project; a linked issue whose id is missing and not
 `Gone` is read with `GET`. A 404 (deleted, or hidden: Jira will not say) is
-`Gone: deleted`; a 200 in another project is `Gone: moved`. The status field, under its own key, is
-set to the first value in its canceled category (`Mapping.Canceled`), a note with `jira-note = deleted` says why, and a
-`Gone` issue is never exported. Never `rm`. **The one exception to I2**: the
-marker's base status is that canceled value, so that when the issue answers
-again (permission regained), Jira's status imports instead of the local
-canceled being pushed onto it; a later search hit clears `Gone` by the
-ordinary merge.
+`Gone: deleted`; a 200 in another project is `Gone: moved`. A sync that meets
+either on its own `GET` — a locally edited issue, a lagging index still
+returning a deleted one — is no failure: incrementally it is a skipped line
+("…; --full marks it gone"), and under `--full` it goes to the Gone pass
+whatever the search returned (`TestJiraDeleteSeenByGet`). The status field,
+under its own key, is set to the first value in its canceled category, a note
+with `jira-note = deleted` says why, and a `Gone` issue is never exported.
+Never `rm`. **The one exception to I2**: the marker's base status is that
+canceled value, so that when the issue answers again (permission regained),
+Jira's status imports instead of the local canceled being pushed onto it.
+Any later successful merge clears `Gone`, and exports the local edits made
+while it was gone, like any local edit.
 
 More than 10 missing issues in one scan marks none of them and fails the
 run: a permission change looks exactly like a mass delete, and `/myself`
@@ -710,10 +737,12 @@ key included), with no search, no cursor and no `Gone`. `--full` searches
 The cursor is Jira's own `updated` (UTC in the state file), so client clock
 skew is irrelevant. At the end of a run it becomes the greatest `updated`
 reached; unreached hits are later than it. A hit that failed is kept in the
-state's `Failed` and named in the next search, `(updated >= … OR id in
-(…))`, until it syncs or stops being returned, so one issue failing forever
-(a 403, a value the schema refuses on every run) costs one id in the query,
-not a window that only grows. The lower bound is `cursor − Overlap` (5
+state's `Failed` and re-read by `GET` on the next run (at most 100 a run),
+until it syncs, is dropped on a 404 or a move, so one issue failing forever
+(a 403, a value the schema refuses on every run) costs one `GET`, not a
+window that only grows. It is never named in the JQL: Jira refuses a whole
+query naming an id it cannot see, and a failed hit is most often an issue
+since deleted or hidden (`TestAdvFailedHitThenDeleted`). The lower bound is `cursor − Overlap` (5
 minutes), converted
 to `/myself.timeZone` and truncated to the minute, formatted
 `"yyyy/MM/dd HH:mm"`: JQL literals are read in the **user's profile zone**
@@ -743,40 +772,46 @@ Jira sync, 2026-09-28 14:03 UTC: Jira's values replaced local edits.
 A comment is visible where people look (`issue get`, the show view); a
 "has conflicts" field would need defining on every type and clearing. The
 note is never exported: Jira canonical means Jira's users are not told about
-local values their edits replaced. The scratch design's `jira-overrode` op
-metadata is cut, as the review argued: the overridden value is already an
-operation in the log, and the note is what makes it not silent.
+local values their edits replaced. There is no `jira-overrode` op metadata:
+the overridden value is already an operation in the log, and the note is
+what makes it not silent.
 
 ### JS22 — The commands and the report
 
 ```
-git work jira schema [--format yaml|json]
+git work jira schema [--format yaml|json] [-v]
 git work jira sync [ID...] [--dry-run] [--full] [--accept-deletes] [--format json|text]
 ```
 
 `jira schema` is a reader: `Derive` over the live schema, the document on
-stdout, notes on stderr. `jira sync` is a writer in the remote group beside
-`push`/`pull`; it never pushes. Output is one JSON object per line, like
-`log`: an optional schema line, one line per issue the run touched or failed
-on, then a summary.
+stdout, warnings and errors on stderr, and the info notes with `-v`.
+`jira sync` is a writer in the remote group beside `push`/`pull`; it never
+pushes. Its notes reach stderr only in a run that changed the schema, since
+they say the same thing every run and cron mails output. Output is one JSON
+object per line, like `log`: an optional schema line, one line per issue the
+run touched, left pending, skipped or failed on, then a summary.
 
 ```json
 {"schema":[{"action":"update","shape":"field","key":"task/status","id":"…","set":{"alias_jira/wont-do":"10005","values/wont-do":{…}}}]}
-{"issue":"0a4390dd…","jira":"PROJ-12","action":"updated","imported":{"status":"done"},"exported":{"priority":"high"},"comments":{"imported":1,"exported":0,"edited":0,"tombstoned":0},"conflicts":[{"key":"assignee","local":"a3a2829…","jira":"5b10ac8d…"}],"pending":[{"key":"status","reason":"no transition from In Progress to In Review","retry":false}]}
-{"summary":{"imported":3,"created":1,"updated":7,"linked":0,"gone":0,"conflicts":1,"pending":1,"failed":0,"skipped":212,"cursor":"2026-09-28T21:02:00Z"}}
+{"issue":"0a4390dd…","jira":"PROJ-12","action":"updated","imported":{"status":"done","body":"First line of the new descrip…"},"exported":{"priority":"high"},"comments":{"imported":1,"exported":0,"edited":0,"tombstoned":0},"conflicts":[{"key":"assignee","local":"a3a2829…","jira":"5b10ac8d…"}],"pending":[{"key":"status","reason":"no transition from In Progress to In Review"}]}
+{"summary":{"imported":3,"created":1,"updated":7,"linked":0,"gone":0,"conflicts":1,"pending":1,"failed":0,"skipped":0,"unchanged":212,"cursor":"2026-09-28T21:02:00Z"}}
 ```
 
 `action` is `imported` (new locally), `created` (new in Jira), `updated`,
-`linked`, `gone`, `skipped` (reported, not synced) or `failed` (with
-`"error"`). Text keys appear in `imported`/`exported` with their digest as
-the value; empty members are omitted. `--dry-run` reads both sides and
-writes neither — no schema import, no issue write, no Jira write, no state
-file — printing `plan₁` with `"dry_run": true`; it cannot predict a
-transition that fails or a normalisation Jira applies, and keys whose values
-need the schema changes it did not apply show as pending. `--format text` is
-one line per issue. Exit status is 0 when every issue synced or is only
-pending, 1 when any failed, the run stopped early, deletes were held, or
-another run holds the lock (JS15). A pending key of `*` is the whole issue.
+`pending` (nothing moved; what waits is in `pending`), `linked`, `gone`,
+`skipped` (refused or waiting, reported: a person may look) or `failed` (with
+`"error"`). An issue with nothing to do is not a line but counted in
+`unchanged`. The body appears in `imported`/`exported` as its first line, at
+most 60 characters; a conflict on a text repeats no text; `retry` appears
+only when true; empty members are omitted, the cursor too when there is
+none. `--dry-run` reads both sides and writes neither — no schema import, no
+issue or identity write, no Jira write, no state file — printing `plan₁` with
+`"dry_run": true`; it cannot predict a transition that fails or a
+normalisation Jira applies, and keys whose values need the schema changes or
+the identities it did not write show as pending. `--format text` is one line
+per issue. Exit status is 0 when every issue synced or is only pending, 1
+when any failed, the run stopped early, deletes were held, or another run
+holds the lock (JS15). A pending key of `*` is the whole issue.
 
 ### JS23 — Failure classes
 
@@ -791,13 +826,16 @@ local change `plan₂` did not export.
 
 ### JS24 — Rate limits and retries belong to the client
 
-The client honours `Retry-After` on 429 and 503; otherwise it backs off
-exponentially from 2 s, capped at 30 s, jitter ×0.7–1.3, at most 4 retries;
-a request times out after 60 s, a transport error like any other. The engine
+The client retries 429, and 503 on anything but a `POST` that is not a
+search (a create is not idempotent, `TestPostNotRetriedOn503`); it waits
+`Retry-After` (jittered up to +30 %, and returns the error when it asks for
+more than 60 s), else backs off exponentially from 2 s, capped at 30 s,
+jitter ×0.7–1.3, at most 4 retries; a request times out after 60 s, a
+transport error like any other. The run-failure split (JS23) is the
+engine's, not the client's. The engine
 batches every field into one `PUT`, which with a transition, links and
 comments stays under the per-issue limit (20 per 2 s) for any one issue; a
-429 past it is waited out by `Retry-After`. On 409 from a transition the
-engine re-reads the transitions and retries once. It never sends `notifyUsers` (C5: `false`
+429 past it is waited out by `Retry-After`. It never sends `notifyUsers` (C5: `false`
 without admin fails the whole edit), never calls `/search` (410, C7), always
 sends `Content-Type: application/json`, pages `/search/jql` until `isLast`
 or a missing, null or empty token, and never relies on a full page, and gives up an offset-paged read past 10000
@@ -836,513 +874,118 @@ can produce by merging; the check lives there rather than in `Reconcile`, so
 and the engine scenarios, instead of an in-memory client, a file-serving
 getter and recorded fixtures. It imports nothing from `jiraapi`, so a wrong
 struct tag fails a test instead of agreeing with itself. Every documented
-behaviour is its default and every unverified one is a switch, and the
-engine scenarios E1–E5 and E12 run in both positions of each.
+behaviour is its default and every unverified one is a switch;
+`TestAdvSwitches` runs one scenario covering E1–E5 under each switch, and the
+crash matrix runs under both ADF modes. Always on: `PUT` all-or-nothing with
+per-field errors; Jira's normalisation (sorted labels, trimmed summary,
+float rounding, ADF with `localId`s); summaries over 255 and labels with
+spaces refused; links stored `{source: inward, dest: outward}`; properties
+inline on create and indexed with the search's lag; deleted issues dropped
+from search, and a JQL `id`/`key` naming one refused; 410 on `/search`; the
+token omitted on the last page; 429 with `Retry-After`; no `Authorization`
+header is 200-with-nothing on search and 401 on `/myself`.
 
-## Packages and interfaces
+## Packages
 
 ```
-jira/jiraapi/   Cloud v3 client, wire types, ADF codec, time parsing. Standard library only.
+jira/jiraapi/   Cloud v3 client, wire types, ADF codec, JQL literals, time parsing. Standard library only.
 jira/jiratest/  the fake Jira over httptest (JS26). Imports nothing from jiraapi.
-jira/           Project + Discover, Derive, slug, Compile + Mapping, Index, Merge + Base,
-                the engine (Sync), the state file. Imports schema, entities/issue, entity,
-                cache, jiraapi; the pure files (derive, mapping, merge, base) import no cache.
-host/jira.go    binding, credential, discover, derive + SchemaImport, compile, sync.
+jira/           discovery, Derive, Compile and the Mapping, the merge, the engine, the state file.
+host/jira.go    binding, credential, discover, derive + SchemaImport, compile, the sync lock, Sync.
 commands/jira/  schema, sync.
 ```
 
 New code does not live in `bridge/`, which is bug-coupled and leaves with
-`entities/bug`; nothing here imports `bridge/...`, and `git work bridge`
-stays untouched until then. Two packages named `jira` never meet in one file.
-The engine uses the concrete cache and client: tests run a real test
-repository against the real client pointed at `jiratest`, which exercises
-what production runs.
+`entities/bug`; nothing here imports `bridge/...`. The engine uses the
+concrete cache and client: tests run a real test repository against the real
+client pointed at `jiratest`, which exercises what production runs. Godoc is
+the authority for signatures; what follows is where each decision lives.
 
-### `jira/jiraapi`
+| file | holds |
+| --- | --- |
+| `types.go` | the seam: metadata keys, `Note`/`Level`, `Doc`, `Skip`, `Change`, `jiraWrite` |
+| `project.go` | `Discover` → `Project` (JS4) |
+| `derive.go`, `slug.go` | `Derive` (JS5–JS7), `slug`, `normName` (JS6) |
+| `compile.go` | `Compile` → `Mapping` with the binding and duplicate-alias checks; `Mapped` (JS5, JS25) |
+| `mapping.go`, `value.go` | `Mapping.Local`, `fromIssue`, `toWrites`, `createBody`; canonical values (JS7) |
+| `index.go` | `Index`: Jira id ↔ entity id, accountId ↔ identity (JS17, JS25) |
+| `merge.go`, `base.go` | `merge`, `form`, `decide`, `mergeSet`, `mergeComments`; `Base`, `CurrentBase`, `digest` (JS8–JS12) |
+| `engine.go` | `Sync`, `Options`, the run/issue failure split `runFatal` (JS23), `report` |
+| `candidates.go` | the scan, the search, failed hits, `changed`, the re-pass (JS17, JS20) |
+| `issue.go`, `write.go` | JS13: `syncLinked`, `converge`, `unconfirmed`, `commit`, `admit`; the Jira writes and transitions |
+| `create.go` | creates, attempts, `findCreated`, `linkCreated`, link requests, imports, Gone (JS15, JS19) |
+| `report.go`, `state.go` | `Line`, `Summary`; `State` (JS8, JS20, JS22) |
 
-```go
-type Client struct{ /* unexported */ }
-type Option func(*Client)
+`jiraapi` has one `Client` method per endpoint the sync calls and one
+`*Error` with the status and per-field errors; `jiratest` models every
+documented behaviour by default and every unverified one as a `With…` option.
 
-func New(baseURL, email, token string, opts ...Option) *Client
-func WithHTTPClient(h *http.Client) Option
-func WithSleep(sleep func(ctx context.Context, d time.Duration) error) Option // tests wait for nothing
+**Outside `jira/`**, the whole footprint: `cache.IssueCache.Update(fn)`
+(the write lock, a re-read, `fn` on the fresh snapshot, its operations
+schema-checked as one change against the type they set and committed behind
+one ref update; `fn` calls no cache writer and no network, and nothing else
+stages on the entity meanwhile); `issue.NewNoOpOp`, the marker's
+constructor; in `schema`, the reserved `alias_` prefix, `AliasName`,
+`ValueAliasName` and `Aliases` on documents and entities (Reconcile writes
+stated ones and never removes one); `gitcli.CredentialHelper`, reached as
+`RepoCache.Credential`; and `host.JiraSchema`/`host.JiraSync`, the one path
+for commands (and Starlark in v2). No pristine package is touched: identity
+tagging uses `Identity.SetMetadata`, which already appends a version.
 
-func (c *Client) Myself(ctx context.Context) (*User, error)
-func (c *Client) Project(ctx context.Context, key string) (*Project, error)
-func (c *Client) ProjectStatuses(ctx context.Context, key string) ([]IssueTypeStatuses, error)
-func (c *Client) Fields(ctx context.Context) ([]Field, error)
-func (c *Client) CreateMeta(ctx context.Context, projectKey, issueTypeId string) ([]FieldMeta, error) // all pages
-func (c *Client) Priorities(ctx context.Context, projectId string) ([]Priority, error)                // all pages
-func (c *Client) LinkTypes(ctx context.Context) ([]LinkType, error)                                   // 404: *Error
-func (c *Client) Search(ctx context.Context, q Search, page func([]Issue) error) error               // POST /search/jql
-func (c *Client) Issue(ctx context.Context, idOrKey string, fields, properties []string) (*Issue, error)
-func (c *Client) Comments(ctx context.Context, issueId string) ([]Comment, error) // expand=properties, all pages
-func (c *Client) CreateIssue(ctx context.Context, body CreateIssue) (*Created, error)
-func (c *Client) EditIssue(ctx context.Context, issueId string, e Edit) error // PUT; never notifyUsers
-func (c *Client) Transitions(ctx context.Context, issueId string) ([]Transition, error) // expand=transitions.fields
-func (c *Client) TransitionTo(ctx context.Context, issueId, statusId string) error      // PickTransition; 409: re-read, once
-func (c *Client) AddComment(ctx context.Context, issueId string, body json.RawMessage, props []Property) (*Comment, error)
-func (c *Client) EditComment(ctx context.Context, issueId, commentId string, body json.RawMessage) (*Comment, error)
-func (c *Client) CreateLink(ctx context.Context, l NewLink) error // {inwardIssue: Source, outwardIssue: Dest} (C1); no comment
-func (c *Client) DeleteLink(ctx context.Context, linkId string) error
+## Tests
 
-type Search struct{ JQL string; Fields, Properties []string; MaxResults int } // Properties ≤ 5; MaxResults advisory
-type User struct{ AccountId, AccountType, DisplayName, EmailAddress, TimeZone string; Active bool }
-type Project struct{ Id, Key, Name, Style string; IssueTypes []IssueType }
-type IssueType struct{ Id, Name, Description string; Subtask bool; HierarchyLevel int }
-type IssueTypeStatuses struct{ Id, Name string; Statuses []Status } // Id, Name: the issue type
-type Status struct{ Id, Name, Description, Category string }        // Category: statusCategory.key
-type FieldSchema struct{ Type, Items, System, Custom string }
-type Field struct{ Id, Name, UntranslatedName string; Custom bool; Schema FieldSchema; ScopeProject string } // "" = global
-type FieldMeta struct{ FieldId, Name string; Required bool; Schema FieldSchema; AllowedValues []Option }
-type Option struct{ Id, Name, Value string } // Name for priorities and resolutions, Value for options
-type Priority struct{ Id, Name string }
-type LinkType struct{ Id, Name, Inward, Outward string }
-type Issue struct{ Id, Key string; Fields, Properties map[string]json.RawMessage }
-type Comment struct {
-	Id                   string
-	Author, UpdateAuthor User
-	Body                 json.RawMessage // ADF
-	Created, Updated     time.Time
-	Properties           map[string]json.RawMessage
-}
-type Property struct{ Key string; Value json.RawMessage }
-type CreateIssue struct{ Fields map[string]json.RawMessage; Properties []Property }
-type Created struct{ Id, Key string }
-type Edit struct{ Fields, Update map[string]json.RawMessage } // a field in one of the two only
-type Transition struct{ Id, Name, To string; Fields map[string]TransitionField } // To: target status id
-type TransitionField struct{ Required bool; AllowedValues []Option }
-type NewLink struct{ TypeId, Source, Dest string } // Jira issue ids; Source blocks Dest
+The tests are the plan, named after what they check:
 
-// PickTransition is JS13 step 4: the transition to statusId, and the fields it
-// must send (a required resolution filled from its allowedValues).
-func PickTransition(ts []Transition, statusId string) (Transition, map[string]json.RawMessage, error)
+- **Merge**, pure tables: `TestMerge*` in `merge_test.go` — scalars, sets,
+  missing bases, the body and its lossy guard, `Skip{Retry}`, `export=false`,
+  every JS12 row, normalisation, type first, `CurrentBase`.
+- **Schema**: goldens of `Discover` and `Derive` over
+  `current ∈ {empty, jira preset, schema.yaml} × {company, team}`
+  (`testdata/`), each validated and a fixpoint on re-derive; renames, dead
+  aliases, exclusions, categories, mis-binding, duplicate aliases, the slug
+  table (`derive_test.go`, `project_test.go`); the conversion round trip per
+  kind (P1, `TestConversionRoundTrip`).
+- **Client and fake**: `jiraapi` against `jiratest` (paging, retries,
+  `Retry-After`, zones, ADF, no `notifyUsers`, no `/search`, 409), and
+  `jiratest`'s self-tests of every behaviour it models.
+- **Engine**, a real repository against the fake: the scenarios E1–E25 in
+  `scenario_test.go` (echo, import, normalisation, crashes, creates, links,
+  Gone, moves, rate limits, dry run, `ID...`, link requests, two clones, the
+  lock), and `adversarial_test.go`: the crash matrix at every write of a run
+  (before and after it lands, state saved or not, both ADF modes), crash
+  after a create with the state file lost, refused creates, concurrent local
+  commits, stale reads and unconfirmed writes, failed hits deleted, time
+  zones, DST, clock skew, type changes, moves, links to deleted issues, two
+  clones' races, lossy texts, unwritable values, and a seeded random-edit
+  property run (`TestAdvPropertyRandomEdits`).
 
-var ErrNoTransition = errors.New("no transition to the target status")
+## Earlier tasks
 
-type Error struct {
-	Method, Path string
-	Status       int
-	Messages     []string          // errorMessages
-	Fields       map[string]string // errors
-	RetryAfter   time.Duration
-}
-func (e *Error) Error() string
-func StatusOf(err error) int  // 0 when err is not an *Error
-func RunFatal(err error) bool // 401, retries exhausted, transport: stop the run (JS23)
-
-func ADFToText(doc json.RawMessage) (text string, lossless bool, err error)
-func TextToADF(text string) json.RawMessage
-func ParseTime(s string) (time.Time, error)        // -0700, Z and colon offsets; UTC out
-func JQLTime(t time.Time, loc *time.Location) string // "2006/01/02 15:04", truncated to the minute
-```
-
-### `jira/jiratest`
-
-```go
-type Server struct {
-	URL, Email, Token string
-	// unexported: the database, the lagging index, the request log
-}
-type Option func(*config)
-type Fixture struct{ /* project, types, workflows, fields, create screens, priorities, link types, users */ }
-
-func New(t testing.TB, fx Fixture, opts ...Option) *Server // closed on t.Cleanup
-func Company() Fixture // company-managed: Epic, Story, Task, Bug, Sub-task; custom workflows with
-                       // "In Review" indeterminate, "Won't Do" done, "Ready" new; Story Points (float);
-                       // a "Team" option field; a date picker; an unmapped textarea and cascading select;
-                       // Blocks, Duplicate, Relates, Cloners; a same-name field scoped to another project
-func Team() Fixture    // team-managed: project-scoped Epic, Story, Task, Subtask; jsw-story-points
-
-// Switches: the default is the documented, or else the harder, behaviour.
-func SearchLag(reads int) Option          // search answers from a copy n reads old; GET is consistent. Default 1
-func CommentAddBumpsUpdated(b bool) Option  // default true
-func CommentEditBumpsUpdated(b bool) Option // default false
-func CommentProperties(b bool) Option      // comment properties returned with expand=properties; default true
-func Zones(site, user string) Option       // default "America/Los_Angeles", "Europe/Berlin"
-func PageSize(n int) Option                // default 37: never a full page
-func Admin(b bool) Option                  // notifyUsers=false accepted; default false (400, C5)
-func Clock(now func() time.Time) Option
-
-// Jira-side edits, as a named user; each bumps updated like Jira does.
-func (s *Server) AddUser(accountId, displayName, email string)
-func (s *Server) Create(as, issueType string, fields map[string]any) (id, key string)
-func (s *Server) Set(as, key, field string, value any)
-func (s *Server) Transition(as, key, status string)
-func (s *Server) Link(as, linkType, source, dest string)
-func (s *Server) Comment(as, key, text string) (commentId string)
-func (s *Server) EditComment(as, key, commentId, text string)
-func (s *Server) DeleteComment(key, commentId string)
-func (s *Server) Delete(key string)
-func (s *Server) Move(key, project string) (newKey string)
-func (s *Server) Hide(key string)                        // 404 for the token's user
-func (s *Server) AddStatus(issueType, name, category string) (id string)
-func (s *Server) RenameStatus(id, name string)
-func (s *Server) Advance(d time.Duration)
-
-// Inspection and faults.
-func (s *Server) Get(key string) map[string]any // the database copy, as GET renders it
-func (s *Server) Requests() []Request
-type Request struct {
-	Method, Path, Query string
-	Body                []byte
-	Status              int
-}
-func (s *Server) Fail(method, pattern string, times, status int, body string)
-func (s *Server) RateLimit(method, pattern string, times int, retryAfter time.Duration)
-func (s *Server) RefuseField(field, message string) // 400 errors.<field> on PUT and POST
-func (s *Server) RemoveTransition(issueType, from, to string)
-```
-
-Always on: `PUT` all-or-nothing with per-field errors; sorted labels,
-trimmed summary, float rounding, ADF re-serialised with `localId`s; a string
-where ADF belongs is 400; summary over 255 and labels with spaces are 400;
-`issuetype` accepted by `id` only; links stored `{source: inward, dest:
-outward}`; issue and comment properties, inline on create; deleted issues
-dropped from search; 410 on `/rest/api/3/search`; the token omitted on the
-last page with `isLast`; a differing `reconcileIssues` between pages is 400;
-429 with `Retry-After` and `RateLimit-Reason`; no `Authorization` header is
-200 with nothing on search and 401 on `/myself`; the `X-AAccountId` header.
-
-### `jira`
-
-```go
-// ---- discovery (JS4) and schema (JS5–JS7): Derive and Compile are pure ----
-
-type Project struct {
-	Id, Key    string
-	Me         jiraapi.User       // TimeZone formats JQL literals (JS20)
-	IssueTypes []IssueType        // (Level desc, Id)
-	Fields     []jiraapi.Field    // visible, scope-filtered, by Id
-	Priorities []jiraapi.Priority // Jira's order
-	LinkTypes  []jiraapi.LinkType // nil when linking is disabled
-}
-type IssueType struct {
-	Id, Name, Description string
-	Level                 int
-	Statuses              []jiraapi.Status    // workflow order
-	Screen                []jiraapi.FieldMeta // the create screen
-}
-func Discover(ctx context.Context, c *jiraapi.Client, projectKey string) (*Project, error)
-
-type Level string // "info" | "warn" | "error"
-type Note struct{ Level Level; Key, Message string } // json: level, key ("task/status:in-review"), message
-func Derive(current *schema.Document, p *Project) (*schema.Document, []Note, error) // error: mis-binding
-func Compile(s *schema.Schema, p *Project) (*Mapping, []Note, error)                 // error: no type aliased, mis-binding, duplicate alias
-func Slug(name string) string
-func Norm(name string) string
-
-// ---- the seam between mapping and engine: pure ----
-
-type Mapping struct{ /* unexported tables */ }
-func (m *Mapping) Request() []string                            // fields= for GET
-func (m *Mapping) LocalType(issueTypeId string) (string, bool)  // unmapped: skipped, reported
-func (m *Mapping) IssueType(typeKey string) (string, bool)      // local-only: never exported
-func (m *Mapping) Multi(typeKey, key string) bool
-func (m *Mapping) Canceled(typeKey string) (key string, v issue.Value, ok bool) // JS19
-func (m *Mapping) Users(ri *jiraapi.Issue, cs []jiraapi.Comment) []jiraapi.User // to ensure first (JS16)
-// Local is the snapshot in local terms for typeKey's mapped keys; the engine
-// passes the type the merge settles on (JS18). Notes carry Note.
-func (m *Mapping) Local(snap *issue.Snapshot, typeKey string) Doc
-// FromJira converts one issue and its comments: canonical values (JS7), texts
-// through ADFToText, out-of-project relations dropped, the rest in Skip (JS17).
-func (m *Mapping) FromJira(ri *jiraapi.Issue, cs []jiraapi.Comment, ix *Index) Doc
-// ToJira turns merged changes into writes, one per local key, the description
-// included; remote gives link ids.
-func (m *Mapping) ToJira(typeKey string, ch []Change, remote *jiraapi.Issue, ix *Index) ([]Write, []Skip)
-// Create is the POST body and the keys it sends (JS15's create base).
-func (m *Mapping) Create(local Doc, id entity.Id, ix *Index) (NewIssue, []string, []Skip)
-type NewIssue struct{ Fields map[string]any; Properties []jiraapi.Property }
-
-type Index struct{ /* Jira id <-> entity id, accountId <-> identity id */ }
-func NewIndex(repo *cache.RepoCache) (*Index, error) // one pass over excerpts and identities
-func IndexOf(issues, users map[string]entity.Id) *Index // tests
-func (ix *Index) Issue(jiraId string) (entity.Id, bool)   // of two, the unarchived, then the lower id
-func (ix *Index) JiraIssue(id entity.Id) (string, bool)
-func (ix *Index) User(accountId string) (entity.Id, bool) // of two, the lower id
-func (ix *Index) Account(id entity.Id) (string, bool)     // every identity carrying one
-func (ix *Index) AddIssue(jiraId string, id entity.Id)
-func (ix *Index) AddUser(accountId string, id entity.Id)
-
-type Doc struct {
-	Id, Key  string                 // remote only
-	Updated  time.Time              // remote only
-	Created  time.Time              // remote only
-	Reporter string                 // remote only: accountId
-	Status   string                 // remote only: the status name
-	Type     string
-	Fields   map[string]issue.Value // mapped keys, title and type included
-	Body     Text                   // comment #0
-	Comments []Comment              // #1 on
-	Skip     []Skip                 // remote only
-}
-type Text struct{ Text string; Lossless bool } // local texts are always lossless
-type Comment struct {
-	JiraId         string    // local: jira-comment-id; remote: the Jira id
-	Op             entity.Id // local: the add-comment op; remote: from the git-work property
-	Author, Editor string    // accountIds (remote) or identity ids (local)
-	At, Edited     time.Time
-	Text           Text
-	Note           bool // jira-note: never exported
-}
-type Change struct{ Key string; Set issue.Value; Add, Remove []issue.Value } // Set scalar, Add/Remove multi
-type Skip struct{ Key, Reason string; Retry bool }                           // json: key, reason, retry
-type WriteKind int // WriteEdit (batched into one PUT) | WriteTransition | WriteLink
-type Write struct {
-	Key    string          // the local key: success is reported per Write
-	Kind   WriteKind
-	Field  string          // Edit: Jira field id
-	Set    json.RawMessage // Edit: fields.<Field>; "null" clears
-	Update []jiraapi.Op    // Edit: update.<Field>, when Set cannot say it
-	Status string          // Transition: target status id
-	Add    []NewLink // Link: {LinkType, Source, Destination} as POST /issueLink orients them
-	Remove []string // Link: issueLink ids
-}
-
-// ---- the merge: pure (JS9–JS12) ----
-
-type Base struct{ /* JS8 */ }
-func CurrentBase(snap *issue.Snapshot) (*Base, []string) // nil when unlinked; problems for undecodable markers
-func Digest(text string) string
-func Merge(b *Base, local, remote Doc, multi func(key string) bool, export bool) Plan
-
-// LocalKind: LocalSet | LocalAdd | LocalRemove | LocalEditBody | LocalAddComment |
-// LocalEditComment | LocalTombstone | LocalPairComment (a SetMetadata of JiraId on Op, no text).
-type LocalKind int
-type LocalChange struct {
-	Kind   LocalKind
-	Key    string // field kinds
-	Value  issue.Value
-	Text   string
-	Op     entity.Id
-	JiraId string
-	Author string    // accountId; "" is the runner
-	At     time.Time // Jira's updated for field imports
-}
-type CommentWrite struct{ Op entity.Id; JiraId, Text string } // JiraId "" creates
-type Conflict struct{ Key string; Local, Jira issue.Value; Comment string } // Key: field, "body" or "comment"
-type Plan struct {
-	Local     []LocalChange
-	Remote    []Change
-	Comments  []CommentWrite
-	Conflicts []Conflict
-	Pending   []Skip
-	Base      Base
-}
-
-// ---- the engine (JS13–JS24) ----
-
-type Options struct {
-	Ids                         []entity.Id
-	DryRun, Full, AcceptDeletes bool
-	Overlap                     time.Duration // default 5m
-	Settle                      time.Duration // default 15m: an unanswered create stays in doubt (JS15)
-	MaxDeletes                  int           // default 10
-}
-type State struct {
-	Site, Project string
-	Cursor        time.Time
-	Creating      map[entity.Id]time.Time    // the create journal, on Jira's clock; saved before every POST
-	Seen          map[entity.Id]lamport.Time // edit lamport after the last converged sync
-	Failed        map[string]time.Time       // Jira id -> updated of a hit that failed (JS20)
-}
-func LoadState(fs repository.LocalStorage) (*State, error) // jira/state.json
-func (s *State) Save(fs repository.LocalStorage) error     // temp file and rename
-
-// Sync saves st itself before every POST /issue; the caller saves it at the
-// end, holding the sync lock (host.JiraSync).
-func Sync(ctx context.Context, repo *cache.RepoCache, c *jiraapi.Client, p *Project, m *Mapping,
-	st *State, opts Options, emit func(Line)) (Summary, error)
-func Mapped(s *schema.Schema) error // no type mapped yet: review the first mapping (JS5)
-
-// Line is one JSON line (JS22): exactly one of Schema, Issue, Summary is set.
-type Line struct {
-	Schema    []schema.Change            `json:"schema,omitempty"`
-	Issue     entity.Id                  `json:"issue,omitempty"`
-	Jira      string                     `json:"jira,omitempty"`
-	Action    string                     `json:"action,omitempty"`
-	Imported  map[string]json.RawMessage `json:"imported,omitempty"`
-	Exported  map[string]json.RawMessage `json:"exported,omitempty"`
-	Comments  *CommentCounts             `json:"comments,omitempty"`
-	Conflicts []Conflict                 `json:"conflicts,omitempty"`
-	Pending   []Skip                     `json:"pending,omitempty"`
-	Error     string                     `json:"error,omitempty"`
-	DryRun    bool                       `json:"dry_run,omitempty"`
-	Summary   *Summary                   `json:"summary,omitempty"`
-}
-type CommentCounts struct{ Imported, Exported, Edited, Tombstoned int } // json: snake_case
-type Summary struct {
-	Imported, Created, Updated, Linked, Gone, Conflicts, Pending, Failed, Skipped int
-	Cursor time.Time
-}
-```
-
-### Outside `jira/`
-
-```go
-// cache/issue_cache.go — the only cache change.
-//
-// Update takes the write lock, re-reads the issue, and hands fn the fresh
-// snapshot. The operations fn returns are schema-checked as one change —
-// against the type they set, if they set one — then appended and committed
-// behind one ref update. No operations: nothing is written. fn runs under the
-// entity's mutex: it may read other excerpts and a *schema.Checker obtained
-// beforehand, but must not call a cache writer, c.Snapshot(), or the network.
-// Implementation: split CachedEntityBase.Commit into the lock and a
-// commitLocked that Update calls after reload and fn, so there is one path.
-func (c *IssueCache) Update(fn func(snap *issue.Snapshot) ([]issue.Operation, error)) error
-
-// entities/issue (ours): the marker's constructor.
-func NewNoOpOp(author identity.Interface, unixTime int64, metadata map[string]string) *dag.NoOpOperation[*Snapshot]
-
-// schema/: aliases (JS2).
-const AliasPrefix = "alias_"                       // reserved in attr.go, in the first commit
-func AliasName(system string) string               // "alias_jira"
-func ValueAliasName(system, valueId string) string // "alias_jira/<value-id>", on the field entity
-// Aliases map[string]string `yaml:"aliases,omitempty"` on TypeDoc, FieldDoc, ValueDoc,
-// and Aliases map[string]string on Type, Field, Value.
-// Load reads them; Export writes them (export | import stays zero operations);
-// Reconcile writes stated ones and, owning no alias_ name, never removes one;
-// Validate checks the system name [a-z][a-z0-9_]* and duplicates within the document.
-func NewDocument() *Document
-func (d *Document) SetType(key string, t TypeDoc)
-func (t *TypeDoc) SetField(key string, f FieldDoc) // allocates Fields lazily
-func (f *Field) ValuesInCategory(c Category) []Value
-
-// gitcli/: git's credential helpers, like its config and transport.
-type CredentialHelper interface {
-	// CredentialFill runs `git credential fill` with GIT_TERMINAL_PROMPT=0.
-	CredentialFill(url, username string) (secret string, err error)
-}
-// cache/: reaches it through the wrapped repository; an error when git is absent.
-func (c *RepoCache) Credential(url, username string) (string, error)
-
-// host/jira.go: the one path for commands (and Starlark in v2).
-func JiraSchema(ctx context.Context, repo *cache.RepoCache) (*schema.Document, []jira.Note, error)
-func JiraSync(ctx context.Context, repo *cache.RepoCache, opts jira.Options, emit func(jira.Line)) (jira.Summary, []jira.Note, error)
-```
-
-That is the whole footprint outside `jira/`, `host/jira.go` and
-`commands/jira/`. No pristine package is touched: identity tagging uses
-`Identity.SetMetadata`, which already appends a version.
-
-## Test plan
-
-**Merge**, table tests, pure:
-
-- M1 Jira-only edit → one `LocalSet` by the runner at Jira's `updated`; base = remote.
-- M2 Local-only edit → one `Remote` change, no local op.
-- M3 Double edit → Jira's value imported, one conflict; base = remote.
-- M4 The same edit on both sides → no op, no conflict, base recorded.
-- M5 Sets: an add and a remove on each side → all four survive, no conflict.
-- M6 Missing base: local null → import; local set and different → import and conflict; set → union; `l == r` → converged.
-- M7 Lossy remote description edited locally → pending, not exported.
-- M8 Remote `Skip{Retry}` → key untouched, base unchanged, key in `Base.Retry`.
-- M9 `export=false` → every local change pending.
-- M10 Comments: new in Jira; new locally; edited on each side; on both; deleted in Jira; deleted after a local edit; a property naming an unpaired local op → `LocalPairComment`, no text op; a note → never exported.
-- M11 Jira normalises our write back to the value it held → converges in one run, no second export.
-- M12 Type changed in Jira → type first, other keys under the new type; local type change → pending.
-- M13 `CurrentBase`: two markers → greatest `Updated`; an undecodable one skipped and reported.
-
-**Schema**, goldens over `current ∈ {empty, jira preset, schema.yaml} × {Company, Team}`,
-every output passing `Document.Validate`:
-
-- D1 `Discover` → `Project` golden per fixture.
-- D2 `Derive` golden and its `Reconcile` change list per cell.
-- D3 Fixpoint: import, derive again → zero changes.
-- D4 A Jira status rename → one `Set` of one `values/<id>`; an added status → its value and alias; a removed one → no change, a dead-alias warning.
-- D5 Importing the alias-free `schema.yaml` over a mapped store removes no alias; `export | import` is zero operations.
-- D6 `aliases: {jira: ""}` is never adopted, across runs.
-- D7 A `canceled` value aliased to a `done` status stays `canceled`; moved to `indeterminate`, it resets and warns.
-- D8 Company aliases against Team → `Derive` and `Compile` refuse; `sync` refuses with no type aliased.
-- D9 Two entities with one alias → `Compile` refuses.
-- D10 `Slug`/`Norm` table (apostrophes, non-Latin, leading digit, 48-byte cut, collisions, built-ins).
-- D11 Conversion table, one row per kind × direction, `ToJira(FromJira(x)) == x`; P1 per kind and for ADF against the fake's normalisation; link direction per C1.
-
-**Client** against `jiratest`:
-
-- C1 Paging stops on `isLast` or a missing, null or empty token; short pages are not the end.
-- C2 429 with `Retry-After` is waited and retried; exhausted → `RunFatal`.
-- C3 Timestamps in two non-UTC zones parse to the right instants; `JQLTime` uses the user's zone.
-- C4 `notifyUsers` is never sent; `/search` is never called; bodies are ADF where ADF belongs.
-- C5 409 on a transition → re-read, retried once; a required resolution is filled; another required field → `ErrNoTransition`.
-- C6 401 on `/myself` → `RunFatal` with "token invalid or expired".
-
-**Engine**, a real test repository against `jiratest`:
-
-- E1 Echo: export a local edit, run again → nothing written on either side.
-- E2 Import echo: import a Jira edit, run again → nothing exported.
-- E3 Normalisation: sorted labels and a trimmed description → imported in the same commit; the next run is quiet.
-- E4 Crash after the Jira writes, before step 6 → next run converges; no duplicate comment, one marker.
-- E5 Crash before, during and after `POST /issue` (answer lost, process killed), index lagging, for every write of a run → linked by property or created again after `Settle`, never twice; `sync ID...` alike; a second run while one holds the lock does nothing.
-- E6 No transition to the target → status pending with the reason, other keys synced; a later Jira status change imports with a conflict.
-- E7 `PUT` refused for one field → retried without it; the rest land; that key pending.
-- E8 A concurrent local commit between steps 3 and 6 → a conflict if Jira changed that key, pending otherwise; nothing lost.
-- E9 New local issue → created with type, parent and create-screen fields; status and links written in the same run; `jira-id` and `alias:jira` on the create op; resolvable by key; a Jira default priority imported, not cleared.
-- E10 New Jira issue → `NewRaw` by the reporter at `created`, first marker on the create op, comments by their authors; a child imported before its parent resolves in the end-of-run re-pass.
-- E11 Parent or link outside the project → dropped; the local value untouched; nothing reported as `Retry`.
-- E12 Jira delete under `--full` → `Gone`, canceled status, note, never exported; more than 10 → nothing marked, exit 1; `--accept-deletes` marks them; the issue answering again → Jira's status imported.
-- E13 Move to another project → `Gone: moved`.
-- E14 Two clones on one fake (and the JS25 races: each reported as the table says), exchanging through a bare remote → no value lost, markers read as one base, a local edit on B before pulling A's import exported or noted; one new Jira field derived on both → E7 reported; one new status → one value.
-- E15 The overlap re-returns synced issues → no `GET`, no commit.
-- E16 429 exhausted mid-run → the run stops, exit 1, the cursor not past the failing issue.
-- E17 Cursor: a failed issue mid-page → kept in `Failed` and named in the next search, which syncs it; a lost state file → a search from the markers, every hit skipped.
-- E18 `--dry-run` → plan printed; refs, state file and the fake's write log unchanged.
-- E19 `ID...` → only those issues read and synced; no search; cursor untouched.
-- E20 A Jira status the schema lacks mid-run → `Retry`; the next run's schema step adds it and the key imports.
-- E21 First sync with `alias:jira` link requests → linked, not duplicated; an alias naming no Jira issue → skipped, never created.
-- E22 `/myself` 401 → abort before any search or write.
-- E23 A Jira comment edit that does not bump `updated` → missed incrementally, synced by `--full`.
-- E24 Two Jira issues whose property names one entity → the lower id linked, the other reported every run.
-- E25 A `Gone` issue edited locally → pending, never exported.
-
-E1–E5 and E12 run in both positions of every `jiratest` switch.
-
-## Contradicts earlier tasks
-
-Each is also a comment on its task, per the working conventions.
-
-- **`33148f2`** asked for "changelog where available, state diff otherwise".
-  Revised: state-based always, merged against `GET`, **no changelog in v1**,
-  not even for attribution (JS1). Sprints and rank are v2.
-- **`69b7be0`**: the open question is closed — the mapping is aliases on the
-  schema entities (JS2), not git config and not a `mapping` shape; `bridge
-  new`'s introspection is `git work jira schema`, reviewed as a file (JS5).
-  Its comment asked for the reconcile inside `ConfigCache.Update`; the sync
-  uses `host.SchemaImport` as it stands, because derivation is idempotent and
-  the next run corrects a lost race.
-- **`3c6d07a`**: the policy stands. The base is a `NoOp` marker (JS8); the
-  loser is recorded by a note and the op log, with no `jira-overrode`
-  metadata (JS21); "delete → canceled" needs a canceled value on the type,
-  and a type without one keeps its status with the note (JS19). The bridge
-  core's `since`-timestamp loop does not stay: the cursor is Jira's own
-  `updated` with an overlap (JS20).
-- **`32d372e`**: "store the Jira key as op metadata and register it as an
-  alias" is `jira-id` plus `alias:jira` by `SetMetadata` on the create op
-  (JS15); validation errors are per-key pending entries, not `ExportResult`
-  warnings.
-- **`a3a8d16`**: the command is `git work jira sync`, not `git work sync`
-  (the module is named after what it talks to); **`--watch` is deferred**:
-  cron is the loop (every minute, `--full` nightly), per "automation is out
-  of scope".
-- **`cli-convention.md`**: `git work bridge configure|pull|push|rm` becomes
-  `git work jira schema|sync`, unbound in Starlark in v1.
-- **`config-entity.md`**: E3 gains the reserved `alias_` family; E9 gains
-  "reconcile writes stated aliases and never removes them".
-- **`AGENTS.md`**, when the command lands: the recipe, one bound clone, `sync`
-  never pushes, and the cron lines.
+Each difference was posted as a comment on its task, per the working
+conventions: `33148f2` (state-based, no changelog in v1), `69b7be0` (aliases
+on the schema entities; `jira schema` replaces `bridge new`'s introspection;
+the ordinary `host.SchemaImport`, not a reconcile inside
+`ConfigCache.Update`), `3c6d07a` (a `NoOp` marker; a note and the op log, no
+`jira-overrode`; a type without a canceled value keeps its status; the cursor
+is Jira's `updated`), `32d372e` (`jira-id` plus `alias:jira` by
+`SetMetadata`; per-key pending entries), `a3a8d16` (`git work jira sync`;
+`--watch` deferred, cron is the loop), `cli-convention.md` (`bridge` verbs
+become `jira schema|sync`) and `config-entity.md` (the reserved `alias_`
+family, stated aliases never removed).
 
 ## As implemented
 
-Deviations the code made, each for a reason found while building it; the
-review rounds' changes are folded into the decisions above.
-
 - **E14**: `entity/dag` (pristine) fails to read a merged history whose two
-  branches differ in length ("creation lamport time not set": its reversed
-  BFS is not a topological order). It is independent of the sync and flagged
+  branches differ in length ("creation lamport time not set",
+  `doc/design/dag-read-order.md`). It is independent of the sync and flagged
   rather than fixed; the two-clone scenario diverges by one commit per side.
-- **Fake gaps**: a type change in Jira (JS18, M12) cannot be staged by
-  `jiratest`, so `TestAdvTypeChangeInJira` skips; so do a status added
-  mid-run (E20) and datetime custom fields, which are covered by conversion
-  tests only.
+- **Fake gaps**: `jiratest` cannot add a status mid-run, so E20 (a Jira
+  status the schema lacks → `Retry`, then imported after the next schema
+  step) is untested end to end; datetime custom fields are covered by
+  conversion tests only (`TestDatetime`).
+- **Awaiting the spike** (`0a4390d`): whether `GET /issue` is
+  read-after-write consistent (the `unconfirmed` guard exists for
+  `WithStaleReads`), whether `expand=properties` is honoured on the comment
+  list (JS12), whether an issue property reaches the search index with the
+  same lag as fields (I4), and how Jira answers JQL naming a deleted id
+  (JS20; the fake answers 400, the worse case).
