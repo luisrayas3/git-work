@@ -661,7 +661,9 @@ bound is `min(cursor, oldest journal entry) − Overlap` (5 minutes), converted
 to `/myself.timeZone` and truncated to the minute, formatted
 `"yyyy/MM/dd HH:mm"`: JQL literals are read in the **user's profile zone**
 (C6), which can differ from the zone responses are rendered in. The overlap
-covers minute truncation, index lag and a DST fold at once. Response
+covers minute truncation and index lag. A DST fold is an hour, which no
+overlap covers: in a fold's first pass `jiraapi.JQLTime` names the instant
+before the fold, so the bound errs an hour early, never late. Response
 timestamps are parsed with their offset (`2006-01-02T15:04:05.000-0700`, `Z`
 and colon forms accepted), never assumed `+0000` (C4). The binary embeds
 `time/tzdata`, so any IANA zone loads; an empty zone fails the run. A missing
