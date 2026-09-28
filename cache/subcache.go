@@ -681,10 +681,15 @@ func (sc *SubCache[EntityT, ExcerptT, CacheT]) MergeAll(remote string) <-chan en
 		}
 		defer unlock()
 
-		// the author is only needed for merge commits, so a user identity is optional
+		// The author is only needed for merge commits, so a user identity is
+		// optional: not set at all, or set to an identity this clone hasn't
+		// merged yet. The latter is the state of a fresh clone, whose
+		// git-bug.identity names an identity that only exists under
+		// refs/remotes/<remote>/work-users until this very merge copies it
+		// locally. Aborting here would deadlock the pull against itself.
 		user, err := sc.getUserIdentity()
 
-		if err != nil && !errors.Is(err, identity.ErrNoIdentitySet) {
+		if err != nil && !errors.Is(err, identity.ErrNoIdentitySet) && !entity.IsErrNotFound(err) {
 			out <- entity.NewMergeError(err, "")
 			return
 		}
