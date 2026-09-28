@@ -837,7 +837,7 @@ func TestAdvE17CursorHoldsAtFailure(t *testing.T) {
 	require.Equal(t, 1, sum.Failed)
 	st, _ = jira.LoadState(w.c.LocalStorage())
 	require.True(t, st.Cursor.After(start))
-	require.Contains(t, st.Failed, bid, "B is named in the next search, whatever the cursor (A6)")
+	require.Contains(t, st.Failed, bid, "B is re-read on the next run, whatever the cursor (A6)")
 	require.Equal(t, `"C2"`, field(t, w.byKey(c), "title"), "C synced all the same")
 
 	lines, _ := w.mustSync(jira.Options{})
@@ -850,6 +850,34 @@ func TestAdvE17CursorHoldsAtFailure(t *testing.T) {
 	for _, r := range w.srv.Requests() {
 		require.NotRegexp(t, `^/rest/api/3/issue/\d+$`, r.Path, "no GET after a lost state file")
 	}
+}
+
+// A hit that failed and whose issue is then deleted in Jira: the next runs
+// neither stop nor keep it, and go on syncing the rest (review2 #1: the
+// search once named failed ids, and Jira refuses an id it cannot see).
+func TestAdvFailedHitThenDeleted(t *testing.T) {
+	w := newWorld(t)
+	a := w.srv.CreateIssue(jiratest.IssueSpec{Project: "PROJ", Type: "Task", Summary: "A"})
+	w.mustSync(jira.Options{})
+	b := w.srv.CreateIssue(jiratest.IssueSpec{Project: "PROJ", Type: "Task", Summary: "B"})
+	bid := w.srv.Issue(b).ID
+	failB := &failRT{match: func(r *http.Request) bool {
+		return r.Method == "GET" && strings.HasSuffix(r.URL.Path, "/issue/"+bid)
+	}, status: 403}
+	_, sum, err := w.runWith(context.Background(), failB, jira.Options{}, true)
+	require.NoError(t, err)
+	require.Equal(t, 1, sum.Failed)
+	st, _ := jira.LoadState(w.c.LocalStorage())
+	require.Contains(t, st.Failed, bid)
+
+	w.srv.Delete(b)
+	w.srv.Advance(time.Hour)
+	w.srv.Edit(a, map[string]any{"summary": "A2"})
+	w.mustSync(jira.Options{})
+	require.Equal(t, `"A2"`, field(t, w.byKey(a), "title"), "the run went on")
+	st, _ = jira.LoadState(w.c.LocalStorage())
+	require.NotContains(t, st.Failed, bid, "a failed id Jira no longer has is dropped")
+	w.still()
 }
 
 // failRT answers matching requests with status, without sending them.

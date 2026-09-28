@@ -74,13 +74,16 @@ func (c *Client) SearchJQL(ctx context.Context, s Search, fn func(SearchPage) er
 
 // GetIssue reads one issue. An old key finds the moved issue, whose Key is
 // then the new one (§3.1). nil fields means all of them.
-func (c *Client) GetIssue(ctx context.Context, idOrKey string, fields, expand []string) (*Issue, error) {
+func (c *Client) GetIssue(ctx context.Context, idOrKey string, fields, expand []string, properties ...string) (*Issue, error) {
 	q := url.Values{}
 	if len(fields) > 0 {
 		q.Set("fields", strings.Join(fields, ","))
 	}
 	if len(expand) > 0 {
 		q.Set("expand", strings.Join(expand, ","))
+	}
+	if len(properties) > 0 {
+		q.Set("properties", strings.Join(properties, ","))
 	}
 	var is Issue
 	if err := c.get(ctx, "/rest/api/3/issue/"+esc(idOrKey), q, &is); err != nil {

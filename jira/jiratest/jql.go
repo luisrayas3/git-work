@@ -320,6 +320,13 @@ func (e *jqlEnv) clause(c *jqlClause) (pred, *apiError) {
 			if err != nil {
 				return nil, jqlError("The value '%s' for field 'id' is invalid.", v)
 			}
+			// Jira validates an id the way it validates a key: one that names no
+			// issue the caller can see, deleted or hidden, fails the whole query.
+			// The vetted docs (api.md, api-vetting.md) are silent on id, so the
+			// fake takes the answer worse for a client, the 400 a key gets.
+			if e.user != nil && (e.hidden || e.s.lookup(v) == nil) {
+				return nil, jqlError("An issue with key '%s' does not exist for field '%s'.", v, c.field)
+			}
 			match = append(match, func(st *issueState) bool { return st.id == n })
 		default:
 			// Old keys resolve to the moved issue (api-vetting.md §4.7).

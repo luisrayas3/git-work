@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"slices"
 	"sort"
-	"strings"
 	"time"
 
 	"github.com/git-bug/git-bug/cache"
@@ -17,10 +16,11 @@ import (
 // ---- candidates (JS20) ----
 
 type hit struct {
-	id, key string
-	updated time.Time
-	prop    entity.Id // the git-work property
-	mapped  bool      // of an issue type the schema maps
+	id, key   string
+	updated   time.Time
+	prop      entity.Id // the git-work property
+	mapped    bool      // of an issue type the schema maps
+	refetched bool      // a failed hit of an earlier run, read by GET
 }
 
 // local is one scan of the excerpts.
@@ -96,7 +96,7 @@ func (e *engine) runIds() error {
 	return nil
 }
 
-// maxFailed bounds the failed hits named in the search (A6).
+// maxFailed bounds the failed hits re-read in one run (A6).
 const maxFailed = 100
 
 func (e *engine) runAll() error {
@@ -121,14 +121,14 @@ func (e *engine) runAll() error {
 
 	jql := "project = " + jiraapi.JQLQuote(e.p.Key)
 	if lb, ok := e.lowerBound(l); ok && !e.opts.Full {
-		cond := "updated >= " + jiraapi.JQLTime(lb, loc)
-		if failed := sorted.Keys(e.st.Failed); len(failed) > 0 {
-			cond = "(" + cond + " OR id in (" + strings.Join(failed[:min(len(failed), maxFailed)], ", ") + "))"
-		}
-		jql += " AND " + cond
+		jql += " AND updated >= " + jiraapi.JQLTime(lb, loc)
 	}
+	failed := sorted.Keys(e.st.Failed)
 	hits, err := e.search(jql + " ORDER BY updated ASC, id ASC")
 	if err != nil {
+		return err
+	}
+	if hits, err = e.refetch(failed, hits); err != nil {
 		return err
 	}
 	if err := e.runHits(hits, l); err != nil {
@@ -219,22 +219,58 @@ func (e *engine) search(jql string) ([]hit, error) {
 	err := e.c.SearchJQL(e.ctx, jiraapi.Search{JQL: jql, Fields: []string{"updated", "issuetype"}, Properties: []string{PropertyKey}, MaxResults: 100},
 		func(page jiraapi.SearchPage) error {
 			for i := range page.Issues {
-				ri := &page.Issues[i]
-				h := hit{id: ri.ID, key: ri.Key, prop: propertyOf(ri.Properties[PropertyKey]).Id}
-				var u jiraapi.Time
-				if _, err := ri.Decode("updated", &u); err == nil {
-					h.updated = u.UTC()
-				}
-				var it jiraapi.IssueType
-				if _, err := ri.Decode("issuetype", &it); err == nil {
-					_, h.mapped = e.m.LocalType(it.ID)
-				}
-				hits = append(hits, h)
+				hits = append(hits, e.hitOf(&page.Issues[i]))
 			}
 			return nil
 		})
 	if err != nil {
 		return nil, fatal{err}
+	}
+	return hits, nil
+}
+
+func (e *engine) hitOf(ri *jiraapi.Issue) hit {
+	h := hit{id: ri.ID, key: ri.Key, prop: propertyOf(ri.Properties[PropertyKey]).Id}
+	var u jiraapi.Time
+	if _, err := ri.Decode("updated", &u); err == nil {
+		h.updated = u.UTC()
+	}
+	var it jiraapi.IssueType
+	if _, err := ri.Decode("issuetype", &it); err == nil {
+		_, h.mapped = e.m.LocalType(it.ID)
+	}
+	return h
+}
+
+// refetch appends to hits the failed hits of earlier runs the search did
+// not return, each read by GET: the database (I4), and never named in the
+// JQL, because Jira refuses a whole query naming an id it cannot see, and a
+// failed hit is most often an issue since deleted or hidden (A6). An id
+// that is gone or moved out is dropped; Gone decides about its issue.
+func (e *engine) refetch(failed []string, hits []hit) ([]hit, error) {
+	found := map[string]bool{}
+	for _, h := range hits {
+		found[h.id] = true
+	}
+	for _, id := range failed[:min(len(failed), maxFailed)] {
+		if found[id] {
+			continue
+		}
+		ri, err := e.c.GetIssue(e.ctx, id, []string{"updated", "issuetype", "project"}, nil, PropertyKey)
+		switch {
+		case jiraapi.StatusCode(err) == 404:
+			delete(e.st.Failed, id)
+		case err != nil:
+			if err := stop(err); err != nil {
+				return nil, err
+			}
+		case !e.p.Owns(ri.Key):
+			delete(e.st.Failed, id)
+		default:
+			h := e.hitOf(ri)
+			h.refetched = true
+			hits = append(hits, h)
+		}
 	}
 	return hits, nil
 }
@@ -254,39 +290,40 @@ func propertyOf(raw json.RawMessage) property {
 	return p
 }
 
-// runHits handles the search hits in order. The cursor moves to the
-// greatest updated reached; a hit that failed is kept in the state's Failed
-// and named in the next search, so one issue failing forever costs one id
-// in the query, not a window that only grows (JS20, A6).
+// runHits handles the hits in order. The cursor moves to the greatest
+// updated the search reached; a hit that failed is kept in the state's
+// Failed and re-read on the next run, so one issue failing forever costs one
+// GET, not a window that only grows (JS20, A6).
 func (e *engine) runHits(hits []hit, l *local) error {
-	// JS15: of two Jira issues naming one entity, the lower id links
-	owner := map[entity.Id]string{}
-	for _, h := range hits {
-		if cur, ok := owner[h.prop]; h.prop != "" && (!ok || cmpId(h.id, cur) < 0) {
-			owner[h.prop] = h.id
-		}
-	}
-	failed := map[string]time.Time{}
+	owner := lowestByProperty(hits)
 	for _, h := range hits {
 		err := e.runHit(h, owner, l)
-		if h.updated.After(e.cursor) {
+		if !h.refetched && h.updated.After(e.cursor) {
 			e.cursor = h.updated
 		}
 		if err == nil {
 			delete(e.st.Failed, h.id)
 			continue
 		}
-		failed[h.id] = h.updated
+		e.st.Failed[h.id] = h.updated
+		// unreached hits are after the cursor, or still in Failed
 		if err := stop(err); err != nil {
-			// unreached hits are after the cursor; earlier failures stay
-			for id, t := range failed {
-				e.st.Failed[id] = t
-			}
 			return err
 		}
 	}
-	e.st.Failed = failed
 	return nil
+}
+
+// lowestByProperty is JS15's owner: of two Jira issues naming one entity,
+// the lower id links.
+func lowestByProperty(hits []hit) map[entity.Id]string {
+	owner := map[entity.Id]string{}
+	for _, h := range hits {
+		if cur, ok := owner[h.prop]; h.prop != "" && (!ok || cmpId(h.id, cur) < 0) {
+			owner[h.prop] = h.id
+		}
+	}
+	return owner
 }
 
 func (e *engine) runHit(h hit, owner map[entity.Id]string, l *local) error {

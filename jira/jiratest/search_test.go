@@ -208,7 +208,6 @@ func TestJQLClauses(t *testing.T) {
 		{`project in (PROJ) AND key in (` + a + `, ` + c + `) ORDER BY key`, []string{a, c}},
 		{`id in (` + ids[b] + `,` + ids[c] + `) ORDER BY id ASC`, []string{b, c}},
 		{`issuekey = ` + b, []string{b}},
-		// the sync's retry of failed issues
 		{`project = PROJ AND (updated >= "2099/01/01 00:00" OR id in (` + ids[a] + `, ` + ids[c] + `)) ORDER BY updated ASC, id ASC`, []string{a, c}},
 		{`project = PROJ AND created >= "2000/01/01 00:00" ORDER BY created ASC, id ASC`, []string{epic, a, b, c}},
 	}
@@ -218,6 +217,22 @@ func TestJQLClauses(t *testing.T) {
 			require.Equal(t, http.StatusOK, r.status, string(r.body))
 			require.Equal(t, tc.want, keysOf(t, r.obj(t)))
 		})
+	}
+}
+
+// An id naming no visible issue fails the query, as a key does: the sync
+// must never name a failed hit's id in its search.
+func TestJQLIdOfDeletedIssue(t *testing.T) {
+	s := newServer(t)
+	a := s.CreateIssue(jiratest.IssueSpec{Project: "PROJ", Type: "Task", Summary: "a"})
+	b := s.CreateIssue(jiratest.IssueSpec{Project: "PROJ", Type: "Task", Summary: "b"})
+	ida, idb := s.Issue(a).ID, s.Issue(b).ID
+	s.Delete(b)
+	for _, jql := range []string{`id in (` + ida + `, ` + idb + `)`, `id = 99999`} {
+		r := search(t, s, url.Values{"jql": {`project = PROJ AND ` + jql}})
+		require.Equal(t, http.StatusBadRequest, r.status, string(r.body))
+		msgs, _ := errorBody(t, r)
+		require.Contains(t, msgs[0], "does not exist for field 'id'")
 	}
 }
 

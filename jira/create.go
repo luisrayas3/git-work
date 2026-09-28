@@ -113,12 +113,7 @@ func (e *engine) findCreated(id entity.Id) (string, error) {
 		if err != nil {
 			return "", err
 		}
-		e.created = map[entity.Id]string{}
-		for _, h := range hits {
-			if cur, ok := e.created[h.prop]; h.prop != "" && (!ok || cmpId(h.id, cur) < 0) {
-				e.created[h.prop] = h.id
-			}
-		}
+		e.created = lowestByProperty(hits)
 	}
 	return e.created[id], nil
 }
