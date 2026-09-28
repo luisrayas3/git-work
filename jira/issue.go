@@ -249,7 +249,6 @@ func (e *engine) commit(ic *cache.IssueCache, b2 *Base, ri *jiraapi.Issue, cs []
 	} else {
 		delete(e.st.Seen, ic.Id())
 	}
-	delete(e.st.Creating, ic.Id())
 	e.report(decided)
 	return nil
 }

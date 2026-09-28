@@ -12,10 +12,13 @@ import (
 
 // ---- creates, links and imports (JS15) ----
 
-// create exports a local issue with no jira-id: journal on disk, POST with
-// the built-ins, then the ordinary merge from a create base. A journal entry
-// says an earlier POST may have landed: the issue is looked for by its
-// property first, and created again only once the entry has settled.
+// create exports a local issue with no jira-id: the attempt committed to
+// the store, POST with the built-ins, then the ordinary merge from a create
+// base. An attempt with no jira-id says an earlier POST may have landed:
+// the issue is looked for by its property first, and created again only
+// once the attempt has settled (JS15). The attempt is in the store, not the
+// state file, so losing the state never duplicates, and a clone that pulled
+// the attempt sees it.
 func (e *engine) create(ic *cache.IssueCache) error {
 	id := ic.Id()
 	e.done[id] = true
@@ -27,18 +30,23 @@ func (e *engine) create(ic *cache.IssueCache) error {
 		e.report(line)
 		return nil
 	}
-	if t, ok := e.st.Creating[id]; ok {
-		jid, err := e.findCreated(id)
+	if r, ok := e.st.Refused[id]; ok && r.Lamport == ic.EditLamportTime() {
+		line.Action, line.Error = ActionFailed, r.Reason+" (unchanged since Jira refused it; edit the issue to retry)"
+		e.report(line)
+		return nil
+	}
+	if at, ok := e.inDoubt(ic); ok {
+		jid, err := e.findCreated(id, at)
 		if err != nil {
 			return e.fail(line, err)
 		}
 		if jid != "" {
 			return e.linkCreated(ic, jid)
 		}
-		if e.now().Sub(t) < e.opts.Settle {
+		if e.now().Sub(at) < e.opts.Settle {
 			line.Action = ActionSkipped
 			line.Pending = append(line.Pending, Skip{Key: "*", Retry: true,
-				Reason: "a create at " + t.Format(time.RFC3339) + " may have landed; waiting for Jira's search to show it"})
+				Reason: "a create at " + at.Format(time.RFC3339) + " may have landed; waiting for Jira's search to show it"})
 			e.report(line)
 			return nil
 		}
@@ -55,14 +63,18 @@ func (e *engine) create(ic *cache.IssueCache) error {
 		e.report(line)
 		return nil
 	}
-	e.st.Creating[id] = e.now()
-	if err := e.persist(); err != nil {
-		return err
+	at := e.now().Truncate(time.Second)
+	err := ic.Update(func(*issue.Snapshot) ([]issue.Operation, error) {
+		return []issue.Operation{issue.NewNoOpOp(e.me, at.Unix(), map[string]string{MetaCreate: at.Format(time.RFC3339)})}, nil
+	})
+	if err != nil {
+		return e.fail(line, err)
 	}
+	delete(e.st.Refused, id)
 	ref, err := e.c.CreateIssue(e.ctx, body.Fields, body.Properties)
 	if err != nil {
 		if refused(err) {
-			delete(e.st.Creating, id)
+			e.st.Refused[id] = Refusal{At: at, Lamport: ic.EditLamportTime(), Reason: err.Error()}
 		}
 		return e.fail(line, err)
 	}
@@ -77,6 +89,23 @@ func (e *engine) create(ic *cache.IssueCache) error {
 		return e.fail(line, err)
 	}
 	return e.resume(ic, ri, cs, local, sent, line)
+}
+
+// inDoubt is the latest create attempt of an unlinked issue, unless Jira
+// refused it.
+func (e *engine) inDoubt(ic *cache.IssueCache) (time.Time, bool) {
+	var at time.Time
+	for _, op := range ic.Snapshot().Operations {
+		if v, ok := op.GetMetadata(MetaCreate); ok {
+			if t, err := time.Parse(time.RFC3339, v); err == nil && t.After(at) {
+				at = t
+			}
+		}
+	}
+	if r, ok := e.st.Refused[ic.Id()]; at.IsZero() || ok && r.At.Equal(at) {
+		return time.Time{}, false
+	}
+	return at.UTC(), true
 }
 
 // resume continues a create whose POST landed, from its create base.
@@ -94,22 +123,20 @@ func refused(err error) bool {
 }
 
 // findCreated is the Jira issue whose property names id among those created
-// since the oldest journal entry − Overlap, the lower id of two; one search
-// per run answers every entry.
-func (e *engine) findCreated(id entity.Id) (string, error) {
-	if e.created == nil {
+// since the oldest attempt in doubt − Overlap, the lower id of two; one
+// search per run answers every attempt the run knows of.
+func (e *engine) findCreated(id entity.Id, at time.Time) (string, error) {
+	if e.created == nil || at.Before(e.since) {
 		loc, err := e.location()
 		if err != nil {
 			return "", err
 		}
-		var since time.Time
-		for _, t := range e.st.Creating {
-			if since.IsZero() || t.Before(since) {
-				since = t
-			}
+		e.since = at
+		if !e.doubt.IsZero() && e.doubt.Before(at) {
+			e.since = e.doubt
 		}
 		hits, err := e.search("project = " + jiraapi.JQLQuote(e.p.Key) + " AND created >= " +
-			jiraapi.JQLTime(since.Add(-e.opts.Overlap), loc) + " ORDER BY created ASC, id ASC")
+			jiraapi.JQLTime(e.since.Add(-e.opts.Overlap), loc) + " ORDER BY created ASC, id ASC")
 		if err != nil {
 			return "", err
 		}

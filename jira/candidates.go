@@ -167,12 +167,7 @@ func (e *engine) runAll() error {
 		}
 	}
 
-	// a journal entry of an issue no longer to create is stale
-	for id := range e.st.Creating {
-		if ex, ok := l.byId[id]; !ok || ex.CreateMetadata[MetaId] != "" {
-			delete(e.st.Creating, id)
-		}
-	}
+	var creates []*cache.IssueCache
 	for _, id := range l.creates {
 		if e.done[id] {
 			continue
@@ -181,6 +176,13 @@ func (e *engine) runAll() error {
 		if err != nil {
 			return err
 		}
+		// one created search answers every create in doubt
+		if at, ok := e.inDoubt(ic); ok && (e.doubt.IsZero() || at.Before(e.doubt)) {
+			e.doubt = at
+		}
+		creates = append(creates, ic)
+	}
+	for _, ic := range creates {
 		if err := stop(e.create(ic)); err != nil {
 			return err
 		}

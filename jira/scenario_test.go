@@ -235,11 +235,7 @@ func TestCrashAfterCreate(t *testing.T) {
 	mia := w.srv.As(jiratest.MiaID)
 	key := mia.CreateIssue(jiratest.IssueSpec{Project: "PROJ", Type: "Task", Summary: "Created, then crashed"})
 	mia.SetProperty(key, jira.PropertyKey, map[string]string{"id": id.String()})
-	st, err := jira.LoadState(w.c.LocalStorage())
-	require.NoError(t, err)
-	st.Bind(w.srv.URL(), "PROJ")
-	st.Creating[id] = w.srv.Now()
-	require.NoError(t, st.Save(w.c.LocalStorage()))
+	w.attempt(id)
 
 	// inside Overlap and lagging: neither found nor created again
 	w.mustSync(jira.Options{})

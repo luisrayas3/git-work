@@ -34,8 +34,7 @@ var ErrDeletesHeld = errors.New("jira: too many issues missing from Jira; none m
 // Sync converges the store and the project, one issue at a time (JS13–JS24).
 // A failure of one issue is its line and the run goes on; a failure of the
 // run (JS23) stops it and is returned, after the summary. st is updated in
-// place and saved before every POST /issue (the create journal); the caller
-// saves it at the end unless DryRun.
+// place; the caller saves it at the end unless DryRun.
 func Sync(ctx context.Context, repo *cache.RepoCache, c *jiraapi.Client, p *Project, m *Mapping,
 	st *State, opts Options, emit func(Line)) (Summary, error) {
 	if opts.Overlap == 0 {
@@ -90,6 +89,8 @@ type engine struct {
 	sum     Summary
 	missing map[string]bool      // Jira ids a GET found deleted or moved out (JS19)
 	created map[entity.Id]string // in-doubt creates found by the created search (JS15); nil until searched
+	since   time.Time            // the created search's bound, before Overlap
+	doubt   time.Time            // the oldest in-doubt attempt of the run's creates
 }
 
 // fatal marks an error that stops the run (JS23).
@@ -122,7 +123,7 @@ func stop(err error) error {
 	return nil
 }
 
-// now is Jira's clock, from the Date of its last response: journal times
+// now is Jira's clock, from the Date of its last response: create attempts
 // then compare with Jira's created, and notes carry Jira's time, with no
 // client skew (JS20). The fallback is local.
 func (e *engine) now() time.Time {
@@ -130,15 +131,6 @@ func (e *engine) now() time.Time {
 		return d.UTC()
 	}
 	return time.Now().UTC()
-}
-
-// persist saves the state now: the create journal must be on disk before
-// the POST it guards (JS15).
-func (e *engine) persist() error {
-	if err := e.st.Save(e.repo.LocalStorage()); err != nil {
-		return fatal{fmt.Errorf("jira: saving the create journal: %w", err)}
-	}
-	return nil
 }
 
 // location is the zone JQL literals are read in (JS20).

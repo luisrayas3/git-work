@@ -385,16 +385,22 @@ func crashSetup(t *testing.T, opts ...jiratest.Option) *crashWorld {
 	return &crashWorld{world: w, key: key, ic: ic, newId: newId}
 }
 
-// ageJournal is time passing beyond Settle for the create journal, whose
-// entries are on Jira's clock.
+// ageJournal is time passing beyond Settle for the create attempts, which
+// are on Jira's clock.
 func (w *world) ageJournal() {
 	w.t.Helper()
-	st, err := jira.LoadState(w.c.LocalStorage())
+	w.srv.Advance(time.Hour)
+}
+
+// attempt commits a create attempt on id now, as a run does before its POST.
+func (w *world) attempt(id entity.Id) {
+	w.t.Helper()
+	at := w.srv.Now().Truncate(time.Second).UTC()
+	me, err := w.c.GetUserIdentity()
 	require.NoError(w.t, err)
-	for id := range st.Creating {
-		st.Creating[id] = w.srv.Now().Add(-time.Hour).UTC()
-	}
-	require.NoError(w.t, st.Save(w.c.LocalStorage()))
+	require.NoError(w.t, mustIssue(w.t, w.c, id).Update(func(*issue.Snapshot) ([]issue.Operation, error) {
+		return []issue.Operation{issue.NewNoOpOp(me, at.Unix(), map[string]string{jira.MetaCreate: at.Format(time.RFC3339)})}, nil
+	}))
 }
 
 // recover is what cron does after a crash: runs, with time passing.
@@ -503,6 +509,63 @@ func crashMatrix(t *testing.T, names []string, opts []jiratest.Option) {
 			}
 		}
 	}
+}
+
+// JS15: the create attempt is in the store, so a state file lost between a
+// POST that landed and the next run costs nothing: no duplicate.
+func TestAdvCrashAfterCreateStateLost(t *testing.T) {
+	for _, lag := range []int{0, 1} { // crashSetup imports within two runs
+		t.Run(fmt.Sprint("lag=", lag), func(t *testing.T) {
+			cw := crashSetup(t, jiratest.WithIndexLag(lag, 0))
+			h := &hookRT{after: func(r *http.Request, _ int) error {
+				if r.Method == http.MethodPost && r.URL.Path == "/rest/api/3/issue" {
+					return errCrash
+				}
+				return nil
+			}}
+			_, _, err := cw.runWith(context.Background(), h, jira.Options{}, true)
+			require.Error(t, err)
+			require.NoError(t, cw.c.LocalStorage().Remove("jira/state.json"))
+			cw.recover()
+			cw.check()
+		})
+	}
+}
+
+// A create Jira refuses is not in doubt: it is not POSTed again, nor its
+// attempt committed again, until the issue changes; with the state file
+// lost it is in doubt, which costs one Settle, never a duplicate.
+func TestAdvCreateRefused(t *testing.T) {
+	w := newWorld(t)
+	id := w.newLocal("Refused", "", nil)
+	refuse := &failRT{match: func(r *http.Request) bool {
+		return r.Method == http.MethodPost && r.URL.Path == "/rest/api/3/issue"
+	}, status: 400}
+	_, sum, err := w.runWith(context.Background(), refuse, jira.Options{}, true)
+	require.NoError(t, err)
+	require.Equal(t, 1, sum.Failed)
+	before := w.refs()
+	posts := 0
+	count := &hookRT{before: func(r *http.Request, _ int) error {
+		if r.Method == http.MethodPost && r.URL.Path == "/rest/api/3/issue" {
+			posts++
+		}
+		return nil
+	}}
+	_, sum, err = w.runWith(context.Background(), count, jira.Options{}, true)
+	require.NoError(t, err)
+	require.Equal(t, 1, sum.Failed, "still reported")
+	require.Zero(t, posts, "not POSTed again unchanged")
+	require.Equal(t, before, w.refs(), "no second attempt committed")
+
+	require.NoError(t, w.c.LocalStorage().Remove("jira/state.json"))
+	lines, _ := w.mustSync(jira.Options{})
+	require.Equal(t, jira.ActionSkipped, lines[0].Action, "in doubt: %+v", lines)
+	require.Empty(t, w.srv.Keys())
+	w.ageJournal()
+	w.mustSync(jira.Options{})
+	require.Len(t, w.srv.Keys(), 1)
+	require.NotEmpty(t, jiraKeyOf(t, mustIssue(t, w.c, id)))
 }
 
 // ---- E8: a local commit between the plan and the commit ----
@@ -619,11 +682,7 @@ func TestAdvIdsRespectCreateJournal(t *testing.T) {
 	mia := w.srv.As(jiratest.MiaID)
 	key := mia.CreateIssue(jiratest.IssueSpec{Project: "PROJ", Type: "Task", Summary: "Created, then crashed"})
 	mia.SetProperty(key, jira.PropertyKey, map[string]string{"id": id.String()})
-	st, err := jira.LoadState(w.c.LocalStorage())
-	require.NoError(t, err)
-	st.Bind(w.srv.URL(), "PROJ")
-	st.Creating[id] = w.srv.Now()
-	require.NoError(t, st.Save(w.c.LocalStorage()))
+	w.attempt(id)
 
 	w.mustSync(jira.Options{Ids: []entity.Id{id}}) // the index lags: pending
 	require.Len(t, w.srv.Keys(), 1, "never POSTed again")
@@ -1353,12 +1412,6 @@ func TestAdvClockSkew(t *testing.T) {
 			}}
 			_, _, err := w.runWith(context.Background(), h, jira.Options{}, true)
 			require.Error(t, err)
-			if len(w.srv.Keys()) == 1 {
-				// the journal (if kept) must cover the create on Jira's clock
-				st, _ := jira.LoadState(w.c.LocalStorage())
-				st.Creating[id] = time.Now().UTC()
-				require.NoError(t, st.Save(w.c.LocalStorage()))
-			}
 			for i := 0; i < 3; i++ {
 				w.mustSync(jira.Options{})
 			}

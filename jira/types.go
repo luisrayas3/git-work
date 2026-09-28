@@ -21,6 +21,7 @@ const (
 	MetaId        = "jira-id"         // create op: the Jira issue id, the link (I3)
 	MetaAlias     = "alias:jira"      // create op: the Jira key at link time
 	MetaSync      = "jira-sync"       // create op or NoOp: the Base as JSON
+	MetaCreate    = "jira-create"     // NoOp before a POST /issue: its time on Jira's clock (JS15)
 	MetaCommentId = "jira-comment-id" // add-comment op: the Jira comment id (I3)
 	MetaNote      = "jira-note"       // add-comment op of a note: conflict | deleted
 	MetaAccountId = "jira-account-id" // identity, immutable: the Jira accountId
