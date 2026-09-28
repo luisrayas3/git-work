@@ -1311,7 +1311,6 @@ func TestAdvTypeChangeInJira(t *testing.T) {
 	key, ic := w.imported("Retyped")
 	w.set(ic.Id(), "labels", issue.Value(`["kept"]`))
 	w.mustSync(jira.Options{})
-	t.Skip("untestable: the fake refuses issuetype on PUT and has no Move-to-type helper, so a Jira type change (JS18, M12) cannot be staged end to end")
 	w.srv.Edit(key, map[string]any{"issuetype": map[string]string{"id": "10004"}}) // Bug
 	w.mustSync(jira.Options{})
 	require.Equal(t, `"bug"`, field(t, ic, "type"))

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"reflect"
 	"slices"
 	"strconv"
 	"strings"
@@ -68,7 +69,7 @@ func (s *Server) apply(st *issueState, up *issueUpdate, mode writeMode, screen f
 		switch mode {
 		case modeEdit:
 			// PUT does not check screens, only the field context (api.md §5.3).
-			return id == "summary" || typeHas(st.typ, id)
+			return id == "summary" || id == "issuetype" || typeHas(st.typ, id)
 		default:
 			return screen(id)
 		}
@@ -270,6 +271,8 @@ func (s *Server) setField(st *issueState, id string, raw json.RawMessage) string
 		return setDate(&st.duedate, raw, null)
 	case "parent":
 		return s.setParent(st, raw, null)
+	case "issuetype":
+		return setType(st, raw)
 	case "resolution":
 		if null {
 			st.resolution = ""
@@ -287,6 +290,24 @@ func (s *Server) setField(st *issueState, id string, raw json.RawMessage) string
 	default:
 		return s.setCustom(st, s.field(id), raw, null)
 	}
+	return ""
+}
+
+// setType is an edit's type change, which Jira allows between types of the
+// project that share the workflow and the hierarchy level; any other change
+// is a move, which the REST API does not offer (Server.Move is the web UI's).
+func setType(st *issueState, raw json.RawMessage) string {
+	r, ok := parseRef(raw)
+	var t *IssueType
+	if ok {
+		if t = st.project.issueType(r.id()); t == nil && r.Name != "" {
+			t = st.project.issueType(r.Name)
+		}
+	}
+	if t == nil || t.HierarchyLevel != st.typ.HierarchyLevel || !reflect.DeepEqual(t.Workflow, st.typ.Workflow) {
+		return "The issue type selected is invalid."
+	}
+	st.typ = t
 	return ""
 }
 
