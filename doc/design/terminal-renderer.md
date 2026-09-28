@@ -192,11 +192,23 @@ and from the first view they leave the program,
 but only on the second press.
 The first press moves the cursor **onto the call line**,
 which stays the call line — the kind and the named arguments —
-and unfolds the query under it as the pipeline it is:
-one line per top-level `|`, the pipe starting the line,
-and a line for each of its own line breaks,
+and unfolds the query under it, **formatted**:
+`jq.Format` in `query/jq` parses it with gojq, the evaluator,
+and prints the tree back the way gofmt would —
+every node on one line where it fits,
+a top-level pipe one stage per line whether it fits or not,
+and what does not fit broken at its own seam,
+a call one argument per line, an object one key per line,
+`if`/`then`/`else`, `try`/`catch`, `reduce` and `foreach`
+in the shape their keywords give them —
 because a jq program folded onto one line, or shown as a JSON string,
 is a readability nightmare (Luis, 2026-09-28).
+The parser drops comments and the author's spelling,
+so the formatter is for reading a program and never for rewriting typed text:
+when the call line becomes editable, the text edited is the text typed,
+and formatting is an action on it.
+A program that does not parse, which a half-typed one is,
+falls back to a scanner cutting at top-level pipes.
 It is not editable yet, but copy copies the whole call
 as the shell command, `git work view list '{…}'`,
 so the command that drew the screen is one keystroke from the shell.

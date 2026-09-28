@@ -229,8 +229,8 @@ then the fields table, the comment box, and comments/description/log tabs switch
 it opens in the comment box, and `↓` then `Enter` sends the comment
 (`Tab` skips the box whole; its buttons are reached from its text).
 `Esc` (or vim's `q`, emacs's `C-g`) is always back;
-from the first view it parks on the call line, the query unfolded under it
-one line per top-level `|` (`C-c` copies the whole `git work view …` command), and from there it quits;
+from the first view it parks on the call line, the query formatted under it
+(`query/jq.Format`, a pipe per line; `C-c` copies the whole `git work view …` command), and from there it quits;
 `C-q` quits at once; `C-c` does not.
 Every view's first line is the call that drew it.
 

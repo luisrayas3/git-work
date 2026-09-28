@@ -7,6 +7,7 @@ import (
 
 	"github.com/charmbracelet/x/ansi"
 
+	"github.com/git-bug/git-bug/query/jq"
 	"github.com/git-bug/git-bug/view"
 )
 
@@ -65,10 +66,11 @@ func callParts(call *view.Call, lead, leadArg string) (head []string, query stri
 
 // callLines is the call line unfolded, for when the cursor is on it: the
 // same first line, less the query, marked and reversed as the cell under
-// the cursor is, and under it the query laid out as the pipeline it is —
-// one line per top-level `|`, the pipe starting the line, and a line for
-// each of its own line breaks — because a jq program folded onto one line
-// is a readability nightmare (Luis, 2026-09-28).
+// the cursor is, and under it the query formatted to the window by
+// jq.Format — a pipeline one stage per line, and anything else broken only
+// where it does not fit — because a jq program folded onto one line is a
+// readability nightmare (Luis, 2026-09-28). A program that does not parse
+// is cut at its top-level pipes instead, which is the best a scanner can do.
 func callLines(call *view.Call, lead, leadArg string, width int) []string {
 	head, query, dim := callParts(call, lead, leadArg)
 	inner := max(width-2, 10)
@@ -78,8 +80,15 @@ func callLines(call *view.Call, lead, leadArg string, width int) []string {
 	if dim {
 		style = styleDim
 	}
-	for _, segment := range pipeline(query) {
-		for at, wrapped := range strings.Split(ansi.Hardwrap(segment, inner-2, false), "\n") {
+	var body []string
+	if formatted, err := jq.Format(query, inner-2); err == nil {
+		body = strings.Split(formatted, "\n")
+	} else {
+		body = pipeline(query)
+	}
+	for _, line := range body {
+		// a line that still does not fit — one string, one long name — wraps
+		for at, wrapped := range strings.Split(ansi.Hardwrap(line, inner-2, false), "\n") {
 			indent := "    "
 			if at == 0 {
 				indent = "  "
@@ -92,9 +101,10 @@ func callLines(call *view.Call, lead, leadArg string, width int) []string {
 
 // pipeline is a jq program cut at its top-level pipes and its own line
 // breaks, whitespace within a segment collapsed, every segment after the
-// first starting with the pipe it follows. Pipes inside parentheses,
-// brackets, braces or a string are the program's own and are left alone,
-// as is `|=`, which is an assignment and not a pipe.
+// first starting with the pipe it follows: the fallback for a program the
+// parser refuses. Pipes inside parentheses, brackets, braces or a string
+// are the program's own and are left alone, as is `|=`, which is an
+// assignment and not a pipe.
 func pipeline(program string) []string {
 	var segments []string
 	var current strings.Builder
