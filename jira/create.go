@@ -60,6 +60,18 @@ func (e *engine) create(ic *cache.IssueCache) error {
 		for _, k := range sent {
 			line.exported(k, local.Fields[k])
 		}
+		// and the follow-up writes, against a Jira holding what was POSTed
+		// and nothing else, its defaults unknown until the GET
+		posted := Doc{Type: local.Type, Fields: map[string]issue.Value{}}
+		for k := range local.Fields {
+			posted.Fields[k] = null
+		}
+		b := &Base{V: baseVersion, Fields: map[string]issue.Value{}, Sent: e.sentForms(local, sent), Fresh: true}
+		for _, k := range sent {
+			posted.Fields[k] = local.Fields[k]
+		}
+		b, posted = e.settle(b, local, posted, nil)
+		line.exports(merge(b, local, posted, e.multi(local.Type), true), posted, nil)
 		e.report(line)
 		return nil
 	}

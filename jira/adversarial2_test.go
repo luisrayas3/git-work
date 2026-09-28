@@ -606,14 +606,12 @@ func TestAdv2DryRunPureAndHonest(t *testing.T) {
 		}
 		for k := range r.Exported {
 			if _, ok := d.Exported[k]; !ok {
-				t.Logf("real run exported %s on %s, which the dry run did not show", k, orId2(d))
+				lies = append(lies, fmt.Sprintf("real run exported %s on %s, which the dry run did not show", k, orId2(d)))
 			}
 		}
 	}
 	require.Len(t, real, len(d1), "as many lines")
-	if len(lies) > 0 {
-		t.Skipf("BUG: --dry-run's claims differ from the run that follows: %s", strings.Join(lies, "; "))
-	}
+	require.Empty(t, lies, "--dry-run's claims are the run that follows")
 }
 
 func counts(c *jira.CommentCounts) jira.CommentCounts {
