@@ -381,12 +381,9 @@ func (e *engine) changed(snap *issue.Snapshot, b *Base) bool {
 	l := e.m.Local(snap, typ)
 	for k, v := range l.Fields {
 		multi := e.m.Multi(typ, k)
-		if !same(canonical(v, multi), canonical(b.Fields[k], multi)) {
+		if !same(canonical(form(k, v), multi), canonical(b.Fields[k], multi)) {
 			return true
 		}
-	}
-	if Digest(l.Body.Text) != b.Body {
-		return true
 	}
 	for _, c := range l.Comments {
 		bd, ok := b.Comments[c.JiraId]

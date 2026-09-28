@@ -28,8 +28,7 @@ type Base struct {
 	Id       string                 `json:"id"`
 	Key      string                 `json:"key"`
 	Updated  time.Time              `json:"updated"`
-	Fields   map[string]issue.Value `json:"fields"`
-	Body     string                 `json:"body"`
+	Fields   map[string]issue.Value `json:"fields"` // each key's form: the body's digest
 	Comments map[string]string      `json:"comments,omitempty"`
 	Retry    []string               `json:"retry,omitempty"`
 	Gone     string                 `json:"gone,omitempty"`

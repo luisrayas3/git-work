@@ -149,17 +149,17 @@ func (e *engine) findCreated(id entity.Id, at time.Time) (string, error) {
 // imports; another is Jira's when local holds a value, so it is written now,
 // and local's when not, so a Jira default imports.
 func createBase(local, remote Doc, sent []string) *Base {
-	b := &Base{V: baseVersion, Id: remote.Id, Key: remote.Key, Fields: map[string]issue.Value{}, Body: Digest(local.Body.Text)}
+	b := &Base{V: baseVersion, Id: remote.Id, Key: remote.Key, Fields: map[string]issue.Value{}}
 	carried := map[string]bool{}
 	for _, k := range sent {
 		carried[k] = true
 	}
 	for k, rv := range remote.Fields {
-		lv := canon(local.Fields[k])
+		lv := form(k, local.Fields[k])
 		if carried[k] || issue.IsNull(lv) || string(lv) == "[]" {
 			b.Fields[k] = lv
 		} else {
-			b.Fields[k] = canon(rv)
+			b.Fields[k] = form(k, rv)
 		}
 	}
 	return b
@@ -261,7 +261,7 @@ func (e *engine) importIssue(jiraId string) error {
 	for _, lc := range plan.Local {
 		switch lc.Kind {
 		case LocalSet:
-			if lc.Key != issue.TitleKey {
+			if lc.Key != issue.TitleKey && lc.Key != BodyKey {
 				fields[lc.Key] = lc.Value
 			}
 		case LocalAdd:
@@ -269,7 +269,6 @@ func (e *engine) importIssue(jiraId string) error {
 				sets[lc.Key] = itemSet{}
 			}
 			sets[lc.Key].add(lc.Value)
-		case LocalEditBody:
 		default:
 			continue // comments: step 6
 		}
@@ -285,7 +284,8 @@ func (e *engine) importIssue(jiraId string) error {
 		created = e.now()
 	}
 	title, _ := issue.String(remote.Fields[issue.TitleKey])
-	ic, _, err := e.repo.Issues().NewRaw(e.author(remote.Reporter), created.Unix(), title, remote.Body.Text, nil, fields,
+	body, _ := issue.String(remote.Fields[BodyKey])
+	ic, _, err := e.repo.Issues().NewRaw(e.author(remote.Reporter), created.Unix(), title, body, nil, fields,
 		map[string]string{MetaId: ri.ID, MetaAlias: ri.Key, MetaSync: plan.Base.Marshal()})
 	if err != nil {
 		return e.fail(line, err)

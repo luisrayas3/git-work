@@ -29,7 +29,7 @@ func isMulti(k string) bool { return k == "labels" }
 
 // doc is a document holding the given fields and body, lossless.
 func doc(body string, kv ...any) Doc {
-	d := Doc{Id: "10001", Key: "PROJ-1", Updated: t0, Type: "task", Fields: map[string]issue.Value{}, Body: Text{body, true}}
+	d := Doc{Id: "10001", Key: "PROJ-1", Updated: t0, Type: "task", Fields: map[string]issue.Value{BodyKey: str(body)}}
 	for i := 0; i < len(kv); i += 2 {
 		d.Fields[kv[i].(string)] = kv[i+1].(issue.Value)
 	}
@@ -38,7 +38,8 @@ func doc(body string, kv ...any) Doc {
 
 func base(body string, kv ...any) *Base {
 	d := doc(body, kv...)
-	return &Base{V: 1, Id: d.Id, Key: d.Key, Updated: t0.Add(-time.Hour), Fields: d.Fields, Body: Digest(body)}
+	d.Fields[BodyKey] = form(BodyKey, str(body))
+	return &Base{V: 1, Id: d.Id, Key: d.Key, Updated: t0.Add(-time.Hour), Fields: d.Fields}
 }
 
 func TestMergeScalars(t *testing.T) {
@@ -169,19 +170,18 @@ func TestMergeBody(t *testing.T) {
 	// Jira edit imported
 	p := Merge(base("old"), doc("old"), doc("new"), isMulti, true)
 	require.Len(t, p.Local, 1)
-	require.Equal(t, LocalEditBody, p.Local[0].Kind)
-	require.Equal(t, "new", p.Local[0].Text)
-	require.Equal(t, Digest("new"), p.Base.Body)
+	require.Equal(t, LocalChange{Kind: LocalSet, Key: BodyKey, Value: str("new"), At: t0}, p.Local[0])
+	require.Equal(t, form(BodyKey, str("new")), p.Base.Fields[BodyKey])
 
 	// local edit exported
 	p = Merge(base("old"), doc("mine"), doc("old"), isMulti, true)
 	require.Empty(t, p.Local)
 	require.Equal(t, []Change{{Key: BodyKey, Set: str("mine")}}, p.Remote)
-	require.Equal(t, Digest("old"), p.Base.Body)
+	require.Equal(t, form(BodyKey, str("old")), p.Base.Fields[BodyKey])
 
 	// M7: over a lossy Jira text, pending
 	r := doc("old")
-	r.Body.Lossless = false
+	r.Lossy = true
 	p = Merge(base("old"), doc("mine"), r, isMulti, true)
 	require.Empty(t, p.Remote)
 	require.Equal(t, []Skip{{Key: BodyKey, Reason: reasonLossy}}, p.Pending)

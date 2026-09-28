@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/git-bug/git-bug/entities/issue"
 	"github.com/git-bug/git-bug/entity"
 	"github.com/git-bug/git-bug/jira/jiraapi"
 	"github.com/git-bug/git-bug/util/sorted"
@@ -18,7 +17,7 @@ import (
 // Jira's normal form). A set's base stays: the second merge against it
 // reaches the merged set on both sides. pairs are the comments it created,
 // by Jira id; wrote says anything landed. Only a run failure is returned.
-func (e *engine) write(ri *jiraapi.Issue, remote, local Doc, plan Plan, b2 *Base, line *Line) (pairs map[string]entity.Id, wrote bool, err error) {
+func (e *engine) write(ri *jiraapi.Issue, remote Doc, plan Plan, b2 *Base, line *Line) (pairs map[string]entity.Id, wrote bool, err error) {
 	writes, skips := e.m.ToJira(remote.Type, plan.Remote, ri, e.ix)
 	line.Pending = append(line.Pending, skips...)
 	failed := map[string]bool{}
@@ -111,19 +110,8 @@ func (e *engine) write(ri *jiraapi.Issue, remote, local Doc, plan Plan, b2 *Base
 	}
 
 	for _, ch := range plan.Remote {
-		if failed[ch.Key] {
-			continue
-		}
-		switch {
-		case ch.Key == BodyKey:
-			text, _ := issue.String(ch.Set)
-			b2.Body = Digest(text)
-			line.exported(BodyKey, issue.StringValue(b2.Body))
-		case ch.Set != nil:
-			b2.Fields[ch.Key] = canon(ch.Set)
-			line.exported(ch.Key, ch.Set)
-		default:
-			line.exported(ch.Key, changeValue(ch, remote.Fields[ch.Key]))
+		if !failed[ch.Key] && ch.Set != nil {
+			b2.Fields[ch.Key] = form(ch.Key, ch.Set)
 		}
 	}
 
@@ -132,17 +120,16 @@ func (e *engine) write(ri *jiraapi.Issue, remote, local Doc, plan Plan, b2 *Base
 		adf := jiraapi.TextToADF(cw.Text)
 		if cw.JiraId == "" {
 			c, err := e.c.AddComment(e.ctx, ri.ID, adf, jiraapi.Property{Key: PropertyKey, Value: map[string]string{"op": cw.Op.String()}})
-			if err := try(CommentKey+":"+cw.Op.Human(), err); err != nil {
+			if err := try(cw.key(), err); err != nil {
 				return nil, wrote, err
 			}
 			if err == nil {
 				pairs[c.ID] = cw.Op
-				line.comments().Exported++
 			}
 			continue
 		}
 		_, err := e.c.UpdateComment(e.ctx, ri.ID, cw.JiraId, adf)
-		if err := try(CommentKey+":"+cw.JiraId, err); err != nil {
+		if err := try(cw.key(), err); err != nil {
 			return nil, wrote, err
 		}
 		if err == nil {
@@ -150,9 +137,9 @@ func (e *engine) write(ri *jiraapi.Issue, remote, local Doc, plan Plan, b2 *Base
 				b2.Comments = map[string]string{}
 			}
 			b2.Comments[cw.JiraId] = Digest(cw.Text)
-			line.comments().Edited++
 		}
 	}
+	line.exports(plan, remote, failed)
 	return pairs, wrote, nil
 }
 

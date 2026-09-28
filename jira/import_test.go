@@ -120,7 +120,7 @@ func local(t *testing.T, repo *cache.RepoCache, m *jira.Mapping) {
 	require.Equal(t, `"Linked"`, string(doc.Fields["title"]))
 	_, ok = doc.Fields["area"]
 	require.False(t, ok, "a local-only field is not in the merge")
-	require.Equal(t, jira.Text{Text: "the body", Lossless: true}, doc.Body)
+	require.Equal(t, `"the body"`, string(doc.Fields[jira.BodyKey]))
 	require.Len(t, doc.Comments, 3)
 	require.Equal(t, "20001", doc.Comments[0].JiraId)
 	require.Equal(t, paired.Id(), doc.Comments[0].Op)

@@ -9,8 +9,8 @@ import (
 	"github.com/git-bug/git-bug/util/sorted"
 )
 
-// BodyKey names comment #0 wherever a key is expected: a Change for the
-// description, a conflict, a report member.
+// BodyKey is comment #0 as a key of Doc.Fields, its text a JSON string:
+// the description in Jira. Its base holds the text's digest (form).
 const BodyKey = "body"
 
 // CommentKey is the key of a comment's conflict, and the prefix of its
@@ -24,10 +24,9 @@ const typeKey = "type"
 type LocalKind int
 
 const (
-	LocalSet         LocalKind = iota // SetField Key = Value
+	LocalSet         LocalKind = iota // SetField Key = Value; EditComment of #0 for BodyKey
 	LocalAdd                          // AddValue Key, Value
 	LocalRemove                       // RemoveValue Key, Value
-	LocalEditBody                     // EditComment of #0 to Text
 	LocalAddComment                   // AddComment Text, metadata jira-comment-id = JiraId
 	LocalEditComment                  // EditComment Op to Text
 	LocalTombstone                    // EditComment Op to a tombstone Text, by the runner now
@@ -35,7 +34,9 @@ const (
 )
 
 // isField says a change writes a field, which the schema checks.
-func (k LocalKind) isField() bool { return k == LocalSet || k == LocalAdd || k == LocalRemove }
+func (lc LocalChange) isField() bool {
+	return lc.Kind == LocalSet && lc.Key != BodyKey || lc.Kind == LocalAdd || lc.Kind == LocalRemove
+}
 
 // LocalChange is one operation Merge wants committed locally.
 type LocalChange struct {
@@ -54,6 +55,14 @@ type CommentWrite struct {
 	Op     entity.Id
 	JiraId string
 	Text   string
+}
+
+// key is the write's pending key: comment:<Jira id>, or comment:<op>.
+func (cw CommentWrite) key() string {
+	if cw.JiraId == "" {
+		return CommentKey + ":" + cw.Op.Human()
+	}
+	return CommentKey + ":" + cw.JiraId
 }
 
 // Conflict is a double edit Jira won (JS21). Key is a field, "body" or
@@ -94,9 +103,18 @@ const (
 	give                 // export l
 )
 
-// decide is JS9 over comparable forms, canonical JSON for values and
-// digests for texts, for scalars, the body and comments alike. empty is what
-// an unset local compares as: taking over it is no conflict.
+// form is a key's value as it is compared and kept in a base: the digest
+// of the body's text (JS11), canonical JSON for any other key.
+func form(key string, v issue.Value) issue.Value {
+	if key == BodyKey {
+		text, _ := issue.String(v)
+		return issue.StringValue(Digest(text))
+	}
+	return canon(v)
+}
+
+// decide is JS9 over comparable forms (form, and digests for comments).
+// empty is what an unset local compares as: taking over it is no conflict.
 func decide(b string, hasBase bool, l, r, empty string) (v verdict, conflict bool) {
 	switch {
 	case l == r:
@@ -167,44 +185,24 @@ func Merge(b *Base, local, remote Doc, multi func(key string) bool, export bool)
 			continue
 		}
 
-		switch v, conflict := decide(string(canon(bv)), hasBase, string(canon(lv)), string(canon(rv)), string(null)); v {
+		switch v, conflict := decide(string(canon(bv)), hasBase, string(form(k, lv)), string(form(k, rv)), string(form(k, null))); v {
 		case take:
 			p.Local = append(p.Local, LocalChange{Kind: LocalSet, Key: k, Value: canon(rv), At: remote.Updated})
 			if conflict {
-				p.Conflicts = append(p.Conflicts, Conflict{Key: k, Local: canon(lv), Jira: canon(rv)})
+				p.Conflicts = append(p.Conflicts, Conflict{Key: k, Local: form(k, lv), Jira: form(k, rv)})
 			}
 		case give:
-			if k == typeKey {
+			switch {
+			case k == typeKey:
 				pending(k, reasonTypeChange)
-			} else {
+			case k == BodyKey && remote.Lossy:
+				pending(k, reasonLossy) // JS11: never overwritten
+			default:
 				exportOr(k, func() { p.Remote = append(p.Remote, Change{Key: k, Set: canon(lv)}) })
 			}
 			continue // the base stays until Jira holds l
 		}
-		nb.Fields[k] = canon(rv)
-	}
-
-	// the description (JS11)
-	if !skipped[BodyKey] {
-		ld, rd := Digest(local.Body.Text), Digest(remote.Body.Text)
-		switch v, conflict := decide(b.Body, b.Body != "", ld, rd, Digest("")); v {
-		case take:
-			p.Local = append(p.Local, LocalChange{Kind: LocalEditBody, Text: remote.Body.Text, At: remote.Updated})
-			if conflict {
-				p.Conflicts = append(p.Conflicts, Conflict{Key: BodyKey, Local: issue.StringValue(ld), Jira: issue.StringValue(rd)})
-			}
-			nb.Body = rd
-		case give:
-			if !remote.Body.Lossless {
-				pending(BodyKey, reasonLossy)
-			} else {
-				exportOr(BodyKey, func() {
-					p.Remote = append(p.Remote, Change{Key: BodyKey, Set: issue.StringValue(local.Body.Text)})
-				})
-			}
-		default:
-			nb.Body = rd
-		}
+		nb.Fields[k] = form(k, rv)
 	}
 
 	mergeComments(&p, b, nb, local, remote, pending, exportOr)

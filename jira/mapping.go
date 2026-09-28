@@ -143,7 +143,7 @@ func (m *Mapping) Users(ri *jiraapi.Issue, cs []jiraapi.Comment) []jiraapi.User 
 // values compacted, sets sorted, an unset scalar null and an unset set [].
 // The type is the snapshot's own, so that a local type change shows.
 func (m *Mapping) Local(snap *issue.Snapshot, typeKey string) Doc {
-	doc := Doc{Type: typeKey, Fields: map[string]issue.Value{}}
+	doc := Doc{Type: typeKey, Fields: map[string]issue.Value{BodyKey: issue.StringValue("")}}
 	if tm, ok := m.types[typeKey]; ok {
 		for _, key := range tm.keys {
 			doc.Fields[key] = canonical(snap.Fields[key], m.Multi(typeKey, key))
@@ -152,7 +152,7 @@ func (m *Mapping) Local(snap *issue.Snapshot, typeKey string) Doc {
 	if len(snap.Comments) == 0 {
 		return doc
 	}
-	doc.Body = Text{Text: snap.Comments[0].Message, Lossless: true}
+	doc.Fields[BodyKey] = issue.StringValue(snap.Comments[0].Message)
 	// one pass over the operations: each comment's creation and last edit
 	byOp := map[entity.Id]*Comment{}
 	at := func(id entity.Id) *Comment {
@@ -208,7 +208,7 @@ func (m *Mapping) FromJira(ri *jiraapi.Issue, cs []jiraapi.Comment, ix *Index) D
 	doc.Fields[schema.TitleKey] = issue.StringValue(sf.Summary)
 	doc.Fields[schema.TypeKey] = issue.StringValue(tm.key)
 	text, lossless := jiraapi.ADFToText(ri.Fields["description"])
-	doc.Body = Text{Text: text, Lossless: lossless}
+	doc.Fields[BodyKey], doc.Lossy = issue.StringValue(text), !lossless
 
 	for _, key := range tm.keys[2:] {
 		fm := tm.fields[key]
@@ -608,10 +608,10 @@ func (m *Mapping) Create(local Doc, id entity.Id, ix *Index) (NewIssue, []string
 	body.Fields["issuetype"] = map[string]string{"id": tm.issueType}
 	title, _ := issue.String(local.Fields[schema.TitleKey])
 	body.Fields["summary"] = title
-	if local.Body.Text != "" {
-		body.Fields["description"] = jiraapi.TextToADF(local.Body.Text)
+	if text, _ := issue.String(local.Fields[BodyKey]); text != "" {
+		body.Fields["description"] = jiraapi.TextToADF(text)
 	}
-	sent := []string{schema.TitleKey, schema.TypeKey}
+	sent := []string{schema.TitleKey, schema.TypeKey, BodyKey}
 	var skips []Skip
 	for _, key := range tm.keys[2:] {
 		fm, v := tm.fields[key], local.Fields[key]

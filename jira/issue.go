@@ -125,16 +125,7 @@ func (e *engine) converge(ic *cache.IssueCache, b *Base, ri *jiraapi.Issue, cs [
 	if e.opts.DryRun {
 		line.DryRun = true
 		line.record(plan1.Local, remote)
-		for _, ch := range plan1.Remote {
-			line.exported(ch.Key, changeValue(ch, local.Fields[ch.Key]))
-		}
-		for _, cw := range plan1.Comments {
-			if cw.JiraId == "" {
-				line.comments().Exported++
-			} else {
-				line.comments().Edited++
-			}
-		}
+		line.exports(plan1, remote, nil)
 		line.Conflicts, line.Pending = plan1.Conflicts, append(line.Pending, plan1.Pending...)
 		e.report(line)
 		return nil
@@ -144,7 +135,7 @@ func (e *engine) converge(ic *cache.IssueCache, b *Base, ri *jiraapi.Issue, cs [
 	if b != nil {
 		b2 = b.clone()
 	}
-	pairs, wrote, err := e.write(ri, remote, local, plan1, b2, &line)
+	pairs, wrote, err := e.write(ri, remote, plan1, b2, &line)
 	if err != nil {
 		return e.fail(line, err)
 	}
@@ -173,14 +164,10 @@ func (e *engine) unconfirmed(written []Change, b2 *Base, r, r2 Doc) []string {
 	for _, ch := range written {
 		switch {
 		case ch.Set == nil: // a set's base waits for the second merge anyway
-		case ch.Key == BodyKey:
-			text, _ := issue.String(ch.Set)
-			if b2.Body == Digest(text) && Digest(r2.Body.Text) == Digest(r.Body.Text) && Digest(r.Body.Text) != b2.Body {
-				keys = append(keys, BodyKey)
-			}
 		default:
-			if v, ok := b2.Fields[ch.Key]; ok && same(v, ch.Set) && same(r2.Fields[ch.Key], r.Fields[ch.Key]) && !same(r.Fields[ch.Key], v) {
-				keys = append(keys, ch.Key)
+			k := ch.Key
+			if v, ok := b2.Fields[k]; ok && same(v, form(k, ch.Set)) && same(form(k, r2.Fields[k]), form(k, r.Fields[k])) && !same(form(k, r.Fields[k]), v) {
+				keys = append(keys, k)
 			}
 		}
 	}
@@ -192,9 +179,7 @@ func restore(b2, prior *Base, key string) {
 	if prior == nil {
 		prior = &Base{}
 	}
-	if key == BodyKey {
-		b2.Body = prior.Body
-	} else if v, ok := prior.Fields[key]; ok {
+	if v, ok := prior.Fields[key]; ok {
 		b2.Fields[key] = v
 	} else {
 		delete(b2.Fields, key)
@@ -266,10 +251,11 @@ func (e *engine) admit(plan *Plan, typ string, prior *Base) []Skip {
 	refused := map[string]bool{}
 	for _, lc := range plan.Local {
 		var err error
-		switch lc.Kind {
-		case LocalSet:
+		switch {
+		case !lc.isField():
+		case lc.Kind == LocalSet:
 			err = e.checker.CheckFields(typ, map[string]json.RawMessage{lc.Key: json.RawMessage(lc.Value)})
-		case LocalAdd, LocalRemove:
+		default:
 			err = e.checker.CheckItems(typ, map[string][]json.RawMessage{lc.Key: {json.RawMessage(lc.Value)}})
 		}
 		if err == nil || refused[lc.Key] {
@@ -282,7 +268,7 @@ func (e *engine) admit(plan *Plan, typ string, prior *Base) []Skip {
 	}
 	kept := plan.Local[:0]
 	for _, lc := range plan.Local {
-		if !lc.Kind.isField() || !refused[lc.Key] {
+		if !lc.isField() || !refused[lc.Key] {
 			kept = append(kept, lc)
 		}
 	}
@@ -305,13 +291,16 @@ func (e *engine) ops(snap *issue.Snapshot, plan Plan, line *Line, remote Doc) []
 		a, t := e.author(lc.Author), unix(lc)
 		switch lc.Kind {
 		case LocalSet:
-			ops = append(ops, issue.NewSetFieldOp(a, t, lc.Key, lc.Value))
+			if lc.Key == BodyKey {
+				text, _ := issue.String(lc.Value)
+				ops = append(ops, issue.NewEditCommentOp(a, t, snap.Operations[0].Id(), text, nil))
+			} else {
+				ops = append(ops, issue.NewSetFieldOp(a, t, lc.Key, lc.Value))
+			}
 		case LocalAdd:
 			ops = append(ops, issue.NewAddValueOp(a, t, lc.Key, lc.Value))
 		case LocalRemove:
 			ops = append(ops, issue.NewRemoveValueOp(a, t, lc.Key, lc.Value))
-		case LocalEditBody:
-			ops = append(ops, issue.NewEditCommentOp(a, t, snap.Operations[0].Id(), lc.Text, nil))
 		case LocalAddComment:
 			op := issue.NewAddCommentOp(a, t, lc.Text, nil)
 			op.SetMetadata(MetaCommentId, lc.JiraId)

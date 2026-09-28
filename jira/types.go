@@ -54,13 +54,13 @@ type Doc struct {
 	Reporter string                 // remote only: an accountId
 	Status   string                 // remote only: the Jira status name
 	Type     string                 // the local type key
-	Fields   map[string]issue.Value // mapped keys, title and type included
-	Body     Text                   // comment #0, Jira's description
+	Fields   map[string]issue.Value // mapped keys, title, type and BodyKey included
+	Lossy    bool                   // remote only: the description holds what git-work cannot write back (JS11)
 	Comments []Comment              // #1 on
 	Skip     []Skip                 // remote only: what could not convert now
 }
 
-// Text is a body in the local text model (jiraapi.ADFToText).
+// Text is a comment's text in the local text model (jiraapi.ADFToText).
 // Lossless is false when writing the text back would drop something Jira has;
 // such a text is never overwritten (JS11). Local texts are always lossless.
 type Text struct {

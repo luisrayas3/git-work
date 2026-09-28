@@ -199,14 +199,30 @@ func (l *Line) record(lcs []LocalChange, remote Doc) {
 			l.imported(lc.Key, lc.Value)
 		case LocalAdd, LocalRemove:
 			l.imported(lc.Key, remote.Fields[lc.Key])
-		case LocalEditBody:
-			l.imported(BodyKey, issue.StringValue(Digest(lc.Text)))
 		case LocalAddComment:
 			l.comments().Imported++
 		case LocalEditComment:
 			l.comments().Edited++
 		case LocalTombstone:
 			l.comments().Tombstoned++
+		}
+	}
+}
+
+// exports reports what plan writes to Jira, but for the keys that failed.
+func (l *Line) exports(plan Plan, remote Doc, failed map[string]bool) {
+	for _, ch := range plan.Remote {
+		if !failed[ch.Key] {
+			l.exported(ch.Key, changeValue(ch, remote.Fields[ch.Key]))
+		}
+	}
+	for _, cw := range plan.Comments {
+		switch {
+		case failed[cw.key()]:
+		case cw.JiraId == "":
+			l.comments().Exported++
+		default:
+			l.comments().Edited++
 		}
 	}
 }

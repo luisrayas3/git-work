@@ -110,7 +110,6 @@ func (cv *conv) create(local Doc, id entity.Id) string {
 	for k := range local.Fields {
 		require.Equal(t, string(local.Fields[k]), string(remote.Fields[k]), k)
 	}
-	require.Equal(t, local.Body, remote.Body)
 	return ref.Key
 }
 
@@ -156,13 +155,13 @@ func (cv *conv) apply(key string, ws []Write) {
 // value, through the fake's normalisation, for a create and for edits.
 func TestConversionRoundTrip(t *testing.T) {
 	cv := newConv(t)
-	epic := Doc{Type: "epic", Body: Text{Text: "The *big* one.\n\n- a\n- b", Lossless: true}, Fields: map[string]issue.Value{
+	epic := Doc{Type: "epic", Fields: map[string]issue.Value{BodyKey: sv("The *big* one.\n\n- a\n- b"),
 		"title": sv("Checkout"), "type": sv("epic"), "priority": sv("high"), "labels": items("web", "Q3"),
 		"due": sv("2026-10-01"), "start-date": sv("2026-09-01"), "assignee": sv(eid('2').String()),
 	}}
 	epicKey := cv.create(epic, eid('e'))
 
-	story := Doc{Type: "story", Body: Text{Text: "", Lossless: true}, Fields: map[string]issue.Value{
+	story := Doc{Type: "story", Fields: map[string]issue.Value{BodyKey: sv(""),
 		"title": sv("Guest checkout"), "type": sv("story"), "parent": sv(eid('e').String()),
 		"estimate": issue.Value("3.5"), "labels": items("a", "b"), "assignee": sv(eid('1').String()),
 		"team": sv("red"), "code-name": sv("Heron"), "due": sv("2026-11-30"),
