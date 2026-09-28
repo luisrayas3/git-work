@@ -209,12 +209,19 @@ which the view runs itself and re-runs on a ref-watcher change and after its own
 so a kanban with no flow at all is one command:
 `git work view board '{"query":"map(select(.fields.status != \"done\"))","columns":"status"}'`.
 KWARGS is read from standard input when it is `-`, like every document argument.
-Arrows, vim and emacs keys all navigate;
+Standard, vim and emacs keys are all read at once, and `?` shows them as three tabs;
+the cursor starts on the id column,
 `Space` grabs an item to move it (only when `rank` is bound),
-`e` edits the field under the cursor,
+`C-Enter` (`F2` where the terminal cannot send it) edits the field under the cursor,
 where a value list ends with `(none)` and an emptied box clears the field
 (`title` excepted, it cannot be cleared),
-`Enter` opens show, `y` yanks the id, `?` lists the keys, `q` quits.
+the terminal's own copy and paste keys stay the terminal's,
+`C-c`/`y`/`M-w` copy the cell under the cursor and `M-c`/`Y` the id,
+a paste opens the editor with the text in it, `/` or `C-s` filters,
+`Enter` opens show — title, comment box, fields table, description and log tabs,
+opening in the comment box (`C-Enter` sends it, `C-PgDn`/`gt` switch tabs) —
+and `q` or `C-q` quits; `C-c` no longer does.
+Every view's first line is the call that drew it.
 
 Gotchas, hardened from use:
 

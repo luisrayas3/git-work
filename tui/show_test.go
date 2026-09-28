@@ -1,12 +1,14 @@
 package tui
 
 import (
+	"strings"
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/stretchr/testify/require"
 
 	"github.com/git-bug/git-bug/cache"
+	"github.com/git-bug/git-bug/entities/issue"
 	"github.com/git-bug/git-bug/host"
 )
 
@@ -63,60 +65,169 @@ func TestShowFieldOrderIsTheSchemaOrder(t *testing.T) {
 	require.Equal(t, []string{"status", "title"}, page.fieldOrder())
 }
 
-func TestShowSwitchesToTheOpLog(t *testing.T) {
+// TestShowStartsWithTheCall: `show <id>`, the call the page is, whether the
+// command line made it or the list's enter did.
+func TestShowStartsWithTheCall(t *testing.T) {
 	repo := testRepo(t)
 	id := newIssue(t, repo, map[string]any{"title": "one"})
 
-	page := show(t, repo, id, nil)
-	require.Contains(t, plainView(page), "comments")
-
-	page = send(page, "t").(*showPage)
-	drawn := plainView(page)
-	require.Contains(t, drawn, "history")
-	require.Contains(t, drawn, "create")
-	require.NotEmpty(t, page.log)
-
-	// and back
-	page = send(page, "t").(*showPage)
-	require.Contains(t, plainView(page), "comments")
+	first := strings.SplitN(plainView(show(t, repo, id, nil)), "\n", 2)[0]
+	require.Equal(t, "show  "+id[:7], strings.TrimSpace(first))
 }
 
-// TestShowEditsAskWhichField: a page shows many fields and the cursor is a
-// scroll position, so the field has to be chosen before it can be edited.
-func TestShowEditsAskWhichField(t *testing.T) {
+// TestShowHasDescriptionAndLogTabs: the tabs are the last two stops, the
+// cursor on one draws it, and the tab keys switch from anywhere.
+func TestShowHasDescriptionAndLogTabs(t *testing.T) {
+	repo := testRepo(t)
+	id := newIssue(t, repo, map[string]any{"title": "one", "status": "to-do"})
+	_, err := host.IssueCommentNew(repo, id, "a later word")
+	require.NoError(t, err)
+	_, err = host.IssueSet(repo, id, map[string]issue.Value{"status": issue.StringValue("in-progress")}, false)
+	require.NoError(t, err)
+
+	page := show(t, repo, id, []string{"status"})
+	drawn := plainView(page)
+	require.Contains(t, drawn, "description")
+	require.Contains(t, drawn, "the body")
+	require.NotContains(t, drawn, "a later word")
+
+	// box → button → fields → description → log
+	page = send(page, "tab", "tab", "tab").(*showPage)
+	require.Equal(t, stopDescription, page.current().stop)
+	page = send(page, "l").(*showPage)
+	require.Equal(t, stopLog, page.current().stop)
+
+	drawn = plainView(page)
+	require.Contains(t, drawn, "a later word")
+	require.Contains(t, drawn, "set status to in-progress")
+	require.NotContains(t, drawn, "the body")
+
+	// ctrl+pgdown and vim's gt switch too, the cursor going along
+	page = send(page, "ctrl+pgdown").(*showPage)
+	require.Equal(t, stopDescription, page.tab)
+	page = send(page, "g", "t").(*showPage)
+	require.Equal(t, stopLog, page.tab)
+
+	// and from the box, where t is a letter, ctrl+pgdown still switches
+	page = show(t, repo, id, nil)
+	page = send(page, "t", "ctrl+pgdown").(*showPage)
+	require.Equal(t, "t", page.box.draft())
+	require.Equal(t, stopLog, page.tab)
+}
+
+// TestShowFieldsAreATable: once the cursor is in the table, up and down walk
+// its rows, and at its edges go on to the stops around it.
+func TestShowFieldsAreATable(t *testing.T) {
+	repo := testRepo(t)
+	id := newIssue(t, repo, map[string]any{"title": "one", "status": "to-do", "priority": "high"})
+
+	page := show(t, repo, id, []string{"status", "priority"})
+	page = send(page, "tab", "tab").(*showPage)
+	require.Equal(t, stopFields, page.current().stop)
+	require.Equal(t, "status", page.field())
+
+	page = send(page, "j").(*showPage)
+	require.Equal(t, "priority", page.field())
+	page = send(page, "j").(*showPage)
+	require.Equal(t, stopDescription, page.current().stop)
+	page = send(page, "k").(*showPage)
+	require.Equal(t, "priority", page.field())
+	page = send(page, "k", "k").(*showPage)
+	require.Equal(t, stopBox, page.current().stop, "up from the first row is the box's button")
+
+	// alt+c copies the id from anywhere outside the text
+	updated, cmd := page.Update(press("alt+c"))
+	require.NotNil(t, cmd)
+	require.Contains(t, plainView(updated), "copied "+id[:7])
+}
+
+// TestShowEditsTheFieldUnderTheCursor: ctrl+enter edits the row the cursor
+// is on, and the title, above the box, like any field.
+func TestShowEditsTheFieldUnderTheCursor(t *testing.T) {
 	repo := testRepo(t)
 	id := newIssue(t, repo, map[string]any{"title": "one", "status": "to-do"})
 
 	page := show(t, repo, id, []string{"status"})
-	page = send(page, "e").(*showPage)
+	page = send(page, "tab", "tab").(*showPage)
+	require.Equal(t, "status", page.field())
 
-	require.NotNil(t, page.choosing)
-	require.Contains(t, plainView(page), "which field?")
-
-	page = send(page, "enter").(*showPage)
+	page = send(page, "ctrl+enter").(*showPage)
 	require.NotNil(t, page.editor)
 	require.Equal(t, "status", page.editor.key)
 
 	page = send(page, "j", "enter").(*showPage)
 	require.Equal(t, "in-progress", fieldOf(t, repo, id, "status"))
+
+	page = send(page, "shift+tab", "shift+tab", "shift+tab").(*showPage)
+	require.Equal(t, stopTitle, page.current().stop)
+	page = send(page, "f2").(*showPage)
+	require.NotNil(t, page.editor)
+	require.Equal(t, "title", page.editor.key)
 }
 
-func TestShowComments(t *testing.T) {
+// TestShowOpensInTheCommentBox: typing on arrival is writing a comment, and
+// ctrl+enter sends it.
+func TestShowOpensInTheCommentBox(t *testing.T) {
 	repo := testRepo(t)
 	id := newIssue(t, repo, map[string]any{"title": "one"})
 
 	page := show(t, repo, id, nil)
-	page = send(page, "c").(*showPage)
-	require.NotNil(t, page.comment)
+	require.True(t, page.inText())
 
-	page.comment.area.SetValue("said in the issue")
-	page = send(page, "ctrl+d").(*showPage)
+	page = send(page, "h", "i", "q").(*showPage)
+	require.Equal(t, "hiq", page.box.draft(), "letters are text in the box, q included")
 
-	require.Contains(t, plainView(page), "said in the issue")
+	page = send(page, "ctrl+enter").(*showPage)
+	require.Empty(t, page.box.draft())
+	require.Contains(t, plainView(page), "on the log tab")
 
 	document, err := host.IssueGet(repo, id)
 	require.NoError(t, err)
 	require.Len(t, document.Comments, 2)
+	require.Equal(t, "hiq", document.Comments[1].Message)
+}
+
+// TestShowCommentsWithTheButton is the path every terminal has: tab to the
+// button, enter.
+func TestShowCommentsWithTheButton(t *testing.T) {
+	repo := testRepo(t)
+	id := newIssue(t, repo, map[string]any{"title": "one"})
+
+	page := show(t, repo, id, nil)
+	page.box.area.SetValue("said in the issue")
+	require.Contains(t, plainView(page), "Submit comment")
+
+	page = send(page, "tab", "enter").(*showPage)
+
+	document, err := host.IssueGet(repo, id)
+	require.NoError(t, err)
+	require.Len(t, document.Comments, 2)
+	require.Equal(t, "said in the issue", document.Comments[1].Message)
+}
+
+// TestShowKeepsADraft: esc leaves a box with a draft in it rather than the
+// page, and going back asks twice.
+func TestShowKeepsADraft(t *testing.T) {
+	repo := testRepo(t)
+	id := newIssue(t, repo, map[string]any{"title": "one"})
+
+	page := show(t, repo, id, nil)
+	page.box.area.SetValue("half a thought")
+
+	updated, cmd := page.Update(press("esc"))
+	require.Nil(t, cmd)
+	page = updated.(*showPage)
+	require.Equal(t, stopBox, page.current().stop)
+	require.False(t, page.inText(), "on the button")
+	require.Equal(t, "half a thought", page.box.draft())
+
+	_, cmd = page.Update(press("esc"))
+	require.Nil(t, cmd, "the first esc outside the box warns")
+	require.Contains(t, plainView(page), "esc again")
+
+	_, cmd = page.Update(press("esc"))
+	require.NotNil(t, cmd)
+	require.IsType(t, popMsg{}, cmd())
 }
 
 // TestEnterOpensAnIssueAndEscComesBack is the stack: the list is still there,

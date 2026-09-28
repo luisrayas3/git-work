@@ -1,103 +1,252 @@
 package tui
 
 import (
+	"strings"
+
 	"charm.land/bubbles/v2/key"
+	tea "charm.land/bubbletea/v2"
 )
 
-// keymap is every key the renderer reads.
+// family is one of the three sets of muscle memory the renderer reads.
 //
-// Each motion is bound three ways at once — arrows, vi letters, and the
-// emacs/readline control keys — because the three sets are muscle memory for
-// three different people and none of them conflict. The help lists all three
-// spellings, so nobody has to guess which one this program chose.
+// All three are read at once, with no mode: whoever sits down already knows
+// one of them. They exist as a type only so that `?` can show each person
+// their own set, one tab each, instead of three spellings in every row.
+type family int
+
+const (
+	standard family = iota
+	vim
+	emacs
+	families
+)
+
+func (f family) String() string {
+	return [...]string{"standard", "vim", "emacs"}[f]
+}
+
+// chord is one action's keys, per family.
+//
+// A family with no keys of its own reads the standard ones, which every
+// family also reads, so every tab of the help is the whole set.
+type chord struct {
+	what string
+	keys [families][]string
+	// shown replaces the keys in the help where a family's key is not one the
+	// program reads: the terminal's own paste arrives as a paste, not a key.
+	shown [families]string
+
+	binding key.Binding
+}
+
+func newChord(what string, std, vi, em []string) *chord {
+	c := &chord{what: what, keys: [families][]string{std, vi, em}}
+
+	all := make([]string, 0, len(std)+len(vi)+len(em))
+	seen := map[string]bool{}
+	for _, set := range c.keys {
+		for _, k := range set {
+			if !seen[k] {
+				seen[k] = true
+				all = append(all, k)
+			}
+		}
+	}
+	c.binding = key.NewBinding(key.WithKeys(all...))
+	return c
+}
+
+func (c *chord) show(f family, spelling string) *chord {
+	c.shown[f] = spelling
+	return c
+}
+
+// matches says whether a key press is this action in any family.
+func (c *chord) matches(press tea.KeyPressMsg) bool {
+	return key.Matches(press, c.binding)
+}
+
+// spelling is how a family's keys read in the help.
+func (c *chord) spelling(f family) string {
+	if c.shown[f] != "" {
+		return c.shown[f]
+	}
+	set := c.keys[f]
+	if len(set) == 0 {
+		set = c.keys[standard]
+	}
+
+	parts := make([]string, 0, len(set))
+	for _, k := range set {
+		// two spellings of one key are one key to a person reading
+		if _, doubled := doubles[k]; doubled {
+			continue
+		}
+		parts = append(parts, readable(k))
+	}
+	return strings.Join(parts, " ")
+}
+
+// doubles are the second spellings of a shifted key: a terminal sends either
+// the character or the modifier, so both are bound, and one is shown.
+var doubles = map[string]struct{}{
+	"alt+shift+,": {},
+	"alt+shift+.": {},
+	"shift+g":     {},
+	"shift+y":     {},
+	" ":           {},
+	// the ctrl+shift and cmd+shift copies are the same copy, for a terminal
+	// that hands them over rather than keeping them for itself
+	"ctrl+shift+c":  {},
+	"super+shift+c": {},
+	"ctrl+shift+v":  {},
+	"super+shift+v": {},
+}
+
+// readable is a key the way a person writes it: super is the key a Mac calls
+// cmd, and the one a Mac user is looking for.
+func readable(k string) string {
+	return strings.ReplaceAll(k, "super+", "cmd+")
+}
+
+func one(k ...string) []string { return k }
+
+// keymap is every key the renderer reads.
 type keymap struct {
-	up      key.Binding
-	down    key.Binding
-	left    key.Binding
-	right   key.Binding
-	pageUp  key.Binding
-	pageDn  key.Binding
-	top     key.Binding
-	bottom  key.Binding
-	open    key.Binding
-	back    key.Binding
-	edit    key.Binding
-	comment key.Binding
-	yank    key.Binding
-	filter  key.Binding
-	grab    key.Binding
-	toggle  key.Binding
-	help    key.Binding
-	quit    key.Binding
-	submit  key.Binding
-	cancel  key.Binding
+	up, down, left, right *chord
+	pageUp, pageDn        *chord
+	top, bottom           *chord
+	next, previous        *chord
+	open                  *chord
+	edit                  *chord
+	copy, copyId, paste   *chord
+	filter                *chord
+	grab                  *chord
+	nextTab, previousTab  *chord
+	help                  *chord
+	back                  *chord
+	quit                  *chord
+
+	// submit and cancel are the text widgets' own: they are read before the
+	// widget sees the key, so they must not be keys a person types text with.
+	submit *chord
+	cancel *chord
 }
 
 var keys = keymap{
-	up:     key.NewBinding(key.WithKeys("up", "k", "ctrl+p"), key.WithHelp("↑/k/ctrl+p", "up")),
-	down:   key.NewBinding(key.WithKeys("down", "j", "ctrl+n"), key.WithHelp("↓/j/ctrl+n", "down")),
-	left:   key.NewBinding(key.WithKeys("left", "h", "ctrl+b"), key.WithHelp("←/h/ctrl+b", "previous column")),
-	right:  key.NewBinding(key.WithKeys("right", "l", "ctrl+f"), key.WithHelp("→/l/ctrl+f", "next column")),
-	pageUp: key.NewBinding(key.WithKeys("pgup", "ctrl+u", "alt+v"), key.WithHelp("pgup/ctrl+u/alt+v", "page up")),
-	pageDn: key.NewBinding(key.WithKeys("pgdown", "ctrl+d", "ctrl+v"), key.WithHelp("pgdown/ctrl+d/ctrl+v", "page down")),
+	up:     newChord("up", one("up"), one("k"), one("ctrl+p")),
+	down:   newChord("down", one("down"), one("j"), one("ctrl+n")),
+	left:   newChord("previous column", one("left"), one("h"), one("ctrl+b")),
+	right:  newChord("next column", one("right"), one("l"), one("ctrl+f")),
+	pageUp: newChord("page up", one("pgup"), one("ctrl+u"), one("alt+v")),
+	pageDn: newChord("page down", one("pgdown"), one("ctrl+d"), one("ctrl+v")),
 	// alt+< and alt+> are shift keys, and a terminal spells them either as
 	// the character or as the modifier, so both spellings are bound.
-	top: key.NewBinding(key.WithKeys("home", "g", "alt+<", "alt+shift+,"),
-		key.WithHelp("home/g/alt+<", "first")),
-	bottom: key.NewBinding(key.WithKeys("end", "G", "shift+g", "alt+>", "alt+shift+."),
-		key.WithHelp("end/G/alt+>", "last")),
-	open:    key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "open the issue")),
-	back:    key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "back")),
-	edit:    key.NewBinding(key.WithKeys("e"), key.WithHelp("e", "edit the field")),
-	comment: key.NewBinding(key.WithKeys("c"), key.WithHelp("c", "comment")),
-	yank:    key.NewBinding(key.WithKeys("y"), key.WithHelp("y", "yank the id")),
-	filter:  key.NewBinding(key.WithKeys("/"), key.WithHelp("/", "filter")),
-	grab:    key.NewBinding(key.WithKeys(" ", "space"), key.WithHelp("space", "grab and drop a row")),
-	toggle:  key.NewBinding(key.WithKeys("t"), key.WithHelp("t", "comments or the op log")),
-	help:    key.NewBinding(key.WithKeys("?"), key.WithHelp("?", "this help")),
-	quit:    key.NewBinding(key.WithKeys("q", "ctrl+c"), key.WithHelp("q/ctrl+c", "quit")),
-	submit:  key.NewBinding(key.WithKeys("ctrl+s", "ctrl+d"), key.WithHelp("ctrl+s/ctrl+d", "submit")),
-	cancel:  key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "cancel")),
+	top:    newChord("first", one("home"), one("g"), one("alt+<", "alt+shift+,")),
+	bottom: newChord("last", one("end"), one("G", "shift+g"), one("alt+>", "alt+shift+.")),
+
+	next:     newChord("on an issue: next stop", one("tab"), nil, nil),
+	previous: newChord("on an issue: previous stop", one("shift+tab"), nil, nil),
+	// the tab keys of browsers and editors; vim's gt and gT are read by the
+	// show page itself, because g alone is already a key
+	nextTab: newChord("on an issue: next tab", one("ctrl+pgdown"), nil, nil).
+		show(vim, "gt ctrl+pgdown"),
+	previousTab: newChord("on an issue: previous tab", one("ctrl+pgup"), nil, nil).
+		show(vim, "gT ctrl+pgup"),
+
+	open: newChord("open the issue, or press the button", one("enter"), nil, nil),
+	// ctrl+enter and super+enter need the kitty keyboard protocol; f2 is the
+	// edit key every terminal sends (doc/design/terminal-renderer.md).
+	edit: newChord("edit the field under the cursor", one("ctrl+enter", "super+enter", "f2"), nil, nil),
+
+	// Copy and paste are the terminal's first: cmd+c and ctrl+shift+c copy
+	// what the mouse selected, and cmd+v and ctrl+shift+v paste, arriving as
+	// a bracketed paste rather than a key. Where the terminal hands a copy
+	// key over instead of keeping it, it copies the cell under the cursor;
+	// ctrl+c is that key everywhere, because no terminal keeps it.
+	copy: newChord("copy the cell under the cursor",
+		one("ctrl+c", "super+c", "ctrl+shift+c", "super+shift+c"), one("y"), one("alt+w")),
+	copyId: newChord("copy the issue id, from any column", one("alt+c"), one("Y", "shift+y"), nil),
+	// A paste key that reaches the program asks the terminal for its
+	// clipboard over OSC 52. ctrl+v stays emacs's page down: a standard
+	// user's ctrl+v is the terminal's paste, or ^V, and never a paste here.
+	paste: newChord("paste into the field under the cursor",
+		one("super+v", "ctrl+shift+v", "super+shift+v"), one("p"), one("ctrl+y")).
+		show(standard, "the terminal's paste: cmd+v, ctrl+shift+v"),
+
+	filter: newChord("filter the rows", one("/"), one("/"), one("ctrl+s")),
+	grab:   newChord("grab a row, then drop it (needs rank)", one("space", " "), nil, nil),
+	help:   newChord("this help", one("?"), nil, nil),
+	back:   newChord("back, or clear the filter", one("esc"), one("esc"), one("esc", "ctrl+g")),
+	// ctrl+q is the quit nothing swallows; q is a letter, and a text box
+	// takes it.
+	quit: newChord("quit", one("ctrl+q"), one("q"), one("ctrl+q")),
+
+	submit: newChord("send the comment", one("ctrl+enter", "super+enter"), nil, nil),
+	cancel: newChord("cancel", one("esc"), one("esc"), one("esc", "ctrl+g")),
 }
 
-// helpLines is the overlay `?` draws: every key, with all three spellings.
-func helpLines() []string {
-	rows := []struct {
-		binding key.Binding
-		what    string
-	}{
-		{keys.up, "move up"},
-		{keys.down, "move down"},
-		{keys.left, "previous column"},
-		{keys.right, "next column"},
-		{keys.pageUp, "page up"},
-		{keys.pageDn, "page down"},
-		{keys.top, "first row"},
-		{keys.bottom, "last row"},
-		{keys.open, "open the issue under the cursor"},
-		{keys.back, "back, or clear the filter"},
-		{keys.edit, "edit the field under the cursor"},
-		{keys.comment, "write a comment"},
-		{keys.yank, "yank the id to the clipboard"},
-		{keys.filter, "filter the rows"},
-		{keys.grab, "grab a row, then drop it (needs rank)"},
-		{keys.toggle, "on an issue: comments or the op log"},
-		{keys.help, "this help"},
-		{keys.quit, "quit"},
+// helpRows is the order the help lists the actions in.
+func helpRows() []*chord {
+	return []*chord{
+		keys.up, keys.down, keys.left, keys.right,
+		keys.pageUp, keys.pageDn, keys.top, keys.bottom,
+		keys.next, keys.previous,
+		keys.open, keys.edit,
+		keys.copy, keys.copyId, keys.paste,
+		keys.filter, keys.grab, keys.nextTab, keys.previousTab,
+		keys.back, keys.help, keys.quit,
+	}
+}
+
+// help is the overlay `?` opens: the keys, one tab per family.
+type help struct {
+	tab family
+}
+
+// Update moves between the tabs, and says when the help is closed.
+//
+// The keys that close it are the ones that would mean "out" in any family;
+// anything else is ignored, so that a stray key does not throw away the tab
+// a person was reading.
+func (h *help) Update(press tea.KeyPressMsg) (closed bool) {
+	switch {
+	case keys.right.matches(press), keys.next.matches(press):
+		h.tab = (h.tab + 1) % families
+	case keys.left.matches(press), keys.previous.matches(press):
+		h.tab = (h.tab + families - 1) % families
+	case press.String() == "1", press.String() == "2", press.String() == "3":
+		h.tab = family(press.String()[0] - '1')
+	case keys.back.matches(press), keys.quit.matches(press), keys.help.matches(press):
+		return true
+	}
+	return false
+}
+
+func (h *help) View(width int) string {
+	tabs := make([]string, 0, families)
+	for f := family(0); f < families; f++ {
+		label := " " + f.String() + " "
+		if f == h.tab {
+			label = styleCell.Render(label)
+		} else {
+			label = styleDim.Render(label)
+		}
+		tabs = append(tabs, label)
 	}
 
-	lines := make([]string, 0, len(rows)+2)
-	lines = append(lines, styleHeader.Render("keys"), "")
-	for _, row := range rows {
-		spellings := ""
-		for at, k := range row.binding.Keys() {
-			if at > 0 {
-				spellings += " "
-			}
-			spellings += k
-		}
-		lines = append(lines, "  "+pad(spellings, 26)+row.what)
+	lines := []string{styleHeader.Render("keys") + "  " + strings.Join(tabs, " "), ""}
+	for _, row := range helpRows() {
+		lines = append(lines, fit("  "+pad(row.spelling(h.tab), 30)+row.what, width))
 	}
-	lines = append(lines, "", styleDim.Render("  any key closes this"))
-	return lines
+	lines = append(lines, "",
+		styleDim.Render(fit("  cmd and ctrl+enter need a terminal that reports them (kitty protocol); a terminal's own copy and paste keys stay its own", width)),
+		styleDim.Render(fit("  ←/→ or tab or 1 2 3 switch tabs · esc or ? closes", width)))
+	return strings.Join(lines, "\n")
+}
+
+// bell is the terminal's own blink: what a key that has nothing to do here
+// answers with, alongside the status line saying why.
+func bell() tea.Cmd {
+	return tea.Raw("\a")
 }

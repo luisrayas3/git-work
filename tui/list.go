@@ -6,7 +6,6 @@ import (
 	"strings"
 	"time"
 
-	"charm.land/bubbles/v2/key"
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
 
@@ -25,7 +24,9 @@ import (
 type listPage struct {
 	repo *cache.RepoCache
 
-	// the call, unpacked once
+	// the call as it was made, for the line that says what this view is, and
+	// unpacked once for everything else
+	call    *view.Call
 	query   string
 	fields  []string
 	details []string
@@ -38,6 +39,8 @@ type listPage struct {
 	order []int
 
 	cursor int
+	// column is 0 on the id, which is where the cursor starts, and 1 + the
+	// index into fields on a field
 	column int
 	top    int
 
@@ -46,8 +49,7 @@ type listPage struct {
 	filter    string
 	filtering *textinput.Model
 	editor    *editor
-	comment   *commentBox
-	helping   bool
+	help      *help
 
 	// grabbed is the row being dragged, by index into rows, or -1.
 	grabbed int
@@ -72,6 +74,7 @@ type listRow struct {
 func newListPage(repo *cache.RepoCache, call *view.Call) (*listPage, error) {
 	p := &listPage{
 		repo:    repo,
+		call:    call,
 		query:   call.String("query"),
 		fields:  call.Strings("fields"),
 		details: call.Strings("details"),
@@ -212,8 +215,8 @@ func (p *listPage) clamp() {
 	if p.cursor < 0 {
 		p.cursor = 0
 	}
-	if p.column >= len(p.fields) {
-		p.column = len(p.fields) - 1
+	if p.column > len(p.fields) {
+		p.column = len(p.fields)
 	}
 	if p.column < 0 {
 		p.column = 0
@@ -271,27 +274,40 @@ func (p *listPage) Update(msg tea.Msg) (page, tea.Cmd) {
 
 	case tea.KeyPressMsg:
 		return p.key(msg)
+
+	// the terminal's paste, and the answer to asking it for its clipboard,
+	// are the same thing: text for the field under the cursor
+	case tea.PasteMsg:
+		if p.editor != nil || p.filtering != nil {
+			break
+		}
+		return p, p.paste(msg.Content)
+	case tea.ClipboardMsg:
+		if p.editor != nil || p.filtering != nil {
+			return p, nil
+		}
+		return p, p.paste(msg.Content)
 	}
 
 	// a widget that asked for a command gets the answer to it
 	if p.editor != nil {
 		return p.updateEditor(msg)
 	}
-	if p.comment != nil {
-		return p.updateComment(msg)
+	if p.filtering != nil {
+		return p.updateFilter(msg)
 	}
 	return p, nil
 }
 
 func (p *listPage) key(press tea.KeyPressMsg) (page, tea.Cmd) {
 	switch {
-	case p.helping:
-		p.helping = false
+	case p.help != nil:
+		if p.help.Update(press) {
+			p.help = nil
+		}
 		return p, nil
 	case p.editor != nil:
 		return p.updateEditor(press)
-	case p.comment != nil:
-		return p.updateComment(press)
 	case p.filtering != nil:
 		return p.updateFilter(press)
 	case p.grabbed >= 0:
@@ -299,44 +315,49 @@ func (p *listPage) key(press tea.KeyPressMsg) (page, tea.Cmd) {
 	}
 
 	switch {
-	case key.Matches(press, keys.quit):
+	case keys.quit.matches(press):
 		return p, tea.Quit
 
-	case key.Matches(press, keys.up):
+	case keys.up.matches(press):
 		p.move(-1)
-	case key.Matches(press, keys.down):
+	case keys.down.matches(press):
 		p.move(1)
-	case key.Matches(press, keys.pageUp):
+	case keys.pageUp.matches(press):
 		p.move(-p.rowsPerPage())
-	case key.Matches(press, keys.pageDn):
+	case keys.pageDn.matches(press):
 		p.move(p.rowsPerPage())
-	case key.Matches(press, keys.top):
+	case keys.top.matches(press):
 		p.cursor = 0
-	case key.Matches(press, keys.bottom):
+	case keys.bottom.matches(press):
 		p.cursor = len(p.order) - 1
 
-	case key.Matches(press, keys.left):
+	case keys.left.matches(press):
 		p.column = max(0, p.column-1)
-	case key.Matches(press, keys.right):
-		p.column = min(len(p.fields)-1, p.column+1)
+	case keys.right.matches(press):
+		p.column = min(len(p.fields), p.column+1)
 
-	case key.Matches(press, keys.open):
+	// edit before open: without the kitty protocol ctrl+enter is enter, and
+	// with it the two are different keys, so the order only matters there
+	case keys.edit.matches(press):
+		return p, p.startEdit(nil)
+	case keys.open.matches(press):
 		return p.open()
 
-	case key.Matches(press, keys.edit):
-		p.startEdit()
-	case key.Matches(press, keys.comment):
-		p.startComment()
-	case key.Matches(press, keys.yank):
-		return p.yank()
-	case key.Matches(press, keys.filter):
+	case keys.copyId.matches(press):
+		return p, p.copyId()
+	case keys.copy.matches(press):
+		return p, p.copyCell()
+	case keys.paste.matches(press):
+		p.status = "asking the terminal for its clipboard"
+		return p, tea.ReadClipboard
+	case keys.filter.matches(press):
 		p.startFilter()
-	case key.Matches(press, keys.grab):
+	case keys.grab.matches(press):
 		return p.startGrab()
-	case key.Matches(press, keys.help):
-		p.helping = true
+	case keys.help.matches(press):
+		p.help = &help{}
 
-	case key.Matches(press, keys.back):
+	case keys.back.matches(press):
 		if p.filter != "" {
 			p.filter = ""
 			p.reorder()
@@ -365,16 +386,56 @@ func (p *listPage) open() (page, tea.Cmd) {
 	return p, func() tea.Msg { return pushMsg{page: shown} }
 }
 
-// yank puts the issue's id on the clipboard with OSC 52, which is the one way
-// that works over ssh and in a multiplexer, because it is the terminal that
-// copies and not the machine the program runs on.
-func (p *listPage) yank() (page, tea.Cmd) {
+// fieldKey is the field under the column cursor, or "" on the id.
+func (p *listPage) fieldKey() string {
+	if p.column == 0 || p.column > len(p.fields) {
+		return ""
+	}
+	return p.fields[p.column-1]
+}
+
+// copyCell puts the cell under the cursor on the clipboard with OSC 52, which
+// is the one way that works over ssh and in a multiplexer, because it is the
+// terminal that copies and not the machine the program runs on.
+//
+// On the id column that is the id, which is where the cursor starts: the
+// chat pin (ca81145) is the first key anybody presses.
+func (p *listPage) copyCell() tea.Cmd {
 	row := p.current()
 	if row == nil {
-		return p, nil
+		return bell()
 	}
-	p.status = "yanked " + row.id
-	return p, tea.SetClipboard(row.id)
+	fieldKey := p.fieldKey()
+	if fieldKey == "" {
+		return p.copyId()
+	}
+	value := plainValue(row.fields[fieldKey])
+	if value == "" {
+		p.status = fieldKey + " is empty: nothing copied"
+		return bell()
+	}
+	p.status = "copied " + fieldKey + " of " + row.human
+	return tea.SetClipboard(value)
+}
+
+// copyId copies the issue's whole id, whatever column the cursor is on.
+func (p *listPage) copyId() tea.Cmd {
+	row := p.current()
+	if row == nil {
+		return bell()
+	}
+	p.status = "copied " + row.id
+	return tea.SetClipboard(row.id)
+}
+
+// paste opens the editor on the field under the cursor with the text in it.
+// Enter writes it; a paste alone never does.
+func (p *listPage) paste(text string) tea.Cmd {
+	if strings.TrimSpace(text) == "" {
+		p.status = "the clipboard is empty"
+		return bell()
+	}
+	return p.startEdit(&text)
 }
 
 func (p *listPage) startFilter() {
@@ -388,12 +449,12 @@ func (p *listPage) startFilter() {
 func (p *listPage) updateFilter(msg tea.Msg) (page, tea.Cmd) {
 	if press, ok := msg.(tea.KeyPressMsg); ok {
 		switch {
-		case key.Matches(press, keys.cancel):
+		case keys.cancel.matches(press):
 			p.filtering = nil
 			p.filter = ""
 			p.reorder()
 			return p, nil
-		case key.Matches(press, keys.open):
+		case keys.open.matches(press):
 			p.filtering = nil
 			p.reorder()
 			return p, nil
@@ -407,35 +468,48 @@ func (p *listPage) updateFilter(msg tea.Msg) (page, tea.Cmd) {
 	return p, cmd
 }
 
-// startEdit opens the widget the schema says this field takes.
+// startEdit opens the widget the schema says this field takes, with pasted
+// text in it when there is some.
 //
 // A bool has no widget: there is one other value, so asking which one would
-// be a question with one answer.
-func (p *listPage) startEdit() {
+// be a question with one answer. A cell that cannot be edited rings the bell.
+func (p *listPage) startEdit(pasted *string) tea.Cmd {
 	row := p.current()
 	if row == nil {
-		return
+		return bell()
 	}
-	fieldKey := p.fields[p.column]
+	fieldKey := p.fieldKey()
+	if fieldKey == "" {
+		p.status = "the id is not a field: it cannot be edited"
+		return bell()
+	}
 
 	kind, known := fieldKind(p.repo, row.typeKey, fieldKey)
-	if known && kind == schema.KindBool {
+	if known && kind == schema.KindBool && pasted == nil {
 		was, _ := row.fields[fieldKey].(bool)
 		p.write(row.id, fieldKey, issue.MustValue(!was))
-		return
+		return nil
 	}
 
 	ed, refusal, err := editable(p.repo, row.typeKey, fieldKey, row.fields[fieldKey])
 	switch {
 	case err != nil:
 		p.status = err.Error()
+		return bell()
 	case refusal != "":
 		p.status = refusal
-	default:
-		ed.issueId = row.id
-		p.editor = ed
-		p.status = ""
+		return bell()
 	}
+	if pasted != nil {
+		if refusal := ed.paste(*pasted); refusal != "" {
+			p.status = refusal
+			return bell()
+		}
+	}
+	ed.issueId = row.id
+	p.editor = ed
+	p.status = ""
+	return nil
 }
 
 func (p *listPage) updateEditor(msg tea.Msg) (page, tea.Cmd) {
@@ -475,37 +549,6 @@ func (p *listPage) write(id, key string, value issue.Value) {
 	}
 }
 
-func (p *listPage) startComment() {
-	row := p.current()
-	if row == nil {
-		return
-	}
-	p.comment = newCommentBox(row.id, p.width, p.height/3)
-}
-
-func (p *listPage) updateComment(msg tea.Msg) (page, tea.Cmd) {
-	done, body, cmd := p.comment.Update(msg)
-	if !done {
-		return p, cmd
-	}
-
-	id := p.comment.issueId
-	p.comment = nil
-	if body == "" {
-		return p, nil
-	}
-
-	if _, err := host.IssueCommentNew(p.repo, id, body); err != nil {
-		p.status = err.Error()
-		return p, nil
-	}
-	p.status = "commented on " + id[:7]
-	if err := p.load(); err != nil {
-		p.status = err.Error()
-	}
-	return p, nil
-}
-
 // startGrab picks the row under the cursor up, to drop it somewhere else.
 //
 // It needs a rank field: without one the order is the query's, and moving a
@@ -525,7 +568,7 @@ func (p *listPage) startGrab() (page, tea.Cmd) {
 
 func (p *listPage) updateGrab(press tea.KeyPressMsg) (page, tea.Cmd) {
 	switch {
-	case key.Matches(press, keys.cancel):
+	case keys.cancel.matches(press):
 		// the row goes back where it was: the order is rebuilt from the
 		// store, which never changed.
 		p.grabbed = -1
@@ -533,12 +576,12 @@ func (p *listPage) updateGrab(press tea.KeyPressMsg) (page, tea.Cmd) {
 		p.putCursorOn(p.currentId())
 		return p, nil
 
-	case key.Matches(press, keys.up):
+	case keys.up.matches(press):
 		p.dragBy(-1)
-	case key.Matches(press, keys.down):
+	case keys.down.matches(press):
 		p.dragBy(1)
 
-	case key.Matches(press, keys.grab), key.Matches(press, keys.open):
+	case keys.grab.matches(press), keys.open.matches(press):
 		return p, p.drop()
 	}
 	return p, nil

@@ -15,7 +15,7 @@ without a second query language, a second data path, or a second lock.
 `9a24c8e` (`flow pick`),
 `ca81145` (the chat pin, folded in here).
 
-**Status:** decided 2026-09-24 (Luis).
+**Status:** decided 2026-09-24 (Luis); keys and `show` revised 2026-09-27 (Luis).
 List and show are being built now;
 board, gantt and nesting come after the migration (`bf6f392`).
 This document revises `config-entity.md` E9,
@@ -71,6 +71,23 @@ which kept the spec as a "headless serialization"
 printed when a call could not render where it ran.
 Printing a spec was a way for an agent to get items out of a view call,
 and an agent has a better one.
+
+## The first line is the call
+
+Every view's first line is **the call that drew it**,
+spelled the way it was made:
+the kind, then each argument —
+`list  fields=["type","title"]  query=map(…)`,
+`show abc1234`.
+The command is the spec, so the one line that answers
+"what am I looking at?" is the call itself.
+The query is always on it, default or not,
+because it is the answer to "why these issues?".
+An argument left at its default is dim, and comes after the ones somebody chose,
+so a long default query is what a narrow window cuts
+and not the argument that was typed.
+The status line at the bottom keeps the last message and the count,
+and no longer carries the query (revised 2026-09-27, Luis).
 
 ## What a view call is
 
@@ -130,23 +147,88 @@ Gantt's `end` is renamed `stop` (Luis, 2026-09-24).
 
 ## Navigation and editing
 
-Arrows, vim and emacs are all read, at once.
+Standard keys, vim and emacs are all read, at once.
 There is no mode and no configuration:
 whoever sits down already knows one of the three.
+`?` shows them as three tabs, one per family,
+each tab the whole set a person of that family needs
+(revised 2026-09-27, Luis; the single table it replaces
+put three spellings in every cell, which read as noise to all three).
 
-| Action | Keys |
-| --- | --- |
-| up | `↑` `k` `C-p` |
-| down | `↓` `j` `C-n` |
-| left | `←` `h` `C-b` |
-| right | `→` `l` `C-f` |
-| page up / down | `PgUp` `PgDn` · `C-u` `C-d` · `M-v` `C-v` |
-| start / end | `Home` `End` · `g` `G` · `M-<` `M->` |
+| Action | Standard | vim | emacs |
+| --- | --- | --- | --- |
+| up | `↑` | `k` | `C-p` |
+| down | `↓` | `j` | `C-n` |
+| left | `←` | `h` | `C-b` |
+| right | `→` | `l` | `C-f` |
+| page up / down | `PgUp` `PgDn` | `C-u` `C-d` | `M-v` `C-v` |
+| start / end | `Home` `End` | `g` `G` | `M-<` `M->` |
+| next / previous stop (show) | `Tab` `S-Tab` | | |
+| edit the field under the cursor | `C-Enter` `⌘-Enter` `F2` | | |
+| copy the cell under the cursor | `C-c`, and `⌘-c` `C-S-c` where the terminal hands them over | `y` | `M-w` |
+| copy the issue id, from any column | `M-c` | `Y` | |
+| paste into the field under the cursor | the terminal's paste (`⌘-v`, `C-S-v`) | `p` | `C-y` |
+| next / previous tab (show) | `C-PgDn` `C-PgUp` | `gt` `gT` | |
+| narrow the rows by text | `/` | `/` | `C-s` |
+| cancel, back | `Esc` | `Esc` | `Esc` `C-g` |
+| quit | `C-q` | `q` | `C-q` |
+
+A blank cell is the standard key, which every family also reads.
+`Enter` opens, `Space` grabs and `?` is the help in every family.
+
+**`C-c` copies; it no longer quits.**
+It is the key a standard user copies with,
+and in a raw-mode terminal it is a keystroke, not a signal,
+so the renderer is free to give it that meaning.
+`C-q` is the quit that nothing swallows —
+grabbed, in a text box, in a picker —
+which is the guarantee `C-c` used to carry.
+
+**`C-Enter` edits; `e` is gone.**
+A letter that edits is a letter that cannot be typed,
+and the comment box on `show` is where a user types.
+`C-Enter` and `⌘-Enter` exist only on a terminal
+that speaks the kitty keyboard protocol
+(kitty, Ghostty, WezTerm, foot, iTerm2 with CSI u);
+elsewhere `C-Enter` arrives as `Enter` and opens the issue,
+and `⌘` never arrives at all, because the terminal keeps it.
+`F2` is the edit key every terminal sends,
+and `y`/`M-w` the copy, so no terminal is left without either.
+A field that cannot be edited — the id, a set-valued field,
+a field the schema does not know — **rings the bell**,
+the terminal's own blink, and says why in the status line.
+
+**Copy and paste are the terminal's first** (revised again 2026-09-27, Luis).
+`⌘-c` and `⌘-v` on a Mac, `C-S-c` and `C-S-v` in a Linux terminal,
+are the terminal's own copy and paste, and they stay its own:
+the renderer defines none of the keys a terminal already means something by.
+Where a terminal hands one over instead of keeping it,
+it means the same thing here:
+a copy key copies the cell under the cursor, a paste key reads the clipboard.
+`C-c` is the copy key the renderer does define,
+because no terminal keeps it.
+**Copy is the cell, over OSC 52**, as `y` was:
+the escape sequence puts it on the clipboard of whatever terminal is in front,
+including one on the other end of ssh.
+The id is a column the cursor can stand on, and **the cursor starts there**,
+so copying on arrival is copying the id,
+which is the chat pin `ca81145` asked for;
+`M-c` and `Y` copy the id from any column.
+`C-S-c` was that key for an afternoon,
+until it was pointed out that it is every Linux terminal's copy.
+Paste arrives as a bracketed paste,
+and it **opens the editor** on the field under the cursor with the text in it —
+an input line holding it, or a value list on the value it names —
+so `Enter` writes it and nothing is written by a paste alone.
+`p` and `C-y` ask the terminal for its clipboard over OSC 52 instead,
+which a terminal may refuse; then nothing happens.
+`C-v` stays emacs's page down:
+a standard user's `C-v` is the terminal's paste, and never reaches the program.
 
 What a direction means is the kind's business:
 
 - **list** — up and down move between items *at the current nesting depth*,
-  left and right between the editable columns, the `fields`.
+  left and right between the columns: the id, then the `fields`.
 - **board** — up and down within a column, left and right between columns.
 - **gantt** — up and down between rows,
   left and right between time periods:
@@ -183,36 +265,31 @@ The rest is the same on every kind:
 | Key | Action |
 | --- | --- |
 | `Enter` | open `show` for the issue under the cursor; `Esc` returns to the view where it was |
-| `e` | edit the field under the cursor in place, or ask which field on a card or a bar |
-| `c` | add a comment |
-| `y` | yank the id to the clipboard over OSC 52 |
-| `/` | narrow the visible rows by text, locally |
+| edit | edit the field under the cursor in place, or ask which field on a card or a bar |
+| copy | copy the cell under the cursor to the clipboard over OSC 52 |
+| `/` `C-s` | narrow the visible rows by text, locally |
 | `?` | list the keys |
-| `q` | quit |
+| `q` `C-q` | quit |
 
-`e` picks its widget from the schema kind:
+There is no comment key on a list.
+A comment is written on `show`, where the issue it is about is on the screen
+(revised 2026-09-27, Luis).
+
+Edit picks its widget from the schema kind:
 a value list for an enum, a toggle for a bool,
 an input line for text, number and date,
 an identity list for an identity.
 Editing a relation waits for questions to the user (choose), below.
 
-`y` is the chat pin `ca81145` asked for,
-and OSC 52 is why it can be answered now rather than with a clipboard dependency:
-the escape sequence puts the id on the clipboard of whatever terminal is in front,
-including one on the other end of ssh.
-
 `/` is a local narrowing of what is drawn.
 It never writes, and it never changes the query —
 the query is the view's input, and changing it is re-running the call.
-
-`show` adds `t` to switch between the comments and the full op log.
 
 Every write goes through package `host`,
 so the renderer gets the schema check and the write lock for free
 and there is nothing for two implementations to disagree about.
 A refusal — a schema violation, a lost race — shows in the status line
 and nothing on screen moves.
-
 ## Refresh
 
 The view runs its own `query`.
@@ -262,9 +339,63 @@ because `git work view show '{"id":"abc1234"}'` is a thing to want on its own
 and because `Enter` from any kind opens it.
 It takes `id`, and `fields` to narrow and order what it prints;
 by default it prints the type's fields in schema order.
-`t` toggles between the comments and the op log,
-`e` and `c` work as everywhere else,
-and `Esc` returns to the view that opened it.
+
+The page is **five stops**, top to bottom (revised 2026-09-27, Luis):
+
+1. the **title**;
+2. the **comment box**, immediately below it, with its buttons under it;
+3. the **fields table**, a key column and a value column;
+4. the **description** tab;
+5. the **log** tab.
+
+The cursor opens **in the comment box**,
+because opening an issue to say something about it is the common case,
+and the box is where the typing goes.
+`Tab` and `S-Tab` move between stops from anywhere, the box included,
+and step through the box's buttons on the way,
+because a button that `Tab` cannot reach is one a terminal without `C-Enter`
+cannot press.
+Outside the box's text the directions work within a stop first
+and move to the next stop at its edge:
+in the table, up and down walk the rows,
+and past the last row is the tab strip;
+on a tab, up and down scroll it, and left and right switch tabs.
+Edit and copy work on the title and on each row as on a list cell;
+copy on the description copies the description.
+
+The two tabs are drawn **as tabs**, under the fields table:
+two boxes on a rule, the one drawn open into what is under it.
+Focus follows selection, as on any tab strip:
+the tab the cursor is on is the tab drawn.
+`C-PgDn` and `C-PgUp` switch tabs from anywhere, the box included,
+which is the tab key of every browser and editor,
+and vim's `gt` and `gT` switch them outside the box.
+`t` is gone: a letter is a bad universal key on a page that opens in a text box,
+and a toggle is a bad name for two tabs.
+
+The **description** is the issue's body, its first comment.
+The **log** is one timeline of what happened, in the order it happened:
+each comment in full, as it reads now,
+and each other operation on a line of its own —
+*set status to in-progress*, *added cli to area*.
+It replaces the comments pane and the op-log pane that `t` switched between,
+because what was said and what was done answer the same question,
+and reading one to find the other is what the toggle made people do.
+
+The box submits with `C-Enter`,
+or with `Tab` to a button and `Enter`, which every terminal can send.
+`Enter` in the box is a newline:
+a comment is prose, and sending half of one is worse than a second key.
+`Esc` in an empty box goes back to the view that opened the issue;
+with a draft in it, `Esc` leaves the box for the buttons and keeps the draft,
+and going back with a draft asks for a second `Esc`,
+because a draft is the one thing on the page the store does not have.
+
+The buttons are **Submit comment** alone, today.
+They are where actions injected into views (deferred, below) land on `show`:
+a view invocation that names, say, *Comment and close*
+gets a second button beside the first,
+running the comment and then its action.
 
 ## Nesting
 
@@ -300,6 +431,8 @@ Not decided, and grouped here because they are one conversation:
   a callback is an action the view invents a name for,
   and an action is the same thing the flow names.
   This is the first client of the worker goroutine.
+  On `show` they join *Submit comment* in the button row under the comment box,
+  which is where *Comment and close* comes from (2026-09-27).
 - **`work.view.split`**, two panes as one composite view.
 - **Questions to the user** — choose, confirm, ask, form —
   which is how a flow asks something without a view.

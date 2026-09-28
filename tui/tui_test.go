@@ -3,6 +3,7 @@ package tui
 import (
 	"encoding/json"
 	"regexp"
+	"strings"
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
@@ -84,6 +85,22 @@ func press(spelling string) tea.KeyPressMsg {
 		return tea.KeyPressMsg{Code: tea.KeyDown}
 	case "space":
 		return tea.KeyPressMsg{Code: tea.KeySpace, Text: " "}
+	case "tab":
+		return tea.KeyPressMsg{Code: tea.KeyTab}
+	case "shift+tab":
+		return tea.KeyPressMsg{Code: tea.KeyTab, Mod: tea.ModShift}
+	case "ctrl+enter":
+		return tea.KeyPressMsg{Code: tea.KeyEnter, Mod: tea.ModCtrl}
+	case "f2":
+		return tea.KeyPressMsg{Code: tea.KeyF2}
+	case "ctrl+c":
+		return tea.KeyPressMsg{Code: 'c', Mod: tea.ModCtrl}
+	case "ctrl+shift+c":
+		return tea.KeyPressMsg{Code: 'c', Mod: tea.ModCtrl | tea.ModShift}
+	case "alt+c":
+		return tea.KeyPressMsg{Code: 'c', Mod: tea.ModAlt}
+	case "ctrl+pgdown":
+		return tea.KeyPressMsg{Code: tea.KeyPgDown, Mod: tea.ModCtrl}
 	}
 	runes := []rune(spelling)
 	return tea.KeyPressMsg{Code: runes[0], Text: spelling}
@@ -119,6 +136,22 @@ func TestListDrawsTheIssues(t *testing.T) {
 	require.Contains(t, drawn, "read the design")
 	require.Contains(t, drawn, "in-progress")
 	require.Contains(t, drawn, "2 issues")
+}
+
+// TestTheFirstLineIsTheCall: what is on the screen is the call that drew
+// it, query first, a default dim and there all the same.
+func TestTheFirstLineIsTheCall(t *testing.T) {
+	repo := testRepo(t)
+	newIssue(t, repo, map[string]any{"title": "one", "status": "done"})
+
+	page := list(t, repo, `{"fields":["title","status"],"group_by":"status"}`)
+	first := strings.SplitN(plainView(page), "\n", 2)[0]
+
+	require.True(t, strings.HasPrefix(first, "list"))
+	require.Contains(t, first, "query=map(select(.fields.archived != true))")
+	require.Contains(t, first, `fields=["title","status"]`)
+	require.Contains(t, first, "group_by=status")
+	require.NotContains(t, plainView(page), "? for keys · 1 issues · map", "the query left the status line")
 }
 
 func TestCursorMoves(t *testing.T) {
@@ -204,30 +237,83 @@ func TestRefreshKeepsTheCursorOnTheSameIssue(t *testing.T) {
 	require.Contains(t, plainView(page), "third")
 }
 
-func TestYankSaysSo(t *testing.T) {
+// TestTheCursorStartsOnTheIdAndCopiesIt is the chat pin (ca81145): the id is
+// a column, the cursor starts there, and copying on arrival copies the id.
+func TestTheCursorStartsOnTheIdAndCopiesIt(t *testing.T) {
 	repo := testRepo(t)
 	id := newIssue(t, repo, map[string]any{"title": "one"})
 
 	page := list(t, repo, "")
-	updated, cmd := page.Update(press("y"))
+	require.Equal(t, 0, page.column)
 
-	require.NotNil(t, cmd, "the clipboard is written by a command, as OSC 52")
-	require.Contains(t, plainView(updated), "yanked "+id[:7])
+	for _, spelling := range []string{"y", "ctrl+c"} {
+		updated, cmd := page.Update(press(spelling))
+		require.NotNil(t, cmd, "the clipboard is written by a command, as OSC 52")
+		require.Contains(t, plainView(updated), "copied "+id[:7])
+	}
 }
 
-func TestHelpListsEverySpelling(t *testing.T) {
+func TestCopyIsTheCellAndCopyIdIsTheId(t *testing.T) {
+	repo := testRepo(t)
+	id := newIssue(t, repo, map[string]any{"title": "one", "status": "to-do"})
+
+	page := list(t, repo, `{"fields":["title","status"]}`)
+	page = send(page, "l", "l").(*listPage)
+
+	for _, spelling := range []string{"ctrl+c", "ctrl+shift+c", "y"} {
+		updated, cmd := page.Update(press(spelling))
+		require.NotNil(t, cmd)
+		require.Contains(t, plainView(updated), "copied status")
+	}
+
+	for _, spelling := range []string{"Y", "alt+c"} {
+		updated, cmd := page.Update(press(spelling))
+		require.NotNil(t, cmd)
+		require.Contains(t, plainView(updated), "copied "+id[:7])
+	}
+}
+
+// TestHelpHasATabPerFamily: each tab is one person's whole set, and moving
+// between them does not close the help.
+func TestHelpHasATabPerFamily(t *testing.T) {
 	repo := testRepo(t)
 	newIssue(t, repo, map[string]any{"title": "one"})
 
 	page := list(t, repo, "")
-	drawn := plainView(send(page, "?"))
+	page = send(page, "?").(*listPage)
+	drawn := plainView(page)
+	for _, spelling := range []string{"standard", "vim", "emacs", "pgup", "home", "ctrl+enter", "f2", "ctrl+c", "alt+c", "ctrl+pgdown", "ctrl+q"} {
+		require.Contains(t, drawn, spelling)
+	}
+	require.NotContains(t, drawn, "ctrl+n")
 
-	for _, spelling := range []string{"ctrl+p", "ctrl+n", "ctrl+b", "ctrl+f", "pgup", "alt+v", "G", "home"} {
+	page = send(page, "l").(*listPage)
+	drawn = plainView(page)
+	for _, spelling := range []string{"G", "ctrl+u", " y ", " p ", "gt"} {
 		require.Contains(t, drawn, spelling)
 	}
 
-	// any key closes it
-	require.NotContains(t, plainView(send(page, "?", "x")), "ctrl+b")
+	page = send(page, "3").(*listPage)
+	drawn = plainView(page)
+	for _, spelling := range []string{"ctrl+p", "ctrl+b", "alt+v", "alt+w", "ctrl+s", "ctrl+g"} {
+		require.Contains(t, drawn, spelling)
+	}
+
+	// a stray key keeps it open; esc closes it
+	page = send(page, "x").(*listPage)
+	require.NotNil(t, page.help)
+	page = send(page, "esc").(*listPage)
+	require.Nil(t, page.help)
+}
+
+// TestEmacsSearchIsCtrlS: ctrl+s narrows, as / does.
+func TestEmacsSearchIsCtrlS(t *testing.T) {
+	repo := testRepo(t)
+	newIssue(t, repo, map[string]any{"title": "one"})
+
+	page := list(t, repo, "")
+	page = send(page, "ctrl+s").(*listPage)
+	require.NotNil(t, page.filtering)
 }
 
 // TestNestingIsRefused is the one thing the table promises and the renderer

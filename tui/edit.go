@@ -5,7 +5,6 @@ import (
 	"strconv"
 	"strings"
 
-	"charm.land/bubbles/v2/key"
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
 
@@ -153,14 +152,33 @@ func newPicker(items []choice, current string) *picker {
 	return p
 }
 
+// paste puts pasted text in the widget: in the line for a text, on the value
+// it names for a list of choices. Nothing is written until enter, so a paste
+// that landed on the wrong field is an esc away from never having happened.
+func (e *editor) paste(text string) string {
+	text = strings.TrimSpace(text)
+	if e.picker == nil {
+		e.input.SetValue(text)
+		e.input.CursorEnd()
+		return ""
+	}
+	for at, item := range e.picker.items {
+		if item.value != "" && (strings.EqualFold(item.value, text) || strings.EqualFold(item.label, text)) {
+			e.picker.cursor = at
+			return ""
+		}
+	}
+	return fmt.Sprintf("%q is not a value of %s", text, e.key)
+}
+
 // Update runs the widget, and says when the user is done with it.
 func (e *editor) Update(msg tea.Msg) (done bool, cancelled bool, cmd tea.Cmd) {
 	press, ok := msg.(tea.KeyPressMsg)
 	if ok {
 		switch {
-		case key.Matches(press, keys.cancel):
+		case keys.cancel.matches(press):
 			return true, true, nil
-		case key.Matches(press, keys.open):
+		case keys.open.matches(press):
 			return true, false, nil
 		}
 	}
@@ -168,9 +186,9 @@ func (e *editor) Update(msg tea.Msg) (done bool, cancelled bool, cmd tea.Cmd) {
 	if e.picker != nil {
 		if ok {
 			switch {
-			case key.Matches(press, keys.up):
+			case keys.up.matches(press):
 				e.picker.cursor = max(0, e.picker.cursor-1)
-			case key.Matches(press, keys.down):
+			case keys.down.matches(press):
 				e.picker.cursor = min(len(e.picker.items)-1, e.picker.cursor+1)
 			}
 		}

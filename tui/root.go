@@ -57,9 +57,10 @@ func (r *root) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return r, r.broadcast(msg)
 
 	case tea.KeyPressMsg:
-		// ctrl+c is the program's, always: grabbed, in a text field, in a
-		// picker. Anything that can swallow it can strand the user.
-		if msg.String() == "ctrl+c" {
+		// ctrl+q is the program's, always: grabbed, in a text field, in a
+		// picker. Anything that can swallow it can strand the user. It is not
+		// ctrl+c, which copies (doc/design/terminal-renderer.md).
+		if msg.String() == "ctrl+q" {
 			return r, tea.Quit
 		}
 

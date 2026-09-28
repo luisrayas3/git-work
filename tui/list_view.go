@@ -10,20 +10,20 @@ import (
 const idWidth = 7
 
 func (p *listPage) View() string {
-	if p.helping {
-		return strings.Join(helpLines(), "\n")
+	if p.help != nil {
+		return p.help.View(p.width)
 	}
 
 	bottom := p.bottom()
 	header, rows, cursorLine := p.body()
 
-	// one line for the header, the rest for the rows, the bottom for whatever
-	// is open and the status line
-	room := max(p.height-1-len(bottom), 1)
+	// one line for the call, one for the header, the rest for the rows, the
+	// bottom for whatever is open and the status line
+	room := max(p.height-2-len(bottom), 1)
 	p.scroll(cursorLine, room, len(rows))
 
 	lines := make([]string, 0, p.height)
-	lines = append(lines, header)
+	lines = append(lines, callLine(p.call, "", "", p.width), header)
 	for at := p.top; at < min(p.top+room, len(rows)); at++ {
 		lines = append(lines, rows[at])
 	}
@@ -41,29 +41,26 @@ func (p *listPage) bottom() []string {
 	switch {
 	case p.editor != nil:
 		lines = p.editor.View(p.width)
-	case p.comment != nil:
-		lines = p.comment.View(p.width)
 	case p.filtering != nil:
 		lines = []string{fit("/"+p.filtering.View(), p.width)}
 	}
 	return append(lines, p.statusLine())
 }
 
-// statusLine is the last message, the query and the count, which together are
-// the answer to "what am I looking at, and did that write land?".
+// statusLine is the last message and the count, the answer to "did that
+// write land?"; what am I looking at is the call, on the first line.
 func (p *listPage) statusLine() string {
 	count := fmt.Sprintf("%d issues", len(p.order))
 	if p.filter != "" {
 		count = fmt.Sprintf("%d of %d issues, filter %q", len(p.order), len(p.rows), p.filter)
 	}
 
-	query := strings.Join(strings.Fields(p.query), " ")
 	left := p.status
 	if left == "" {
 		left = "? for keys"
 	}
 
-	line := fmt.Sprintf("%s · %s · %s", left, count, query)
+	line := fmt.Sprintf("%s · %s", left, count)
 	return styleStatus.Render(fit(line, p.width))
 }
 
@@ -104,15 +101,21 @@ func (p *listPage) body() (header string, rows []string, cursorLine int) {
 
 // rowLine draws one issue: the short id, then the fields as columns.
 //
-// The cell under the column cursor is reversed, which is what says that `e`
-// edits that one and not the row.
+// The cell under the column cursor is reversed, which is what says that edit
+// and copy act on that one and not the row. The id is a cell like the others,
+// and the one the cursor starts on.
 func (p *listPage) rowLine(row *listRow, widths []int, under bool, grabbed bool) string {
 	cells := make([]string, 0, len(p.fields)+1)
-	cells = append(cells, styleDim.Render(pad(row.human, idWidth)))
+	id := pad(row.human, idWidth)
+	if under && p.column == 0 {
+		cells = append(cells, styleCell.Render(id))
+	} else {
+		cells = append(cells, styleDim.Render(id))
+	}
 
 	for at, key := range p.fields {
 		cell := pad(plainValue(row.fields[key]), widths[at])
-		if under && at == p.column {
+		if under && at+1 == p.column {
 			cell = styleCell.Render(cell)
 		}
 		cells = append(cells, cell)

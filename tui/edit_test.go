@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"testing"
 
+	tea "charm.land/bubbletea/v2"
 	"github.com/stretchr/testify/require"
 
 	"github.com/git-bug/git-bug/cache"
@@ -36,9 +37,9 @@ func TestEditAnEnumPicksFromTheSchema(t *testing.T) {
 
 	page := list(t, repo, `{"fields":["title","status"]}`)
 
-	// the column cursor moves across the field columns, and `e` edits the one
-	// it is on
-	page = send(page, "l", "e").(*listPage)
+	// the column cursor moves from the id across the field columns, and
+	// ctrl+enter edits the one it is on
+	page = send(page, "l", "l", "ctrl+enter").(*listPage)
 	require.NotNil(t, page.editor)
 
 	drawn := plainView(page)
@@ -59,7 +60,7 @@ func TestEditCanBeCancelled(t *testing.T) {
 	id := newIssue(t, repo, map[string]any{"title": "one", "status": "to-do"})
 
 	page := list(t, repo, `{"fields":["title","status"]}`)
-	page = send(page, "l", "e", "j", "esc").(*listPage)
+	page = send(page, "l", "l", "f2", "j", "esc").(*listPage)
 
 	require.Nil(t, page.editor)
 	require.Equal(t, "to-do", fieldOf(t, repo, id, "status"))
@@ -72,7 +73,7 @@ func TestEditATextFieldWritesIt(t *testing.T) {
 	id := newIssue(t, repo, map[string]any{"title": "one"})
 
 	page := list(t, repo, `{"fields":["title"]}`)
-	page = send(page, "e").(*listPage)
+	page = send(page, "l", "ctrl+enter").(*listPage)
 	require.NotNil(t, page.editor)
 
 	page.editor.input.SetValue("a better title")
@@ -88,7 +89,7 @@ func TestASchemaRefusalIsAStatusLine(t *testing.T) {
 	id := newIssue(t, repo, map[string]any{"title": "one", "estimate": 3})
 
 	page := list(t, repo, `{"fields":["estimate"]}`)
-	page = send(page, "e").(*listPage)
+	page = send(page, "l", "ctrl+enter").(*listPage)
 	require.NotNil(t, page.editor)
 
 	page.editor.input.SetValue("three")
@@ -105,28 +106,52 @@ func TestASetValuedFieldSaysWhereToEditIt(t *testing.T) {
 	newIssue(t, repo, map[string]any{"title": "one"})
 
 	page := list(t, repo, `{"fields":["labels"]}`)
-	page = send(page, "e").(*listPage)
+	page = send(page, "l", "ctrl+enter").(*listPage)
 
 	require.Nil(t, page.editor)
 	require.Contains(t, plainView(page), "git work issue add/remove")
 }
 
-func TestCommentWritesOne(t *testing.T) {
+// TestTheIdIsNotEditable: the bell, and the status line saying why.
+func TestTheIdIsNotEditable(t *testing.T) {
 	repo := testRepo(t)
-	id := newIssue(t, repo, map[string]any{"title": "one"})
+	newIssue(t, repo, map[string]any{"title": "one"})
 
 	page := list(t, repo, "")
-	page = send(page, "c").(*listPage)
-	require.NotNil(t, page.comment)
+	updated, cmd := page.Update(press("ctrl+enter"))
 
-	page.comment.area.SetValue("a thought")
-	page = send(page, "ctrl+s").(*listPage)
+	require.NotNil(t, cmd, "the bell")
+	require.Nil(t, updated.(*listPage).editor)
+	require.Contains(t, plainView(updated), "cannot be edited")
+}
 
-	require.Nil(t, page.comment)
-	document, err := host.IssueGet(repo, id)
-	require.NoError(t, err)
-	require.Len(t, document.Comments, 2, "the body, and the one just written")
-	require.Equal(t, "a thought", document.Comments[1].Message)
+// TestPasteOpensTheEditor: a paste is text for the field under the cursor,
+// and it is enter that writes it, never the paste alone.
+func TestPasteOpensTheEditor(t *testing.T) {
+	repo := testRepo(t)
+	id := newIssue(t, repo, map[string]any{"title": "one", "status": "to-do"})
+
+	page := list(t, repo, `{"fields":["title","status"]}`)
+	page = send(page, "l").(*listPage)
+	updated, _ := page.Update(tea.PasteMsg{Content: "pasted title"})
+	page = updated.(*listPage)
+	require.NotNil(t, page.editor)
+	require.Equal(t, "one", fieldOf(t, repo, id, "title"))
+
+	page = send(page, "enter").(*listPage)
+	require.Equal(t, "pasted title", fieldOf(t, repo, id, "title"))
+
+	// on an enum it is the value it names, and one it does not name is refused
+	page = send(page, "l").(*listPage)
+	updated, _ = page.Update(tea.PasteMsg{Content: "In Progress"})
+	page = updated.(*listPage)
+	require.Equal(t, "in-progress", page.editor.picker.items[page.editor.picker.cursor].value)
+	page = send(page, "esc").(*listPage)
+
+	updated, cmd := page.Update(tea.PasteMsg{Content: "sideways"})
+	require.NotNil(t, cmd, "the bell")
+	require.Nil(t, updated.(*listPage).editor)
+	require.Contains(t, plainView(updated), "not a value of status")
 }
 
 // TestGrabNeedsARank says why: without a rank field there is nowhere to write
