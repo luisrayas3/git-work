@@ -501,3 +501,49 @@ func TestRemoveAll(t *testing.T) {
 	err = RemoveAll(def, repoA)
 	require.NoError(t, err)
 }
+
+// A merge joining two branches of different lengths must read back: reversing a
+// BFS from the merge reaches the fork point through the short branch before the
+// tail of the long one, which is not a topological order.
+func TestMergeUnevenBranches(t *testing.T) {
+	repoA, repoB, _, id1, _, resolvers, def := makeTestContextRemote(t)
+
+	eA := New(def)
+	eA.Append(newOp1(id1, "fork"))
+	require.NoError(t, eA.Commit(repoA))
+
+	_, err := Push(def, repoA, "remote")
+	require.NoError(t, err)
+	_, err = Fetch(def, repoB, "remote")
+	require.NoError(t, err)
+	for result := range MergeAll(def, wrapper, repoB, resolvers, "remote", id1) {
+		require.NoError(t, result.Err)
+	}
+
+	// two commits on A, one on B
+	eA.Append(newOp1(id1, "long1"))
+	require.NoError(t, eA.Commit(repoA))
+	eA.Append(newOp1(id1, "long2"))
+	require.NoError(t, eA.Commit(repoA))
+
+	eB, err := Read(def, wrapper, repoB, resolvers, eA.Id())
+	require.NoError(t, err)
+	eB.Append(newOp1(id1, "short"))
+	require.NoError(t, eB.Commit(repoB))
+
+	_, err = Push(def, repoA, "remote")
+	require.NoError(t, err)
+	_, err = Fetch(def, repoB, "remote")
+	require.NoError(t, err)
+
+	assertMergeResults(t, []entity.MergeResult{
+		{
+			Id:     eA.Id(),
+			Status: entity.MergeStatusUpdated,
+		},
+	}, MergeAll(def, wrapper, repoB, resolvers, "remote", id1))
+
+	merged, err := Read(def, wrapper, repoB, resolvers, eA.Id())
+	require.NoError(t, err)
+	require.Len(t, merged.Operations(), 4)
+}

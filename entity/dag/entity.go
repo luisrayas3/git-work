@@ -121,8 +121,12 @@ func read[EntityT entity.Interface](def Definition, wrapper func(e *Entity) Enti
 		}
 	}
 
-	// Now, we can reverse this topological order and read the commits in an order where
-	// we are sure to have read all the chronological ancestors when we read a commit.
+	// Reversing the BFS order is not enough to be sure to have read all the chronological
+	// ancestors when we read a commit: when a merge joins two branches of different
+	// lengths, the fork point is discovered through the short branch before the tail of
+	// the long one. So we sort the commits topologically, parents first.
+
+	order := parentsFirst(BFSOrder)
 
 	// Next step is to:
 	// 1) read the operationPacks
@@ -131,9 +135,8 @@ func read[EntityT entity.Interface](def Definition, wrapper func(e *Entity) Enti
 	oppMap := make(map[repository.Hash]*operationPack)
 	var opsCount int
 
-	for i := len(BFSOrder) - 1; i >= 0; i-- {
-		commit := BFSOrder[i]
-		isFirstCommit := i == len(BFSOrder)-1
+	for i, commit := range order {
+		isFirstCommit := i == 0
 		isMerge := len(commit.Parents) > 1
 
 		// Verify DAG structure: single chronological root, so only the root
@@ -242,6 +245,42 @@ func read[EntityT entity.Interface](def Definition, wrapper func(e *Entity) Enti
 		createTime: createTime,
 		editTime:   editTime,
 	}), nil
+}
+
+// parentsFirst returns the commits of a BFS of the DAG, from its head, in an order where
+// every commit comes after all of its parents (Kahn's algorithm). Commits with no parent
+// come first, the one discovered last, the chronological root, at the very beginning.
+func parentsFirst(BFSOrder []repository.Commit) []repository.Commit {
+	pending := make(map[repository.Hash]int, len(BFSOrder))
+	children := make(map[repository.Hash][]repository.Commit, len(BFSOrder))
+	queue := make([]repository.Commit, 0, len(BFSOrder))
+
+	for i := len(BFSOrder) - 1; i >= 0; i-- {
+		commit := BFSOrder[i]
+		pending[commit.Hash] = len(commit.Parents)
+		for _, parent := range commit.Parents {
+			children[parent] = append(children[parent], commit)
+		}
+		if len(commit.Parents) == 0 {
+			queue = append(queue, commit)
+		}
+	}
+
+	order := make([]repository.Commit, 0, len(BFSOrder))
+	for len(queue) > 0 {
+		commit := queue[0]
+		queue = queue[1:]
+		order = append(order, commit)
+
+		for _, child := range children[commit.Hash] {
+			pending[child.Hash]--
+			if pending[child.Hash] == 0 {
+				queue = append(queue, child)
+			}
+		}
+	}
+
+	return order
 }
 
 // readClockNoCheck fetch from git, read and witness the clocks of an Entity at an arbitrary git reference.

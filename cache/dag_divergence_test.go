@@ -2,7 +2,6 @@ package cache
 
 import (
 	"fmt"
-	"os"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -16,25 +15,9 @@ import (
 type divergence struct{ local, remote int }
 
 var divergences = []divergence{
-	{1, 1}, {2, 2}, {2, 1}, // read back today
-	{3, 1}, {5, 2}, {1, 2}, {1, 3}, {2, 5}, // "creation lamport time not set"
-}
-
-// readsBack is when entity/dag's reversed BFS happens to be topological for
-// a two-branch merge: the local (first-parent) branch equal to the remote
-// one or one commit longer. Anything else leaves the local ref on a merge
-// commit that dag.Read refuses; see doc/design/dag-read-order.md.
-func (d divergence) readsBack() bool {
-	return d.local == d.remote || d.local == d.remote+1
-}
-
-func (d divergence) skipBug(t *testing.T) {
-	t.Helper()
-	if !d.readsBack() && os.Getenv("GIT_WORK_DAG_REPRO") == "" {
-		t.Skip("BUG: entity/dag read() orders a merged history by reversed BFS, which is not topological " +
-			"when the two branches differ by more than one commit (or the remote one is longer): " +
-			"'creation lamport time not set'. GIT_WORK_DAG_REPRO=1 runs it. See doc/design/dag-read-order.md")
-	}
+	{1, 1}, {2, 2}, {2, 1},
+	// unreadable until dag.read sorted parents first (doc/design/dag-read-order.md)
+	{3, 1}, {5, 2}, {1, 2}, {1, 3}, {2, 5},
 }
 
 // twoClones gives two caches sharing one identity through a remote.
@@ -62,7 +45,6 @@ func twoClones(t *testing.T) (a, b *RepoCache, repoA, repoB repository.TestedRep
 func TestIssueUnequalDivergence(t *testing.T) {
 	for _, d := range divergences {
 		t.Run(fmt.Sprintf("local%d_remote%d", d.local, d.remote), func(t *testing.T) {
-			d.skipBug(t)
 			a, b, repoA, _ := twoClones(t)
 
 			i, _, err := a.Issues().New("shared", "", nil)
@@ -109,7 +91,6 @@ func TestIssueUnequalDivergence(t *testing.T) {
 func TestBugUnequalDivergence(t *testing.T) {
 	for _, d := range divergences {
 		t.Run(fmt.Sprintf("local%d_remote%d", d.local, d.remote), func(t *testing.T) {
-			d.skipBug(t)
 			a, b, _, _ := twoClones(t)
 
 			ba, _, err := a.Bugs().New("shared", "")

@@ -39,8 +39,14 @@ If you believe you must edit a pristine package, **stop and flag it** —
 it breaks upstream tracking and is a real architectural decision.
 One such decision is on record and done:
 the migration (`bf6f392`) changed three ref-name constants in `entities/identity`
-so identities live at `refs/work-users` like every other namespace (`483dbe2`; named `users` on 2026-09-25, because every word a user meets says user);
-nothing else in the seven is touched.
+so identities live at `refs/work-users` like every other namespace (`483dbe2`; named `users` on 2026-09-25, because every word a user meets says user).
+A second, a bug fix, on 2026-09-28:
+`entity/dag`'s reader ordered commits by reversing a BFS,
+which is not topological once a merge joins branches of different lengths,
+so such a pull left the entity unreadable, with `creation lamport time not set` or `panic: DFS failed` (upstream #845, misread there as old data, and still in upstream's trunk);
+`dag.read` now sorts parents first (Kahn), tested by `TestMergeUnevenBranches`,
+and is worth offering upstream (`7cb8b39`, `doc/design/dag-read-order.md`).
+Nothing else in the seven is touched.
 
 Design consequence:
 there is **no atomic multi-entity commit**

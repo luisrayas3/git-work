@@ -1,7 +1,11 @@
 # entity/dag cannot read back a merge of two unequal branches
 
-Status: **confirmed, upstream bug, unfixed upstream, in a pristine package.**
-Needs an owner decision (AGENTS.md: editing `entity/dag` breaks the pristine boundary).
+Status: **fixed here on 2026-09-28 by option (b), an owner decision (`7cb8b39`);
+unfixed upstream.** `dag.read` now sorts the commits parents first
+(Kahn's algorithm, `parentsFirst`) and iterates them forwards,
+the cleaner rewrite noted under (b), in place of the post-order DFS diff below.
+`entity/dag`'s `TestMergeUnevenBranches` and the repro below, no longer skipped, cover it.
+Hit on the tracker by `8ade811` in a real pull, where the symptom was the `panic: DFS failed`.
 
 ## Reproduction
 
@@ -25,9 +29,8 @@ No jira code, no NoOp markers, no `IssueCache.Update`.
 
 Identical on the issue entity and the legacy bug entity, so it is not ours
 (`cache/cached.go` reloadLocked/rebaseStaged, 8254ee05, is not involved:
-the failure is inside `dag.read`). The failing cases are `t.Skip("BUG: ...")`
-so the suite is green; `GIT_WORK_DAG_REPRO=1 go test ./cache -run UnequalDivergence`
-runs them.
+the failure is inside `dag.read`). The failing cases were skipped until the fix;
+they now run with the rest of the suite.
 
 The reporter's diagnosis is right, but the condition is broader than "remote longer":
 it reads back only when `local == remote` or `local == remote + 1`.
