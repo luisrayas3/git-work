@@ -130,7 +130,7 @@ func (s *Server) normalise(n map[string]any) {
 	if !ok {
 		return
 	}
-	var out []any
+	out := []any{} // an empty content stays [], never null
 	for _, c := range list {
 		m := c.(map[string]any)
 		s.normalise(m)

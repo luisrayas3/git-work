@@ -88,11 +88,15 @@ func TestJQLTime(t *testing.T) {
 		// New York springs forward at 2026-03-08 07:00 UTC: 01:59 EST, then 03:00 EDT.
 		{time.Date(2026, 3, 8, 6, 59, 0, 0, time.UTC), ny, `"2026/03/08 01:59"`},
 		{time.Date(2026, 3, 8, 7, 0, 0, 0, time.UTC), ny, `"2026/03/08 03:00"`},
-		// and falls back at 2026-11-01 06:00 UTC: 01:30 happens twice.
-		{time.Date(2026, 11, 1, 5, 30, 0, 0, time.UTC), ny, `"2026/11/01 01:30"`},
+		// and falls back at 2026-11-01 06:00 UTC: 01:30 happens twice. The
+		// first pass, which may be read as the second, steps back an hour.
+		{time.Date(2026, 11, 1, 4, 59, 0, 0, time.UTC), ny, `"2026/11/01 00:59"`},
+		{time.Date(2026, 11, 1, 5, 30, 0, 0, time.UTC), ny, `"2026/11/01 00:30"`},
 		{time.Date(2026, 11, 1, 6, 30, 0, 0, time.UTC), ny, `"2026/11/01 01:30"`},
+		{time.Date(2026, 11, 1, 7, 0, 0, 0, time.UTC), ny, `"2026/11/01 02:00"`},
 		// Berlin falls back at 2026-10-25 01:00 UTC.
-		{time.Date(2026, 10, 25, 0, 59, 30, 0, time.UTC), berlin, `"2026/10/25 02:59"`},
+		{time.Date(2026, 10, 25, 0, 0, 0, 0, time.UTC), berlin, `"2026/10/25 01:00"`},
+		{time.Date(2026, 10, 25, 0, 59, 30, 0, time.UTC), berlin, `"2026/10/25 01:59"`},
 		{time.Date(2026, 10, 25, 1, 0, 0, 0, time.UTC), berlin, `"2026/10/25 02:00"`},
 	} {
 		if got := JQLTime(c.t, c.loc); got != c.want {
