@@ -29,9 +29,11 @@ and the new harness
 Its successor `entities/issue` carries our own model and operation set;
 the store was migrated once, on 2026-09-25
 (`bf6f392`, `doc/design/store-migration.md`),
-and `entities/bug`, `commands/bug`, `termui` and what serves only them
+and `commands/bug`, `termui` and what serves only them
 are deleted in the round after, once the new surface has proven itself
 on the tracker (`f4bac00`, 2026-09-22; deferred 2026-09-25 as `860d6e0`).
+`entities/bug` and `git work migrate` stay, as the decoder and the command
+that will import other git-bug repositories (`01c6231`, decided 2026-09-28).
 Cherry-picking upstream fixes into `cache/` and `bridge/` is not a goal.
 If you believe you must edit a pristine package, **stop and flag it** —
 it breaks upstream tracking and is a real architectural decision.

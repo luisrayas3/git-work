@@ -33,6 +33,10 @@ Deleting `entities/bug` and everything that only exists to serve it
 is the round after this one (`860d6e0`),
 once the new surface has proven itself;
 `f4bac00`'s deletion stands, only later.
+Revised 2026-09-28: `entities/bug`, package `migrate` and this command
+are not in that round. They stay as the import path for other git-bug
+repositories (`01c6231`, lowest priority), which is also why
+`TestIdsMatchBug` stays.
 
 **Ids are preserved by construction, and checked.**
 An operation's id hashes its JSON,
@@ -164,7 +168,8 @@ and `--dry-run` prints the plan,
 one line per issue with the fields it will have,
 and writes only the identity copy,
 which every command needs after the constants change anyway.
-The command leaves with `entities/bug`.
+The command was to leave with `entities/bug`;
+since 2026-09-28 both stay, for importing other git-bug repositories (`01c6231`).
 
 ## What is not done here
 

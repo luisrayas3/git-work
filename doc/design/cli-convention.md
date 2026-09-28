@@ -145,7 +145,7 @@ git work view show  [KWARGS|-] [--gui]          # requires id
 
 git work push
 git work pull
-git work migrate [--dry-run]                    # ran once on 2026-09-25 (bf6f392); leaves with entities/bug
+git work migrate [--dry-run]                    # ran once here on 2026-09-25 (bf6f392); stays to import git-bug repos (01c6231)
 
 git work bridge configure|pull|push|rm          # Jira, phase 3
 git work user
@@ -197,7 +197,7 @@ a thing a human does once to a checkout, and are not bound in Starlark.
 
 ## Gone
 
-`git work bug` reads git-bug's frozen copy since the migration (`bf6f392`, 2026-09-25) and leaves with `entities/bug` in the deletion round.
+`git work bug` reads git-bug's frozen copy since the migration (`bf6f392`, 2026-09-25) and leaves in the deletion round (`860d6e0`); `entities/bug` stays, for `git work migrate`.
 `tui` as a command: the terminal renderer sits behind `view` and `flow run`.
 `--fields`, `-t`, `-m`, `--set`, `--add`/`--remove`, `KEY VALUE`, `--ARG VALUE`: sugar.
 `patch` (RFC 6902), `issue show`, `comment ID`, `comment show`: a second spelling of `set`/`add`/`remove` and `get`.
