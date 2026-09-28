@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"html"
 	"strings"
 )
 
@@ -183,15 +182,6 @@ func adfText(raw json.RawMessage) string {
 	}
 	walk(doc)
 	return strings.TrimRight(b.String(), "\n")
-}
-
-// adfHTML is a crude renderedBody.
-func adfHTML(raw json.RawMessage) string {
-	var parts []string
-	for _, p := range strings.Split(adfText(raw), "\n") {
-		parts = append(parts, "<p>"+html.EscapeString(p)+"</p>")
-	}
-	return strings.Join(parts, "")
 }
 
 // TextADF is a document of one paragraph per line of text, the shape a

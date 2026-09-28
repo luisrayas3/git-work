@@ -197,7 +197,7 @@ func (s *Server) linkJSON(l *link, viewer int) map[string]any {
 	return m
 }
 
-func (s *Server) commentJSON(st *issueState, c *comment, rendered bool) map[string]any {
+func (s *Server) commentJSON(st *issueState, c *comment) map[string]any {
 	m := map[string]any{
 		"self":         s.self(v3 + "/issue/" + strconv.Itoa(st.id) + "/comment/" + strconv.Itoa(c.id)),
 		"id":           strconv.Itoa(c.id),
@@ -210,9 +210,6 @@ func (s *Server) commentJSON(st *issueState, c *comment, rendered bool) map[stri
 	}
 	if len(c.visibility) > 0 {
 		m["visibility"] = c.visibility
-	}
-	if rendered {
-		m["renderedBody"] = adfHTML(c.body)
 	}
 	return m
 }
@@ -312,7 +309,7 @@ func (s *Server) fieldValue(st *issueState, id string) (any, bool) {
 	case "comment":
 		cs := []map[string]any{}
 		for _, c := range st.comments {
-			cs = append(cs, s.commentJSON(st, c, false))
+			cs = append(cs, s.commentJSON(st, c))
 		}
 		return map[string]any{
 			"comments": cs, "self": s.self(v3 + "/issue/" + strconv.Itoa(st.id) + "/comment"),

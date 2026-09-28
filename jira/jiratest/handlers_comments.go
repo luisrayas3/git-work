@@ -56,7 +56,7 @@ func (s *Server) getComments(c *call) (int, any, error) {
 	expand := parseExpand(c.q["expand"]...)
 	page := []map[string]any{}
 	for i := start; i < len(cs) && i < start+max; i++ {
-		m := s.commentJSON(st, cs[i], expand["renderedBody"])
+		m := s.commentJSON(st, cs[i])
 		if expand["properties"] && s.cfg.commentProperties {
 			m["properties"] = propertiesJSON(cs[i].properties)
 		}
@@ -102,7 +102,7 @@ func (s *Server) addComment(c *call) (int, any, error) {
 	cm := s.newComment(next, body, c.user.AccountID, vis)
 	cm.properties = props
 	s.commit(rec, next, c.user.AccountID, true) // an add bumps updated (§7.1)
-	return http.StatusCreated, s.commentJSON(next, cm, false), nil
+	return http.StatusCreated, s.commentJSON(next, cm), nil
 }
 
 func (s *Server) updateComment(c *call) (int, any, error) {
@@ -122,7 +122,7 @@ func (s *Server) updateComment(c *call) (int, any, error) {
 		return 0, nil, err
 	}
 	cm := s.editComment(rec, i, body, vis, c.user.AccountID)
-	return http.StatusOK, s.commentJSON(rec.cur, cm, parseExpand(c.q["expand"]...)["renderedBody"]), nil
+	return http.StatusOK, s.commentJSON(rec.cur, cm), nil
 }
 
 func (s *Server) editComment(rec *record, i int, body, vis json.RawMessage, author string) *comment {
