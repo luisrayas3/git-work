@@ -8,6 +8,7 @@ import (
 
 	"github.com/git-bug/git-bug/entities/identity"
 	"github.com/git-bug/git-bug/entity"
+	"github.com/git-bug/git-bug/gitcli"
 	"github.com/git-bug/git-bug/repository"
 )
 
@@ -43,6 +44,19 @@ func (c *RepoCache) AnyConfig() repository.ConfigRead {
 // Keyring give access to a user-wide storage for secrets
 func (c *RepoCache) Keyring() repository.Keyring {
 	return c.repo.Keyring()
+}
+
+// Credential asks git's credential helpers for the secret of username at url,
+// through the git CLI the repository is wrapped with (jira-sync.md, JS3).
+//
+// Without git on PATH the repository is go-git's alone, which has no
+// credential helpers: that is an error, not an empty secret.
+func (c *RepoCache) Credential(url, username string) (string, error) {
+	helper, ok := c.repo.(gitcli.CredentialHelper)
+	if !ok {
+		return "", errors.New("git's credential helpers need the git CLI on PATH")
+	}
+	return helper.CredentialFill(url, username)
 }
 
 // GetUserName returns the name the user has used to configure git

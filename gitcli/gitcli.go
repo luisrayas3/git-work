@@ -18,6 +18,11 @@
 //     proxies and the rest of git's transport configuration are in the same
 //     position.
 //
+//   - Credentials. A token for a service git-work talks to (the Jira sync's)
+//     comes from `git credential fill`, so the user's own credential helper —
+//     osxkeychain, libsecret, a password manager's — keeps it, as it keeps
+//     their remotes' (jira-sync.md, JS3).
+//
 // Everything else — objects, trees, refs, clocks, browsing — is local object
 // access, where go-git is both fast and correct, and is left to it. Config
 // writes also stay on go-git: nothing is lost by writing through it.
@@ -27,6 +32,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"os"
 	"os/exec"
 	"strings"
 )
@@ -58,6 +64,13 @@ func (r runner) with(opts ...string) runner {
 // (`git config` exits 1 to mean "no such key").
 // args[0] must be the git subcommand; it names the command in error messages.
 func (r runner) run(args ...string) (stdout, stderr []byte, code int, err error) {
+	return r.runInput(nil, nil, args...)
+}
+
+// runInput is run with stdin and extra environment variables,
+// for the commands whose protocol is a document on standard input,
+// such as `git credential`: a secret is never an argument.
+func (r runner) runInput(stdin []byte, env []string, args ...string) (stdout, stderr []byte, code int, err error) {
 	full := make([]string, 0, 2+2*len(r.opts)+len(args))
 	full = append(full, "-C", r.dir)
 	for _, opt := range r.opts {
@@ -66,6 +79,12 @@ func (r runner) run(args ...string) (stdout, stderr []byte, code int, err error)
 	full = append(full, args...)
 
 	cmd := exec.Command("git", full...)
+	if stdin != nil {
+		cmd.Stdin = bytes.NewReader(stdin)
+	}
+	if env != nil {
+		cmd.Env = append(os.Environ(), env...)
+	}
 	var outBuf, errBuf bytes.Buffer
 	cmd.Stdout = &outBuf
 	cmd.Stderr = &errBuf
