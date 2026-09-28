@@ -1,1 +1,1 @@
-{"author":{"id":"7674679dac9170669f752d932f8b5955b1d55717359e13b1c1e687003c7bb99f"},"ops":[{"type":9,"timestamp":1790613926,"nonce":"mnyA8MDBeqGYlU+P8TPrcbRL6CE=","key":"title","value":"flow pr: attach the current branch's PR, set status from its state when run"}]}
+{"author":{"id":"a3a282966ced55effb4560271fcd98e13241af24ea76b00ec76a0f18154bc8ee"},"ops":[{"type":9,"timestamp":1790622960,"nonce":"pJb9mynpbKbPDKiFgtyrw17XwO0=","key":"status","value":"canceled"}]}
