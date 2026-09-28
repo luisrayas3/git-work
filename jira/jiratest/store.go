@@ -92,6 +92,13 @@ type comment struct {
 	created      time.Time
 	updated      time.Time
 	visibility   json.RawMessage
+	properties   []property // set inline on create (api.md §7.2)
+}
+
+// property is an entity property: {key, value}.
+type property struct {
+	Key   string          `json:"key"`
+	Value json.RawMessage `json:"value"`
 }
 
 // link is a stored issue link: source <outward> dest, which POST /issueLink

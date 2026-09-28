@@ -431,9 +431,9 @@ func TestCommentsAndProperties(t *testing.T) {
 	}
 	body := `{"body":` + string(TextToADF("Lorem ipsum")) + `}`
 	c, _ := newFake(t, 0,
-		exchange{method: "GET", path: "/rest/api/3/issue/PROJ-1/comment", query: "orderBy=created&startAt=0&maxResults=100",
+		exchange{method: "GET", path: "/rest/api/3/issue/PROJ-1/comment", query: "orderBy=created&expand=properties&startAt=0&maxResults=100",
 			resp: `{"startAt":0,"maxResults":2,"total":3,"comments":[` + cm("1") + `,` + cm("2") + `]}`},
-		exchange{method: "GET", path: "/rest/api/3/issue/PROJ-1/comment", query: "orderBy=created&startAt=2&maxResults=100",
+		exchange{method: "GET", path: "/rest/api/3/issue/PROJ-1/comment", query: "orderBy=created&expand=properties&startAt=2&maxResults=100",
 			resp: `{"startAt":2,"maxResults":2,"total":3,"comments":[` + cm("3") + `]}`},
 		exchange{method: "POST", path: "/rest/api/3/issue/PROJ-1/comment", body: body, status: 201, resp: cm("4")},
 		exchange{method: "PUT", path: "/rest/api/3/issue/PROJ-1/comment/4", body: body, resp: cm("4")},

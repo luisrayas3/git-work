@@ -357,6 +357,25 @@ type Comment struct {
 	Created      Time            `json:"created"`
 	Updated      Time            `json:"updated"`
 	Visibility   *Visibility     `json:"visibility,omitempty"`
+	// Properties are set with expand=properties, which Comments sends; that
+	// the list endpoint honours it is unverified (api.md §7.1).
+	Properties []CommentProperty `json:"properties,omitempty"`
+}
+
+// CommentProperty is an entity property as a comment carries it.
+type CommentProperty struct {
+	Key   string          `json:"key"`
+	Value json.RawMessage `json:"value"`
+}
+
+// Property is the value of the comment's property key, if it has one.
+func (c *Comment) Property(key string) (json.RawMessage, bool) {
+	for _, p := range c.Properties {
+		if p.Key == key {
+			return p.Value, true
+		}
+	}
+	return nil, false
 }
 
 type Visibility struct {

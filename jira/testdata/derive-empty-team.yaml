@@ -1,0 +1,682 @@
+types:
+  epic:
+    name: Epic
+    aliases:
+      jira: "10020"
+    fields:
+      status:
+        kind: enum
+        name: Status
+        aliases:
+          jira: status
+        values:
+        - id: to-do
+          name: To Do
+          category: unstarted
+          aliases:
+            jira: "10030"
+        - id: in-progress
+          name: In Progress
+          category: started
+          aliases:
+            jira: "10031"
+        - id: done
+          name: Done
+          category: completed
+          aliases:
+            jira: "10032"
+      priority:
+        kind: ordinal-enum
+        name: Priority
+        aliases:
+          jira: priority
+        values:
+        - id: highest
+          name: Highest
+          aliases:
+            jira: "1"
+        - id: high
+          name: High
+          aliases:
+            jira: "2"
+        - id: medium
+          name: Medium
+          aliases:
+            jira: "3"
+        - id: low
+          name: Low
+          aliases:
+            jira: "4"
+        - id: lowest
+          name: Lowest
+          aliases:
+            jira: "5"
+      assignee:
+        kind: identity
+        name: Assignee
+        aliases:
+          jira: assignee
+      labels:
+        kind: multi-enum
+        name: Labels
+        aliases:
+          jira: labels
+        freeform: true
+      due:
+        kind: date
+        name: Due date
+        aliases:
+          jira: duedate
+      blocks:
+        kind: multi-relation
+        name: Blocks
+        aliases:
+          jira: link:10000
+        inverse: is-blocked-by
+      clones:
+        kind: multi-relation
+        name: Clones
+        aliases:
+          jira: link:10001
+        inverse: is-cloned-by
+      duplicates:
+        kind: multi-relation
+        name: Duplicates
+        aliases:
+          jira: link:10002
+        inverse: is-duplicated-by
+      relates-to:
+        kind: multi-relation
+        name: Relates to
+        aliases:
+          jira: link:10003
+      estimate:
+        kind: number
+        name: Story point estimate
+        aliases:
+          jira: customfield_10036
+  story:
+    name: Story
+    aliases:
+      jira: "10021"
+    fields:
+      status:
+        kind: enum
+        name: Status
+        aliases:
+          jira: status
+        values:
+        - id: to-do
+          name: To Do
+          category: unstarted
+          aliases:
+            jira: "10030"
+        - id: in-progress
+          name: In Progress
+          category: started
+          aliases:
+            jira: "10031"
+        - id: done
+          name: Done
+          category: completed
+          aliases:
+            jira: "10032"
+      priority:
+        kind: ordinal-enum
+        name: Priority
+        aliases:
+          jira: priority
+        values:
+        - id: highest
+          name: Highest
+          aliases:
+            jira: "1"
+        - id: high
+          name: High
+          aliases:
+            jira: "2"
+        - id: medium
+          name: Medium
+          aliases:
+            jira: "3"
+        - id: low
+          name: Low
+          aliases:
+            jira: "4"
+        - id: lowest
+          name: Lowest
+          aliases:
+            jira: "5"
+      assignee:
+        kind: identity
+        name: Assignee
+        aliases:
+          jira: assignee
+      labels:
+        kind: multi-enum
+        name: Labels
+        aliases:
+          jira: labels
+        freeform: true
+      due:
+        kind: date
+        name: Due date
+        aliases:
+          jira: duedate
+      parent:
+        kind: relation
+        name: Parent
+        aliases:
+          jira: parent
+        inverse: children
+        target_types:
+        - epic
+      blocks:
+        kind: multi-relation
+        name: Blocks
+        aliases:
+          jira: link:10000
+        inverse: is-blocked-by
+      clones:
+        kind: multi-relation
+        name: Clones
+        aliases:
+          jira: link:10001
+        inverse: is-cloned-by
+      duplicates:
+        kind: multi-relation
+        name: Duplicates
+        aliases:
+          jira: link:10002
+        inverse: is-duplicated-by
+      relates-to:
+        kind: multi-relation
+        name: Relates to
+        aliases:
+          jira: link:10003
+      estimate:
+        kind: number
+        name: Story point estimate
+        aliases:
+          jira: customfield_10036
+  task:
+    name: Task
+    aliases:
+      jira: "10022"
+    fields:
+      status:
+        kind: enum
+        name: Status
+        aliases:
+          jira: status
+        values:
+        - id: to-do
+          name: To Do
+          category: unstarted
+          aliases:
+            jira: "10030"
+        - id: in-progress
+          name: In Progress
+          category: started
+          aliases:
+            jira: "10031"
+        - id: done
+          name: Done
+          category: completed
+          aliases:
+            jira: "10032"
+      priority:
+        kind: ordinal-enum
+        name: Priority
+        aliases:
+          jira: priority
+        values:
+        - id: highest
+          name: Highest
+          aliases:
+            jira: "1"
+        - id: high
+          name: High
+          aliases:
+            jira: "2"
+        - id: medium
+          name: Medium
+          aliases:
+            jira: "3"
+        - id: low
+          name: Low
+          aliases:
+            jira: "4"
+        - id: lowest
+          name: Lowest
+          aliases:
+            jira: "5"
+      assignee:
+        kind: identity
+        name: Assignee
+        aliases:
+          jira: assignee
+      labels:
+        kind: multi-enum
+        name: Labels
+        aliases:
+          jira: labels
+        freeform: true
+      due:
+        kind: date
+        name: Due date
+        aliases:
+          jira: duedate
+      parent:
+        kind: relation
+        name: Parent
+        aliases:
+          jira: parent
+        inverse: children
+        target_types:
+        - epic
+      blocks:
+        kind: multi-relation
+        name: Blocks
+        aliases:
+          jira: link:10000
+        inverse: is-blocked-by
+      clones:
+        kind: multi-relation
+        name: Clones
+        aliases:
+          jira: link:10001
+        inverse: is-cloned-by
+      duplicates:
+        kind: multi-relation
+        name: Duplicates
+        aliases:
+          jira: link:10002
+        inverse: is-duplicated-by
+      relates-to:
+        kind: multi-relation
+        name: Relates to
+        aliases:
+          jira: link:10003
+      estimate:
+        kind: number
+        name: Story point estimate
+        aliases:
+          jira: customfield_10036
+  bug:
+    name: Bug
+    aliases:
+      jira: "10023"
+    fields:
+      status:
+        kind: enum
+        name: Status
+        aliases:
+          jira: status
+        values:
+        - id: to-do
+          name: To Do
+          category: unstarted
+          aliases:
+            jira: "10030"
+        - id: in-progress
+          name: In Progress
+          category: started
+          aliases:
+            jira: "10031"
+        - id: done
+          name: Done
+          category: completed
+          aliases:
+            jira: "10032"
+      priority:
+        kind: ordinal-enum
+        name: Priority
+        aliases:
+          jira: priority
+        values:
+        - id: highest
+          name: Highest
+          aliases:
+            jira: "1"
+        - id: high
+          name: High
+          aliases:
+            jira: "2"
+        - id: medium
+          name: Medium
+          aliases:
+            jira: "3"
+        - id: low
+          name: Low
+          aliases:
+            jira: "4"
+        - id: lowest
+          name: Lowest
+          aliases:
+            jira: "5"
+      assignee:
+        kind: identity
+        name: Assignee
+        aliases:
+          jira: assignee
+      labels:
+        kind: multi-enum
+        name: Labels
+        aliases:
+          jira: labels
+        freeform: true
+      due:
+        kind: date
+        name: Due date
+        aliases:
+          jira: duedate
+      parent:
+        kind: relation
+        name: Parent
+        aliases:
+          jira: parent
+        inverse: children
+        target_types:
+        - epic
+      blocks:
+        kind: multi-relation
+        name: Blocks
+        aliases:
+          jira: link:10000
+        inverse: is-blocked-by
+      clones:
+        kind: multi-relation
+        name: Clones
+        aliases:
+          jira: link:10001
+        inverse: is-cloned-by
+      duplicates:
+        kind: multi-relation
+        name: Duplicates
+        aliases:
+          jira: link:10002
+        inverse: is-duplicated-by
+      relates-to:
+        kind: multi-relation
+        name: Relates to
+        aliases:
+          jira: link:10003
+      estimate:
+        kind: number
+        name: Story point estimate
+        aliases:
+          jira: customfield_10036
+  subtask:
+    name: Subtask
+    aliases:
+      jira: "10024"
+    fields:
+      status:
+        kind: enum
+        name: Status
+        aliases:
+          jira: status
+        values:
+        - id: to-do
+          name: To Do
+          category: unstarted
+          aliases:
+            jira: "10030"
+        - id: in-progress
+          name: In Progress
+          category: started
+          aliases:
+            jira: "10031"
+        - id: done
+          name: Done
+          category: completed
+          aliases:
+            jira: "10032"
+      priority:
+        kind: ordinal-enum
+        name: Priority
+        aliases:
+          jira: priority
+        values:
+        - id: highest
+          name: Highest
+          aliases:
+            jira: "1"
+        - id: high
+          name: High
+          aliases:
+            jira: "2"
+        - id: medium
+          name: Medium
+          aliases:
+            jira: "3"
+        - id: low
+          name: Low
+          aliases:
+            jira: "4"
+        - id: lowest
+          name: Lowest
+          aliases:
+            jira: "5"
+      assignee:
+        kind: identity
+        name: Assignee
+        aliases:
+          jira: assignee
+      labels:
+        kind: multi-enum
+        name: Labels
+        aliases:
+          jira: labels
+        freeform: true
+      due:
+        kind: date
+        name: Due date
+        aliases:
+          jira: duedate
+      parent:
+        kind: relation
+        name: Parent
+        aliases:
+          jira: parent
+        inverse: children
+        target_types:
+        - bug
+        - story
+        - task
+      blocks:
+        kind: multi-relation
+        name: Blocks
+        aliases:
+          jira: link:10000
+        inverse: is-blocked-by
+      clones:
+        kind: multi-relation
+        name: Clones
+        aliases:
+          jira: link:10001
+        inverse: is-cloned-by
+      duplicates:
+        kind: multi-relation
+        name: Duplicates
+        aliases:
+          jira: link:10002
+        inverse: is-duplicated-by
+      relates-to:
+        kind: multi-relation
+        name: Relates to
+        aliases:
+          jira: link:10003
+      estimate:
+        kind: number
+        name: Story point estimate
+        aliases:
+          jira: customfield_10036
+
+# notes
+# info epic: new type for Jira issue type Epic (10020)
+# info story: new type for Jira issue type Story (10021)
+# info task: new type for Jira issue type Task (10022)
+# info bug: new type for Jira issue type Bug (10023)
+# info subtask: new type for Jira issue type Subtask (10024)
+# warn epic/customfield_10019: Jira field Rank (customfield_10019, com.pyxis.greenhopper.jira:gh-lexo-rank) is not mapped
+# info epic/status: new field for Jira field Status (status)
+# info epic/status:to-do: new value for Jira's To Do (10030)
+# info epic/status:in-progress: new value for Jira's In Progress (10031)
+# info epic/status:done: new value for Jira's Done (10032)
+# info epic/priority: new field for Jira field Priority (priority)
+# info epic/priority:highest: new value for Jira's Highest (1)
+# info epic/priority:high: new value for Jira's High (2)
+# info epic/priority:medium: new value for Jira's Medium (3)
+# info epic/priority:low: new value for Jira's Low (4)
+# info epic/priority:lowest: new value for Jira's Lowest (5)
+# info epic/assignee: new field for Jira field Assignee (assignee)
+# info epic/labels: new field for Jira field Labels (labels)
+# info epic/due: new field for Jira field Due date (duedate)
+# info epic/blocks: new field for Jira field Blocks (link:10000)
+# info epic/clones: new field for Jira field Clones (link:10001)
+# info epic/duplicates: new field for Jira field Duplicates (link:10002)
+# info epic/relates-to: new field for Jira field Relates to (link:10003)
+# info epic/estimate: new field for Jira field Story point estimate (customfield_10036)
+# warn story/customfield_10019: Jira field Rank (customfield_10019, com.pyxis.greenhopper.jira:gh-lexo-rank) is not mapped
+# info story/status: new field for Jira field Status (status)
+# info story/status:to-do: new value for Jira's To Do (10030)
+# info story/status:in-progress: new value for Jira's In Progress (10031)
+# info story/status:done: new value for Jira's Done (10032)
+# info story/priority: new field for Jira field Priority (priority)
+# info story/priority:highest: new value for Jira's Highest (1)
+# info story/priority:high: new value for Jira's High (2)
+# info story/priority:medium: new value for Jira's Medium (3)
+# info story/priority:low: new value for Jira's Low (4)
+# info story/priority:lowest: new value for Jira's Lowest (5)
+# info story/assignee: new field for Jira field Assignee (assignee)
+# info story/labels: new field for Jira field Labels (labels)
+# info story/due: new field for Jira field Due date (duedate)
+# info story/parent: new field for Jira field Parent (parent)
+# info story/blocks: new field for Jira field Blocks (link:10000)
+# info story/clones: new field for Jira field Clones (link:10001)
+# info story/duplicates: new field for Jira field Duplicates (link:10002)
+# info story/relates-to: new field for Jira field Relates to (link:10003)
+# info story/estimate: new field for Jira field Story point estimate (customfield_10036)
+# warn task/customfield_10019: Jira field Rank (customfield_10019, com.pyxis.greenhopper.jira:gh-lexo-rank) is not mapped
+# info task/status: new field for Jira field Status (status)
+# info task/status:to-do: new value for Jira's To Do (10030)
+# info task/status:in-progress: new value for Jira's In Progress (10031)
+# info task/status:done: new value for Jira's Done (10032)
+# info task/priority: new field for Jira field Priority (priority)
+# info task/priority:highest: new value for Jira's Highest (1)
+# info task/priority:high: new value for Jira's High (2)
+# info task/priority:medium: new value for Jira's Medium (3)
+# info task/priority:low: new value for Jira's Low (4)
+# info task/priority:lowest: new value for Jira's Lowest (5)
+# info task/assignee: new field for Jira field Assignee (assignee)
+# info task/labels: new field for Jira field Labels (labels)
+# info task/due: new field for Jira field Due date (duedate)
+# info task/parent: new field for Jira field Parent (parent)
+# info task/blocks: new field for Jira field Blocks (link:10000)
+# info task/clones: new field for Jira field Clones (link:10001)
+# info task/duplicates: new field for Jira field Duplicates (link:10002)
+# info task/relates-to: new field for Jira field Relates to (link:10003)
+# info task/estimate: new field for Jira field Story point estimate (customfield_10036)
+# warn bug/customfield_10019: Jira field Rank (customfield_10019, com.pyxis.greenhopper.jira:gh-lexo-rank) is not mapped
+# info bug/status: new field for Jira field Status (status)
+# info bug/status:to-do: new value for Jira's To Do (10030)
+# info bug/status:in-progress: new value for Jira's In Progress (10031)
+# info bug/status:done: new value for Jira's Done (10032)
+# info bug/priority: new field for Jira field Priority (priority)
+# info bug/priority:highest: new value for Jira's Highest (1)
+# info bug/priority:high: new value for Jira's High (2)
+# info bug/priority:medium: new value for Jira's Medium (3)
+# info bug/priority:low: new value for Jira's Low (4)
+# info bug/priority:lowest: new value for Jira's Lowest (5)
+# info bug/assignee: new field for Jira field Assignee (assignee)
+# info bug/labels: new field for Jira field Labels (labels)
+# info bug/due: new field for Jira field Due date (duedate)
+# info bug/parent: new field for Jira field Parent (parent)
+# info bug/blocks: new field for Jira field Blocks (link:10000)
+# info bug/clones: new field for Jira field Clones (link:10001)
+# info bug/duplicates: new field for Jira field Duplicates (link:10002)
+# info bug/relates-to: new field for Jira field Relates to (link:10003)
+# info bug/estimate: new field for Jira field Story point estimate (customfield_10036)
+# warn subtask/customfield_10019: Jira field Rank (customfield_10019, com.pyxis.greenhopper.jira:gh-lexo-rank) is not mapped
+# info subtask/status: new field for Jira field Status (status)
+# info subtask/status:to-do: new value for Jira's To Do (10030)
+# info subtask/status:in-progress: new value for Jira's In Progress (10031)
+# info subtask/status:done: new value for Jira's Done (10032)
+# info subtask/priority: new field for Jira field Priority (priority)
+# info subtask/priority:highest: new value for Jira's Highest (1)
+# info subtask/priority:high: new value for Jira's High (2)
+# info subtask/priority:medium: new value for Jira's Medium (3)
+# info subtask/priority:low: new value for Jira's Low (4)
+# info subtask/priority:lowest: new value for Jira's Lowest (5)
+# info subtask/assignee: new field for Jira field Assignee (assignee)
+# info subtask/labels: new field for Jira field Labels (labels)
+# info subtask/due: new field for Jira field Due date (duedate)
+# info subtask/parent: new field for Jira field Parent (parent)
+# info subtask/blocks: new field for Jira field Blocks (link:10000)
+# info subtask/clones: new field for Jira field Clones (link:10001)
+# info subtask/duplicates: new field for Jira field Duplicates (link:10002)
+# info subtask/relates-to: new field for Jira field Relates to (link:10003)
+# info subtask/estimate: new field for Jira field Story point estimate (customfield_10036)
+
+# changes
+# {"action":"create","shape":"type","key":"epic","set":{"alias_jira":"10020","name":"Epic","ordinal":10}}
+# {"action":"create","shape":"type","key":"story","set":{"alias_jira":"10021","name":"Story","ordinal":20}}
+# {"action":"create","shape":"type","key":"task","set":{"alias_jira":"10022","name":"Task","ordinal":30}}
+# {"action":"create","shape":"type","key":"bug","set":{"alias_jira":"10023","name":"Bug","ordinal":40}}
+# {"action":"create","shape":"type","key":"subtask","set":{"alias_jira":"10024","name":"Subtask","ordinal":50}}
+# {"action":"create","shape":"field","key":"epic/status","set":{"alias_jira":"status","alias_jira/done":"10032","alias_jira/in-progress":"10031","alias_jira/to-do":"10030","kind":"enum","name":"Status","ordinal":10,"values/done":{"name":"Done","ordinal":30,"category":"completed"},"values/in-progress":{"name":"In Progress","ordinal":20,"category":"started"},"values/to-do":{"name":"To Do","ordinal":10,"category":"unstarted"}}}
+# {"action":"create","shape":"field","key":"epic/priority","set":{"alias_jira":"priority","alias_jira/high":"2","alias_jira/highest":"1","alias_jira/low":"4","alias_jira/lowest":"5","alias_jira/medium":"3","kind":"ordinal-enum","name":"Priority","ordinal":20,"values/high":{"name":"High","ordinal":20},"values/highest":{"name":"Highest","ordinal":10},"values/low":{"name":"Low","ordinal":40},"values/lowest":{"name":"Lowest","ordinal":50},"values/medium":{"name":"Medium","ordinal":30}}}
+# {"action":"create","shape":"field","key":"epic/assignee","set":{"alias_jira":"assignee","kind":"identity","name":"Assignee","ordinal":30}}
+# {"action":"create","shape":"field","key":"epic/labels","set":{"alias_jira":"labels","freeform":true,"kind":"multi-enum","name":"Labels","ordinal":40}}
+# {"action":"create","shape":"field","key":"epic/due","set":{"alias_jira":"duedate","kind":"date","name":"Due date","ordinal":50}}
+# {"action":"create","shape":"field","key":"epic/blocks","set":{"alias_jira":"link:10000","inverse":"is-blocked-by","kind":"multi-relation","name":"Blocks","ordinal":60}}
+# {"action":"create","shape":"field","key":"epic/clones","set":{"alias_jira":"link:10001","inverse":"is-cloned-by","kind":"multi-relation","name":"Clones","ordinal":70}}
+# {"action":"create","shape":"field","key":"epic/duplicates","set":{"alias_jira":"link:10002","inverse":"is-duplicated-by","kind":"multi-relation","name":"Duplicates","ordinal":80}}
+# {"action":"create","shape":"field","key":"epic/relates-to","set":{"alias_jira":"link:10003","kind":"multi-relation","name":"Relates to","ordinal":90}}
+# {"action":"create","shape":"field","key":"epic/estimate","set":{"alias_jira":"customfield_10036","kind":"number","name":"Story point estimate","ordinal":100}}
+# {"action":"create","shape":"field","key":"story/status","set":{"alias_jira":"status","alias_jira/done":"10032","alias_jira/in-progress":"10031","alias_jira/to-do":"10030","kind":"enum","name":"Status","ordinal":10,"values/done":{"name":"Done","ordinal":30,"category":"completed"},"values/in-progress":{"name":"In Progress","ordinal":20,"category":"started"},"values/to-do":{"name":"To Do","ordinal":10,"category":"unstarted"}}}
+# {"action":"create","shape":"field","key":"story/priority","set":{"alias_jira":"priority","alias_jira/high":"2","alias_jira/highest":"1","alias_jira/low":"4","alias_jira/lowest":"5","alias_jira/medium":"3","kind":"ordinal-enum","name":"Priority","ordinal":20,"values/high":{"name":"High","ordinal":20},"values/highest":{"name":"Highest","ordinal":10},"values/low":{"name":"Low","ordinal":40},"values/lowest":{"name":"Lowest","ordinal":50},"values/medium":{"name":"Medium","ordinal":30}}}
+# {"action":"create","shape":"field","key":"story/assignee","set":{"alias_jira":"assignee","kind":"identity","name":"Assignee","ordinal":30}}
+# {"action":"create","shape":"field","key":"story/labels","set":{"alias_jira":"labels","freeform":true,"kind":"multi-enum","name":"Labels","ordinal":40}}
+# {"action":"create","shape":"field","key":"story/due","set":{"alias_jira":"duedate","kind":"date","name":"Due date","ordinal":50}}
+# {"action":"create","shape":"field","key":"story/parent","set":{"alias_jira":"parent","inverse":"children","kind":"relation","name":"Parent","ordinal":60,"target_types/epic":{}}}
+# {"action":"create","shape":"field","key":"story/blocks","set":{"alias_jira":"link:10000","inverse":"is-blocked-by","kind":"multi-relation","name":"Blocks","ordinal":70}}
+# {"action":"create","shape":"field","key":"story/clones","set":{"alias_jira":"link:10001","inverse":"is-cloned-by","kind":"multi-relation","name":"Clones","ordinal":80}}
+# {"action":"create","shape":"field","key":"story/duplicates","set":{"alias_jira":"link:10002","inverse":"is-duplicated-by","kind":"multi-relation","name":"Duplicates","ordinal":90}}
+# {"action":"create","shape":"field","key":"story/relates-to","set":{"alias_jira":"link:10003","kind":"multi-relation","name":"Relates to","ordinal":100}}
+# {"action":"create","shape":"field","key":"story/estimate","set":{"alias_jira":"customfield_10036","kind":"number","name":"Story point estimate","ordinal":110}}
+# {"action":"create","shape":"field","key":"task/status","set":{"alias_jira":"status","alias_jira/done":"10032","alias_jira/in-progress":"10031","alias_jira/to-do":"10030","kind":"enum","name":"Status","ordinal":10,"values/done":{"name":"Done","ordinal":30,"category":"completed"},"values/in-progress":{"name":"In Progress","ordinal":20,"category":"started"},"values/to-do":{"name":"To Do","ordinal":10,"category":"unstarted"}}}
+# {"action":"create","shape":"field","key":"task/priority","set":{"alias_jira":"priority","alias_jira/high":"2","alias_jira/highest":"1","alias_jira/low":"4","alias_jira/lowest":"5","alias_jira/medium":"3","kind":"ordinal-enum","name":"Priority","ordinal":20,"values/high":{"name":"High","ordinal":20},"values/highest":{"name":"Highest","ordinal":10},"values/low":{"name":"Low","ordinal":40},"values/lowest":{"name":"Lowest","ordinal":50},"values/medium":{"name":"Medium","ordinal":30}}}
+# {"action":"create","shape":"field","key":"task/assignee","set":{"alias_jira":"assignee","kind":"identity","name":"Assignee","ordinal":30}}
+# {"action":"create","shape":"field","key":"task/labels","set":{"alias_jira":"labels","freeform":true,"kind":"multi-enum","name":"Labels","ordinal":40}}
+# {"action":"create","shape":"field","key":"task/due","set":{"alias_jira":"duedate","kind":"date","name":"Due date","ordinal":50}}
+# {"action":"create","shape":"field","key":"task/parent","set":{"alias_jira":"parent","inverse":"children","kind":"relation","name":"Parent","ordinal":60,"target_types/epic":{}}}
+# {"action":"create","shape":"field","key":"task/blocks","set":{"alias_jira":"link:10000","inverse":"is-blocked-by","kind":"multi-relation","name":"Blocks","ordinal":70}}
+# {"action":"create","shape":"field","key":"task/clones","set":{"alias_jira":"link:10001","inverse":"is-cloned-by","kind":"multi-relation","name":"Clones","ordinal":80}}
+# {"action":"create","shape":"field","key":"task/duplicates","set":{"alias_jira":"link:10002","inverse":"is-duplicated-by","kind":"multi-relation","name":"Duplicates","ordinal":90}}
+# {"action":"create","shape":"field","key":"task/relates-to","set":{"alias_jira":"link:10003","kind":"multi-relation","name":"Relates to","ordinal":100}}
+# {"action":"create","shape":"field","key":"task/estimate","set":{"alias_jira":"customfield_10036","kind":"number","name":"Story point estimate","ordinal":110}}
+# {"action":"create","shape":"field","key":"bug/status","set":{"alias_jira":"status","alias_jira/done":"10032","alias_jira/in-progress":"10031","alias_jira/to-do":"10030","kind":"enum","name":"Status","ordinal":10,"values/done":{"name":"Done","ordinal":30,"category":"completed"},"values/in-progress":{"name":"In Progress","ordinal":20,"category":"started"},"values/to-do":{"name":"To Do","ordinal":10,"category":"unstarted"}}}
+# {"action":"create","shape":"field","key":"bug/priority","set":{"alias_jira":"priority","alias_jira/high":"2","alias_jira/highest":"1","alias_jira/low":"4","alias_jira/lowest":"5","alias_jira/medium":"3","kind":"ordinal-enum","name":"Priority","ordinal":20,"values/high":{"name":"High","ordinal":20},"values/highest":{"name":"Highest","ordinal":10},"values/low":{"name":"Low","ordinal":40},"values/lowest":{"name":"Lowest","ordinal":50},"values/medium":{"name":"Medium","ordinal":30}}}
+# {"action":"create","shape":"field","key":"bug/assignee","set":{"alias_jira":"assignee","kind":"identity","name":"Assignee","ordinal":30}}
+# {"action":"create","shape":"field","key":"bug/labels","set":{"alias_jira":"labels","freeform":true,"kind":"multi-enum","name":"Labels","ordinal":40}}
+# {"action":"create","shape":"field","key":"bug/due","set":{"alias_jira":"duedate","kind":"date","name":"Due date","ordinal":50}}
+# {"action":"create","shape":"field","key":"bug/parent","set":{"alias_jira":"parent","inverse":"children","kind":"relation","name":"Parent","ordinal":60,"target_types/epic":{}}}
+# {"action":"create","shape":"field","key":"bug/blocks","set":{"alias_jira":"link:10000","inverse":"is-blocked-by","kind":"multi-relation","name":"Blocks","ordinal":70}}
+# {"action":"create","shape":"field","key":"bug/clones","set":{"alias_jira":"link:10001","inverse":"is-cloned-by","kind":"multi-relation","name":"Clones","ordinal":80}}
+# {"action":"create","shape":"field","key":"bug/duplicates","set":{"alias_jira":"link:10002","inverse":"is-duplicated-by","kind":"multi-relation","name":"Duplicates","ordinal":90}}
+# {"action":"create","shape":"field","key":"bug/relates-to","set":{"alias_jira":"link:10003","kind":"multi-relation","name":"Relates to","ordinal":100}}
+# {"action":"create","shape":"field","key":"bug/estimate","set":{"alias_jira":"customfield_10036","kind":"number","name":"Story point estimate","ordinal":110}}
+# {"action":"create","shape":"field","key":"subtask/status","set":{"alias_jira":"status","alias_jira/done":"10032","alias_jira/in-progress":"10031","alias_jira/to-do":"10030","kind":"enum","name":"Status","ordinal":10,"values/done":{"name":"Done","ordinal":30,"category":"completed"},"values/in-progress":{"name":"In Progress","ordinal":20,"category":"started"},"values/to-do":{"name":"To Do","ordinal":10,"category":"unstarted"}}}
+# {"action":"create","shape":"field","key":"subtask/priority","set":{"alias_jira":"priority","alias_jira/high":"2","alias_jira/highest":"1","alias_jira/low":"4","alias_jira/lowest":"5","alias_jira/medium":"3","kind":"ordinal-enum","name":"Priority","ordinal":20,"values/high":{"name":"High","ordinal":20},"values/highest":{"name":"Highest","ordinal":10},"values/low":{"name":"Low","ordinal":40},"values/lowest":{"name":"Lowest","ordinal":50},"values/medium":{"name":"Medium","ordinal":30}}}
+# {"action":"create","shape":"field","key":"subtask/assignee","set":{"alias_jira":"assignee","kind":"identity","name":"Assignee","ordinal":30}}
+# {"action":"create","shape":"field","key":"subtask/labels","set":{"alias_jira":"labels","freeform":true,"kind":"multi-enum","name":"Labels","ordinal":40}}
+# {"action":"create","shape":"field","key":"subtask/due","set":{"alias_jira":"duedate","kind":"date","name":"Due date","ordinal":50}}
+# {"action":"create","shape":"field","key":"subtask/parent","set":{"alias_jira":"parent","inverse":"children","kind":"relation","name":"Parent","ordinal":60,"target_types/bug":{},"target_types/story":{},"target_types/task":{}}}
+# {"action":"create","shape":"field","key":"subtask/blocks","set":{"alias_jira":"link:10000","inverse":"is-blocked-by","kind":"multi-relation","name":"Blocks","ordinal":70}}
+# {"action":"create","shape":"field","key":"subtask/clones","set":{"alias_jira":"link:10001","inverse":"is-cloned-by","kind":"multi-relation","name":"Clones","ordinal":80}}
+# {"action":"create","shape":"field","key":"subtask/duplicates","set":{"alias_jira":"link:10002","inverse":"is-duplicated-by","kind":"multi-relation","name":"Duplicates","ordinal":90}}
+# {"action":"create","shape":"field","key":"subtask/relates-to","set":{"alias_jira":"link:10003","kind":"multi-relation","name":"Relates to","ordinal":100}}
+# {"action":"create","shape":"field","key":"subtask/estimate","set":{"alias_jira":"customfield_10036","kind":"number","name":"Story point estimate","ordinal":110}}

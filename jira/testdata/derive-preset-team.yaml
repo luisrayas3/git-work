@@ -1,0 +1,933 @@
+types:
+  initiative:
+    name: Initiative
+    description: A quarter-scale outcome, above epics.
+    fields:
+      status:
+        kind: enum
+        name: Status
+        description: Where the work stands.
+        values:
+        - id: backlog
+          name: Backlog
+          category: backlog
+        - id: to-do
+          name: To Do
+          category: unstarted
+        - id: in-progress
+          name: In Progress
+          category: started
+        - id: in-review
+          name: In Review
+          category: started
+        - id: done
+          name: Done
+          category: completed
+        - id: canceled
+          name: Canceled
+          category: canceled
+      priority:
+        kind: ordinal-enum
+        name: Priority
+        description: Jira's five priorities, most urgent first.
+        values:
+        - id: highest
+          name: Highest
+        - id: high
+          name: High
+        - id: medium
+          name: Medium
+        - id: low
+          name: Low
+        - id: lowest
+          name: Lowest
+      assignee:
+        kind: identity
+        name: Assignee
+        description: Who is doing the work.
+      labels:
+        kind: multi-enum
+        name: Labels
+        description: Free tags; the preset ships none and anything is accepted.
+        freeform: true
+      due:
+        kind: date
+        name: Due date
+      blocks:
+        kind: multi-relation
+        name: Blocks
+        inverse: blocked_by
+      rank:
+        kind: rank
+        name: Rank
+        description: Manual board and backlog order, sorted by (rank, id).
+  epic:
+    name: Epic
+    description: A body of work delivered by stories and tasks.
+    aliases:
+      jira: "10020"
+    fields:
+      status:
+        kind: enum
+        name: Status
+        description: Where the work stands.
+        aliases:
+          jira: status
+        values:
+        - id: backlog
+          name: Backlog
+          category: backlog
+        - id: to-do
+          name: To Do
+          category: unstarted
+          aliases:
+            jira: "10030"
+        - id: in-progress
+          name: In Progress
+          category: started
+          aliases:
+            jira: "10031"
+        - id: in-review
+          name: In Review
+          category: started
+        - id: done
+          name: Done
+          category: completed
+          aliases:
+            jira: "10032"
+        - id: canceled
+          name: Canceled
+          category: canceled
+      priority:
+        kind: ordinal-enum
+        name: Priority
+        description: Jira's five priorities, most urgent first.
+        aliases:
+          jira: priority
+        values:
+        - id: highest
+          name: Highest
+          aliases:
+            jira: "1"
+        - id: high
+          name: High
+          aliases:
+            jira: "2"
+        - id: medium
+          name: Medium
+          aliases:
+            jira: "3"
+        - id: low
+          name: Low
+          aliases:
+            jira: "4"
+        - id: lowest
+          name: Lowest
+          aliases:
+            jira: "5"
+      assignee:
+        kind: identity
+        name: Assignee
+        description: Who is doing the work.
+        aliases:
+          jira: assignee
+      labels:
+        kind: multi-enum
+        name: Labels
+        description: Free tags; the preset ships none and anything is accepted.
+        aliases:
+          jira: labels
+        freeform: true
+      estimate:
+        kind: number
+        name: Story point estimate
+        description: The estimate a sprint's capacity is measured in.
+        aliases:
+          jira: customfield_10036
+      due:
+        kind: date
+        name: Due date
+        aliases:
+          jira: duedate
+      parent:
+        kind: relation
+        name: Parent initiative
+        inverse: children
+        target_types:
+        - initiative
+      blocks:
+        kind: multi-relation
+        name: Blocks
+        aliases:
+          jira: link:10000
+        inverse: blocked_by
+      rank:
+        kind: rank
+        name: Rank
+        description: Manual board and backlog order, sorted by (rank, id).
+      clones:
+        kind: multi-relation
+        name: Clones
+        aliases:
+          jira: link:10001
+        inverse: is-cloned-by
+      duplicates:
+        kind: multi-relation
+        name: Duplicates
+        aliases:
+          jira: link:10002
+        inverse: is-duplicated-by
+      relates-to:
+        kind: multi-relation
+        name: Relates to
+        aliases:
+          jira: link:10003
+  story:
+    name: Story
+    description: A user-facing change, estimated and sprinted.
+    aliases:
+      jira: "10021"
+    fields:
+      status:
+        kind: enum
+        name: Status
+        description: Where the work stands.
+        aliases:
+          jira: status
+        values:
+        - id: backlog
+          name: Backlog
+          category: backlog
+        - id: to-do
+          name: To Do
+          category: unstarted
+          aliases:
+            jira: "10030"
+        - id: in-progress
+          name: In Progress
+          category: started
+          aliases:
+            jira: "10031"
+        - id: in-review
+          name: In Review
+          category: started
+        - id: done
+          name: Done
+          category: completed
+          aliases:
+            jira: "10032"
+        - id: canceled
+          name: Canceled
+          category: canceled
+      priority:
+        kind: ordinal-enum
+        name: Priority
+        description: Jira's five priorities, most urgent first.
+        aliases:
+          jira: priority
+        values:
+        - id: highest
+          name: Highest
+          aliases:
+            jira: "1"
+        - id: high
+          name: High
+          aliases:
+            jira: "2"
+        - id: medium
+          name: Medium
+          aliases:
+            jira: "3"
+        - id: low
+          name: Low
+          aliases:
+            jira: "4"
+        - id: lowest
+          name: Lowest
+          aliases:
+            jira: "5"
+      assignee:
+        kind: identity
+        name: Assignee
+        description: Who is doing the work.
+        aliases:
+          jira: assignee
+      labels:
+        kind: multi-enum
+        name: Labels
+        description: Free tags; the preset ships none and anything is accepted.
+        aliases:
+          jira: labels
+        freeform: true
+      estimate:
+        kind: number
+        name: Story point estimate
+        description: The estimate a sprint's capacity is measured in.
+        aliases:
+          jira: customfield_10036
+      due:
+        kind: date
+        name: Due date
+        aliases:
+          jira: duedate
+      parent:
+        kind: relation
+        name: Parent
+        aliases:
+          jira: parent
+        inverse: children
+        target_types:
+        - epic
+      iteration:
+        kind: relation
+        name: Sprint
+        description: The iteration this issue is committed to.
+        inverse: issues
+        target_types:
+        - iteration
+      blocks:
+        kind: multi-relation
+        name: Blocks
+        aliases:
+          jira: link:10000
+        inverse: blocked_by
+      rank:
+        kind: rank
+        name: Rank
+        description: Manual board and backlog order, sorted by (rank, id).
+      clones:
+        kind: multi-relation
+        name: Clones
+        aliases:
+          jira: link:10001
+        inverse: is-cloned-by
+      duplicates:
+        kind: multi-relation
+        name: Duplicates
+        aliases:
+          jira: link:10002
+        inverse: is-duplicated-by
+      relates-to:
+        kind: multi-relation
+        name: Relates to
+        aliases:
+          jira: link:10003
+  task:
+    name: Task
+    description: Work that is not a user-facing story.
+    aliases:
+      jira: "10022"
+    fields:
+      status:
+        kind: enum
+        name: Status
+        description: Where the work stands.
+        aliases:
+          jira: status
+        values:
+        - id: backlog
+          name: Backlog
+          category: backlog
+        - id: to-do
+          name: To Do
+          category: unstarted
+          aliases:
+            jira: "10030"
+        - id: in-progress
+          name: In Progress
+          category: started
+          aliases:
+            jira: "10031"
+        - id: in-review
+          name: In Review
+          category: started
+        - id: done
+          name: Done
+          category: completed
+          aliases:
+            jira: "10032"
+        - id: canceled
+          name: Canceled
+          category: canceled
+      priority:
+        kind: ordinal-enum
+        name: Priority
+        description: Jira's five priorities, most urgent first.
+        aliases:
+          jira: priority
+        values:
+        - id: highest
+          name: Highest
+          aliases:
+            jira: "1"
+        - id: high
+          name: High
+          aliases:
+            jira: "2"
+        - id: medium
+          name: Medium
+          aliases:
+            jira: "3"
+        - id: low
+          name: Low
+          aliases:
+            jira: "4"
+        - id: lowest
+          name: Lowest
+          aliases:
+            jira: "5"
+      assignee:
+        kind: identity
+        name: Assignee
+        description: Who is doing the work.
+        aliases:
+          jira: assignee
+      labels:
+        kind: multi-enum
+        name: Labels
+        description: Free tags; the preset ships none and anything is accepted.
+        aliases:
+          jira: labels
+        freeform: true
+      estimate:
+        kind: number
+        name: Story point estimate
+        description: The estimate a sprint's capacity is measured in.
+        aliases:
+          jira: customfield_10036
+      due:
+        kind: date
+        name: Due date
+        aliases:
+          jira: duedate
+      parent:
+        kind: relation
+        name: Parent
+        aliases:
+          jira: parent
+        inverse: children
+        target_types:
+        - epic
+        - story
+      iteration:
+        kind: relation
+        name: Sprint
+        description: The iteration this issue is committed to.
+        inverse: issues
+        target_types:
+        - iteration
+      blocks:
+        kind: multi-relation
+        name: Blocks
+        aliases:
+          jira: link:10000
+        inverse: blocked_by
+      rank:
+        kind: rank
+        name: Rank
+        description: Manual board and backlog order, sorted by (rank, id).
+      clones:
+        kind: multi-relation
+        name: Clones
+        aliases:
+          jira: link:10001
+        inverse: is-cloned-by
+      duplicates:
+        kind: multi-relation
+        name: Duplicates
+        aliases:
+          jira: link:10002
+        inverse: is-duplicated-by
+      relates-to:
+        kind: multi-relation
+        name: Relates to
+        aliases:
+          jira: link:10003
+  bug:
+    name: Bug
+    description: Something that does not work.
+    aliases:
+      jira: "10023"
+    fields:
+      status:
+        kind: enum
+        name: Status
+        description: Where the work stands.
+        aliases:
+          jira: status
+        values:
+        - id: backlog
+          name: Backlog
+          category: backlog
+        - id: to-do
+          name: To Do
+          category: unstarted
+          aliases:
+            jira: "10030"
+        - id: in-progress
+          name: In Progress
+          category: started
+          aliases:
+            jira: "10031"
+        - id: in-review
+          name: In Review
+          category: started
+        - id: done
+          name: Done
+          category: completed
+          aliases:
+            jira: "10032"
+        - id: canceled
+          name: Canceled
+          category: canceled
+      priority:
+        kind: ordinal-enum
+        name: Priority
+        description: Jira's five priorities, most urgent first.
+        aliases:
+          jira: priority
+        values:
+        - id: highest
+          name: Highest
+          aliases:
+            jira: "1"
+        - id: high
+          name: High
+          aliases:
+            jira: "2"
+        - id: medium
+          name: Medium
+          aliases:
+            jira: "3"
+        - id: low
+          name: Low
+          aliases:
+            jira: "4"
+        - id: lowest
+          name: Lowest
+          aliases:
+            jira: "5"
+      assignee:
+        kind: identity
+        name: Assignee
+        description: Who is doing the work.
+        aliases:
+          jira: assignee
+      labels:
+        kind: multi-enum
+        name: Labels
+        description: Free tags; the preset ships none and anything is accepted.
+        aliases:
+          jira: labels
+        freeform: true
+      estimate:
+        kind: number
+        name: Story point estimate
+        description: The estimate a sprint's capacity is measured in.
+        aliases:
+          jira: customfield_10036
+      due:
+        kind: date
+        name: Due date
+        aliases:
+          jira: duedate
+      parent:
+        kind: relation
+        name: Parent
+        aliases:
+          jira: parent
+        inverse: children
+        target_types:
+        - epic
+      iteration:
+        kind: relation
+        name: Sprint
+        description: The iteration this issue is committed to.
+        inverse: issues
+        target_types:
+        - iteration
+      blocks:
+        kind: multi-relation
+        name: Blocks
+        aliases:
+          jira: link:10000
+        inverse: blocked_by
+      rank:
+        kind: rank
+        name: Rank
+        description: Manual board and backlog order, sorted by (rank, id).
+      clones:
+        kind: multi-relation
+        name: Clones
+        aliases:
+          jira: link:10001
+        inverse: is-cloned-by
+      duplicates:
+        kind: multi-relation
+        name: Duplicates
+        aliases:
+          jira: link:10002
+        inverse: is-duplicated-by
+      relates-to:
+        kind: multi-relation
+        name: Relates to
+        aliases:
+          jira: link:10003
+  subtask:
+    name: Subtask
+    description: One unit of a story or a task; an agent owns one, with one PR.
+    aliases:
+      jira: "10024"
+    fields:
+      status:
+        kind: enum
+        name: Status
+        description: Where the work stands.
+        aliases:
+          jira: status
+        values:
+        - id: backlog
+          name: Backlog
+          category: backlog
+        - id: to-do
+          name: To Do
+          category: unstarted
+          aliases:
+            jira: "10030"
+        - id: in-progress
+          name: In Progress
+          category: started
+          aliases:
+            jira: "10031"
+        - id: in-review
+          name: In Review
+          category: started
+        - id: done
+          name: Done
+          category: completed
+          aliases:
+            jira: "10032"
+        - id: canceled
+          name: Canceled
+          category: canceled
+      priority:
+        kind: ordinal-enum
+        name: Priority
+        description: Jira's five priorities, most urgent first.
+        aliases:
+          jira: priority
+        values:
+        - id: highest
+          name: Highest
+          aliases:
+            jira: "1"
+        - id: high
+          name: High
+          aliases:
+            jira: "2"
+        - id: medium
+          name: Medium
+          aliases:
+            jira: "3"
+        - id: low
+          name: Low
+          aliases:
+            jira: "4"
+        - id: lowest
+          name: Lowest
+          aliases:
+            jira: "5"
+      assignee:
+        kind: identity
+        name: Assignee
+        description: Who is doing the work.
+        aliases:
+          jira: assignee
+      labels:
+        kind: multi-enum
+        name: Labels
+        description: Free tags; the preset ships none and anything is accepted.
+        aliases:
+          jira: labels
+        freeform: true
+      estimate:
+        kind: number
+        name: Story point estimate
+        description: The estimate a sprint's capacity is measured in.
+        aliases:
+          jira: customfield_10036
+      due:
+        kind: date
+        name: Due date
+        aliases:
+          jira: duedate
+      parent:
+        kind: relation
+        name: Parent
+        aliases:
+          jira: parent
+        inverse: children
+        target_types:
+        - bug
+        - story
+        - task
+      iteration:
+        kind: relation
+        name: Sprint
+        description: The iteration this issue is committed to.
+        inverse: issues
+        target_types:
+        - iteration
+      blocks:
+        kind: multi-relation
+        name: Blocks
+        aliases:
+          jira: link:10000
+        inverse: blocked_by
+      rank:
+        kind: rank
+        name: Rank
+        description: Manual board and backlog order, sorted by (rank, id).
+      clones:
+        kind: multi-relation
+        name: Clones
+        aliases:
+          jira: link:10001
+        inverse: is-cloned-by
+      duplicates:
+        kind: multi-relation
+        name: Duplicates
+        aliases:
+          jira: link:10002
+        inverse: is-duplicated-by
+      relates-to:
+        kind: multi-relation
+        name: Relates to
+        aliases:
+          jira: link:10003
+  iteration:
+    name: Sprint
+    description: A time-boxed iteration; Jira's sprint, Linear's cycle.
+    fields:
+      status:
+        kind: enum
+        name: State
+        description: Jira's sprint states.
+        values:
+        - id: future
+          name: Future
+          category: unstarted
+        - id: active
+          name: Active
+          category: started
+        - id: closed
+          name: Closed
+          category: completed
+      start:
+        kind: date
+        name: Start date
+      end:
+        kind: date
+        name: End date
+      capacity:
+        kind: number
+        name: Capacity
+        description: Story points the team commits to, in the unit estimate uses.
+      rank:
+        kind: rank
+        name: Rank
+        description: Manual board and backlog order, sorted by (rank, id).
+
+# notes
+# info epic: adopts Jira issue type Epic (10020)
+# info story: adopts Jira issue type Story (10021)
+# info task: adopts Jira issue type Task (10022)
+# info bug: adopts Jira issue type Bug (10023)
+# info subtask: adopts Jira issue type Subtask (10024)
+# info initiative: local-only type: never exported
+# info iteration: local-only type: never exported
+# warn epic/customfield_10019: Jira field Rank (customfield_10019, com.pyxis.greenhopper.jira:gh-lexo-rank) is not mapped
+# info epic/status: adopts Jira field Status (status)
+# info epic/status:to-do: adopts Jira value To Do (10030)
+# info epic/status:in-progress: adopts Jira value In Progress (10031)
+# info epic/status:done: adopts Jira value Done (10032)
+# info epic/status:backlog: local-only value: never exported
+# info epic/status:in-review: local-only value: never exported
+# info epic/status:canceled: local-only value: never exported
+# info epic/priority: adopts Jira field Priority (priority)
+# info epic/priority:highest: adopts Jira value Highest (1)
+# info epic/priority:high: adopts Jira value High (2)
+# info epic/priority:medium: adopts Jira value Medium (3)
+# info epic/priority:low: adopts Jira value Low (4)
+# info epic/priority:lowest: adopts Jira value Lowest (5)
+# info epic/assignee: adopts Jira field Assignee (assignee)
+# info epic/labels: adopts Jira field Labels (labels)
+# info epic/due: adopts Jira field Due date (duedate)
+# info epic/blocks: adopts Jira field Blocks (link:10000)
+# info epic/clones: new field for Jira field Clones (link:10001)
+# info epic/duplicates: new field for Jira field Duplicates (link:10002)
+# info epic/relates-to: new field for Jira field Relates to (link:10003)
+# info epic/estimate: adopts Jira field Story point estimate (customfield_10036)
+# info epic/parent: local-only field: never exported
+# info epic/rank: local-only field: never exported
+# warn story/customfield_10019: Jira field Rank (customfield_10019, com.pyxis.greenhopper.jira:gh-lexo-rank) is not mapped
+# info story/status: adopts Jira field Status (status)
+# info story/status:to-do: adopts Jira value To Do (10030)
+# info story/status:in-progress: adopts Jira value In Progress (10031)
+# info story/status:done: adopts Jira value Done (10032)
+# info story/status:backlog: local-only value: never exported
+# info story/status:in-review: local-only value: never exported
+# info story/status:canceled: local-only value: never exported
+# info story/priority: adopts Jira field Priority (priority)
+# info story/priority:highest: adopts Jira value Highest (1)
+# info story/priority:high: adopts Jira value High (2)
+# info story/priority:medium: adopts Jira value Medium (3)
+# info story/priority:low: adopts Jira value Low (4)
+# info story/priority:lowest: adopts Jira value Lowest (5)
+# info story/assignee: adopts Jira field Assignee (assignee)
+# info story/labels: adopts Jira field Labels (labels)
+# info story/due: adopts Jira field Due date (duedate)
+# info story/parent: adopts Jira field Parent (parent)
+# info story/blocks: adopts Jira field Blocks (link:10000)
+# info story/clones: new field for Jira field Clones (link:10001)
+# info story/duplicates: new field for Jira field Duplicates (link:10002)
+# info story/relates-to: new field for Jira field Relates to (link:10003)
+# info story/estimate: adopts Jira field Story point estimate (customfield_10036)
+# info story/iteration: local-only field: never exported
+# info story/rank: local-only field: never exported
+# warn task/customfield_10019: Jira field Rank (customfield_10019, com.pyxis.greenhopper.jira:gh-lexo-rank) is not mapped
+# info task/status: adopts Jira field Status (status)
+# info task/status:to-do: adopts Jira value To Do (10030)
+# info task/status:in-progress: adopts Jira value In Progress (10031)
+# info task/status:done: adopts Jira value Done (10032)
+# info task/status:backlog: local-only value: never exported
+# info task/status:in-review: local-only value: never exported
+# info task/status:canceled: local-only value: never exported
+# info task/priority: adopts Jira field Priority (priority)
+# info task/priority:highest: adopts Jira value Highest (1)
+# info task/priority:high: adopts Jira value High (2)
+# info task/priority:medium: adopts Jira value Medium (3)
+# info task/priority:low: adopts Jira value Low (4)
+# info task/priority:lowest: adopts Jira value Lowest (5)
+# info task/assignee: adopts Jira field Assignee (assignee)
+# info task/labels: adopts Jira field Labels (labels)
+# info task/due: adopts Jira field Due date (duedate)
+# info task/parent: adopts Jira field Parent (parent)
+# info task/blocks: adopts Jira field Blocks (link:10000)
+# info task/clones: new field for Jira field Clones (link:10001)
+# info task/duplicates: new field for Jira field Duplicates (link:10002)
+# info task/relates-to: new field for Jira field Relates to (link:10003)
+# info task/estimate: adopts Jira field Story point estimate (customfield_10036)
+# info task/iteration: local-only field: never exported
+# info task/rank: local-only field: never exported
+# warn bug/customfield_10019: Jira field Rank (customfield_10019, com.pyxis.greenhopper.jira:gh-lexo-rank) is not mapped
+# info bug/status: adopts Jira field Status (status)
+# info bug/status:to-do: adopts Jira value To Do (10030)
+# info bug/status:in-progress: adopts Jira value In Progress (10031)
+# info bug/status:done: adopts Jira value Done (10032)
+# info bug/status:backlog: local-only value: never exported
+# info bug/status:in-review: local-only value: never exported
+# info bug/status:canceled: local-only value: never exported
+# info bug/priority: adopts Jira field Priority (priority)
+# info bug/priority:highest: adopts Jira value Highest (1)
+# info bug/priority:high: adopts Jira value High (2)
+# info bug/priority:medium: adopts Jira value Medium (3)
+# info bug/priority:low: adopts Jira value Low (4)
+# info bug/priority:lowest: adopts Jira value Lowest (5)
+# info bug/assignee: adopts Jira field Assignee (assignee)
+# info bug/labels: adopts Jira field Labels (labels)
+# info bug/due: adopts Jira field Due date (duedate)
+# info bug/parent: adopts Jira field Parent (parent)
+# info bug/blocks: adopts Jira field Blocks (link:10000)
+# info bug/clones: new field for Jira field Clones (link:10001)
+# info bug/duplicates: new field for Jira field Duplicates (link:10002)
+# info bug/relates-to: new field for Jira field Relates to (link:10003)
+# info bug/estimate: adopts Jira field Story point estimate (customfield_10036)
+# info bug/iteration: local-only field: never exported
+# info bug/rank: local-only field: never exported
+# warn subtask/customfield_10019: Jira field Rank (customfield_10019, com.pyxis.greenhopper.jira:gh-lexo-rank) is not mapped
+# info subtask/status: adopts Jira field Status (status)
+# info subtask/status:to-do: adopts Jira value To Do (10030)
+# info subtask/status:in-progress: adopts Jira value In Progress (10031)
+# info subtask/status:done: adopts Jira value Done (10032)
+# info subtask/status:backlog: local-only value: never exported
+# info subtask/status:in-review: local-only value: never exported
+# info subtask/status:canceled: local-only value: never exported
+# info subtask/priority: adopts Jira field Priority (priority)
+# info subtask/priority:highest: adopts Jira value Highest (1)
+# info subtask/priority:high: adopts Jira value High (2)
+# info subtask/priority:medium: adopts Jira value Medium (3)
+# info subtask/priority:low: adopts Jira value Low (4)
+# info subtask/priority:lowest: adopts Jira value Lowest (5)
+# info subtask/assignee: adopts Jira field Assignee (assignee)
+# info subtask/labels: adopts Jira field Labels (labels)
+# info subtask/due: adopts Jira field Due date (duedate)
+# info subtask/parent: adopts Jira field Parent (parent)
+# info subtask/blocks: adopts Jira field Blocks (link:10000)
+# info subtask/clones: new field for Jira field Clones (link:10001)
+# info subtask/duplicates: new field for Jira field Duplicates (link:10002)
+# info subtask/relates-to: new field for Jira field Relates to (link:10003)
+# info subtask/estimate: adopts Jira field Story point estimate (customfield_10036)
+# info subtask/iteration: local-only field: never exported
+# info subtask/rank: local-only field: never exported
+
+# changes
+# {"action":"update","shape":"type","key":"epic","id":"0000000000000000000000000000000000000000000000000000000000000002","set":{"alias_jira":"10020"}}
+# {"action":"update","shape":"type","key":"story","id":"0000000000000000000000000000000000000000000000000000000000000003","set":{"alias_jira":"10021"}}
+# {"action":"update","shape":"type","key":"task","id":"0000000000000000000000000000000000000000000000000000000000000004","set":{"alias_jira":"10022"}}
+# {"action":"update","shape":"type","key":"bug","id":"0000000000000000000000000000000000000000000000000000000000000005","set":{"alias_jira":"10023"}}
+# {"action":"update","shape":"type","key":"subtask","id":"0000000000000000000000000000000000000000000000000000000000000006","set":{"alias_jira":"10024","name":"Subtask"}}
+# {"action":"update","shape":"field","key":"epic/status","id":"0000000000000000000000000000000000000000000000000000000000000015","set":{"alias_jira":"status","alias_jira/done":"10032","alias_jira/in-progress":"10031","alias_jira/to-do":"10030"}}
+# {"action":"update","shape":"field","key":"epic/priority","id":"0000000000000000000000000000000000000000000000000000000000000016","set":{"alias_jira":"priority","alias_jira/high":"2","alias_jira/highest":"1","alias_jira/low":"4","alias_jira/lowest":"5","alias_jira/medium":"3"}}
+# {"action":"update","shape":"field","key":"epic/assignee","id":"0000000000000000000000000000000000000000000000000000000000000017","set":{"alias_jira":"assignee"}}
+# {"action":"update","shape":"field","key":"epic/labels","id":"0000000000000000000000000000000000000000000000000000000000000018","set":{"alias_jira":"labels"}}
+# {"action":"update","shape":"field","key":"epic/estimate","id":"0000000000000000000000000000000000000000000000000000000000000019","set":{"alias_jira":"customfield_10036","name":"Story point estimate"}}
+# {"action":"update","shape":"field","key":"epic/due","id":"0000000000000000000000000000000000000000000000000000000000000020","set":{"alias_jira":"duedate"}}
+# {"action":"update","shape":"field","key":"epic/blocks","id":"0000000000000000000000000000000000000000000000000000000000000022","set":{"alias_jira":"link:10000"}}
+# {"action":"create","shape":"field","key":"epic/clones","set":{"alias_jira":"link:10001","inverse":"is-cloned-by","kind":"multi-relation","name":"Clones","ordinal":100}}
+# {"action":"create","shape":"field","key":"epic/duplicates","set":{"alias_jira":"link:10002","inverse":"is-duplicated-by","kind":"multi-relation","name":"Duplicates","ordinal":110}}
+# {"action":"create","shape":"field","key":"epic/relates-to","set":{"alias_jira":"link:10003","kind":"multi-relation","name":"Relates to","ordinal":120}}
+# {"action":"update","shape":"field","key":"story/status","id":"0000000000000000000000000000000000000000000000000000000000000024","set":{"alias_jira":"status","alias_jira/done":"10032","alias_jira/in-progress":"10031","alias_jira/to-do":"10030"}}
+# {"action":"update","shape":"field","key":"story/priority","id":"0000000000000000000000000000000000000000000000000000000000000025","set":{"alias_jira":"priority","alias_jira/high":"2","alias_jira/highest":"1","alias_jira/low":"4","alias_jira/lowest":"5","alias_jira/medium":"3"}}
+# {"action":"update","shape":"field","key":"story/assignee","id":"0000000000000000000000000000000000000000000000000000000000000026","set":{"alias_jira":"assignee"}}
+# {"action":"update","shape":"field","key":"story/labels","id":"0000000000000000000000000000000000000000000000000000000000000027","set":{"alias_jira":"labels"}}
+# {"action":"update","shape":"field","key":"story/estimate","id":"0000000000000000000000000000000000000000000000000000000000000028","set":{"alias_jira":"customfield_10036","name":"Story point estimate"}}
+# {"action":"update","shape":"field","key":"story/due","id":"0000000000000000000000000000000000000000000000000000000000000029","set":{"alias_jira":"duedate"}}
+# {"action":"update","shape":"field","key":"story/parent","id":"0000000000000000000000000000000000000000000000000000000000000030","set":{"alias_jira":"parent","name":"Parent"}}
+# {"action":"update","shape":"field","key":"story/blocks","id":"0000000000000000000000000000000000000000000000000000000000000032","set":{"alias_jira":"link:10000"}}
+# {"action":"create","shape":"field","key":"story/clones","set":{"alias_jira":"link:10001","inverse":"is-cloned-by","kind":"multi-relation","name":"Clones","ordinal":110}}
+# {"action":"create","shape":"field","key":"story/duplicates","set":{"alias_jira":"link:10002","inverse":"is-duplicated-by","kind":"multi-relation","name":"Duplicates","ordinal":120}}
+# {"action":"create","shape":"field","key":"story/relates-to","set":{"alias_jira":"link:10003","kind":"multi-relation","name":"Relates to","ordinal":130}}
+# {"action":"update","shape":"field","key":"task/status","id":"0000000000000000000000000000000000000000000000000000000000000034","set":{"alias_jira":"status","alias_jira/done":"10032","alias_jira/in-progress":"10031","alias_jira/to-do":"10030"}}
+# {"action":"update","shape":"field","key":"task/priority","id":"0000000000000000000000000000000000000000000000000000000000000035","set":{"alias_jira":"priority","alias_jira/high":"2","alias_jira/highest":"1","alias_jira/low":"4","alias_jira/lowest":"5","alias_jira/medium":"3"}}
+# {"action":"update","shape":"field","key":"task/assignee","id":"0000000000000000000000000000000000000000000000000000000000000036","set":{"alias_jira":"assignee"}}
+# {"action":"update","shape":"field","key":"task/labels","id":"0000000000000000000000000000000000000000000000000000000000000037","set":{"alias_jira":"labels"}}
+# {"action":"update","shape":"field","key":"task/estimate","id":"0000000000000000000000000000000000000000000000000000000000000038","set":{"alias_jira":"customfield_10036","name":"Story point estimate"}}
+# {"action":"update","shape":"field","key":"task/due","id":"0000000000000000000000000000000000000000000000000000000000000039","set":{"alias_jira":"duedate"}}
+# {"action":"update","shape":"field","key":"task/parent","id":"0000000000000000000000000000000000000000000000000000000000000040","set":{"alias_jira":"parent"}}
+# {"action":"update","shape":"field","key":"task/blocks","id":"0000000000000000000000000000000000000000000000000000000000000042","set":{"alias_jira":"link:10000"}}
+# {"action":"create","shape":"field","key":"task/clones","set":{"alias_jira":"link:10001","inverse":"is-cloned-by","kind":"multi-relation","name":"Clones","ordinal":110}}
+# {"action":"create","shape":"field","key":"task/duplicates","set":{"alias_jira":"link:10002","inverse":"is-duplicated-by","kind":"multi-relation","name":"Duplicates","ordinal":120}}
+# {"action":"create","shape":"field","key":"task/relates-to","set":{"alias_jira":"link:10003","kind":"multi-relation","name":"Relates to","ordinal":130}}
+# {"action":"update","shape":"field","key":"bug/status","id":"0000000000000000000000000000000000000000000000000000000000000044","set":{"alias_jira":"status","alias_jira/done":"10032","alias_jira/in-progress":"10031","alias_jira/to-do":"10030"}}
+# {"action":"update","shape":"field","key":"bug/priority","id":"0000000000000000000000000000000000000000000000000000000000000045","set":{"alias_jira":"priority","alias_jira/high":"2","alias_jira/highest":"1","alias_jira/low":"4","alias_jira/lowest":"5","alias_jira/medium":"3"}}
+# {"action":"update","shape":"field","key":"bug/assignee","id":"0000000000000000000000000000000000000000000000000000000000000046","set":{"alias_jira":"assignee"}}
+# {"action":"update","shape":"field","key":"bug/labels","id":"0000000000000000000000000000000000000000000000000000000000000047","set":{"alias_jira":"labels"}}
+# {"action":"update","shape":"field","key":"bug/estimate","id":"0000000000000000000000000000000000000000000000000000000000000048","set":{"alias_jira":"customfield_10036","name":"Story point estimate"}}
+# {"action":"update","shape":"field","key":"bug/due","id":"0000000000000000000000000000000000000000000000000000000000000049","set":{"alias_jira":"duedate"}}
+# {"action":"update","shape":"field","key":"bug/parent","id":"0000000000000000000000000000000000000000000000000000000000000050","set":{"alias_jira":"parent","name":"Parent"}}
+# {"action":"update","shape":"field","key":"bug/blocks","id":"0000000000000000000000000000000000000000000000000000000000000052","set":{"alias_jira":"link:10000"}}
+# {"action":"create","shape":"field","key":"bug/clones","set":{"alias_jira":"link:10001","inverse":"is-cloned-by","kind":"multi-relation","name":"Clones","ordinal":110}}
+# {"action":"create","shape":"field","key":"bug/duplicates","set":{"alias_jira":"link:10002","inverse":"is-duplicated-by","kind":"multi-relation","name":"Duplicates","ordinal":120}}
+# {"action":"create","shape":"field","key":"bug/relates-to","set":{"alias_jira":"link:10003","kind":"multi-relation","name":"Relates to","ordinal":130}}
+# {"action":"update","shape":"field","key":"subtask/status","id":"0000000000000000000000000000000000000000000000000000000000000054","set":{"alias_jira":"status","alias_jira/done":"10032","alias_jira/in-progress":"10031","alias_jira/to-do":"10030"}}
+# {"action":"update","shape":"field","key":"subtask/priority","id":"0000000000000000000000000000000000000000000000000000000000000055","set":{"alias_jira":"priority","alias_jira/high":"2","alias_jira/highest":"1","alias_jira/low":"4","alias_jira/lowest":"5","alias_jira/medium":"3"}}
+# {"action":"update","shape":"field","key":"subtask/assignee","id":"0000000000000000000000000000000000000000000000000000000000000056","set":{"alias_jira":"assignee"}}
+# {"action":"update","shape":"field","key":"subtask/labels","id":"0000000000000000000000000000000000000000000000000000000000000057","set":{"alias_jira":"labels"}}
+# {"action":"update","shape":"field","key":"subtask/estimate","id":"0000000000000000000000000000000000000000000000000000000000000058","set":{"alias_jira":"customfield_10036","name":"Story point estimate"}}
+# {"action":"update","shape":"field","key":"subtask/due","id":"0000000000000000000000000000000000000000000000000000000000000059","set":{"alias_jira":"duedate"}}
+# {"action":"update","shape":"field","key":"subtask/parent","id":"0000000000000000000000000000000000000000000000000000000000000060","set":{"alias_jira":"parent","target_types/bug":{}}}
+# {"action":"update","shape":"field","key":"subtask/blocks","id":"0000000000000000000000000000000000000000000000000000000000000062","set":{"alias_jira":"link:10000"}}
+# {"action":"create","shape":"field","key":"subtask/clones","set":{"alias_jira":"link:10001","inverse":"is-cloned-by","kind":"multi-relation","name":"Clones","ordinal":110}}
+# {"action":"create","shape":"field","key":"subtask/duplicates","set":{"alias_jira":"link:10002","inverse":"is-duplicated-by","kind":"multi-relation","name":"Duplicates","ordinal":120}}
+# {"action":"create","shape":"field","key":"subtask/relates-to","set":{"alias_jira":"link:10003","kind":"multi-relation","name":"Relates to","ordinal":130}}

@@ -11,6 +11,7 @@ import (
 type commentBody struct {
 	Body       json.RawMessage `json:"body"`
 	Visibility json.RawMessage `json:"visibility"`
+	Properties []property      `json:"properties"`
 }
 
 // newComment appends a comment to st and returns it.
@@ -52,10 +53,14 @@ func (s *Server) getComments(c *call) (int, any, error) {
 	if err != nil {
 		return 0, nil, err
 	}
-	rendered := parseExpand(c.q["expand"]...)["renderedBody"]
+	expand := parseExpand(c.q["expand"]...)
 	page := []map[string]any{}
 	for i := start; i < len(cs) && i < start+max; i++ {
-		page = append(page, s.commentJSON(st, cs[i], rendered))
+		m := s.commentJSON(st, cs[i], expand["renderedBody"])
+		if expand["properties"] && s.cfg.commentProperties {
+			m["properties"] = propertiesJSON(cs[i].properties)
+		}
+		page = append(page, m)
 	}
 	// The legacy offset shape: no isLast (api.md §0).
 	return http.StatusOK, map[string]any{"startAt": start, "maxResults": max, "total": len(cs), "comments": page}, nil
@@ -73,16 +78,24 @@ func (s *Server) getComment(c *call) (int, any, error) {
 	return http.StatusOK, s.commentJSON(rec.cur, rec.cur.comments[i], parseExpand(c.q["expand"]...)["renderedBody"]), nil
 }
 
-func (s *Server) readCommentBody(c *call) (json.RawMessage, json.RawMessage, error) {
+func (s *Server) readCommentBody(c *call) (json.RawMessage, json.RawMessage, []property, error) {
 	var in commentBody
 	if err := c.decode(&in); err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	doc, msg := s.adfValue(in.Body)
 	if msg != "" {
-		return nil, nil, fieldErrors(map[string]string{"comment": msg})
+		return nil, nil, nil, fieldErrors(map[string]string{"comment": msg})
 	}
-	return doc, in.Visibility, nil
+	return doc, in.Visibility, in.Properties, nil
+}
+
+// propertiesJSON is a comment's properties as expand=properties renders them.
+func propertiesJSON(ps []property) []property {
+	if ps == nil {
+		return []property{}
+	}
+	return ps
 }
 
 func (s *Server) addComment(c *call) (int, any, error) {
@@ -90,7 +103,7 @@ func (s *Server) addComment(c *call) (int, any, error) {
 	if rec == nil {
 		return 0, nil, issueNotFound()
 	}
-	body, vis, err := s.readCommentBody(c)
+	body, vis, props, err := s.readCommentBody(c)
 	if err != nil {
 		return 0, nil, err
 	}
@@ -99,6 +112,7 @@ func (s *Server) addComment(c *call) (int, any, error) {
 	}
 	next := rec.cur.clone()
 	cm := s.newComment(next, body, c.user.AccountID, vis)
+	cm.properties = props
 	s.commit(rec, next, c.user.AccountID, true) // an add bumps updated (§7.1)
 	return http.StatusCreated, s.commentJSON(next, cm, false), nil
 }
@@ -112,7 +126,7 @@ func (s *Server) updateComment(c *call) (int, any, error) {
 	if i < 0 {
 		return 0, nil, commentNotFound(c.v("id"))
 	}
-	body, vis, err := s.readCommentBody(c)
+	body, vis, _, err := s.readCommentBody(c)
 	if err != nil {
 		return 0, nil, err
 	}

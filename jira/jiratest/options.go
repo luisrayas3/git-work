@@ -38,6 +38,7 @@ type config struct {
 	missingAuth        MissingAuth
 	commentEditBumps   bool
 	commentDeleteBumps bool
+	commentProperties  bool
 	shuffleChangelog   bool
 	omitCustomFieldIDs bool
 	adfLocalIDs        bool
@@ -60,12 +61,18 @@ func defaultConfig() config {
 		shuffleChangelog:   true,
 		omitCustomFieldIDs: true,
 		adfLocalIDs:        true,
+		commentProperties:  true,
 		retryAfter:         1,
 		// api.md §12.1: 20 writes per 2 s and 100 per 30 s on one issue.
 		perIssue: []WriteLimit{{N: 20, Window: 2 * time.Second}, {N: 100, Window: 30 * time.Second}},
 		seed:     1,
 	}
 }
+
+// WithCommentProperties sets whether GET …/comment?expand=properties returns
+// the properties a comment was created with. api.md documents the field on
+// Comment but not the expand on the list (JS12); default true.
+func WithCommentProperties(b bool) Option { return func(c *config) { c.commentProperties = b } }
 
 // WithSite seeds the fake with site instead of CompanySite.
 func WithSite(site Site) Option { return func(c *config) { c.site = &site } }

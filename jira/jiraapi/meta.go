@@ -90,14 +90,19 @@ func (c *Client) IssueLinkTypes(ctx context.Context) ([]IssueLinkType, error) {
 
 // Comments reads every comment of an issue, oldest first (§7.1).
 func (c *Client) Comments(ctx context.Context, idOrKey string) ([]Comment, error) {
-	return pages[Comment](ctx, c, "/rest/api/3/issue/"+esc(idOrKey)+"/comment", url.Values{"orderBy": {"created"}}, 100, "comments")
+	return pages[Comment](ctx, c, "/rest/api/3/issue/"+esc(idOrKey)+"/comment", url.Values{"orderBy": {"created"}, "expand": {"properties"}}, 100, "comments")
 }
 
-// AddComment posts an ADF body and returns the comment.
-func (c *Client) AddComment(ctx context.Context, idOrKey string, body json.RawMessage) (*Comment, error) {
+// AddComment posts an ADF body, with properties set inline (§7.2), and
+// returns the comment.
+func (c *Client) AddComment(ctx context.Context, idOrKey string, body json.RawMessage, properties ...Property) (*Comment, error) {
 	var cm Comment
+	in := map[string]any{"body": body}
+	if len(properties) > 0 {
+		in["properties"] = properties
+	}
 	_, err := c.do(ctx, request{method: http.MethodPost, path: "/rest/api/3/issue/" + esc(idOrKey) + "/comment",
-		body: map[string]any{"body": body}, out: &cm})
+		body: in, out: &cm})
 	if err != nil {
 		return nil, err
 	}

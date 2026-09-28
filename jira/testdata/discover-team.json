@@ -1,0 +1,1897 @@
+{
+  "Id": "10010",
+  "Key": "TEAM",
+  "Me": {
+    "accountId": "5b10a2844c20165700ede21g",
+    "accountType": "atlassian",
+    "emailAddress": "mia@example.com",
+    "displayName": "Mia Krystof",
+    "active": true,
+    "timeZone": "Europe/Berlin",
+    "locale": "en_US",
+    "self": "https://jira.test/rest/api/3/user?accountId=5b10a2844c20165700ede21g"
+  },
+  "IssueTypes": [
+    {
+      "Id": "10020",
+      "Name": "Epic",
+      "Description": "",
+      "Level": 1,
+      "Statuses": [
+        {
+          "id": "10030",
+          "name": "To Do",
+          "self": "https://jira.test/rest/api/3/status/10030",
+          "statusCategory": {
+            "id": 2,
+            "key": "new",
+            "name": "To Do",
+            "colorName": "blue-gray",
+            "self": "https://jira.test/rest/api/3/statuscategory/2"
+          }
+        },
+        {
+          "id": "10031",
+          "name": "In Progress",
+          "self": "https://jira.test/rest/api/3/status/10031",
+          "statusCategory": {
+            "id": 4,
+            "key": "indeterminate",
+            "name": "In Progress",
+            "colorName": "yellow",
+            "self": "https://jira.test/rest/api/3/statuscategory/4"
+          }
+        },
+        {
+          "id": "10032",
+          "name": "Done",
+          "self": "https://jira.test/rest/api/3/status/10032",
+          "statusCategory": {
+            "id": 3,
+            "key": "done",
+            "name": "Done",
+            "colorName": "green",
+            "self": "https://jira.test/rest/api/3/statuscategory/3"
+          }
+        }
+      ],
+      "Screen": [
+        {
+          "fieldId": "assignee",
+          "key": "assignee",
+          "name": "Assignee",
+          "required": false,
+          "hasDefaultValue": false,
+          "operations": [
+            "set"
+          ],
+          "schema": {
+            "type": "user",
+            "system": "assignee"
+          },
+          "autoCompleteUrl": "https://jira.test/rest/api/3/user/search?query="
+        },
+        {
+          "fieldId": "customfield_10019",
+          "key": "customfield_10019",
+          "name": "Rank",
+          "required": false,
+          "hasDefaultValue": false,
+          "schema": {
+            "type": "any",
+            "custom": "com.pyxis.greenhopper.jira:gh-lexo-rank",
+            "customId": 10019
+          }
+        },
+        {
+          "fieldId": "customfield_10036",
+          "key": "customfield_10036",
+          "name": "Story point estimate",
+          "required": false,
+          "hasDefaultValue": false,
+          "operations": [
+            "set"
+          ],
+          "schema": {
+            "type": "number",
+            "custom": "com.atlassian.jira.plugin.system.customfieldtypes:float",
+            "customId": 10036
+          }
+        },
+        {
+          "fieldId": "description",
+          "key": "description",
+          "name": "Description",
+          "required": false,
+          "hasDefaultValue": false,
+          "operations": [
+            "set"
+          ],
+          "schema": {
+            "type": "string",
+            "system": "description"
+          }
+        },
+        {
+          "fieldId": "duedate",
+          "key": "duedate",
+          "name": "Due date",
+          "required": false,
+          "hasDefaultValue": false,
+          "operations": [
+            "set"
+          ],
+          "schema": {
+            "type": "date",
+            "system": "duedate"
+          }
+        },
+        {
+          "fieldId": "issuetype",
+          "key": "issuetype",
+          "name": "Issue Type",
+          "required": true,
+          "hasDefaultValue": false,
+          "schema": {
+            "type": "issuetype",
+            "system": "issuetype"
+          },
+          "allowedValues": [
+            {
+              "avatarId": 10300,
+              "description": "",
+              "entityId": "00000000-0000-4000-8000-000000010020",
+              "hierarchyLevel": 1,
+              "iconUrl": "https://jira.test/rest/api/2/universal_avatar/view/type/issuetype/avatar/10020",
+              "id": "10020",
+              "name": "Epic",
+              "scope": {
+                "project": {
+                  "id": "10010"
+                },
+                "type": "PROJECT"
+              },
+              "self": "https://jira.test/rest/api/3/issuetype/10020",
+              "subtask": false
+            }
+          ]
+        },
+        {
+          "fieldId": "labels",
+          "key": "labels",
+          "name": "Labels",
+          "required": false,
+          "hasDefaultValue": false,
+          "operations": [
+            "add",
+            "set",
+            "remove"
+          ],
+          "schema": {
+            "type": "array",
+            "items": "string",
+            "system": "labels"
+          }
+        },
+        {
+          "fieldId": "parent",
+          "key": "parent",
+          "name": "Parent",
+          "required": false,
+          "hasDefaultValue": false,
+          "operations": [
+            "set"
+          ],
+          "schema": {
+            "type": "issuelink",
+            "system": "parent"
+          }
+        },
+        {
+          "fieldId": "priority",
+          "key": "priority",
+          "name": "Priority",
+          "required": false,
+          "hasDefaultValue": true,
+          "operations": [
+            "set"
+          ],
+          "schema": {
+            "type": "priority",
+            "system": "priority"
+          },
+          "allowedValues": [
+            {
+              "iconUrl": "https://jira.test/images/icons/priorities/highest.svg",
+              "id": "1",
+              "name": "Highest",
+              "self": "https://jira.test/rest/api/3/priority/1"
+            },
+            {
+              "iconUrl": "https://jira.test/images/icons/priorities/high.svg",
+              "id": "2",
+              "name": "High",
+              "self": "https://jira.test/rest/api/3/priority/2"
+            },
+            {
+              "iconUrl": "https://jira.test/images/icons/priorities/medium.svg",
+              "id": "3",
+              "name": "Medium",
+              "self": "https://jira.test/rest/api/3/priority/3"
+            },
+            {
+              "iconUrl": "https://jira.test/images/icons/priorities/low.svg",
+              "id": "4",
+              "name": "Low",
+              "self": "https://jira.test/rest/api/3/priority/4"
+            },
+            {
+              "iconUrl": "https://jira.test/images/icons/priorities/lowest.svg",
+              "id": "5",
+              "name": "Lowest",
+              "self": "https://jira.test/rest/api/3/priority/5"
+            }
+          ],
+          "defaultValue": {
+            "iconUrl": "https://jira.test/images/icons/priorities/medium.svg",
+            "id": "3",
+            "name": "Medium",
+            "self": "https://jira.test/rest/api/3/priority/3"
+          }
+        },
+        {
+          "fieldId": "project",
+          "key": "project",
+          "name": "Project",
+          "required": true,
+          "hasDefaultValue": false,
+          "operations": [
+            "set"
+          ],
+          "schema": {
+            "type": "project",
+            "system": "project"
+          },
+          "allowedValues": [
+            {
+              "avatarUrls": {
+                "16x16": "https://avatar-management.example/TEAM/16",
+                "24x24": "https://avatar-management.example/TEAM/24",
+                "32x32": "https://avatar-management.example/TEAM/32",
+                "48x48": "https://avatar-management.example/TEAM/48"
+              },
+              "id": "10010",
+              "key": "TEAM",
+              "name": "Team",
+              "projectTypeKey": "software",
+              "self": "https://jira.test/rest/api/3/project/10010",
+              "simplified": true
+            }
+          ]
+        },
+        {
+          "fieldId": "reporter",
+          "key": "reporter",
+          "name": "Reporter",
+          "required": false,
+          "hasDefaultValue": true,
+          "operations": [
+            "set"
+          ],
+          "schema": {
+            "type": "user",
+            "system": "reporter"
+          },
+          "autoCompleteUrl": "https://jira.test/rest/api/3/user/search?query="
+        },
+        {
+          "fieldId": "summary",
+          "key": "summary",
+          "name": "Summary",
+          "required": true,
+          "hasDefaultValue": false,
+          "operations": [
+            "set"
+          ],
+          "schema": {
+            "type": "string",
+            "system": "summary"
+          }
+        }
+      ]
+    },
+    {
+      "Id": "10021",
+      "Name": "Story",
+      "Description": "",
+      "Level": 0,
+      "Statuses": [
+        {
+          "id": "10030",
+          "name": "To Do",
+          "self": "https://jira.test/rest/api/3/status/10030",
+          "statusCategory": {
+            "id": 2,
+            "key": "new",
+            "name": "To Do",
+            "colorName": "blue-gray",
+            "self": "https://jira.test/rest/api/3/statuscategory/2"
+          }
+        },
+        {
+          "id": "10031",
+          "name": "In Progress",
+          "self": "https://jira.test/rest/api/3/status/10031",
+          "statusCategory": {
+            "id": 4,
+            "key": "indeterminate",
+            "name": "In Progress",
+            "colorName": "yellow",
+            "self": "https://jira.test/rest/api/3/statuscategory/4"
+          }
+        },
+        {
+          "id": "10032",
+          "name": "Done",
+          "self": "https://jira.test/rest/api/3/status/10032",
+          "statusCategory": {
+            "id": 3,
+            "key": "done",
+            "name": "Done",
+            "colorName": "green",
+            "self": "https://jira.test/rest/api/3/statuscategory/3"
+          }
+        }
+      ],
+      "Screen": [
+        {
+          "fieldId": "assignee",
+          "key": "assignee",
+          "name": "Assignee",
+          "required": false,
+          "hasDefaultValue": false,
+          "operations": [
+            "set"
+          ],
+          "schema": {
+            "type": "user",
+            "system": "assignee"
+          },
+          "autoCompleteUrl": "https://jira.test/rest/api/3/user/search?query="
+        },
+        {
+          "fieldId": "customfield_10019",
+          "key": "customfield_10019",
+          "name": "Rank",
+          "required": false,
+          "hasDefaultValue": false,
+          "schema": {
+            "type": "any",
+            "custom": "com.pyxis.greenhopper.jira:gh-lexo-rank",
+            "customId": 10019
+          }
+        },
+        {
+          "fieldId": "customfield_10036",
+          "key": "customfield_10036",
+          "name": "Story point estimate",
+          "required": false,
+          "hasDefaultValue": false,
+          "operations": [
+            "set"
+          ],
+          "schema": {
+            "type": "number",
+            "custom": "com.atlassian.jira.plugin.system.customfieldtypes:float",
+            "customId": 10036
+          }
+        },
+        {
+          "fieldId": "description",
+          "key": "description",
+          "name": "Description",
+          "required": false,
+          "hasDefaultValue": false,
+          "operations": [
+            "set"
+          ],
+          "schema": {
+            "type": "string",
+            "system": "description"
+          }
+        },
+        {
+          "fieldId": "duedate",
+          "key": "duedate",
+          "name": "Due date",
+          "required": false,
+          "hasDefaultValue": false,
+          "operations": [
+            "set"
+          ],
+          "schema": {
+            "type": "date",
+            "system": "duedate"
+          }
+        },
+        {
+          "fieldId": "issuetype",
+          "key": "issuetype",
+          "name": "Issue Type",
+          "required": true,
+          "hasDefaultValue": false,
+          "schema": {
+            "type": "issuetype",
+            "system": "issuetype"
+          },
+          "allowedValues": [
+            {
+              "avatarId": 10300,
+              "description": "",
+              "entityId": "00000000-0000-4000-8000-000000010021",
+              "hierarchyLevel": 0,
+              "iconUrl": "https://jira.test/rest/api/2/universal_avatar/view/type/issuetype/avatar/10021",
+              "id": "10021",
+              "name": "Story",
+              "scope": {
+                "project": {
+                  "id": "10010"
+                },
+                "type": "PROJECT"
+              },
+              "self": "https://jira.test/rest/api/3/issuetype/10021",
+              "subtask": false
+            }
+          ]
+        },
+        {
+          "fieldId": "labels",
+          "key": "labels",
+          "name": "Labels",
+          "required": false,
+          "hasDefaultValue": false,
+          "operations": [
+            "add",
+            "set",
+            "remove"
+          ],
+          "schema": {
+            "type": "array",
+            "items": "string",
+            "system": "labels"
+          }
+        },
+        {
+          "fieldId": "parent",
+          "key": "parent",
+          "name": "Parent",
+          "required": false,
+          "hasDefaultValue": false,
+          "operations": [
+            "set"
+          ],
+          "schema": {
+            "type": "issuelink",
+            "system": "parent"
+          }
+        },
+        {
+          "fieldId": "priority",
+          "key": "priority",
+          "name": "Priority",
+          "required": false,
+          "hasDefaultValue": true,
+          "operations": [
+            "set"
+          ],
+          "schema": {
+            "type": "priority",
+            "system": "priority"
+          },
+          "allowedValues": [
+            {
+              "iconUrl": "https://jira.test/images/icons/priorities/highest.svg",
+              "id": "1",
+              "name": "Highest",
+              "self": "https://jira.test/rest/api/3/priority/1"
+            },
+            {
+              "iconUrl": "https://jira.test/images/icons/priorities/high.svg",
+              "id": "2",
+              "name": "High",
+              "self": "https://jira.test/rest/api/3/priority/2"
+            },
+            {
+              "iconUrl": "https://jira.test/images/icons/priorities/medium.svg",
+              "id": "3",
+              "name": "Medium",
+              "self": "https://jira.test/rest/api/3/priority/3"
+            },
+            {
+              "iconUrl": "https://jira.test/images/icons/priorities/low.svg",
+              "id": "4",
+              "name": "Low",
+              "self": "https://jira.test/rest/api/3/priority/4"
+            },
+            {
+              "iconUrl": "https://jira.test/images/icons/priorities/lowest.svg",
+              "id": "5",
+              "name": "Lowest",
+              "self": "https://jira.test/rest/api/3/priority/5"
+            }
+          ],
+          "defaultValue": {
+            "iconUrl": "https://jira.test/images/icons/priorities/medium.svg",
+            "id": "3",
+            "name": "Medium",
+            "self": "https://jira.test/rest/api/3/priority/3"
+          }
+        },
+        {
+          "fieldId": "project",
+          "key": "project",
+          "name": "Project",
+          "required": true,
+          "hasDefaultValue": false,
+          "operations": [
+            "set"
+          ],
+          "schema": {
+            "type": "project",
+            "system": "project"
+          },
+          "allowedValues": [
+            {
+              "avatarUrls": {
+                "16x16": "https://avatar-management.example/TEAM/16",
+                "24x24": "https://avatar-management.example/TEAM/24",
+                "32x32": "https://avatar-management.example/TEAM/32",
+                "48x48": "https://avatar-management.example/TEAM/48"
+              },
+              "id": "10010",
+              "key": "TEAM",
+              "name": "Team",
+              "projectTypeKey": "software",
+              "self": "https://jira.test/rest/api/3/project/10010",
+              "simplified": true
+            }
+          ]
+        },
+        {
+          "fieldId": "reporter",
+          "key": "reporter",
+          "name": "Reporter",
+          "required": false,
+          "hasDefaultValue": true,
+          "operations": [
+            "set"
+          ],
+          "schema": {
+            "type": "user",
+            "system": "reporter"
+          },
+          "autoCompleteUrl": "https://jira.test/rest/api/3/user/search?query="
+        },
+        {
+          "fieldId": "summary",
+          "key": "summary",
+          "name": "Summary",
+          "required": true,
+          "hasDefaultValue": false,
+          "operations": [
+            "set"
+          ],
+          "schema": {
+            "type": "string",
+            "system": "summary"
+          }
+        }
+      ]
+    },
+    {
+      "Id": "10022",
+      "Name": "Task",
+      "Description": "",
+      "Level": 0,
+      "Statuses": [
+        {
+          "id": "10030",
+          "name": "To Do",
+          "self": "https://jira.test/rest/api/3/status/10030",
+          "statusCategory": {
+            "id": 2,
+            "key": "new",
+            "name": "To Do",
+            "colorName": "blue-gray",
+            "self": "https://jira.test/rest/api/3/statuscategory/2"
+          }
+        },
+        {
+          "id": "10031",
+          "name": "In Progress",
+          "self": "https://jira.test/rest/api/3/status/10031",
+          "statusCategory": {
+            "id": 4,
+            "key": "indeterminate",
+            "name": "In Progress",
+            "colorName": "yellow",
+            "self": "https://jira.test/rest/api/3/statuscategory/4"
+          }
+        },
+        {
+          "id": "10032",
+          "name": "Done",
+          "self": "https://jira.test/rest/api/3/status/10032",
+          "statusCategory": {
+            "id": 3,
+            "key": "done",
+            "name": "Done",
+            "colorName": "green",
+            "self": "https://jira.test/rest/api/3/statuscategory/3"
+          }
+        }
+      ],
+      "Screen": [
+        {
+          "fieldId": "assignee",
+          "key": "assignee",
+          "name": "Assignee",
+          "required": false,
+          "hasDefaultValue": false,
+          "operations": [
+            "set"
+          ],
+          "schema": {
+            "type": "user",
+            "system": "assignee"
+          },
+          "autoCompleteUrl": "https://jira.test/rest/api/3/user/search?query="
+        },
+        {
+          "fieldId": "customfield_10019",
+          "key": "customfield_10019",
+          "name": "Rank",
+          "required": false,
+          "hasDefaultValue": false,
+          "schema": {
+            "type": "any",
+            "custom": "com.pyxis.greenhopper.jira:gh-lexo-rank",
+            "customId": 10019
+          }
+        },
+        {
+          "fieldId": "customfield_10036",
+          "key": "customfield_10036",
+          "name": "Story point estimate",
+          "required": false,
+          "hasDefaultValue": false,
+          "operations": [
+            "set"
+          ],
+          "schema": {
+            "type": "number",
+            "custom": "com.atlassian.jira.plugin.system.customfieldtypes:float",
+            "customId": 10036
+          }
+        },
+        {
+          "fieldId": "description",
+          "key": "description",
+          "name": "Description",
+          "required": false,
+          "hasDefaultValue": false,
+          "operations": [
+            "set"
+          ],
+          "schema": {
+            "type": "string",
+            "system": "description"
+          }
+        },
+        {
+          "fieldId": "duedate",
+          "key": "duedate",
+          "name": "Due date",
+          "required": false,
+          "hasDefaultValue": false,
+          "operations": [
+            "set"
+          ],
+          "schema": {
+            "type": "date",
+            "system": "duedate"
+          }
+        },
+        {
+          "fieldId": "issuetype",
+          "key": "issuetype",
+          "name": "Issue Type",
+          "required": true,
+          "hasDefaultValue": false,
+          "schema": {
+            "type": "issuetype",
+            "system": "issuetype"
+          },
+          "allowedValues": [
+            {
+              "avatarId": 10300,
+              "description": "",
+              "entityId": "00000000-0000-4000-8000-000000010022",
+              "hierarchyLevel": 0,
+              "iconUrl": "https://jira.test/rest/api/2/universal_avatar/view/type/issuetype/avatar/10022",
+              "id": "10022",
+              "name": "Task",
+              "scope": {
+                "project": {
+                  "id": "10010"
+                },
+                "type": "PROJECT"
+              },
+              "self": "https://jira.test/rest/api/3/issuetype/10022",
+              "subtask": false
+            }
+          ]
+        },
+        {
+          "fieldId": "labels",
+          "key": "labels",
+          "name": "Labels",
+          "required": false,
+          "hasDefaultValue": false,
+          "operations": [
+            "add",
+            "set",
+            "remove"
+          ],
+          "schema": {
+            "type": "array",
+            "items": "string",
+            "system": "labels"
+          }
+        },
+        {
+          "fieldId": "parent",
+          "key": "parent",
+          "name": "Parent",
+          "required": false,
+          "hasDefaultValue": false,
+          "operations": [
+            "set"
+          ],
+          "schema": {
+            "type": "issuelink",
+            "system": "parent"
+          }
+        },
+        {
+          "fieldId": "priority",
+          "key": "priority",
+          "name": "Priority",
+          "required": false,
+          "hasDefaultValue": true,
+          "operations": [
+            "set"
+          ],
+          "schema": {
+            "type": "priority",
+            "system": "priority"
+          },
+          "allowedValues": [
+            {
+              "iconUrl": "https://jira.test/images/icons/priorities/highest.svg",
+              "id": "1",
+              "name": "Highest",
+              "self": "https://jira.test/rest/api/3/priority/1"
+            },
+            {
+              "iconUrl": "https://jira.test/images/icons/priorities/high.svg",
+              "id": "2",
+              "name": "High",
+              "self": "https://jira.test/rest/api/3/priority/2"
+            },
+            {
+              "iconUrl": "https://jira.test/images/icons/priorities/medium.svg",
+              "id": "3",
+              "name": "Medium",
+              "self": "https://jira.test/rest/api/3/priority/3"
+            },
+            {
+              "iconUrl": "https://jira.test/images/icons/priorities/low.svg",
+              "id": "4",
+              "name": "Low",
+              "self": "https://jira.test/rest/api/3/priority/4"
+            },
+            {
+              "iconUrl": "https://jira.test/images/icons/priorities/lowest.svg",
+              "id": "5",
+              "name": "Lowest",
+              "self": "https://jira.test/rest/api/3/priority/5"
+            }
+          ],
+          "defaultValue": {
+            "iconUrl": "https://jira.test/images/icons/priorities/medium.svg",
+            "id": "3",
+            "name": "Medium",
+            "self": "https://jira.test/rest/api/3/priority/3"
+          }
+        },
+        {
+          "fieldId": "project",
+          "key": "project",
+          "name": "Project",
+          "required": true,
+          "hasDefaultValue": false,
+          "operations": [
+            "set"
+          ],
+          "schema": {
+            "type": "project",
+            "system": "project"
+          },
+          "allowedValues": [
+            {
+              "avatarUrls": {
+                "16x16": "https://avatar-management.example/TEAM/16",
+                "24x24": "https://avatar-management.example/TEAM/24",
+                "32x32": "https://avatar-management.example/TEAM/32",
+                "48x48": "https://avatar-management.example/TEAM/48"
+              },
+              "id": "10010",
+              "key": "TEAM",
+              "name": "Team",
+              "projectTypeKey": "software",
+              "self": "https://jira.test/rest/api/3/project/10010",
+              "simplified": true
+            }
+          ]
+        },
+        {
+          "fieldId": "reporter",
+          "key": "reporter",
+          "name": "Reporter",
+          "required": false,
+          "hasDefaultValue": true,
+          "operations": [
+            "set"
+          ],
+          "schema": {
+            "type": "user",
+            "system": "reporter"
+          },
+          "autoCompleteUrl": "https://jira.test/rest/api/3/user/search?query="
+        },
+        {
+          "fieldId": "summary",
+          "key": "summary",
+          "name": "Summary",
+          "required": true,
+          "hasDefaultValue": false,
+          "operations": [
+            "set"
+          ],
+          "schema": {
+            "type": "string",
+            "system": "summary"
+          }
+        }
+      ]
+    },
+    {
+      "Id": "10023",
+      "Name": "Bug",
+      "Description": "",
+      "Level": 0,
+      "Statuses": [
+        {
+          "id": "10030",
+          "name": "To Do",
+          "self": "https://jira.test/rest/api/3/status/10030",
+          "statusCategory": {
+            "id": 2,
+            "key": "new",
+            "name": "To Do",
+            "colorName": "blue-gray",
+            "self": "https://jira.test/rest/api/3/statuscategory/2"
+          }
+        },
+        {
+          "id": "10031",
+          "name": "In Progress",
+          "self": "https://jira.test/rest/api/3/status/10031",
+          "statusCategory": {
+            "id": 4,
+            "key": "indeterminate",
+            "name": "In Progress",
+            "colorName": "yellow",
+            "self": "https://jira.test/rest/api/3/statuscategory/4"
+          }
+        },
+        {
+          "id": "10032",
+          "name": "Done",
+          "self": "https://jira.test/rest/api/3/status/10032",
+          "statusCategory": {
+            "id": 3,
+            "key": "done",
+            "name": "Done",
+            "colorName": "green",
+            "self": "https://jira.test/rest/api/3/statuscategory/3"
+          }
+        }
+      ],
+      "Screen": [
+        {
+          "fieldId": "assignee",
+          "key": "assignee",
+          "name": "Assignee",
+          "required": false,
+          "hasDefaultValue": false,
+          "operations": [
+            "set"
+          ],
+          "schema": {
+            "type": "user",
+            "system": "assignee"
+          },
+          "autoCompleteUrl": "https://jira.test/rest/api/3/user/search?query="
+        },
+        {
+          "fieldId": "customfield_10019",
+          "key": "customfield_10019",
+          "name": "Rank",
+          "required": false,
+          "hasDefaultValue": false,
+          "schema": {
+            "type": "any",
+            "custom": "com.pyxis.greenhopper.jira:gh-lexo-rank",
+            "customId": 10019
+          }
+        },
+        {
+          "fieldId": "customfield_10036",
+          "key": "customfield_10036",
+          "name": "Story point estimate",
+          "required": false,
+          "hasDefaultValue": false,
+          "operations": [
+            "set"
+          ],
+          "schema": {
+            "type": "number",
+            "custom": "com.atlassian.jira.plugin.system.customfieldtypes:float",
+            "customId": 10036
+          }
+        },
+        {
+          "fieldId": "description",
+          "key": "description",
+          "name": "Description",
+          "required": false,
+          "hasDefaultValue": false,
+          "operations": [
+            "set"
+          ],
+          "schema": {
+            "type": "string",
+            "system": "description"
+          }
+        },
+        {
+          "fieldId": "duedate",
+          "key": "duedate",
+          "name": "Due date",
+          "required": false,
+          "hasDefaultValue": false,
+          "operations": [
+            "set"
+          ],
+          "schema": {
+            "type": "date",
+            "system": "duedate"
+          }
+        },
+        {
+          "fieldId": "issuetype",
+          "key": "issuetype",
+          "name": "Issue Type",
+          "required": true,
+          "hasDefaultValue": false,
+          "schema": {
+            "type": "issuetype",
+            "system": "issuetype"
+          },
+          "allowedValues": [
+            {
+              "avatarId": 10300,
+              "description": "",
+              "entityId": "00000000-0000-4000-8000-000000010023",
+              "hierarchyLevel": 0,
+              "iconUrl": "https://jira.test/rest/api/2/universal_avatar/view/type/issuetype/avatar/10023",
+              "id": "10023",
+              "name": "Bug",
+              "scope": {
+                "project": {
+                  "id": "10010"
+                },
+                "type": "PROJECT"
+              },
+              "self": "https://jira.test/rest/api/3/issuetype/10023",
+              "subtask": false
+            }
+          ]
+        },
+        {
+          "fieldId": "labels",
+          "key": "labels",
+          "name": "Labels",
+          "required": false,
+          "hasDefaultValue": false,
+          "operations": [
+            "add",
+            "set",
+            "remove"
+          ],
+          "schema": {
+            "type": "array",
+            "items": "string",
+            "system": "labels"
+          }
+        },
+        {
+          "fieldId": "parent",
+          "key": "parent",
+          "name": "Parent",
+          "required": false,
+          "hasDefaultValue": false,
+          "operations": [
+            "set"
+          ],
+          "schema": {
+            "type": "issuelink",
+            "system": "parent"
+          }
+        },
+        {
+          "fieldId": "priority",
+          "key": "priority",
+          "name": "Priority",
+          "required": false,
+          "hasDefaultValue": true,
+          "operations": [
+            "set"
+          ],
+          "schema": {
+            "type": "priority",
+            "system": "priority"
+          },
+          "allowedValues": [
+            {
+              "iconUrl": "https://jira.test/images/icons/priorities/highest.svg",
+              "id": "1",
+              "name": "Highest",
+              "self": "https://jira.test/rest/api/3/priority/1"
+            },
+            {
+              "iconUrl": "https://jira.test/images/icons/priorities/high.svg",
+              "id": "2",
+              "name": "High",
+              "self": "https://jira.test/rest/api/3/priority/2"
+            },
+            {
+              "iconUrl": "https://jira.test/images/icons/priorities/medium.svg",
+              "id": "3",
+              "name": "Medium",
+              "self": "https://jira.test/rest/api/3/priority/3"
+            },
+            {
+              "iconUrl": "https://jira.test/images/icons/priorities/low.svg",
+              "id": "4",
+              "name": "Low",
+              "self": "https://jira.test/rest/api/3/priority/4"
+            },
+            {
+              "iconUrl": "https://jira.test/images/icons/priorities/lowest.svg",
+              "id": "5",
+              "name": "Lowest",
+              "self": "https://jira.test/rest/api/3/priority/5"
+            }
+          ],
+          "defaultValue": {
+            "iconUrl": "https://jira.test/images/icons/priorities/medium.svg",
+            "id": "3",
+            "name": "Medium",
+            "self": "https://jira.test/rest/api/3/priority/3"
+          }
+        },
+        {
+          "fieldId": "project",
+          "key": "project",
+          "name": "Project",
+          "required": true,
+          "hasDefaultValue": false,
+          "operations": [
+            "set"
+          ],
+          "schema": {
+            "type": "project",
+            "system": "project"
+          },
+          "allowedValues": [
+            {
+              "avatarUrls": {
+                "16x16": "https://avatar-management.example/TEAM/16",
+                "24x24": "https://avatar-management.example/TEAM/24",
+                "32x32": "https://avatar-management.example/TEAM/32",
+                "48x48": "https://avatar-management.example/TEAM/48"
+              },
+              "id": "10010",
+              "key": "TEAM",
+              "name": "Team",
+              "projectTypeKey": "software",
+              "self": "https://jira.test/rest/api/3/project/10010",
+              "simplified": true
+            }
+          ]
+        },
+        {
+          "fieldId": "reporter",
+          "key": "reporter",
+          "name": "Reporter",
+          "required": false,
+          "hasDefaultValue": true,
+          "operations": [
+            "set"
+          ],
+          "schema": {
+            "type": "user",
+            "system": "reporter"
+          },
+          "autoCompleteUrl": "https://jira.test/rest/api/3/user/search?query="
+        },
+        {
+          "fieldId": "summary",
+          "key": "summary",
+          "name": "Summary",
+          "required": true,
+          "hasDefaultValue": false,
+          "operations": [
+            "set"
+          ],
+          "schema": {
+            "type": "string",
+            "system": "summary"
+          }
+        }
+      ]
+    },
+    {
+      "Id": "10024",
+      "Name": "Subtask",
+      "Description": "",
+      "Level": -1,
+      "Statuses": [
+        {
+          "id": "10030",
+          "name": "To Do",
+          "self": "https://jira.test/rest/api/3/status/10030",
+          "statusCategory": {
+            "id": 2,
+            "key": "new",
+            "name": "To Do",
+            "colorName": "blue-gray",
+            "self": "https://jira.test/rest/api/3/statuscategory/2"
+          }
+        },
+        {
+          "id": "10031",
+          "name": "In Progress",
+          "self": "https://jira.test/rest/api/3/status/10031",
+          "statusCategory": {
+            "id": 4,
+            "key": "indeterminate",
+            "name": "In Progress",
+            "colorName": "yellow",
+            "self": "https://jira.test/rest/api/3/statuscategory/4"
+          }
+        },
+        {
+          "id": "10032",
+          "name": "Done",
+          "self": "https://jira.test/rest/api/3/status/10032",
+          "statusCategory": {
+            "id": 3,
+            "key": "done",
+            "name": "Done",
+            "colorName": "green",
+            "self": "https://jira.test/rest/api/3/statuscategory/3"
+          }
+        }
+      ],
+      "Screen": [
+        {
+          "fieldId": "assignee",
+          "key": "assignee",
+          "name": "Assignee",
+          "required": false,
+          "hasDefaultValue": false,
+          "operations": [
+            "set"
+          ],
+          "schema": {
+            "type": "user",
+            "system": "assignee"
+          },
+          "autoCompleteUrl": "https://jira.test/rest/api/3/user/search?query="
+        },
+        {
+          "fieldId": "customfield_10019",
+          "key": "customfield_10019",
+          "name": "Rank",
+          "required": false,
+          "hasDefaultValue": false,
+          "schema": {
+            "type": "any",
+            "custom": "com.pyxis.greenhopper.jira:gh-lexo-rank",
+            "customId": 10019
+          }
+        },
+        {
+          "fieldId": "customfield_10036",
+          "key": "customfield_10036",
+          "name": "Story point estimate",
+          "required": false,
+          "hasDefaultValue": false,
+          "operations": [
+            "set"
+          ],
+          "schema": {
+            "type": "number",
+            "custom": "com.atlassian.jira.plugin.system.customfieldtypes:float",
+            "customId": 10036
+          }
+        },
+        {
+          "fieldId": "description",
+          "key": "description",
+          "name": "Description",
+          "required": false,
+          "hasDefaultValue": false,
+          "operations": [
+            "set"
+          ],
+          "schema": {
+            "type": "string",
+            "system": "description"
+          }
+        },
+        {
+          "fieldId": "duedate",
+          "key": "duedate",
+          "name": "Due date",
+          "required": false,
+          "hasDefaultValue": false,
+          "operations": [
+            "set"
+          ],
+          "schema": {
+            "type": "date",
+            "system": "duedate"
+          }
+        },
+        {
+          "fieldId": "issuetype",
+          "key": "issuetype",
+          "name": "Issue Type",
+          "required": true,
+          "hasDefaultValue": false,
+          "schema": {
+            "type": "issuetype",
+            "system": "issuetype"
+          },
+          "allowedValues": [
+            {
+              "avatarId": 10300,
+              "description": "",
+              "entityId": "00000000-0000-4000-8000-000000010024",
+              "hierarchyLevel": -1,
+              "iconUrl": "https://jira.test/rest/api/2/universal_avatar/view/type/issuetype/avatar/10024",
+              "id": "10024",
+              "name": "Subtask",
+              "scope": {
+                "project": {
+                  "id": "10010"
+                },
+                "type": "PROJECT"
+              },
+              "self": "https://jira.test/rest/api/3/issuetype/10024",
+              "subtask": true
+            }
+          ]
+        },
+        {
+          "fieldId": "labels",
+          "key": "labels",
+          "name": "Labels",
+          "required": false,
+          "hasDefaultValue": false,
+          "operations": [
+            "add",
+            "set",
+            "remove"
+          ],
+          "schema": {
+            "type": "array",
+            "items": "string",
+            "system": "labels"
+          }
+        },
+        {
+          "fieldId": "parent",
+          "key": "parent",
+          "name": "Parent",
+          "required": true,
+          "hasDefaultValue": false,
+          "operations": [
+            "set"
+          ],
+          "schema": {
+            "type": "issuelink",
+            "system": "parent"
+          }
+        },
+        {
+          "fieldId": "priority",
+          "key": "priority",
+          "name": "Priority",
+          "required": false,
+          "hasDefaultValue": true,
+          "operations": [
+            "set"
+          ],
+          "schema": {
+            "type": "priority",
+            "system": "priority"
+          },
+          "allowedValues": [
+            {
+              "iconUrl": "https://jira.test/images/icons/priorities/highest.svg",
+              "id": "1",
+              "name": "Highest",
+              "self": "https://jira.test/rest/api/3/priority/1"
+            },
+            {
+              "iconUrl": "https://jira.test/images/icons/priorities/high.svg",
+              "id": "2",
+              "name": "High",
+              "self": "https://jira.test/rest/api/3/priority/2"
+            },
+            {
+              "iconUrl": "https://jira.test/images/icons/priorities/medium.svg",
+              "id": "3",
+              "name": "Medium",
+              "self": "https://jira.test/rest/api/3/priority/3"
+            },
+            {
+              "iconUrl": "https://jira.test/images/icons/priorities/low.svg",
+              "id": "4",
+              "name": "Low",
+              "self": "https://jira.test/rest/api/3/priority/4"
+            },
+            {
+              "iconUrl": "https://jira.test/images/icons/priorities/lowest.svg",
+              "id": "5",
+              "name": "Lowest",
+              "self": "https://jira.test/rest/api/3/priority/5"
+            }
+          ],
+          "defaultValue": {
+            "iconUrl": "https://jira.test/images/icons/priorities/medium.svg",
+            "id": "3",
+            "name": "Medium",
+            "self": "https://jira.test/rest/api/3/priority/3"
+          }
+        },
+        {
+          "fieldId": "project",
+          "key": "project",
+          "name": "Project",
+          "required": true,
+          "hasDefaultValue": false,
+          "operations": [
+            "set"
+          ],
+          "schema": {
+            "type": "project",
+            "system": "project"
+          },
+          "allowedValues": [
+            {
+              "avatarUrls": {
+                "16x16": "https://avatar-management.example/TEAM/16",
+                "24x24": "https://avatar-management.example/TEAM/24",
+                "32x32": "https://avatar-management.example/TEAM/32",
+                "48x48": "https://avatar-management.example/TEAM/48"
+              },
+              "id": "10010",
+              "key": "TEAM",
+              "name": "Team",
+              "projectTypeKey": "software",
+              "self": "https://jira.test/rest/api/3/project/10010",
+              "simplified": true
+            }
+          ]
+        },
+        {
+          "fieldId": "reporter",
+          "key": "reporter",
+          "name": "Reporter",
+          "required": false,
+          "hasDefaultValue": true,
+          "operations": [
+            "set"
+          ],
+          "schema": {
+            "type": "user",
+            "system": "reporter"
+          },
+          "autoCompleteUrl": "https://jira.test/rest/api/3/user/search?query="
+        },
+        {
+          "fieldId": "summary",
+          "key": "summary",
+          "name": "Summary",
+          "required": true,
+          "hasDefaultValue": false,
+          "operations": [
+            "set"
+          ],
+          "schema": {
+            "type": "string",
+            "system": "summary"
+          }
+        }
+      ]
+    }
+  ],
+  "Fields": [
+    {
+      "id": "assignee",
+      "key": "assignee",
+      "name": "Assignee",
+      "custom": false,
+      "orderable": true,
+      "navigable": true,
+      "searchable": true,
+      "clauseNames": [
+        "assignee"
+      ],
+      "schema": {
+        "type": "user",
+        "system": "assignee"
+      }
+    },
+    {
+      "id": "comment",
+      "key": "comment",
+      "name": "Comment",
+      "custom": false,
+      "orderable": true,
+      "navigable": false,
+      "searchable": true,
+      "clauseNames": [
+        "comment"
+      ],
+      "schema": {
+        "type": "comments-page",
+        "system": "comment"
+      }
+    },
+    {
+      "id": "created",
+      "key": "created",
+      "name": "Created",
+      "custom": false,
+      "orderable": false,
+      "navigable": true,
+      "searchable": true,
+      "clauseNames": [
+        "created"
+      ],
+      "schema": {
+        "type": "datetime",
+        "system": "created"
+      }
+    },
+    {
+      "id": "creator",
+      "key": "creator",
+      "name": "Creator",
+      "custom": false,
+      "orderable": false,
+      "navigable": true,
+      "searchable": true,
+      "clauseNames": [
+        "creator"
+      ],
+      "schema": {
+        "type": "user",
+        "system": "creator"
+      }
+    },
+    {
+      "id": "customfield_10019",
+      "key": "customfield_10019",
+      "name": "Rank",
+      "untranslatedName": "Rank",
+      "custom": true,
+      "orderable": true,
+      "navigable": true,
+      "searchable": true,
+      "clauseNames": [
+        "cf[10019]",
+        "Rank"
+      ],
+      "schema": {
+        "type": "any",
+        "custom": "com.pyxis.greenhopper.jira:gh-lexo-rank",
+        "customId": 10019
+      }
+    },
+    {
+      "id": "customfield_10036",
+      "key": "customfield_10036",
+      "name": "Story point estimate",
+      "untranslatedName": "Story point estimate",
+      "custom": true,
+      "orderable": true,
+      "navigable": true,
+      "searchable": true,
+      "clauseNames": [
+        "cf[10036]",
+        "Story point estimate"
+      ],
+      "schema": {
+        "type": "number",
+        "custom": "com.atlassian.jira.plugin.system.customfieldtypes:float",
+        "customId": 10036
+      },
+      "scope": {
+        "type": "PROJECT",
+        "project": {
+          "id": "10010"
+        }
+      }
+    },
+    {
+      "id": "description",
+      "key": "description",
+      "name": "Description",
+      "custom": false,
+      "orderable": true,
+      "navigable": true,
+      "searchable": true,
+      "clauseNames": [
+        "description"
+      ],
+      "schema": {
+        "type": "string",
+        "system": "description"
+      }
+    },
+    {
+      "id": "duedate",
+      "key": "duedate",
+      "name": "Due date",
+      "custom": false,
+      "orderable": true,
+      "navigable": true,
+      "searchable": true,
+      "clauseNames": [
+        "duedate"
+      ],
+      "schema": {
+        "type": "date",
+        "system": "duedate"
+      }
+    },
+    {
+      "id": "issuelinks",
+      "key": "issuelinks",
+      "name": "Linked Issues",
+      "custom": false,
+      "orderable": true,
+      "navigable": true,
+      "searchable": true,
+      "clauseNames": [
+        "issuelinks"
+      ],
+      "schema": {
+        "type": "array",
+        "items": "issuelinks",
+        "system": "issuelinks"
+      }
+    },
+    {
+      "id": "issuetype",
+      "key": "issuetype",
+      "name": "Issue Type",
+      "custom": false,
+      "orderable": true,
+      "navigable": true,
+      "searchable": true,
+      "clauseNames": [
+        "issuetype"
+      ],
+      "schema": {
+        "type": "issuetype",
+        "system": "issuetype"
+      }
+    },
+    {
+      "id": "labels",
+      "key": "labels",
+      "name": "Labels",
+      "custom": false,
+      "orderable": true,
+      "navigable": true,
+      "searchable": true,
+      "clauseNames": [
+        "labels"
+      ],
+      "schema": {
+        "type": "array",
+        "items": "string",
+        "system": "labels"
+      }
+    },
+    {
+      "id": "parent",
+      "key": "parent",
+      "name": "Parent",
+      "custom": false,
+      "orderable": true,
+      "navigable": true,
+      "searchable": true,
+      "clauseNames": [
+        "parent"
+      ],
+      "schema": {
+        "type": "issuelink",
+        "system": "parent"
+      }
+    },
+    {
+      "id": "priority",
+      "key": "priority",
+      "name": "Priority",
+      "custom": false,
+      "orderable": true,
+      "navigable": true,
+      "searchable": true,
+      "clauseNames": [
+        "priority"
+      ],
+      "schema": {
+        "type": "priority",
+        "system": "priority"
+      }
+    },
+    {
+      "id": "project",
+      "key": "project",
+      "name": "Project",
+      "custom": false,
+      "orderable": false,
+      "navigable": true,
+      "searchable": true,
+      "clauseNames": [
+        "project"
+      ],
+      "schema": {
+        "type": "project",
+        "system": "project"
+      }
+    },
+    {
+      "id": "reporter",
+      "key": "reporter",
+      "name": "Reporter",
+      "custom": false,
+      "orderable": true,
+      "navigable": true,
+      "searchable": true,
+      "clauseNames": [
+        "reporter"
+      ],
+      "schema": {
+        "type": "user",
+        "system": "reporter"
+      }
+    },
+    {
+      "id": "resolution",
+      "key": "resolution",
+      "name": "Resolution",
+      "custom": false,
+      "orderable": true,
+      "navigable": true,
+      "searchable": true,
+      "clauseNames": [
+        "resolution"
+      ],
+      "schema": {
+        "type": "resolution",
+        "system": "resolution"
+      }
+    },
+    {
+      "id": "resolutiondate",
+      "key": "resolutiondate",
+      "name": "Resolved",
+      "custom": false,
+      "orderable": false,
+      "navigable": true,
+      "searchable": true,
+      "clauseNames": [
+        "resolutiondate"
+      ],
+      "schema": {
+        "type": "datetime",
+        "system": "resolutiondate"
+      }
+    },
+    {
+      "id": "status",
+      "key": "status",
+      "name": "Status",
+      "custom": false,
+      "orderable": false,
+      "navigable": true,
+      "searchable": true,
+      "clauseNames": [
+        "status"
+      ],
+      "schema": {
+        "type": "status",
+        "system": "status"
+      }
+    },
+    {
+      "id": "statuscategorychangedate",
+      "key": "statuscategorychangedate",
+      "name": "Status Category Changed",
+      "custom": false,
+      "orderable": false,
+      "navigable": true,
+      "searchable": true,
+      "clauseNames": [
+        "statuscategorychangedate"
+      ],
+      "schema": {
+        "type": "datetime",
+        "system": "statuscategorychangedate"
+      }
+    },
+    {
+      "id": "subtasks",
+      "key": "subtasks",
+      "name": "Sub-tasks",
+      "custom": false,
+      "orderable": false,
+      "navigable": true,
+      "searchable": true,
+      "clauseNames": [
+        "subtasks"
+      ],
+      "schema": {
+        "type": "array",
+        "items": "issuelinks",
+        "system": "subtasks"
+      }
+    },
+    {
+      "id": "summary",
+      "key": "summary",
+      "name": "Summary",
+      "custom": false,
+      "orderable": true,
+      "navigable": true,
+      "searchable": true,
+      "clauseNames": [
+        "summary"
+      ],
+      "schema": {
+        "type": "string",
+        "system": "summary"
+      }
+    },
+    {
+      "id": "updated",
+      "key": "updated",
+      "name": "Updated",
+      "custom": false,
+      "orderable": false,
+      "navigable": true,
+      "searchable": true,
+      "clauseNames": [
+        "updated"
+      ],
+      "schema": {
+        "type": "datetime",
+        "system": "updated"
+      }
+    }
+  ],
+  "Priorities": [
+    {
+      "id": "1",
+      "name": "Highest",
+      "description": "Highest",
+      "statusColor": "#d04437",
+      "iconUrl": "https://jira.test/images/icons/priorities/highest.svg",
+      "self": "https://jira.test/rest/api/3/priority/1"
+    },
+    {
+      "id": "2",
+      "name": "High",
+      "description": "High",
+      "statusColor": "#f15C75",
+      "iconUrl": "https://jira.test/images/icons/priorities/high.svg",
+      "self": "https://jira.test/rest/api/3/priority/2"
+    },
+    {
+      "id": "3",
+      "name": "Medium",
+      "description": "Medium",
+      "statusColor": "#f79232",
+      "iconUrl": "https://jira.test/images/icons/priorities/medium.svg",
+      "self": "https://jira.test/rest/api/3/priority/3"
+    },
+    {
+      "id": "4",
+      "name": "Low",
+      "description": "Low",
+      "statusColor": "#707070",
+      "iconUrl": "https://jira.test/images/icons/priorities/low.svg",
+      "self": "https://jira.test/rest/api/3/priority/4"
+    },
+    {
+      "id": "5",
+      "name": "Lowest",
+      "description": "Lowest",
+      "statusColor": "#999999",
+      "iconUrl": "https://jira.test/images/icons/priorities/lowest.svg",
+      "self": "https://jira.test/rest/api/3/priority/5"
+    }
+  ],
+  "LinkTypes": [
+    {
+      "id": "10000",
+      "name": "Blocks",
+      "inward": "is blocked by",
+      "outward": "blocks",
+      "self": "https://jira.test/rest/api/3/issueLinkType/10000"
+    },
+    {
+      "id": "10001",
+      "name": "Cloners",
+      "inward": "is cloned by",
+      "outward": "clones",
+      "self": "https://jira.test/rest/api/3/issueLinkType/10001"
+    },
+    {
+      "id": "10002",
+      "name": "Duplicate",
+      "inward": "is duplicated by",
+      "outward": "duplicates",
+      "self": "https://jira.test/rest/api/3/issueLinkType/10002"
+    },
+    {
+      "id": "10003",
+      "name": "Relates",
+      "inward": "relates to",
+      "outward": "relates to",
+      "self": "https://jira.test/rest/api/3/issueLinkType/10003"
+    }
+  ]
+}
