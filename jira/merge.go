@@ -163,7 +163,7 @@ func Merge(b *Base, local, remote Doc, multi func(key string) bool, export bool)
 	}
 
 	// the description (JS11)
-	{
+	if !skipped[BodyKey] {
 		bd, ld, rd := b.Body, Digest(local.Body.Text), Digest(remote.Body.Text)
 		switch {
 		case ld == rd:

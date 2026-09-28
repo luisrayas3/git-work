@@ -51,12 +51,17 @@ func (b *Base) Marshal() string {
 	return string(data)
 }
 
-// Equal reports whether recording o over b would say nothing new.
+// Equal reports whether recording o over b would say nothing new. Updated
+// alone is not news: Jira bumps it for what the mapping does not cover, and
+// for a link's other end, and a marker for it would be a commit per bump
+// (E1); the cost is a GET while the overlap re-returns the issue.
 func (b *Base) Equal(o *Base) bool {
 	if b == nil || o == nil {
 		return b == o
 	}
-	return b.Marshal() == o.Marshal()
+	c := o.clone()
+	c.Updated = b.Updated
+	return b.Marshal() == c.Marshal()
 }
 
 func (b *Base) clone() *Base {

@@ -137,17 +137,18 @@ func (e *engine) setup() error {
 		return err
 	}
 	e.me = me
-	// JS16: the token's account is the runner's, unless another identity has it
+	if e.ix, err = NewIndex(e.repo, e.m); err != nil {
+		return err
+	}
+	// JS16: the token's account is the runner's, unless an identity has it
 	if acc := e.p.Me.AccountID; acc != "" && !e.opts.DryRun {
-		if _, err := e.repo.Identities().ResolveIdentityImmutableMetadata(MetaAccountId, acc); err != nil {
+		if _, ok := e.ix.User(acc); !ok {
 			me.SetMetadata(MetaAccountId, acc)
 			if err := me.Commit(); err != nil {
 				return err
 			}
+			e.ix.AddUser(acc, me.Id())
 		}
-	}
-	if e.ix, err = NewIndex(e.repo, e.m); err != nil {
-		return err
 	}
 	e.checker, err = e.repo.Checker()
 	return err
@@ -159,6 +160,7 @@ type hit struct {
 	id, key string
 	updated time.Time
 	prop    entity.Id // the git-work property
+	mapped  bool      // of an issue type the schema maps
 }
 
 // local is one scan of the excerpts.
@@ -179,25 +181,36 @@ func (e *engine) scan() (*local, error) {
 			return nil, err
 		}
 		l.byId[id] = ex
+		jid := ex.CreateMetadata[MetaId]
 		switch {
-		case ex.CreateMetadata[MetaId] != "":
-			l.linked = append(l.linked, id)
+		case jid != "":
+			if winner, _ := e.ix.Issue(jid); winner == id {
+				l.linked = append(l.linked, id)
+			} else if !isArchived(ex.Fields) {
+				// A2: never two local issues exporting to one Jira issue
+				e.report(Line{Issue: id, Jira: ex.CreateMetadata[MetaAlias], Action: ActionSkipped,
+					Pending: []Skip{{Key: "*", Reason: "its Jira issue is also linked to " + winner.Human() + "; archive one of the two (JS25)"}}})
+			}
 		case ex.CreateMetadata[MetaAlias] != "":
 			l.requests = append(l.requests, id)
-		case e.exportable(ex):
+		case e.unexportable(ex.Fields) == "":
 			l.creates = append(l.creates, id)
 		}
 	}
 	return l, nil
 }
 
-func (e *engine) exportable(ex *cache.IssueExcerpt) bool {
-	if archived, ok := ex.Fields[issue.ArchivedKey]; ok && string(canon(archived)) == "true" {
-		return false
+// unexportable is why an unlinked issue is never created in Jira: v1
+// exports every unarchived issue of a mapped type (JS15).
+func (e *engine) unexportable(fields map[string]issue.Value) string {
+	typ, _ := issue.String(fields[typeKey])
+	if _, ok := e.m.IssueType(typ); !ok {
+		return "type " + typ + " is local-only"
 	}
-	typ, _ := issue.String(ex.Fields[typeKey])
-	_, ok := e.m.IssueType(typ)
-	return ok
+	if isArchived(fields) {
+		return "archived issues are not exported"
+	}
+	return ""
 }
 
 func (e *engine) runIds() error {
@@ -341,7 +354,7 @@ func (e *engine) lowerBound(l *local) (time.Time, bool) {
 
 func (e *engine) search(jql string) ([]hit, error) {
 	var hits []hit
-	err := e.c.SearchJQL(e.ctx, jiraapi.Search{JQL: jql, Fields: []string{"updated"}, Properties: []string{PropertyKey}, MaxResults: 100},
+	err := e.c.SearchJQL(e.ctx, jiraapi.Search{JQL: jql, Fields: []string{"updated", "issuetype"}, Properties: []string{PropertyKey}, MaxResults: 100},
 		func(page jiraapi.SearchPage) error {
 			for i := range page.Issues {
 				ri := &page.Issues[i]
@@ -349,6 +362,10 @@ func (e *engine) search(jql string) ([]hit, error) {
 				var u jiraapi.Time
 				if _, err := ri.Decode("updated", &u); err == nil {
 					h.updated = u.UTC()
+				}
+				var it jiraapi.IssueType
+				if _, err := ri.Decode("issuetype", &it); err == nil {
+					_, h.mapped = e.m.LocalType(it.ID)
 				}
 				h.prop = property(ri)
 				hits = append(hits, h)
@@ -439,7 +456,14 @@ func (e *engine) runHit(h hit, owner map[entity.Id]string, l *local) (failed boo
 	}
 
 	if h.prop != "" {
-		if ex, ok := l.byId[h.prop]; ok {
+		ex, ok := l.byId[h.prop]
+		if !ok {
+			// A2: another clone's export; importing it would duplicate the entity
+			e.report(Line{Jira: h.key, Action: ActionSkipped,
+				Pending: []Skip{{Key: "*", Reason: "created in Jira from issue " + h.prop.Human() + ", which this clone has not pulled; pull first"}}})
+			return false, nil
+		}
+		{
 			if owner[h.prop] != h.id || ex.CreateMetadata[MetaId] != "" {
 				e.report(Line{Issue: h.prop, Jira: h.key, Action: ActionSkipped,
 					Pending: []Skip{{Key: "*", Reason: "a second Jira issue names this issue; only the lower id is linked"}}})
@@ -451,6 +475,11 @@ func (e *engine) runHit(h hit, owner map[entity.Id]string, l *local) (failed boo
 			}
 			return false, e.linkCreated(ic, h.id)
 		}
+	}
+	if !h.mapped {
+		// after Derive, an unmapped type is one the schema excludes: silent
+		e.sum.Skipped++
+		return false, nil
 	}
 	return false, e.importIssue(h.id)
 }
@@ -543,14 +572,7 @@ func (e *engine) ensureUsers(us []jiraapi.User) {
 		if u.AccountID == "" {
 			continue
 		}
-		if _, ok := e.ix.User(u.AccountID); ok {
-			continue
-		}
-		if found, err := e.repo.Identities().ResolveIdentityImmutableMetadata(MetaAccountId, u.AccountID); err == nil {
-			e.ix.AddUser(u.AccountID, found.Id())
-			continue
-		}
-		if e.opts.DryRun {
+		if _, ok := e.ix.User(u.AccountID); ok || e.opts.DryRun {
 			continue
 		}
 		login := ""
@@ -691,24 +713,51 @@ func (e *engine) converge(ic *cache.IssueCache, b *Base, ri *jiraapi.Issue, cs [
 		return e.fail(line, err)
 	}
 	ri2, cs2 := ri, cs
+	var unconfirmed []string
 	if wrote {
 		if ri2, cs2, err = e.read(ri.ID); err != nil {
 			return e.fail(line, err)
 		}
+		unconfirmed = e.unconfirmed(plan1.Remote, b2, remote, e.m.FromJira(ri2, cs2, e.ix))
 	}
-	return e.commit(ic, b2, ri2, cs2, pairs, meta, line)
+	return e.commit(ic, b2, ri2, cs2, pairs, meta, unconfirmed, line)
+}
+
+// unconfirmed are the keys written this run that the re-read still shows
+// with their pre-write value: a stale read, not a Jira edit, so plan₂ must
+// not import it over local. They are left alone and retried (I2).
+func (e *engine) unconfirmed(written []Change, b2 *Base, r, r2 Doc) []string {
+	var keys []string
+	for _, ch := range written {
+		switch {
+		case ch.Set == nil: // a set's base waits for the second merge anyway
+		case ch.Key == BodyKey:
+			text, _ := issue.String(ch.Set)
+			if b2.Body == Digest(text) && Digest(r2.Body.Text) == Digest(r.Body.Text) && Digest(r.Body.Text) != b2.Body {
+				keys = append(keys, BodyKey)
+			}
+		default:
+			if v, ok := b2.Fields[ch.Key]; ok && same(v, ch.Set) && same(r2.Fields[ch.Key], r.Fields[ch.Key]) && !same(r.Fields[ch.Key], v) {
+				keys = append(keys, ch.Key)
+			}
+		}
+	}
+	return keys
 }
 
 // commit is step 6: the second merge, decided under the lock on the fresh
 // issue, with nothing exported; its local changes, note, pairings and marker
 // are one commit.
 func (e *engine) commit(ic *cache.IssueCache, b2 *Base, ri *jiraapi.Issue, cs []jiraapi.Comment,
-	pairs map[string]entity.Id, meta map[string]string, line Line) error {
+	pairs map[string]entity.Id, meta map[string]string, unconfirmed []string, line Line) error {
 	var decided Line
 	err := ic.Update(func(snap *issue.Snapshot) ([]issue.Operation, error) {
 		decided = line
 		typ0, _ := issue.String(snap.Fields[typeKey])
 		r := e.remote(ri, cs, snap, e.m.Local(snap, typ0), b2, pairs)
+		for _, k := range unconfirmed {
+			r.Skip = append(r.Skip, Skip{Key: k, Reason: "Jira does not show this run's write yet", Retry: true})
+		}
 		local := e.m.Local(snap, r.Type)
 		plan := Merge(b2, local, r, e.multi(r.Type), false)
 		ops := e.ops(snap, &plan, b2, r, &decided)
@@ -1128,7 +1177,10 @@ func (e *engine) create(ic *cache.IssueCache) error {
 	snap := ic.Snapshot()
 	typ, _ := issue.String(snap.Fields[typeKey])
 	line := Line{Issue: id, Action: ActionCreated}
-	if _, ok := e.m.IssueType(typ); !ok {
+	if reason := e.unexportable(snap.Fields); reason != "" {
+		line.Action = ActionSkipped
+		line.Pending = append(line.Pending, Skip{Key: "*", Reason: reason})
+		e.report(line)
 		return nil
 	}
 	if t, ok := e.st.Creating[id]; ok {
@@ -1345,9 +1397,8 @@ func (e *engine) importIssue(jiraId string) error {
 	line.Jira = ri.Key
 	remote := e.m.FromJira(ri, cs, e.ix)
 	if remote.Type == "" {
-		line.Action = ActionSkipped
-		line.Pending = []Skip{{Key: typeKey, Reason: "an issue type the schema does not map"}}
-		e.report(line)
+		// after Derive, an unmapped type is one the schema excludes: silent
+		e.sum.Skipped++
 		return nil
 	}
 	sf, _ := ri.System()
@@ -1422,7 +1473,7 @@ func (e *engine) importIssue(jiraId string) error {
 		return nil
 	}
 	b, _ = CurrentBase(ic.Snapshot())
-	return e.commit(ic, b, ri, cs, nil, nil, line)
+	return e.commit(ic, b, ri, cs, nil, nil, nil, line)
 }
 
 // repass re-runs, once, the issues left with Retry keys, when the run added

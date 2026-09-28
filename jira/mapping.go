@@ -307,7 +307,7 @@ func (m *Mapping) fromJira(ri *jiraapi.Issue, fm *fieldMap, ix *Index) (v issue.
 		var items []issue.Value
 		for _, l := range links {
 			// the relation is stored on the source: viewing A, {outwardIssue: B} is A → B (C1)
-			if l.Type.ID != fm.link || l.OutwardIssue == nil || !m.inProject(*l.OutwardIssue, ix) {
+			if l.Type.ID != fm.link || l.OutwardIssue == nil || !m.syncable(*l.OutwardIssue, ix) {
 				continue
 			}
 			id, ok := ix.Issue(l.OutwardIssue.ID)
@@ -376,7 +376,7 @@ func (m *Mapping) fromJira(ri *jiraapi.Issue, fm *fieldMap, ix *Index) (v issue.
 		if err := decode(&ref); err != nil {
 			return fail(err)
 		}
-		if !m.inProject(ref, ix) {
+		if !m.syncable(ref, ix) {
 			return nil, nil, true
 		}
 		if id, ok := ix.Issue(ref.ID); ok {
@@ -412,14 +412,21 @@ func (m *Mapping) fromJira(ri *jiraapi.Issue, fm *fieldMap, ix *Index) (v issue.
 	return fail(fmt.Errorf("kind %s does not sync", fm.kind))
 }
 
-// inProject says a related issue is this project's: an unknown key prefix
-// is another project's, and such a relation is dropped (JS17).
-func (m *Mapping) inProject(ref jiraapi.IssueRef, ix *Index) bool {
+// syncable says a related issue can be, or is, a local issue: one of
+// another project, or of an issue type the schema does not map or excludes,
+// never imports, and a relation to it is dropped (JS17).
+func (m *Mapping) syncable(ref jiraapi.IssueRef, ix *Index) bool {
 	if _, ok := ix.Issue(ref.ID); ok {
 		return true
 	}
-	prefix, _, _ := strings.Cut(ref.Key, "-")
-	return ref.Key == "" || prefix == m.project
+	if prefix, _, _ := strings.Cut(ref.Key, "-"); ref.Key != "" && prefix != m.project {
+		return false
+	}
+	if ref.Fields != nil && ref.Fields.IssueType != nil {
+		_, mapped := m.byIssueType[ref.Fields.IssueType.ID]
+		return mapped
+	}
+	return true
 }
 
 // ToJira turns merged changes into writes, one per local key; remote gives
@@ -440,8 +447,9 @@ func (m *Mapping) ToJira(typeKey string, ch []Change, remote *jiraapi.Issue, ix 
 		w, skip := m.toJira(tm, c, remote, ix)
 		if skip != nil {
 			skips = append(skips, *skip)
-		} else {
-			writes = append(writes, w)
+		}
+		if w.Key != "" {
+			writes = append(writes, w) // a link write can go with a skip of some items
 		}
 	}
 	return writes, skips
@@ -554,11 +562,13 @@ func (m *Mapping) toJiraItems(fm *fieldMap, c Change, remote *jiraapi.Issue, ix 
 		var links []jiraapi.IssueLink
 		_, _ = remote.Decode("issuelinks", &links)
 		w := Write{Key: c.Key, Kind: WriteLink}
+		var missing []string
 		for _, item := range c.Add {
 			id, _ := issue.String(item)
 			jid, ok := ix.JiraIssue(entity.Id(id))
 			if !ok {
-				return no(ix.WillExport(entity.Id(id)), "%s is not in Jira", entity.Id(id).Human())
+				missing = append(missing, entity.Id(id).Human())
+				continue
 			}
 			// POST /issueLink's inwardIssue is the source (C1)
 			w.Add = append(w.Add, NewLink{LinkType: fm.link, Source: remote.ID, Destination: jid})
@@ -572,7 +582,14 @@ func (m *Mapping) toJiraItems(fm *fieldMap, c Change, remote *jiraapi.Issue, ix 
 				}
 			}
 		}
-		return w, nil
+		var skip *Skip
+		if len(missing) > 0 {
+			skip = &Skip{Key: c.Key, Reason: strings.Join(missing, ", ") + " not in Jira"}
+		}
+		if len(w.Add)+len(w.Remove) == 0 {
+			w = Write{}
+		}
+		return w, skip
 	}
 
 	var ops []jiraapi.Op

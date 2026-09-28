@@ -22,37 +22,50 @@ type Index struct {
 // NewIndex reads every excerpt once.
 func NewIndex(repo *cache.RepoCache, m *Mapping) (*Index, error) {
 	issues, users := map[string]entity.Id{}, map[string]entity.Id{}
+	archived := map[entity.Id]bool{}
 	var exportable []entity.Id
 	for _, id := range repo.Issues().AllIds() {
 		e, err := repo.Issues().ResolveExcerpt(id)
 		if err != nil {
 			return nil, err
 		}
+		archived[id] = isArchived(e.Fields)
 		if jid := e.CreateMetadata[MetaId]; jid != "" {
-			// two issues naming one Jira id: the lower entity id wins (JS25)
-			if other, ok := issues[jid]; !ok || id < other {
+			// two issues naming one Jira id: the unarchived, then the lower
+			// entity id wins; scan reports the other (JS25)
+			if other, ok := issues[jid]; !ok || archived[other] && !archived[id] ||
+				archived[other] == archived[id] && id < other {
 				issues[jid] = id
 			}
 			continue
 		}
 		typeKey, _ := issue.String(e.Fields[schema.TypeKey])
-		archived := string(e.Fields[schema.ArchivedKey]) == "true"
-		if _, mapped := m.IssueType(typeKey); mapped && !archived {
+		if _, mapped := m.IssueType(typeKey); mapped && !archived[id] {
 			exportable = append(exportable, id)
 		}
 	}
+	var holders []entity.Id
+	var accounts []string
 	for _, id := range repo.Identities().AllIds() {
 		e, err := repo.Identities().ResolveExcerpt(id)
 		if err != nil {
 			return nil, err
 		}
 		if account := e.ImmutableMetadata[MetaAccountId]; account != "" {
+			holders = append(holders, id)
+			accounts = append(accounts, account)
+			// two identities naming one account (two clones, JS25): the
+			// lower id is the account's, and both export as it
 			if other, ok := users[account]; !ok || id < other {
 				users[account] = id
 			}
 		}
 	}
-	return IndexOf(issues, users, exportable), nil
+	ix := IndexOf(issues, users, exportable)
+	for i, id := range holders {
+		ix.accounts[id] = accounts[i]
+	}
+	return ix, nil
 }
 
 // IndexOf builds an index from its tables, for tests.
@@ -72,6 +85,10 @@ func IndexOf(issues, users map[string]entity.Id, exportable []entity.Id) *Index 
 		ix.exportable[id] = true
 	}
 	return ix
+}
+
+func isArchived(fields map[string]issue.Value) bool {
+	return string(canon(fields[schema.ArchivedKey])) == "true"
 }
 
 func (ix *Index) Issue(jiraId string) (entity.Id, bool) {

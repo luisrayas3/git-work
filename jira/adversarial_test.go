@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"math/rand/v2"
 	"net/http"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -803,19 +804,10 @@ func TestAdvE11LinkOutsideProject(t *testing.T) {
 	links := w.srv.Issue(key).Links
 	require.Len(t, links, 2, "the outside link survives: %+v", links)
 	_ = inside
-	// E1 for a link: the next run must write nothing. Jira bumps the
-	// destination's updated too, so its marker is rewritten once.
-	before := w.refs()
-	w.srv.ResetRequests()
-	lines, _ = w.mustSync(jira.Options{})
-	require.Empty(t, lines)
-	require.Zero(t, w.srv.Writes())
-	moved := !equalRefs(before, w.refs())
+	// E1 for a link: the next run writes nothing on either side, though
+	// Jira bumped the destination's updated too
 	w.still()
 	w.quietFull()
-	if moved {
-		t.Skip("BUG (minor): a link export bumps the destination's updated in Jira, so the next run commits a marker-only NoOp on the destination (E1 not quiet)")
-	}
 }
 
 // E17: a failed issue mid-page holds the cursor at or before it; a lost
@@ -1215,12 +1207,9 @@ func TestAdvStaleReadsRevertLocalEdit(t *testing.T) {
 	w.set(ic.Id(), "title", str("edited here"))
 	w.mustSync(jira.Options{})
 	require.Equal(t, "edited here", w.srv.Issue(key).Summary, "exported")
-	reverted := field(t, ic, "title") != `"edited here"`
+	require.Equal(t, `"edited here"`, field(t, ic, "title"), "a stale re-read does not revert the write")
 	w.converge(4)
 	require.Equal(t, `"edited here"`, field(t, ic, "title"), "converged on the edit")
-	if reverted {
-		t.Skip("BUG (stale reads only): the step-5 re-read is trusted, so a stale GET makes plan₂ import the pre-write value over the local edit; the next run restores it (two spurious ops, and a user edit in between loses as a double edit)")
-	}
 }
 
 // A new local issue under stale reads: GET after POST is a 404, the issue
@@ -1722,8 +1711,9 @@ func twoClones(t *testing.T, opts ...jiratest.Option) (*world, *world) {
 	return a, b
 }
 
-// Both clones import the same new Jira issue before exchanging: after the
-// exchange one Jira issue must not be two local issues.
+// Both clones import the same new Jira issue before exchanging: two local
+// issues for one Jira issue, a documented cost of two bound clones (JS25).
+// The loser is reported every run and never syncs; archiving it silences it.
 func TestAdvTwoClonesImportSameIssue(t *testing.T) {
 	a, b := twoClones(t)
 	key := a.srv.CreateIssue(jiratest.IssueSpec{Project: "PROJ", Type: "Task", Summary: "Seen twice"})
@@ -1732,23 +1722,35 @@ func TestAdvTwoClonesImportSameIssue(t *testing.T) {
 	_, err := a.c.Push("origin")
 	require.NoError(t, err)
 	require.NoError(t, b.c.Pull("origin"))
-	n := 0
+	var both []entity.Id
 	for _, id := range b.c.Issues().AllIds() {
 		ex, _ := b.c.Issues().ResolveExcerpt(id)
 		if ex.CreateMetadata[jira.MetaAlias] == key {
-			n++
+			both = append(both, id)
 		}
 	}
-	b.mustSync(jira.Options{})
+	require.Len(t, both, 2, "JS25: two clones importing before they exchange")
+	slices.Sort(both)
+	winner, loser := both[0], both[1]
+
 	b.srv.Edit(key, map[string]any{"summary": "edited in Jira"})
-	b.mustSync(jira.Options{})
-	if n > 1 {
-		t.Skipf("BUG (JS25): two bound clones importing one new Jira issue before exchanging make %d local issues for %s, both linked, forever", n, key)
+	lines, _ := b.mustSync(jira.Options{})
+	reported := false
+	for _, l := range lines {
+		reported = reported || l.Issue == loser && l.Action == jira.ActionSkipped
+		require.False(t, l.Issue == loser && l.Action != jira.ActionSkipped, "the loser never syncs: %+v", l)
 	}
+	require.True(t, reported, "the duplicate is reported: %+v", lines)
+	require.Equal(t, `"edited in Jira"`, field(t, mustIssue(t, b.c, winner), "title"))
+	require.Equal(t, `"Seen twice"`, field(t, mustIssue(t, b.c, loser), "title"))
+
+	b.set(loser, "archived", issue.Value("true"))
+	b.still()
 }
 
 // Both clones see the same unlinked local issue (pulled) and sync before
-// exchanging again: both POST it, and Jira has it twice.
+// exchanging again: both POST it (JS25: the journal is per clone). After
+// the exchange one Jira issue is linked and the other reported.
 func TestAdvTwoClonesCreateSameIssue(t *testing.T) {
 	a, b := twoClones(t, jiratest.WithIndexLag(1, 0))
 	id := a.newLocal("Made on A", "", nil)
@@ -1757,12 +1759,8 @@ func TestAdvTwoClonesCreateSameIssue(t *testing.T) {
 	require.NoError(t, b.c.Pull("origin"))
 	a.mustSync(jira.Options{})
 	b.mustSync(jira.Options{})
-	b.ageJournal()
-	b.mustSync(jira.Options{})
-	keys := a.srv.Keys()
-	if len(keys) > 1 {
-		t.Skipf("BUG (JS25): two bound clones syncing one pulled, unlinked issue before exchanging both POST it: Jira has %v for %s", keys, id.Human())
-	}
+	require.Len(t, a.srv.Keys(), 2, "JS25: two clones creating before they exchange")
+	t.Logf("documented cost (JS25): %v for %s", a.srv.Keys(), id.Human())
 }
 
 // ---- values Jira cannot hold, texts git-work cannot write ----
@@ -1859,9 +1857,8 @@ func TestAdvCreateGraph(t *testing.T) {
 }
 
 // A link to an in-project issue of a type excluded from sync (aliased ""):
-// the target never imports, so the key is Skip{Retry} forever: the issue is
-// read and reported every run, and a local edit of that key is never
-// exported.
+// the target never imports, so the link is dropped like one out of the
+// project, and a local edit of that key is exported beside it.
 func TestAdvLinkToExcludedType(t *testing.T) {
 	w := newWorld(t)
 	doc := schema.NewDocument()
@@ -1881,17 +1878,12 @@ func TestAdvLinkToExcludedType(t *testing.T) {
 			exported = true
 		}
 	}
-	w.srv.ResetRequests()
-	lines, _ := w.mustSync(jira.Options{})
-	reads := 0
-	for _, r := range w.srv.Requests() {
-		if r.Method == "GET" && strings.HasPrefix(r.Path, "/rest/api/3/issue/") {
-			reads++
-		}
-	}
-	if !exported || len(lines) > 0 {
-		t.Skipf("BUG: a link to an issue of an excluded type is Skip{Retry} forever (mapping.go fromJira links: retry \"not imported yet\"): local link edit exported=%v, and every run re-reads (%d GETs) and reports %d lines", exported, reads, len(lines))
-	}
+	require.True(t, exported, "the local link edit is exported")
+	require.Len(t, w.srv.Issue(parent).Links, 2, "the excluded one survives")
+	b, _ := jira.CurrentBase(pic.Snapshot())
+	require.Empty(t, b.Retry)
+	w.still()
+	w.quietFull()
 }
 
 // Both clones' runners tag themselves with the token's account before they
@@ -1936,7 +1928,5 @@ func TestAdvTwoClonesTagTheAccount(t *testing.T) {
 	if ravis > 1 {
 		t.Logf("FINDING (JS25/JS16): two bound clones each create an identity for one Jira account: %d identities carry Ravi's accountId", ravis)
 	}
-	if len(moved) > 0 {
-		t.Skipf("BUG: with %d identities carrying the token's account, every run re-tags the runner (engine.go setup: ResolveIdentityImmutableMetadata errors on two matches, so SetMetadata+Commit each run): moved %v", tagged, moved)
-	}
+	require.Empty(t, moved, "with %d identities carrying the token's account, no run re-tags", tagged)
 }
