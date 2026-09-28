@@ -932,12 +932,9 @@ func TestFakeADFRandom(t *testing.T) {
 func TestFakeJQLQuote(t *testing.T) {
 	srv := jiratest.New(t, jiratest.WithIndexLag(0, 0))
 	c, _ := client(t, srv)
-	qa := srv.CreateIssue(jiratest.IssueSpec{Project: "PROJ", Type: "Task", Summary: "q", Status: "Ready for QA",
-		Labels: []string{`we"ird\label`}})
-	srv.CreateIssue(jiratest.IssueSpec{Project: "PROJ", Type: "Task", Summary: "other"})
+	qa := srv.CreateIssue(jiratest.IssueSpec{Project: "PROJ", Type: "Task", Summary: "q"})
 	for _, jql := range []string{
-		"status = " + jiraapi.JQLQuote("Ready for QA"),
-		"labels = " + jiraapi.JQLQuote(`we"ird\label`),
+		"project = " + jiraapi.JQLQuote("PROJ"),
 		"key = " + jiraapi.JQLQuote(qa),
 	} {
 		keys, _ := search(t, c, jiraapi.Search{JQL: jql})

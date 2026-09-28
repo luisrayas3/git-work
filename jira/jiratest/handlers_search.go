@@ -53,7 +53,7 @@ func (s *Server) env(c *call) (*jqlEnv, error) {
 		}
 		loc = l
 	}
-	return &jqlEnv{s: s, user: c.user, loc: loc, now: s.clock(), hidden: c.denied}, nil
+	return &jqlEnv{s: s, user: c.user, loc: loc, hidden: c.denied}, nil
 }
 
 // query runs a JQL query against the index, with the reconciled ids read

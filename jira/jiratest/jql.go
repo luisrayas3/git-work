@@ -2,7 +2,6 @@ package jiratest
 
 import (
 	"fmt"
-	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -10,18 +9,22 @@ import (
 	"unicode"
 )
 
-// The JQL the fake understands: enough for a sync, and a 400 in Jira's
-// words for the rest.
+// The JQL the fake understands is the shapes the sync sends,
+//
+//	project = "K" [AND (updated >= "T" OR id in (1, 2))] ORDER BY updated ASC, id ASC
+//	project = "K" AND created >= "T" ORDER BY created ASC, id ASC
+//
+// and a little around them, in this grammar:
 //
 //	query   = [or] [ORDER BY key [ASC|DESC] {, key [ASC|DESC]}]
 //	or      = and {OR and}
-//	and     = not {AND not}
-//	not     = NOT not | ( or ) | clause
-//	clause  = field op value | field [NOT] IN ( value {, value} ) | field IS [NOT] EMPTY
+//	and     = ( or ) | clause {AND ( or ) | clause}
+//	clause  = field op value | field IN ( value {, value} )
 //
-// Fields: project, key/issuekey, id, updated, created, parent, status,
-// issuetype/type, statusCategory, assignee, reporter, labels.
-// Dates are read in the caller's profile zone (api.md §2.5, C6).
+// Fields: project, key/issuekey, id, updated, created. A syntax error is a
+// 400 in Jira's words; a field or an operator the fake does not implement
+// is a 400 saying so. Dates are read in the caller's profile zone (api.md
+// §2.5, C6).
 
 type tokKind int
 
@@ -84,11 +87,7 @@ func lex(src string) ([]token, *apiError) {
 			if j < len(rs) && (rs[j] == '=' || rs[j] == '~') {
 				j++
 			}
-			op := string(rs[i:j])
-			if op == "!" {
-				return nil, jqlError("Error in the JQL Query: The character '!' is a reserved JQL character. (line 1, character %d)", i+1)
-			}
-			toks = append(toks, token{tOp, op, i + 1})
+			toks = append(toks, token{tOp, string(rs[i:j]), i + 1})
 			i = j
 		default:
 			j := i
@@ -102,21 +101,14 @@ func lex(src string) ([]token, *apiError) {
 	return append(toks, token{tEOF, "", len(rs) + 1}), nil
 }
 
-type jqlValue struct {
-	text   string
-	fn     bool // a function call, text is its name
-	quoted bool
-}
-
 type jqlClause struct {
 	field string
-	op    string // = != > >= < <= ~ !~ in "not in" "is" "is not"
-	vals  []jqlValue
-	pos   int
+	op    string // = != > >= < <= in
+	vals  []string
 }
 
 type jqlNode struct {
-	op          string // and, or, not, clause
+	op          string // and, or, clause
 	left, right *jqlNode
 	clause      *jqlClause
 }
@@ -140,11 +132,10 @@ func (p *parser) peek() token { return p.toks[p.i] }
 func (p *parser) next() token { t := p.toks[p.i]; p.i++; return t }
 
 func unexpected(t token, want string) *apiError {
-	got := t.text
 	if t.kind == tEOF {
 		return jqlError("Error in the JQL Query: Expecting %s but reached the end of the query.", want)
 	}
-	return jqlError("Error in the JQL Query: Expecting %s but got '%s'. (line 1, character %d)", want, got, t.pos)
+	return jqlError("Error in the JQL Query: Expecting %s but got '%s'. (line 1, character %d)", want, t.text, t.pos)
 }
 
 func parseJQL(src string) (*jqlQuery, *apiError) {
@@ -199,25 +190,19 @@ func (p *parser) or() (*jqlNode, *apiError) {
 }
 
 func (p *parser) and() (*jqlNode, *apiError) {
-	l, err := p.not()
+	l, err := p.term()
 	for err == nil && p.peek().is("and") {
 		p.next()
 		var r *jqlNode
-		if r, err = p.not(); err == nil {
+		if r, err = p.term(); err == nil {
 			l = &jqlNode{op: "and", left: l, right: r}
 		}
 	}
 	return l, err
 }
 
-func (p *parser) not() (*jqlNode, *apiError) {
-	t := p.peek()
-	switch {
-	case t.is("not"):
-		p.next()
-		n, err := p.not()
-		return &jqlNode{op: "not", left: n}, err
-	case t.kind == tLParen:
+func (p *parser) term() (*jqlNode, *apiError) {
+	if p.peek().kind == tLParen {
 		p.next()
 		n, err := p.or()
 		if err != nil {
@@ -237,35 +222,15 @@ func (p *parser) clause() (*jqlClause, *apiError) {
 	if f.kind != tWord && f.kind != tString {
 		return nil, unexpected(f, "a field name")
 	}
-	c := &jqlClause{field: f.text, pos: f.pos}
-	t := p.next()
-	switch {
+	c := &jqlClause{field: f.text}
+	switch t := p.next(); {
 	case t.kind == tOp:
 		c.op = t.text
 		v, err := p.value()
-		if err != nil {
-			return nil, err
-		}
-		c.vals = []jqlValue{v}
-		return c, nil
+		c.vals = []string{v}
+		return c, err
 	case t.is("in"):
 		c.op = "in"
-	case t.is("not"):
-		if !p.next().is("in") {
-			return nil, unexpected(p.toks[p.i-1], "'IN'")
-		}
-		c.op = "not in"
-	case t.is("is"):
-		c.op = "is"
-		if p.peek().is("not") {
-			p.next()
-			c.op = "is not"
-		}
-		v := p.next()
-		if !v.is("empty") && !v.is("null") {
-			return nil, unexpected(v, "'EMPTY' or 'NULL'")
-		}
-		return c, nil
 	default:
 		return nil, unexpected(t, "operator")
 	}
@@ -288,22 +253,15 @@ func (p *parser) clause() (*jqlClause, *apiError) {
 	}
 }
 
-func (p *parser) value() (jqlValue, *apiError) {
+func (p *parser) value() (string, *apiError) {
 	t := p.next()
-	switch t.kind {
-	case tString:
-		return jqlValue{text: t.text, quoted: true}, nil
-	case tWord:
-		if p.peek().kind == tLParen {
-			p.next()
-			if c := p.next(); c.kind != tRParen {
-				return jqlValue{}, jqlError("jiratest: JQL function arguments are not supported (%s)", t.text)
-			}
-			return jqlValue{text: t.text, fn: true}, nil
-		}
-		return jqlValue{text: t.text}, nil
+	if t.kind != tString && t.kind != tWord {
+		return "", unexpected(t, "a value")
 	}
-	return jqlValue{}, unexpected(t, "a value")
+	if p.peek().kind == tLParen {
+		return "", jqlError("jiratest: the fake does not implement JQL functions (%s).", t.text)
+	}
+	return t.text, nil
 }
 
 // jqlEnv is what a query is compiled against.
@@ -311,7 +269,6 @@ type jqlEnv struct {
 	s    *Server
 	user *User // nil when anonymous
 	loc  *time.Location
-	now  time.Time
 	// hidden makes every project invisible (no Browse projects), which
 	// Jira reports as the project not existing.
 	hidden bool
@@ -319,243 +276,70 @@ type jqlEnv struct {
 
 type pred func(st *issueState) bool
 
-// knownJiraFields are real JQL fields the fake does not implement, so the
-// error says so instead of claiming the field does not exist.
-var knownJiraFields = []string{"summary", "description", "text", "comment", "sprint", "rank", "priority",
-	"creator", "resolution", "resolved", "due", "duedate", "environment", "fixversion", "component",
-	"watcher", "voter", "epic link", "filter", "attachments", "worklogdate"}
-
 func (e *jqlEnv) compile(n *jqlNode) (pred, *apiError) {
-	switch n.op {
-	case "and", "or":
-		l, err := e.compile(n.left)
-		if err != nil {
-			return nil, err
-		}
-		r, err := e.compile(n.right)
-		if err != nil {
-			return nil, err
-		}
-		if n.op == "and" {
-			return func(st *issueState) bool { return l(st) && r(st) }, nil
-		}
-		return func(st *issueState) bool { return l(st) || r(st) }, nil
-	case "not":
-		l, err := e.compile(n.left)
-		if err != nil {
-			return nil, err
-		}
-		return func(st *issueState) bool { return !l(st) }, nil
+	if n.op == "clause" {
+		return e.clause(n.clause)
 	}
-	return e.clause(n.clause)
+	l, err := e.compile(n.left)
+	if err != nil {
+		return nil, err
+	}
+	r, err := e.compile(n.right)
+	if err != nil {
+		return nil, err
+	}
+	if n.op == "and" {
+		return func(st *issueState) bool { return l(st) && r(st) }, nil
+	}
+	return func(st *issueState) bool { return l(st) || r(st) }, nil
 }
 
 func (e *jqlEnv) clause(c *jqlClause) (pred, *apiError) {
 	field := strings.ToLower(c.field)
-	for _, v := range c.vals {
-		if v.fn && !strings.EqualFold(v.text, "currentUser") {
-			return nil, jqlError("Unable to find JQL function '%s()'.", v.text)
-		}
-	}
 	switch field {
-	case "project":
-		return e.setClause(c, []string{"=", "!=", "in", "not in"}, func(v jqlValue) (func(*issueState) bool, *apiError) {
-			p := e.s.projectByKey(v.text)
-			if p == nil {
-				for _, q := range e.s.projects {
-					if strings.EqualFold(q.def.Name, v.text) || strings.EqualFold(q.def.Key, v.text) {
-						p = q
-					}
-				}
-			}
-			if (p == nil || e.hidden) && e.user != nil {
-				return nil, jqlError("The value '%s' does not exist for the field 'project'.", v.text)
-			}
-			return func(st *issueState) bool { return st.project == p }, nil
-		})
-	case "key", "issuekey", "id":
-		return e.issueClause(c, field)
-	case "parent":
-		return e.setClause(c, []string{"=", "!=", "in", "not in", "is", "is not"}, func(v jqlValue) (func(*issueState) bool, *apiError) {
-			if v.text == "" {
-				return func(st *issueState) bool { return st.parent == 0 }, nil
-			}
-			rec := e.s.lookup(v.text)
-			if rec == nil {
-				return nil, jqlError("An issue with key '%s' does not exist for field 'parent'.", v.text)
-			}
-			return func(st *issueState) bool { return st.parent == rec.cur.id }, nil
-		})
-	case "status":
-		return e.setClause(c, []string{"=", "!=", "in", "not in"}, func(v jqlValue) (func(*issueState) bool, *apiError) {
-			found := false
-			for _, p := range e.s.projects {
-				for _, st := range p.def.Statuses {
-					found = found || st.ID == v.text || strings.EqualFold(st.Name, v.text)
-				}
-			}
-			if !found {
-				return nil, jqlError("The value '%s' does not exist for the field 'status'.", v.text)
-			}
-			return func(st *issueState) bool { return st.status.ID == v.text || strings.EqualFold(st.status.Name, v.text) }, nil
-		})
-	case "issuetype", "type":
-		return e.setClause(c, []string{"=", "!=", "in", "not in"}, func(v jqlValue) (func(*issueState) bool, *apiError) {
-			found := false
-			for _, p := range e.s.projects {
-				found = found || p.issueType(v.text) != nil
-			}
-			if !found {
-				return nil, jqlError("The value '%s' does not exist for the field 'issuetype'.", v.text)
-			}
-			return func(st *issueState) bool { return st.typ.ID == v.text || strings.EqualFold(st.typ.Name, v.text) }, nil
-		})
-	case "statuscategory":
-		return e.setClause(c, []string{"=", "!=", "in", "not in"}, func(v jqlValue) (func(*issueState) bool, *apiError) {
-			for _, cat := range categories {
-				if cat.key == strings.ToLower(v.text) || strings.EqualFold(cat.name, v.text) || strconv.Itoa(cat.id) == v.text {
-					return func(st *issueState) bool { return st.status.Category == cat.key }, nil
-				}
-			}
-			return nil, jqlError("The value '%s' does not exist for the field 'statusCategory'.", v.text)
-		})
-	case "assignee", "reporter":
-		return e.setClause(c, []string{"=", "!=", "in", "not in", "is", "is not"}, func(v jqlValue) (func(*issueState) bool, *apiError) {
-			id := v.text
-			if v.fn {
-				if e.user == nil {
-					return func(*issueState) bool { return false }, nil
-				}
-				id = e.user.AccountID
-			}
-			get := func(st *issueState) string { return st.assignee }
-			if field == "reporter" {
-				get = func(st *issueState) string { return st.reporter }
-			}
-			return func(st *issueState) bool { return get(st) == id }, nil
-		})
-	case "labels":
-		return e.setClause(c, []string{"=", "!=", "in", "not in", "is", "is not"}, func(v jqlValue) (func(*issueState) bool, *apiError) {
-			if v.text == "" {
-				return func(st *issueState) bool { return len(st.labels) == 0 }, nil
-			}
-			return func(st *issueState) bool { return slices.Contains(st.labels, v.text) }, nil
-		})
-	case "updated", "updateddate", "created", "createddate":
-		return e.dateClause(c, strings.TrimSuffix(field, "date"))
+	case "updated", "created":
+		return e.dateClause(c, field)
+	case "project", "key", "issuekey", "id":
+	default:
+		return nil, jqlError("jiratest: the fake does not implement the JQL field '%s'.", c.field)
 	}
-	for _, k := range knownJiraFields {
-		if field == k {
-			return nil, jqlError("jiratest: the fake does not implement the JQL field '%s'.", c.field)
-		}
+	if c.op != "=" && c.op != "in" {
+		return nil, jqlError("The operator '%s' is not supported by the '%s' field.", strings.ToUpper(c.op), c.field)
 	}
-	return nil, jqlError("Field '%s' does not exist or you do not have permission to view it.", c.field)
-}
-
-func opNotSupported(c *jqlClause) *apiError {
-	op := strings.ToUpper(c.op)
-	return jqlError("The operator '%s' is not supported by the '%s' field.", op, c.field)
-}
-
-// setClause compiles =, !=, IN, NOT IN and IS [NOT] EMPTY from a matcher
-// of one value; the empty value stands for EMPTY.
-func (e *jqlEnv) setClause(c *jqlClause, ops []string, one func(jqlValue) (func(*issueState) bool, *apiError)) (pred, *apiError) {
-	if !slices.Contains(ops, c.op) {
-		return nil, opNotSupported(c)
-	}
-	vals := c.vals
-	if c.op == "is" || c.op == "is not" {
-		vals = []jqlValue{{}}
-	}
-	var ms []func(*issueState) bool
-	for _, v := range vals {
-		m, err := one(v)
-		if err != nil {
-			return nil, err
-		}
-		ms = append(ms, m)
-	}
-	matchAny := func(st *issueState) bool {
-		for _, m := range ms {
-			if m(st) {
-				return true
-			}
-		}
-		return false
-	}
-	switch c.op {
-	case "!=", "not in", "is not":
-		return func(st *issueState) bool { return !matchAny(st) }, nil
-	}
-	return matchAny, nil
-}
-
-func (e *jqlEnv) issueClause(c *jqlClause, field string) (pred, *apiError) {
-	if !slices.Contains([]string{"=", "!=", "in", "not in"}, c.op) {
-		return nil, opNotSupported(c)
-	}
-	ids := map[int]bool{}
+	var match []pred
 	for _, v := range c.vals {
-		if field == "id" {
-			n, err := strconv.Atoi(v.text)
-			if err != nil {
-				return nil, jqlError("The value '%s' for field 'id' is invalid.", v.text)
+		switch field {
+		case "project":
+			p := e.s.projectByKey(v)
+			if (p == nil || e.hidden) && e.user != nil {
+				return nil, jqlError("The value '%s' does not exist for the field 'project'.", v)
 			}
-			ids[n] = true
-			continue
+			match = append(match, func(st *issueState) bool { return st.project == p })
+		case "id":
+			n, err := strconv.Atoi(v)
+			if err != nil {
+				return nil, jqlError("The value '%s' for field 'id' is invalid.", v)
+			}
+			match = append(match, func(st *issueState) bool { return st.id == n })
+		default:
+			// Old keys resolve to the moved issue (api-vetting.md §4.7).
+			rec := e.s.lookup(v)
+			if rec == nil {
+				return nil, jqlError("An issue with key '%s' does not exist for field '%s'.", v, c.field)
+			}
+			match = append(match, func(st *issueState) bool { return st.id == rec.cur.id })
 		}
-		// Old keys resolve to the moved issue (api-vetting.md §4.7).
-		rec := e.s.lookup(v.text)
-		if rec == nil {
-			return nil, jqlError("An issue with key '%s' does not exist for field '%s'.", v.text, c.field)
-		}
-		ids[rec.cur.id] = true
 	}
-	neg := c.op == "!=" || c.op == "not in"
-	return func(st *issueState) bool { return ids[st.id] != neg }, nil
+	return func(st *issueState) bool {
+		return slices.ContainsFunc(match, func(m pred) bool { return m(st) })
+	}, nil
 }
 
-var datePeriod = regexp.MustCompile(`^([-+]?)((?:\s*\d+\s*[wdhm]?)+)$`)
-var periodPart = regexp.MustCompile(`(\d+)\s*([wdhm]?)`)
-
-// jqlDate reads a date literal in loc (api.md §2.5): absolute to the
-// minute, date-only as midnight, or a period relative to now.
-func jqlDate(v string, loc *time.Location, now time.Time) (time.Time, bool) {
-	v = strings.TrimSpace(v)
-	for _, layout := range []string{"2006/01/02 15:04", "2006-01-02 15:04", "2006/01/02", "2006-01-02"} {
-		if t, err := time.ParseInLocation(layout, v, loc); err == nil {
-			return t, true
-		}
-	}
-	m := datePeriod.FindStringSubmatch(v)
-	if m == nil {
-		return time.Time{}, false
-	}
-	var d time.Duration
-	for _, part := range periodPart.FindAllStringSubmatch(m[2], -1) {
-		n, _ := strconv.Atoi(part[1])
-		unit := map[string]time.Duration{"w": 7 * 24 * time.Hour, "d": 24 * time.Hour, "h": time.Hour, "m": time.Minute, "": time.Minute}[part[2]]
-		d += time.Duration(n) * unit
-	}
-	if m[1] == "-" {
-		d = -d
-	}
-	return now.Add(d), true
-}
-
+// dateClause reads a literal in the caller's zone (api.md §2.5): to the
+// minute, or a date alone as midnight.
 func (e *jqlEnv) dateClause(c *jqlClause, field string) (pred, *apiError) {
-	if !slices.Contains([]string{"=", "!=", ">", ">=", "<", "<="}, c.op) {
-		return nil, opNotSupported(c)
-	}
-	t, ok := jqlDate(c.vals[0].text, e.loc, e.now)
-	if !ok || c.vals[0].fn {
-		return nil, jqlError("Date value '%s' for field '%s' is invalid. Valid formats include: 'yyyy/MM/dd HH:mm', 'yyyy-MM-dd HH:mm', 'yyyy/MM/dd', 'yyyy-MM-dd', or a period format e.g. '-5d', '4w 2d'.", c.vals[0].text, c.field)
-	}
-	get := func(st *issueState) time.Time { return st.updated }
-	if field == "created" {
-		get = func(st *issueState) time.Time { return st.created }
-	}
-	cmp := map[string]func(a time.Time) bool{
+	var t time.Time
+	cmp, ok := map[string]func(a time.Time) bool{
 		"=":  func(a time.Time) bool { return a.Equal(t) },
 		"!=": func(a time.Time) bool { return !a.Equal(t) },
 		">":  func(a time.Time) bool { return a.After(t) },
@@ -563,15 +347,27 @@ func (e *jqlEnv) dateClause(c *jqlClause, field string) (pred, *apiError) {
 		"<":  func(a time.Time) bool { return a.Before(t) },
 		"<=": func(a time.Time) bool { return !a.After(t) },
 	}[c.op]
-	return func(st *issueState) bool { return cmp(get(st)) }, nil
+	if !ok {
+		return nil, jqlError("The operator '%s' is not supported by the '%s' field.", strings.ToUpper(c.op), c.field)
+	}
+	var err error
+	for _, layout := range []string{"2006/01/02 15:04", "2006-01-02 15:04", "2006/01/02", "2006-01-02"} {
+		if t, err = time.ParseInLocation(layout, strings.TrimSpace(c.vals[0]), e.loc); err == nil {
+			break
+		}
+	}
+	if err != nil {
+		return nil, jqlError("Date value '%s' for field '%s' is invalid. Valid formats include: 'yyyy/MM/dd HH:mm', 'yyyy-MM-dd HH:mm', 'yyyy/MM/dd', 'yyyy-MM-dd', or a period format e.g. '-5d', '4w 2d'.", c.vals[0], c.field)
+	}
+	if field == "created" {
+		return func(st *issueState) bool { return cmp(st.created) }, nil
+	}
+	return func(st *issueState) bool { return cmp(st.updated) }, nil
 }
 
 // sorter compiles ORDER BY; the default is created DESC (a guess), and id
 // breaks every tie so pages are stable.
 func (e *jqlEnv) sorter(keys []orderKey) (func(a, b *issueState) int, *apiError) {
-	if len(keys) > 7 {
-		return nil, jqlError("The ORDER BY clause can contain a maximum of 7 fields.")
-	}
 	if len(keys) == 0 {
 		keys = []orderKey{{field: "created", desc: true}}
 	}
@@ -579,19 +375,14 @@ func (e *jqlEnv) sorter(keys []orderKey) (func(a, b *issueState) int, *apiError)
 	for _, k := range keys {
 		var f func(a, b *issueState) int
 		switch strings.ToLower(k.field) {
-		case "updated", "updateddate":
+		case "updated":
 			f = func(a, b *issueState) int { return a.updated.Compare(b.updated) }
-		case "created", "createddate":
+		case "created":
 			f = func(a, b *issueState) int { return a.created.Compare(b.created) }
 		case "key", "issuekey":
 			f = compareKeys
 		case "id":
 			f = func(a, b *issueState) int { return a.id - b.id }
-		case "rank":
-			rank := e.s.rankField()
-			f = func(a, b *issueState) int {
-				return strings.Compare(fmt.Sprint(a.custom[rank]), fmt.Sprint(b.custom[rank]))
-			}
 		default:
 			return nil, jqlError("Not able to sort using field '%s'.", k.field)
 		}

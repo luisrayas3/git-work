@@ -171,13 +171,12 @@ func TestJQLErrors(t *testing.T) {
 		"project = PROJ foo":              "Expecting either 'OR' or 'AND' but got 'foo'",
 		`project = "PROJ`:                 "has not been completed",
 		"summary ~ foo":                   "does not implement the JQL field 'summary'",
-		"nosuchfield = 1":                 "Field 'nosuchfield' does not exist or you do not have permission to view it.",
 		"project ~ PROJ":                  "The operator '~' is not supported by the 'project' field.",
+		"updated in (1)":                  "The operator 'IN' is not supported by the 'updated' field.",
 		`updated >= "yesterday"`:          "Date value 'yesterday' for field 'updated' is invalid.",
 		"key = PROJ-99":                   "An issue with key 'PROJ-99' does not exist for field 'key'.",
 		"project = PROJ ORDER BY summary": "Not able to sort using field 'summary'.",
-		"assignee = membersOf(x)":         "JQL function",
-		"project = PROJ ORDER BY a,b,c,d,e,f,g,h": "maximum of 7",
+		"project = currentProject()":      "JQL functions",
 	}
 	for jql, want := range cases {
 		t.Run(jql, func(t *testing.T) {
@@ -192,9 +191,9 @@ func TestJQLErrors(t *testing.T) {
 func TestJQLClauses(t *testing.T) {
 	s := newServer(t)
 	epic := s.CreateIssue(jiratest.IssueSpec{Project: "PROJ", Type: "Epic", Summary: "epic"})
-	a := s.CreateIssue(jiratest.IssueSpec{Project: "PROJ", Type: "Story", Summary: "a", Parent: epic, Labels: []string{"x"}})
-	b := s.CreateIssue(jiratest.IssueSpec{Project: "PROJ", Type: "Task", Summary: "b", Status: "In Progress", Assignee: jiratest.MiaID})
-	c := s.CreateIssue(jiratest.IssueSpec{Project: "PROJ", Type: "Bug", Summary: "c", Priority: "High", Status: "Won't Do"})
+	a := s.CreateIssue(jiratest.IssueSpec{Project: "PROJ", Type: "Story", Summary: "a"})
+	b := s.CreateIssue(jiratest.IssueSpec{Project: "PROJ", Type: "Task", Summary: "b"})
+	c := s.CreateIssue(jiratest.IssueSpec{Project: "PROJ", Type: "Bug", Summary: "c", Priority: "High"})
 	ids := map[string]string{}
 	for _, k := range []string{epic, a, b, c} {
 		ids[k] = s.Issue(k).ID
@@ -209,14 +208,9 @@ func TestJQLClauses(t *testing.T) {
 		{`project in (PROJ) AND key in (` + a + `, ` + c + `) ORDER BY key`, []string{a, c}},
 		{`id in (` + ids[b] + `,` + ids[c] + `) ORDER BY id ASC`, []string{b, c}},
 		{`issuekey = ` + b, []string{b}},
-		{`project = PROJ AND parent = ` + epic, []string{a}},
-		{`project = PROJ AND parent is EMPTY ORDER BY key`, []string{epic, b, c}},
-		{`project = PROJ AND status = "In Progress"`, []string{b}},
-		{`project = PROJ AND statusCategory = done`, []string{c}},
-		{`project = PROJ AND issuetype in (Bug, Epic) ORDER BY key`, []string{epic, c}},
-		{`project = PROJ AND type != Epic AND NOT (labels = x) ORDER BY key`, []string{b, c}},
-		{`project = PROJ AND (labels = x OR assignee = currentUser()) ORDER BY key`, []string{a, b}},
-		{`project = PROJ AND assignee is not EMPTY`, []string{b}},
+		// the sync's retry of failed issues
+		{`project = PROJ AND (updated >= "2099/01/01 00:00" OR id in (` + ids[a] + `, ` + ids[c] + `)) ORDER BY updated ASC, id ASC`, []string{a, c}},
+		{`project = PROJ AND created >= "2000/01/01 00:00" ORDER BY created ASC, id ASC`, []string{epic, a, b, c}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.jql, func(t *testing.T) {
@@ -249,10 +243,6 @@ func TestJQLTimeZones(t *testing.T) {
 	require.False(t, match(`project = PROJ AND updated <= "2026/07/01 09:00"`), "the site's wall clock is not the user's")
 	require.True(t, match(`project = PROJ AND updated >= "2026/07/01"`), "a date is midnight in the user's zone")
 	require.False(t, match(`project = PROJ AND updated >= "2026-07-02"`))
-	require.True(t, match(`project = PROJ AND created > "-5m"`))
-	require.True(t, match(`project = PROJ AND updated >= -1h`))
-	require.False(t, match(`project = PROJ AND updated < "-1d"`))
-	require.True(t, match(`project = PROJ AND updated >= "-1w 2d"`))
 
 	t.Run("an anonymous caller is read in the site zone", func(t *testing.T) {
 		r := search(t, s, url.Values{"jql": {`project = PROJ AND updated >= "2026/07/01 09:00"`}}, noAuth)
@@ -268,8 +258,6 @@ func TestSearchOrderAndDefaults(t *testing.T) {
 	require.Equal(t, []string{keys[0], keys[2], keys[1]}, keysOf(t, m))
 	m = search(t, s, url.Values{"jql": {"project = PROJ"}, "fields": {"key"}}).obj(t)
 	require.Equal(t, []string{keys[2], keys[1], keys[0]}, keysOf(t, m), "created DESC by default")
-	m = search(t, s, url.Values{"jql": {"project = PROJ ORDER BY Rank"}, "fields": {"key"}}).obj(t)
-	require.Equal(t, keys, keysOf(t, m))
 }
 
 func TestSearchPost(t *testing.T) {
