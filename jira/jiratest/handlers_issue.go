@@ -147,6 +147,7 @@ func (s *Server) create(up *issueUpdate, author string, screen func(*IssueType, 
 	for _, pr := range up.Properties {
 		rec.props[pr.Key] = pr.Value
 	}
+	s.indexProps(rec)
 	var trErr *apiError
 	if up.Transition != nil {
 		if err := s.transition(rec, rawID(up.Transition.ID), &issueUpdate{}, author); err != nil {
@@ -245,6 +246,9 @@ func (s *Server) edit(rec *record, up *issueUpdate, author string) error {
 	s.commit(rec, next, author, len(app.comments) > 0)
 	for _, p := range up.Properties {
 		rec.props[p.Key] = p.Value
+	}
+	if len(up.Properties) > 0 {
+		s.indexProps(rec)
 	}
 	return nil
 }
@@ -413,6 +417,7 @@ func (s *Server) setProperty(c *call) (int, any, error) {
 	key := c.v("propertyKey")
 	_, existed := rec.props[key]
 	rec.props[key] = append(json.RawMessage(nil), v...)
+	s.indexProps(rec)
 	if existed {
 		return http.StatusOK, nil, nil
 	}
@@ -429,5 +434,6 @@ func (s *Server) deleteProperty(c *call) (int, any, error) {
 		return 0, nil, notFound(fmt.Sprintf("The property with key '%s' does not exist.", key))
 	}
 	delete(rec.props, key)
+	s.indexProps(rec)
 	return http.StatusNoContent, nil, nil
 }

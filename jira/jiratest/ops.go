@@ -347,6 +347,7 @@ func (a *Actor) SetProperty(key, prop string, value any) {
 		}
 		b, err := json.Marshal(value)
 		rec.props[prop] = b
+		a.s.indexProps(rec)
 		return err
 	})
 }

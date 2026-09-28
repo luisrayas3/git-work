@@ -72,15 +72,15 @@ func (e *engine) create(ic *cache.IssueCache) error {
 	for _, k := range sent {
 		line.exported(k, local.Fields[k])
 	}
-	return e.resume(ic, ref.ID, local, sent, line)
-}
-
-// resume continues a create whose POST landed, from its create base.
-func (e *engine) resume(ic *cache.IssueCache, jiraId string, local Doc, sent []string, line Line) error {
-	ri, cs, err := e.read(jiraId)
+	ri, cs, err := e.read(ref.ID)
 	if err != nil {
 		return e.fail(line, err)
 	}
+	return e.resume(ic, ri, cs, local, sent, line)
+}
+
+// resume continues a create whose POST landed, from its create base.
+func (e *engine) resume(ic *cache.IssueCache, ri *jiraapi.Issue, cs []jiraapi.Comment, local Doc, sent []string, line Line) error {
 	line.Jira = ri.Key
 	b := createBase(local, e.m.FromJira(ri, cs, e.ix), sent)
 	return e.converge(ic, b, ri, cs, map[string]string{MetaId: ri.ID, MetaAlias: ri.Key}, line)
@@ -150,12 +150,23 @@ func (e *engine) linkCreated(ic *cache.IssueCache, jiraId string) error {
 		e.report(line)
 		return nil
 	}
-	e.ix.AddIssue(jiraId, id)
+	// I4: the search's copy of the property found it; the database decides
+	ri, cs, err := e.read(jiraId)
+	if err != nil {
+		return e.fail(line, err)
+	}
+	if from := propertyOf(ri.Properties[PropertyKey]).Id; from != id {
+		line.Action = ActionSkipped
+		line.Pending = append(line.Pending, Skip{Key: "*", Reason: "Jira's " + ri.Key + " no longer names this issue in its git-work property"})
+		e.report(line)
+		return nil
+	}
+	e.ix.AddIssue(ri.ID, id)
 	snap := ic.Snapshot()
 	typ, _ := issue.String(snap.Fields[typeKey])
 	local := e.m.Local(snap, typ)
 	_, sent, _ := e.m.Create(local, id, e.ix)
-	return e.resume(ic, jiraId, local, sent, line)
+	return e.resume(ic, ri, cs, local, sent, line)
 }
 
 // linkRequest links a local issue created with aliases: {jira: KEY}; it is
@@ -184,10 +195,8 @@ func (e *engine) linkRequest(ic *cache.IssueCache) error {
 	if other, ok := e.ix.Issue(ri.ID); ok && other != id {
 		return skip(key + " is already linked to " + other.Human())
 	}
-	if raw, err := e.c.GetProperty(e.ctx, ri.ID, PropertyKey); err == nil {
-		if from := propertyOf(raw).Id; from != "" && from != id {
-			return skip(key + " was created from another issue, " + from.Human())
-		}
+	if from := propertyOf(ri.Properties[PropertyKey]).Id; from != "" && from != id {
+		return skip(key + " was created from another issue, " + from.Human())
 	}
 	e.ix.AddIssue(ri.ID, id)
 	b := &Base{V: baseVersion, Id: ri.ID, Key: ri.Key, Fields: map[string]issue.Value{}}

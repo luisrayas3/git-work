@@ -1198,6 +1198,47 @@ func TestAdvStaleReadsRevertLocalEdit(t *testing.T) {
 	require.Equal(t, `"edited here"`, field(t, ic, "title"), "converged on the edit")
 }
 
+// I2: a write the re-read does not show is not recorded as the base, so if
+// Jira then shows the old value the local edit is exported again, never
+// silently replaced by the old value.
+func TestAdvUnconfirmedWriteNotBase(t *testing.T) {
+	w := newWorld(t, jiratest.WithStaleReads())
+	key := w.srv.CreateIssue(jiratest.IssueSpec{Project: "PROJ", Type: "Task", Summary: "Stale"})
+	w.mustSync(jira.Options{})
+	w.mustSync(jira.Options{})
+	ic := w.byKey(key)
+	w.set(ic.Id(), "title", str("edited here"))
+	w.mustSync(jira.Options{})
+	b, _ := jira.CurrentBase(ic.Snapshot())
+	require.Equal(t, `"Stale"`, string(b.Fields["title"]), "the unobserved write is not the base")
+
+	w.srv.Edit(key, map[string]any{"summary": "Stale"}) // Jira shows the old value
+	w.converge(4)
+	require.Equal(t, `"edited here"`, field(t, ic, "title"), "the local edit survives")
+	require.Equal(t, "edited here", w.srv.Issue(key).Summary, "and is exported again")
+}
+
+// I4: a link repair by property trusts the database, not the search's
+// copy: a property changed in Jira while the index lags links nothing.
+func TestAdvLinkRepairReadsProperty(t *testing.T) {
+	w := newWorld(t, jiratest.WithIndexLag(0, time.Minute))
+	id := w.newLocal("Created, answer lost", "", nil)
+	h := &hookRT{after: func(r *http.Request, _ int) error {
+		if r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/rest/api/3/issue") {
+			return errCrash
+		}
+		return nil
+	}}
+	_, _, err := w.runWith(context.Background(), h, jira.Options{}, true)
+	require.Error(t, err)
+	keys := w.srv.Keys()
+	require.Len(t, keys, 1)
+	w.srv.Advance(2 * time.Minute) // the issue is indexed; the property change will not be yet
+	w.srv.UI().SetProperty(keys[0], jira.PropertyKey, map[string]string{})
+	w.sync(jira.Options{})
+	require.Empty(t, jiraKeyOf(t, mustIssue(t, w.c, id)), "not linked on the search's stale property")
+}
+
 // A new local issue under stale reads: GET after POST is a 404, the issue
 // fails, and the journal and the property still prevent a duplicate.
 func TestAdvStaleReadsCreate(t *testing.T) {

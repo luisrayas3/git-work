@@ -15,9 +15,10 @@ import (
 
 // ---- one issue (JS13) ----
 
-// read is step 2: the database copy and its comments, with identities ensured.
+// read is step 2: the database copy, its git-work property and its
+// comments, with identities ensured.
 func (e *engine) read(idOrKey string) (*jiraapi.Issue, []jiraapi.Comment, error) {
-	ri, err := e.c.GetIssue(e.ctx, idOrKey, e.m.Request(), nil)
+	ri, err := e.c.GetIssue(e.ctx, idOrKey, e.m.Request(), nil, PropertyKey)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -154,6 +155,12 @@ func (e *engine) converge(ic *cache.IssueCache, b *Base, ri *jiraapi.Issue, cs [
 			return e.fail(line, err)
 		}
 		unconfirmed = e.unconfirmed(plan1.Remote, b2, remote, e.m.FromJira(ri2, cs2, e.ix))
+		// I2: a write Jira does not show yet is not a base; the prior one stays,
+		// so if Jira keeps the old value the next run exports again rather than
+		// importing the old value over the local edit
+		for _, k := range unconfirmed {
+			restore(b2, b, k)
+		}
 	}
 	return e.commit(ic, b2, ri2, cs2, pairs, meta, unconfirmed, line)
 }
@@ -178,6 +185,20 @@ func (e *engine) unconfirmed(written []Change, b2 *Base, r, r2 Doc) []string {
 		}
 	}
 	return keys
+}
+
+// restore sets key's base in b2 back to prior's (none for a nil prior).
+func restore(b2, prior *Base, key string) {
+	if prior == nil {
+		prior = &Base{}
+	}
+	if key == BodyKey {
+		b2.Body = prior.Body
+	} else if v, ok := prior.Fields[key]; ok {
+		b2.Fields[key] = v
+	} else {
+		delete(b2.Fields, key)
+	}
 }
 
 // commit is step 6: the second merge, decided under the lock on the fresh
@@ -256,11 +277,7 @@ func (e *engine) admit(plan *Plan, typ string, prior *Base) []Skip {
 			continue
 		}
 		refused[lc.Key] = true
-		if bv, ok := prior.Fields[lc.Key]; ok {
-			plan.Base.Fields[lc.Key] = bv
-		} else {
-			delete(plan.Base.Fields, lc.Key)
-		}
+		restore(&plan.Base, prior, lc.Key)
 		plan.Base.Retry = append(plan.Base.Retry, lc.Key)
 		skips = append(skips, Skip{Key: lc.Key, Reason: err.Error(), Retry: true})
 	}

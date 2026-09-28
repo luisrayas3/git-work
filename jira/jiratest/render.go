@@ -342,6 +342,7 @@ type renderOpts struct {
 	sel    fieldSel
 	expand map[string]bool
 	props  []string
+	search bool // properties as the index has them
 }
 
 func parseExpand(vals ...string) map[string]bool {
@@ -401,15 +402,19 @@ func (s *Server) issueJSON(rec *record, st *issueState, o renderOpts) map[string
 		out["transitions"] = s.transitionsJSON(st, false)
 	}
 	if len(o.props) > 0 {
+		src := rec.props
+		if o.search {
+			src = s.indexedProps(rec)
+		}
 		props := map[string]any{}
 		for _, k := range o.props {
 			if k == "*all" {
-				for pk, v := range rec.props {
+				for pk, v := range src {
 					props[pk] = v
 				}
 				continue
 			}
-			if v, ok := rec.props[k]; ok {
+			if v, ok := src[k]; ok {
 				props[k] = v
 			}
 		}

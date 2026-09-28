@@ -140,7 +140,33 @@ type record struct {
 	versions  []version
 	histories []*history
 	props     map[string]json.RawMessage
+	propLog   []propVersion // what search sees of props, lagging like versions
 	writes    []time.Time
+}
+
+type propVersion struct {
+	props map[string]json.RawMessage
+	at    time.Time
+	tick  int
+}
+
+// indexProps records rec's properties for search, which sees them through
+// the same lag as fields: entity properties are indexed like fields, and
+// nothing vetted says they reach the index sooner (I4 relies on this).
+func (s *Server) indexProps(rec *record) {
+	rec.propLog = append(rec.propLog, propVersion{maps.Clone(rec.props), s.clock(), s.tick})
+}
+
+// indexedProps is the newest property set older than the lag.
+func (s *Server) indexedProps(rec *record) map[string]json.RawMessage {
+	now := s.clock()
+	for i := len(rec.propLog) - 1; i >= 0; i-- {
+		v := rec.propLog[i]
+		if s.tick-v.tick > s.cfg.lagSearches && now.Sub(v.at) >= s.cfg.lagDuration {
+			return v.props
+		}
+	}
+	return nil
 }
 
 func (s *Server) seed(site Site) error {

@@ -146,7 +146,7 @@ func (s *Server) search(c *call, req searchReq) (int, any, error) {
 			perIssue[k] = true
 		}
 	}
-	opts := renderOpts{sel: parseFieldSel(req.Fields, "id"), expand: perIssue, props: splitList(req.Properties)}
+	opts := renderOpts{sel: parseFieldSel(req.Fields, "id"), expand: perIssue, props: splitList(req.Properties), search: true}
 	issues := []map[string]any{}
 	names, schema := map[string]any{}, map[string]any{}
 	for _, h := range cur.results[cur.offset:end] {
