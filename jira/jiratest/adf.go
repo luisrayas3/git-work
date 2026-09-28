@@ -8,7 +8,7 @@ import (
 )
 
 // blockNodes get a localId when the fake normalises ADF, as Jira adds
-// attrs to what it stores (api-vetting.md §4.12).
+// attrs to what it stores (jira-api-vetting.md §4.12).
 var blockNodes = map[string]bool{
 	"paragraph": true, "heading": true, "blockquote": true, "bulletList": true,
 	"orderedList": true, "listItem": true, "codeBlock": true, "panel": true,

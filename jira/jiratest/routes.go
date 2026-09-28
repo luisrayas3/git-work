@@ -114,7 +114,7 @@ var selfDenying = map[string]bool{
 }
 
 // denials are the documented answers of the other operations to a caller
-// without the permission (the 404s hide existence, api.md §12.3).
+// without the permission (the 404s hide existence, jira-api.md §12.3).
 var denials = map[string]func(c *call) *apiError{
 	"getIssue":            deny404Issue,
 	"getComments":         deny404Issue,

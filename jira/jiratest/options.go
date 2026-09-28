@@ -63,14 +63,14 @@ func defaultConfig() config {
 		adfLocalIDs:        true,
 		commentProperties:  true,
 		retryAfter:         1,
-		// api.md §12.1: 20 writes per 2 s and 100 per 30 s on one issue.
+		// jira-api.md §12.1: 20 writes per 2 s and 100 per 30 s on one issue.
 		perIssue: []WriteLimit{{N: 20, Window: 2 * time.Second}, {N: 100, Window: 30 * time.Second}},
 		seed:     1,
 	}
 }
 
 // WithCommentProperties sets whether GET …/comment?expand=properties returns
-// the properties a comment was created with. api.md documents the field on
+// the properties a comment was created with. jira-api.md documents the field on
 // Comment but not the expand on the list (JS12); default true.
 func WithCommentProperties(b bool) Option { return func(c *config) { c.commentProperties = b } }
 
@@ -92,7 +92,7 @@ func WithSiteTimeZone(name string) Option { return func(c *config) { c.siteZone 
 
 // WithIndexLag makes a write invisible to search for the next `searches`
 // search requests and until d has passed on the server clock, unless the
-// issue is named in reconcileIssues (api.md §2.4). Default 1 search, 0.
+// issue is named in reconcileIssues (jira-api.md §2.4). Default 1 search, 0.
 func WithIndexLag(searches int, d time.Duration) Option {
 	return func(c *config) { c.lagSearches, c.lagDuration = searches, d }
 }
@@ -102,7 +102,7 @@ func WithIndexLag(searches int, d time.Duration) Option {
 func WithStaleReads() Option { return func(c *config) { c.staleReads = true } }
 
 // WithSearchPageCap caps a search page below the requested maxResults
-// (default 37: maxResults is advisory, api-vetting.md §4.9).
+// (default 37: maxResults is advisory, jira-api-vetting.md §4.9).
 func WithSearchPageCap(n int) Option { return func(c *config) { c.pageCap = n } }
 
 // WithMissingAuth sets what a request without credentials gets.

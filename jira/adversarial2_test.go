@@ -4,7 +4,7 @@ package jira_test
 // marker, failed-hit re-reads, the body as an ordinary key, the report and
 // --dry-run, and a long random run with the fake's harshest switches. A test
 // that found a bug skips itself with a "BUG:" reason only when the bug
-// reproduces; .jira-work/review3-bugs.md has the details.
+// reproduces.
 
 import (
 	"context"

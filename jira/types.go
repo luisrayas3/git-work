@@ -116,7 +116,7 @@ type jiraWrite struct {
 }
 
 // newLink is a link to create: Source <LinkType> Destination, as Jira ids,
-// in the orientation of POST /issueLink (api-vetting.md C1).
+// in the orientation of POST /issueLink (jira-api-vetting.md C1).
 type newLink struct {
 	LinkType            string
 	Source, Destination string

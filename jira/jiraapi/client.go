@@ -2,8 +2,8 @@
 // standard library only. It speaks JSON, retries what Jira asks it to retry,
 // and leaves the meaning of site-specific fields to its caller.
 //
-// The authority for every behaviour below is .jira-work/api.md and its
-// vetting, api-vetting.md; section numbers in comments refer to api.md.
+// The authority for every behaviour below is doc/design/bridges/jira-api.md and its
+// vetting, jira-api-vetting.md; section numbers in comments refer to jira-api.md.
 package jiraapi
 
 import (
@@ -105,7 +105,7 @@ func basic(email, token string) string {
 
 // ServerDate is the Date header of the last response received, the server's
 // clock, zero before the first response. Compare it with the local clock
-// before computing a JQL watermark (api-vetting.md §4.4).
+// before computing a JQL watermark (jira-api-vetting.md §4.4).
 func (c *Client) ServerDate() time.Time {
 	c.mu.Lock()
 	defer c.mu.Unlock()

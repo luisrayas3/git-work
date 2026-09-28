@@ -12,7 +12,7 @@ import (
 	"unicode/utf8"
 )
 
-// issueUpdate is IssueUpdateDetails (api.md §5.1, §5.3, §6.2).
+// issueUpdate is IssueUpdateDetails (jira-api.md §5.1, §5.3, §6.2).
 type issueUpdate struct {
 	Fields     map[string]json.RawMessage              `json:"fields"`
 	Update     map[string][]map[string]json.RawMessage `json:"update"`
@@ -61,14 +61,14 @@ func (s *Server) apply(st *issueState, up *issueUpdate, mode writeMode, screen f
 			return mode == modeTransition && screen(id)
 		}
 		if f := s.field(id); f != nil && f.Kind == KindRank {
-			return false // written through the agile rank API only (api.md §3.1)
+			return false // written through the agile rank API only (jira-api.md §3.1)
 		}
 		if f := s.field(id); f == nil && !isSystemField(id) {
 			return false
 		}
 		switch mode {
 		case modeEdit:
-			// PUT does not check screens, only the field context (api.md §5.3).
+			// PUT does not check screens, only the field context (jira-api.md §5.3).
 			return id == "summary" || id == "issuetype" || typeHas(st.typ, id)
 		default:
 			return screen(id)
@@ -241,7 +241,7 @@ func (s *Server) setField(st *issueState, id string, raw json.RawMessage) string
 			r, ok := parseRef(raw)
 			acc = r.AccountID
 			if acc == "" {
-				acc = r.id() // the spec's own examples send {"id"} (api.md §5.1)
+				acc = r.id() // the spec's own examples send {"id"} (jira-api.md §5.1)
 			}
 			if !ok || s.user(acc) == nil {
 				return "Specified user does not exist or you do not have required permissions"
@@ -328,7 +328,7 @@ func setDate(dst *string, raw json.RawMessage, null bool) string {
 }
 
 // setParent sets the unified parent: a sub-task's parent is a base-level
-// issue, a base issue's is an epic (api.md §8.4), in the same project.
+// issue, a base issue's is an epic (jira-api.md §8.4), in the same project.
 func (s *Server) setParent(st *issueState, raw json.RawMessage, null bool) string {
 	if null {
 		if st.typ.Subtask() {
@@ -360,7 +360,7 @@ func (s *Server) setParent(st *issueState, raw json.RawMessage, null bool) strin
 func (s *Server) setCustom(st *issueState, f *CustomField, raw json.RawMessage, null bool) string {
 	if null {
 		if f.Kind == KindSprint {
-			// null leaves the open sprint, closed ones stay (api.md §5.3).
+			// null leaves the open sprint, closed ones stay (jira-api.md §5.3).
 			st.custom[f.ID] = s.closedSprints(st)
 			if len(st.custom[f.ID].([]int)) == 0 {
 				delete(st.custom, f.ID)
@@ -424,7 +424,7 @@ func (s *Server) setCustom(st *issueState, f *CustomField, raw json.RawMessage, 
 		if sp.State == "closed" {
 			return "Issue can be assigned only active or future sprints."
 		}
-		// Only one open sprint at a time; closed ones stay (api.md §11.3).
+		// Only one open sprint at a time; closed ones stay (jira-api.md §11.3).
 		st.custom[f.ID] = append(s.closedSprints(st), id)
 	case KindRank:
 		return fmt.Sprintf(msgCannotSetFmt, f.ID)

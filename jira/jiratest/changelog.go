@@ -19,7 +19,7 @@ func strOrNil(s string) *string {
 }
 
 // diff is the changelog entry that turns a into b. The item shapes follow
-// api.md §4.1 as vetted: labels as whole space-joined sets, the parent as
+// jira-api.md §4.1 as vetted: labels as whole space-joined sets, the parent as
 // IssueParentAssociation with no fieldId (C2), Sprint ids comma-space
 // joined (C8), links as Link items with no fieldId.
 func (s *Server) diff(a, b *issueState) []item {

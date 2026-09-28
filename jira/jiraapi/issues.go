@@ -189,7 +189,7 @@ func (c *Client) GetProperty(ctx context.Context, idOrKey, key string) (json.Raw
 
 // SetProperty writes an issue property, value being any non-empty JSON of at
 // most 32768 characters, and reports whether it was created rather than
-// replaced (api-vetting.md §4.1). It neither bumps updated nor enters the
+// replaced (jira-api-vetting.md §4.1). It neither bumps updated nor enters the
 // changelog.
 func (c *Client) SetProperty(ctx context.Context, idOrKey, key string, value any) (created bool, err error) {
 	status, err := c.do(ctx, request{method: http.MethodPut, path: "/rest/api/3/issue/" + esc(idOrKey) + "/properties/" + esc(key), body: value})

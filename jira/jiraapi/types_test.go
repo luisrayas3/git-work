@@ -13,7 +13,7 @@ func TestTimeParsing(t *testing.T) {
 		want   time.Time
 		offset int
 	}{
-		{`"2015-12-02T07:39:15.000-0800"`, want, -8 * 3600}, // api-vetting.md C4
+		{`"2015-12-02T07:39:15.000-0800"`, want, -8 * 3600}, // jira-api-vetting.md C4
 		{`"2015-12-02T07:39:15-0800"`, want, -8 * 3600},
 		{`"2015-12-02T15:39:15.000+0000"`, want, 0},
 		{`"2015-12-02T15:39:15.000Z"`, want, 0},

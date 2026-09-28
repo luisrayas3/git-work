@@ -11,7 +11,7 @@ import (
 
 // Time is a Jira timestamp. It parses the platform form
 // "2015-12-02T07:39:15.000-0800", with or without milliseconds, and the
-// RFC 3339 forms ("Z", "+10:00") sprint dates use (§13, api-vetting.md C3,
+// RFC 3339 forms ("Z", "+10:00") sprint dates use (§13, jira-api-vetting.md C3,
 // C4). The offset of the response is kept: it is the site's zone, not the
 // caller's (C6). JSON null and "" decode to the zero Time, which encodes as
 // null. A JSON number is epoch seconds, or milliseconds above 1e11, the form
@@ -358,7 +358,7 @@ type Comment struct {
 	Updated      Time            `json:"updated"`
 	Visibility   *Visibility     `json:"visibility,omitempty"`
 	// Properties are set with expand=properties, which Comments sends; that
-	// the list endpoint honours it is unverified (api.md §7.1).
+	// the list endpoint honours it is unverified (jira-api.md §7.1).
 	Properties []CommentProperty `json:"properties,omitempty"`
 }
 
@@ -431,7 +431,7 @@ type ServerInfo struct {
 	ServerTitle    string `json:"serverTitle,omitempty"`
 }
 
-// Property is an entity property set inline on create (api-vetting.md §4.1).
+// Property is an entity property set inline on create (jira-api-vetting.md §4.1).
 type Property struct {
 	Key   string `json:"key"`
 	Value any    `json:"value"`

@@ -282,7 +282,7 @@ func TestSearchJQLStops(t *testing.T) {
 	}
 }
 
-// The realistic shape of api.md §3.1, not the spec's bogus example.
+// The realistic shape of jira-api.md §3.1, not the spec's bogus example.
 const issue12 = `{
   "expand": "renderedFields,names,schema,operations,editmeta,changelog,versionedRepresentations",
   "id": "10042", "key": "PROJ-12", "self": "https://your-domain.atlassian.net/rest/api/3/issue/10042",

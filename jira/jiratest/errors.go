@@ -6,7 +6,7 @@ import (
 	"strings"
 )
 
-// apiError is Jira's ErrorCollection with the status it goes out with (api.md §12.2).
+// apiError is Jira's ErrorCollection with the status it goes out with (jira-api.md §12.2).
 type apiError struct {
 	status   int
 	messages []string

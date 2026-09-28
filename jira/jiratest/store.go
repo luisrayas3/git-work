@@ -92,7 +92,7 @@ type comment struct {
 	created      time.Time
 	updated      time.Time
 	visibility   json.RawMessage
-	properties   []property // set inline on create (api.md §7.2)
+	properties   []property // set inline on create (jira-api.md §7.2)
 }
 
 // property is an entity property: {key, value}.
@@ -317,7 +317,7 @@ func (s *Server) linkType(id, name string) *LinkType {
 }
 
 // lookup finds a live issue by id or key; a key that no longer matches is
-// resolved "case-insensitively and for moved issues" (api.md §3.1).
+// resolved "case-insensitively and for moved issues" (jira-api.md §3.1).
 func (s *Server) lookup(idOrKey string) *record {
 	id, err := strconv.Atoi(idOrKey)
 	if err != nil {
@@ -384,7 +384,7 @@ func (s *Server) newRank() string {
 	return "0|i" + fmt.Sprintf("%05s", strconv.FormatInt(int64(s.next.rank), 36)) + ":"
 }
 
-// checkWriteLimit applies the per-issue write limits (api.md §12.1) and
+// checkWriteLimit applies the per-issue write limits (jira-api.md §12.1) and
 // counts the write when it passes.
 func (s *Server) checkWriteLimit(recs ...*record) error {
 	now := s.clock()

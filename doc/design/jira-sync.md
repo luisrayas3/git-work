@@ -712,7 +712,7 @@ user (the runner) — at Jira's `updated` for imports, at now for the rest.
 
 Relations resolve through the `Index`, built once per run from excerpts'
 `jira-id` and identities' `jira-account-id`, and extended as the run imports
-and creates. Links follow `api-vetting.md` C1: in `POST /issueLink`
+and creates. Links follow `jira-api-vetting.md` C1: in `POST /issueLink`
 `inwardIssue` is the source, so `{inwardIssue:A, outwardIssue:B, type:Blocks}`
 means A blocks B; viewing A, `issuelinks` holds `{outwardIssue:B}`. The
 relation is stored on the source only, so `fromIssue` reads only entries with

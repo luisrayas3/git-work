@@ -23,7 +23,7 @@ var divergences = []divergence{
 // readsBack is when entity/dag's reversed BFS happens to be topological for
 // a two-branch merge: the local (first-parent) branch equal to the remote
 // one or one commit longer. Anything else leaves the local ref on a merge
-// commit that dag.Read refuses; see .jira-work/dag-bug.md.
+// commit that dag.Read refuses; see doc/design/dag-read-order.md.
 func (d divergence) readsBack() bool {
 	return d.local == d.remote || d.local == d.remote+1
 }
@@ -33,7 +33,7 @@ func (d divergence) skipBug(t *testing.T) {
 	if !d.readsBack() && os.Getenv("GIT_WORK_DAG_REPRO") == "" {
 		t.Skip("BUG: entity/dag read() orders a merged history by reversed BFS, which is not topological " +
 			"when the two branches differ by more than one commit (or the remote one is longer): " +
-			"'creation lamport time not set'. GIT_WORK_DAG_REPRO=1 runs it. See .jira-work/dag-bug.md")
+			"'creation lamport time not set'. GIT_WORK_DAG_REPRO=1 runs it. See doc/design/dag-read-order.md")
 	}
 }
 

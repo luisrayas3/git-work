@@ -154,7 +154,7 @@ func CompanySite() Site {
 // TeamSite is a team-managed (next-gen) site with one project, TEAM:
 // simplified, project-scoped types and statuses, transitions from any
 // status to any, and a project-scoped "Story point estimate" of type float
-// (api-vetting.md C10: the jsw key is not guaranteed).
+// (jira-api-vetting.md C10: the jsw key is not guaranteed).
 func TeamSite() Site {
 	const (
 		todo   = "10030"

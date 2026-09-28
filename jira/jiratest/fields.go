@@ -5,7 +5,7 @@ import (
 	"strings"
 )
 
-// systemField is a FieldDetails of a system field (api.md §8.1).
+// systemField is a FieldDetails of a system field (jira-api.md §8.1).
 type systemField struct {
 	id, name   string
 	schema     map[string]any
@@ -88,7 +88,7 @@ func (f *CustomField) numericID() int {
 	return n
 }
 
-// schema is the JsonTypeBean (api.md §3.2): Sprint is array of "json" (R6).
+// schema is the JsonTypeBean (jira-api.md §3.2): Sprint is array of "json" (R6).
 func (f *CustomField) schema() map[string]any {
 	m := map[string]any{"custom": f.customKey(), "customId": f.numericID()}
 	switch f.Kind {
@@ -118,7 +118,7 @@ func (f *CustomField) operations() []string {
 }
 
 // fieldSel is a parsed fields parameter: *all, *navigable, ids, and -id
-// exclusions, comma-separated or repeated (api.md §2.1, §3.1).
+// exclusions, comma-separated or repeated (jira-api.md §2.1, §3.1).
 type fieldSel struct {
 	all, nav bool
 	ids      map[string]bool

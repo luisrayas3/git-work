@@ -10,7 +10,7 @@ import (
 )
 
 // Myself is the caller. Call it first: a missing Authorization runs calls
-// anonymously and answers 200 with nothing in it (api-vetting.md §4.14).
+// anonymously and answers 200 with nothing in it (jira-api-vetting.md §4.14).
 func (c *Client) Myself(ctx context.Context) (*User, error) {
 	var u User
 	if err := c.get(ctx, "/rest/api/3/myself", nil, &u); err != nil {

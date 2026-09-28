@@ -2,7 +2,7 @@
 // served over net/http/httptest, for the tests of the Jira client, of schema
 // discovery and of the sync engine.
 //
-// It is written from .jira-work/api.md and api-vetting.md, not from the
+// It is written from doc/design/bridges/jira-api.md and jira-api-vetting.md, not from the
 // client: it imports nothing from jira/jiraapi and speaks raw JSON with its
 // own types, so a wrong struct tag in the client fails a test instead of
 // being mirrored. Where the documentation leaves a behaviour open, the fake
@@ -396,7 +396,7 @@ func (s *Server) rateLimited(c *call) bool {
 	return false
 }
 
-// write429 is the documented 429 (api.md §12.1, api-vetting.md R19).
+// write429 is the documented 429 (jira-api.md §12.1, jira-api-vetting.md R19).
 func (s *Server) write429(w http.ResponseWriter, reason string, retryAfter, limit int, reset time.Time) {
 	writeError(w, rateError(reason, retryAfter, limit, reset))
 }

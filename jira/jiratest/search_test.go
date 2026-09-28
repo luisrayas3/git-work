@@ -26,7 +26,7 @@ func TestSearchDefaultsToIDs(t *testing.T) {
 	seedTasks(t, s, 2)
 	m := search(t, s, url.Values{"jql": {"project = PROJ ORDER BY id ASC"}}).obj(t)
 	require.Equal(t, []any{map[string]any{"id": "10001"}, map[string]any{"id": "10002"}}, m["issues"],
-		"by default, IDs only (api.md §2.1)")
+		"by default, IDs only (jira-api.md §2.1)")
 	require.Equal(t, true, m["isLast"])
 	require.NotContains(t, m, "nextPageToken", "omitted on the last page (R13)")
 	require.NotContains(t, m, "total")

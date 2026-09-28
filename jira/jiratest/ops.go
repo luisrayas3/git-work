@@ -277,7 +277,7 @@ func (a *Actor) Delete(key string) {
 
 // Move moves the issue to another project, under a type of the same name,
 // and returns its new key. The id stays; the old key keeps resolving
-// (api-vetting.md §4.7); the changelog gets Key and project items.
+// (jira-api-vetting.md §4.7); the changelog gets Key and project items.
 func (a *Actor) Move(key, projectKey string) string {
 	a.s.t.Helper()
 	var newKey string

@@ -23,7 +23,7 @@ import (
 //
 // Fields: project, key/issuekey, id, updated, created. A syntax error is a
 // 400 in Jira's words; a field or an operator the fake does not implement
-// is a 400 saying so. Dates are read in the caller's profile zone (api.md
+// is a 400 saying so. Dates are read in the caller's profile zone (jira-api.md
 // §2.5, C6).
 
 type tokKind int
@@ -322,14 +322,14 @@ func (e *jqlEnv) clause(c *jqlClause) (pred, *apiError) {
 			}
 			// Jira validates an id the way it validates a key: one that names no
 			// issue the caller can see, deleted or hidden, fails the whole query.
-			// The vetted docs (api.md, api-vetting.md) are silent on id, so the
+			// The vetted docs (jira-api.md, jira-api-vetting.md) are silent on id, so the
 			// fake takes the answer worse for a client, the 400 a key gets.
 			if e.user != nil && (e.hidden || e.s.lookup(v) == nil) {
 				return nil, jqlError("An issue with key '%s' does not exist for field '%s'.", v, c.field)
 			}
 			match = append(match, func(st *issueState) bool { return st.id == n })
 		default:
-			// Old keys resolve to the moved issue (api-vetting.md §4.7).
+			// Old keys resolve to the moved issue (jira-api-vetting.md §4.7).
 			rec := e.s.lookup(v)
 			if rec == nil {
 				return nil, jqlError("An issue with key '%s' does not exist for field '%s'.", v, c.field)
@@ -342,7 +342,7 @@ func (e *jqlEnv) clause(c *jqlClause) (pred, *apiError) {
 	}, nil
 }
 
-// dateClause reads a literal in the caller's zone (api.md §2.5): to the
+// dateClause reads a literal in the caller's zone (jira-api.md §2.5): to the
 // minute, or a date alone as midnight.
 func (e *jqlEnv) dateClause(c *jqlClause, field string) (pred, *apiError) {
 	var t time.Time

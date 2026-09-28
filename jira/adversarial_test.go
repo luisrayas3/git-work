@@ -2,8 +2,7 @@ package jira_test
 
 // Adversarial end-to-end scenarios: ways a sync loses data, duplicates, or
 // never converges. A test that found a bug is kept and skipped with a
-// "BUG:" reason, so the suite stays green; .jira-work/review1-bugs.md has
-// the details.
+// "BUG:" reason, so the suite stays green.
 
 import (
 	"context"

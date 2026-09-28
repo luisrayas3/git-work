@@ -7,7 +7,7 @@ import (
 )
 
 // available are the transitions out of the issue's status: its own
-// edges and the global ones (api.md §6.1, §8.12).
+// edges and the global ones (jira-api.md §6.1, §8.12).
 func available(st *issueState) []Transition {
 	var out []Transition
 	for _, t := range st.typ.Workflow.Transitions {
@@ -54,7 +54,7 @@ func (s *Server) getTransitions(c *call) (int, any, error) {
 		return 0, nil, issueNotFound()
 	}
 	list := []map[string]any{}
-	// Without Transition issues the list is empty, not a 403 (api.md §6.1).
+	// Without Transition issues the list is empty, not a 403 (jira-api.md §6.1).
 	if !c.denied {
 		withFields := parseExpand(c.q["expand"]...)["transitions.fields"]
 		for _, t := range available(rec.cur) {

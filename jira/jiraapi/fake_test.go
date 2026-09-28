@@ -1,7 +1,7 @@
 package jiraapi_test
 
 // The cross-check of the client against the fake Jira of package jiratest.
-// The two were written independently from .jira-work/api.md and its
+// The two were written independently from doc/design/bridges/jira-api.md and its
 // vetting; a test failing here means one of them misread the reference.
 
 import (
@@ -139,7 +139,7 @@ func TestFakeAuth(t *testing.T) {
 	wantStatus(t, err, 401)
 
 	// A missing header runs anonymously: /myself refuses, search is an
-	// empty 200, which is why Myself comes first (api-vetting.md §4.14).
+	// empty 200, which is why Myself comes first (jira-api-vetting.md §4.14).
 	srv.CreateIssue(jiratest.IssueSpec{Project: "PROJ", Type: "Task", Summary: "hidden"})
 	anon := jiraapi.New(jiraapi.Config{BaseURL: srv.URL(), HTTPClient: &http.Client{Transport: stripAuth{}}})
 	_, err = anon.Myself(ctx)

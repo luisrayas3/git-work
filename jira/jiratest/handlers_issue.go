@@ -91,7 +91,7 @@ func (s *Server) create(up *issueUpdate, author string, screen func(*IssueType, 
 		return nil, nil, fieldErrors(errs)
 	}
 	var t *IssueType
-	// Only {"id"} identifies the type; the name form is not relied on (api-vetting.md §3).
+	// Only {"id"} identifies the type; the name form is not relied on (jira-api-vetting.md §3).
 	if r, ok := parseRef(up.Fields["issuetype"]); ok && r.id() != "" {
 		for i := range p.def.IssueTypes {
 			if p.def.IssueTypes[i].ID == r.id() {
@@ -187,7 +187,7 @@ func unset(st *issueState, id string) bool {
 }
 
 // checkProperties validates inline properties: a key, and a non-empty
-// JSON value of at most 32768 characters (api-vetting.md §4.1).
+// JSON value of at most 32768 characters (jira-api-vetting.md §4.1).
 func checkProperties(up *issueUpdate) string {
 	for _, p := range up.Properties {
 		if p.Key == "" || len(p.Key) > 255 {
@@ -265,7 +265,7 @@ func (s *Server) deleteIssue(c *call) (int, any, error) {
 }
 
 // delete drops the issue; search stops returning it once the index
-// catches up, and nothing records it (api-vetting.md §4.5).
+// catches up, and nothing records it (jira-api-vetting.md §4.5).
 func (s *Server) delete(rec *record, subtasks bool, author string) error {
 	kids := s.children(rec.cur.id)
 	var subs []*issueState
@@ -340,7 +340,7 @@ func paging(c *call, def, limit int) (int, int, error) {
 }
 
 // fieldMeta is a FieldMetadata (editmeta, transition screens) or, with
-// fieldId added, a FieldCreateMetadata (api.md §8.8, §8.9).
+// fieldId added, a FieldCreateMetadata (jira-api.md §8.8, §8.9).
 func (s *Server) fieldMeta(p *project, t *IssueType, id string, required bool) map[string]any {
 	ops := []string{"set"}
 	if f := sysField(id); f != nil {
@@ -401,7 +401,7 @@ func (s *Server) getProperty(c *call) (int, any, error) {
 }
 
 // setProperty is the sync marker's write: 201 created, 200 updated, and
-// neither updated nor the changelog moves (api-vetting.md §3).
+// neither updated nor the changelog moves (jira-api-vetting.md §3).
 func (s *Server) setProperty(c *call) (int, any, error) {
 	rec := s.lookup(c.v("issueIdOrKey"))
 	if rec == nil {

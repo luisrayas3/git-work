@@ -62,7 +62,7 @@ func (s *Server) getComments(c *call) (int, any, error) {
 		}
 		page = append(page, m)
 	}
-	// The legacy offset shape: no isLast (api.md §0).
+	// The legacy offset shape: no isLast (jira-api.md §0).
 	return http.StatusOK, map[string]any{"startAt": start, "maxResults": max, "total": len(cs), "comments": page}, nil
 }
 

@@ -8,7 +8,7 @@ import (
 )
 
 // searchReq is SearchAndReconcileRequestBean; expand is a comma-delimited
-// string even in the POST body (api.md §2.1).
+// string even in the POST body (jira-api.md §2.1).
 type searchReq struct {
 	JQL             string   `json:"jql"`
 	NextPageToken   string   `json:"nextPageToken"`
@@ -57,7 +57,7 @@ func (s *Server) env(c *call) (*jqlEnv, error) {
 }
 
 // query runs a JQL query against the index, with the reconciled ids read
-// from the database (api.md §2.4).
+// from the database (jira-api.md §2.4).
 func (s *Server) query(c *call, jql string, reconcile []int64) ([]hit, error) {
 	q, perr := parseJQL(jql)
 	if perr != nil {
@@ -126,7 +126,7 @@ func (s *Server) search(c *call, req searchReq) (int, any, error) {
 		if cur.fingerprint != req.JQL {
 			return 0, nil, badRequest("The JQL query does not match the one of the next page token.")
 		}
-		// The ids "should be consistent with each paginated request" (api-vetting.md §4.8).
+		// The ids "should be consistent with each paginated request" (jira-api-vetting.md §4.8).
 		if cur.reconcile != reconcile {
 			return 0, nil, badRequest("The 'reconcileIssues' parameter must be the same on every page of a search.")
 		}

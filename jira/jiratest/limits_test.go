@@ -42,7 +42,7 @@ func TestRateLimitWindow(t *testing.T) {
 	require.Equal(t, http.StatusOK, get(t, s, "/rest/api/3/serverInfo").status)
 }
 
-// TestPerIssueWriteLimit is api.md §12.1's 20 writes per 2 s on one
+// TestPerIssueWriteLimit is jira-api.md §12.1's 20 writes per 2 s on one
 // issue, on a frozen clock.
 func TestPerIssueWriteLimit(t *testing.T) {
 	s := newServer(t, jiratest.WithAutoAdvance(0))
