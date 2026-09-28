@@ -3,7 +3,6 @@ package jiracmd
 import (
 	"encoding/json"
 	"fmt"
-	"sort"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -12,6 +11,7 @@ import (
 	"github.com/git-bug/git-bug/entity"
 	"github.com/git-bug/git-bug/host"
 	"github.com/git-bug/git-bug/jira"
+	"github.com/git-bug/git-bug/util/sorted"
 )
 
 type syncOptions struct {
@@ -118,10 +118,10 @@ func textLine(l jira.Line) string {
 		parts = append(parts, "(dry run)")
 	}
 	if len(l.Imported) > 0 {
-		parts = append(parts, "imported "+strings.Join(sortedKeys(l.Imported), ","))
+		parts = append(parts, "imported "+strings.Join(sorted.Keys(l.Imported), ","))
 	}
 	if len(l.Exported) > 0 {
-		parts = append(parts, "exported "+strings.Join(sortedKeys(l.Exported), ","))
+		parts = append(parts, "exported "+strings.Join(sorted.Keys(l.Exported), ","))
 	}
 	for _, c := range l.Conflicts {
 		parts = append(parts, "conflict "+c.Key)
@@ -147,13 +147,4 @@ func orDash(s string) string {
 		return "-"
 	}
 	return s
-}
-
-func sortedKeys(m map[string]json.RawMessage) []string {
-	keys := make([]string, 0, len(m))
-	for k := range m {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-	return keys
 }

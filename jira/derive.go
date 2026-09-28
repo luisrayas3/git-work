@@ -3,6 +3,7 @@ package jira
 import (
 	"encoding/json"
 	"fmt"
+	"maps"
 	"slices"
 	"sort"
 	"strings"
@@ -543,29 +544,18 @@ func copyDocument(src *schema.Document) *schema.Document {
 	}
 	for _, key := range src.Types.Keys() {
 		t, _ := src.Types.Get(key)
-		c := schema.TypeDoc{Name: t.Name, Description: t.Description, Aliases: copyMap(t.Aliases)}
+		c := schema.TypeDoc{Name: t.Name, Description: t.Description, Aliases: maps.Clone(t.Aliases)}
 		for _, fk := range t.Fields.Keys() {
 			f, _ := t.Fields.Get(fk)
-			f.Aliases = copyMap(f.Aliases)
+			f.Aliases = maps.Clone(f.Aliases)
 			f.TargetTypes = slices.Clone(f.TargetTypes)
 			f.Values = slices.Clone(f.Values)
 			for i := range f.Values {
-				f.Values[i].Aliases = copyMap(f.Values[i].Aliases)
+				f.Values[i].Aliases = maps.Clone(f.Values[i].Aliases)
 			}
 			c.SetField(fk, f)
 		}
 		out.SetType(key, c)
-	}
-	return out
-}
-
-func copyMap(m map[string]string) map[string]string {
-	if m == nil {
-		return nil
-	}
-	out := make(map[string]string, len(m))
-	for k, v := range m {
-		out[k] = v
 	}
 	return out
 }

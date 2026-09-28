@@ -224,7 +224,7 @@ func TestMergeSkipAndExport(t *testing.T) {
 	for _, s := range p.Pending {
 		keys = append(keys, s.Key)
 	}
-	require.ElementsMatch(t, []string{"status", "labels", BodyKey, CommentKey}, keys)
+	require.ElementsMatch(t, []string{"status", "labels", BodyKey, CommentKey + ":op1"}, keys)
 }
 
 // M11: Jira normalised our write back to what it held; the second merge

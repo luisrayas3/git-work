@@ -266,7 +266,7 @@ func TestDeriveCategories(t *testing.T) {
 
 	m, _, err := Compile(s.schema(t), p)
 	require.NoError(t, err)
-	v, ok := m.Canceled("task")
+	_, v, ok := m.Canceled("task")
 	require.True(t, ok)
 	require.JSONEq(t, `"canceled"`, string(v), "the first canceled value, local-only or not")
 
@@ -293,7 +293,7 @@ func TestBindingRefused(t *testing.T) {
 	fresh := &store{}
 	fresh.importDoc(t, starts(t)["preset"])
 	_, _, err = Compile(fresh.schema(t), company)
-	require.ErrorContains(t, err, "no type is mapped")
+	require.ErrorContains(t, err, "no type of the schema is mapped")
 }
 
 // D9: two entities with one alias, which two clones can produce by merging,

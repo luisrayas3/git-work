@@ -78,7 +78,7 @@ func TestDeriveThroughImport(t *testing.T) {
 }
 
 // Local and NewIndex over a real store: canonical values, pairings read
-// from operation metadata, and the index's three tables.
+// from operation metadata, and the index's tables.
 func local(t *testing.T, repo *cache.RepoCache, m *jira.Mapping) {
 	me, err := repo.GetUserIdentity()
 	require.NoError(t, err)
@@ -97,18 +97,10 @@ func local(t *testing.T, repo *cache.RepoCache, m *jira.Mapping) {
 		map[string]string{jira.MetaNote: "conflict"})
 	require.NoError(t, err)
 
-	unlinked, _, err := repo.Issues().New("Unlinked", "", map[string]issue.Value{"type": issue.StringValue("task")})
-	require.NoError(t, err)
-	archived, _, err := repo.Issues().New("Archived", "", map[string]issue.Value{"type": issue.StringValue("task"),
-		"archived": issue.Value("true")})
-	require.NoError(t, err)
-	decision, _, err := repo.Issues().New("Decision", "", map[string]issue.Value{"type": issue.StringValue("decision"),
-		"status": issue.StringValue("to-do")})
-	require.NoError(t, err)
 	ravi, err := repo.Identities().NewRaw("Ravi", "", "", "", nil, map[string]string{jira.MetaAccountId: jiratest.RaviID})
 	require.NoError(t, err)
 
-	ix, err := jira.NewIndex(repo, m)
+	ix, err := jira.NewIndex(repo)
 	require.NoError(t, err)
 	id, ok := ix.Issue("10500")
 	require.True(t, ok)
@@ -116,10 +108,9 @@ func local(t *testing.T, repo *cache.RepoCache, m *jira.Mapping) {
 	user, ok := ix.User(jiratest.RaviID)
 	require.True(t, ok)
 	require.Equal(t, ravi.Id(), user)
-	require.True(t, ix.WillExport(unlinked.Id()))
-	require.False(t, ix.WillExport(archived.Id()))
-	require.False(t, ix.WillExport(decision.Id()), "a local-only type is never exported")
-	require.False(t, ix.WillExport(linked.Id()))
+	account, ok := ix.Account(ravi.Id())
+	require.True(t, ok)
+	require.Equal(t, jiratest.RaviID, account)
 
 	doc := m.Local(linked.Snapshot(), "task")
 	require.Equal(t, `["a","b"]`, string(doc.Fields["labels"]))

@@ -13,6 +13,7 @@ import (
 
 	"github.com/git-bug/git-bug/entities/issue"
 	"github.com/git-bug/git-bug/entity"
+	"github.com/git-bug/git-bug/jira/jiraapi"
 )
 
 // Every metadata key and property the sync writes (JS8).
@@ -48,6 +49,9 @@ type Note struct {
 type Doc struct {
 	Id, Key  string                 // remote only
 	Updated  time.Time              // remote only
+	Created  time.Time              // remote only
+	Reporter string                 // remote only: an accountId
+	Status   string                 // remote only: the Jira status name
 	Type     string                 // the local type key
 	Fields   map[string]issue.Value // mapped keys, title and type included
 	Body     Text                   // comment #0, Jira's description
@@ -104,7 +108,7 @@ type Write struct {
 	Kind   WriteKind
 	Field  string          // Edit: the Jira field id
 	Set    json.RawMessage // Edit: fields.<Field>; null clears
-	Update json.RawMessage // Edit: update.<Field>, when Set cannot say it
+	Update []jiraapi.Op    // Edit: update.<Field>, when Set cannot say it
 	Status string          // Transition: the target status id
 	Add    []NewLink       // Link
 	Remove []string        // Link: issueLink ids

@@ -8,22 +8,19 @@ import (
 )
 
 // Index resolves Jira ids to entity ids and back (JS17): issues by the
-// jira-id of their create operation, identities by jira-account-id, and the
-// unlinked issues this run may export. It is built once per run and
-// extended as the run imports and creates.
+// jira-id of their create operation, identities by jira-account-id. It is
+// built once per run and extended as the run imports and creates.
 type Index struct {
 	issues     map[string]entity.Id // Jira issue id -> issue
 	jiraIssues map[entity.Id]string
 	users      map[string]entity.Id // accountId -> identity
 	accounts   map[entity.Id]string
-	exportable map[entity.Id]bool
 }
 
 // NewIndex reads every excerpt once.
-func NewIndex(repo *cache.RepoCache, m *Mapping) (*Index, error) {
+func NewIndex(repo *cache.RepoCache) (*Index, error) {
 	issues, users := map[string]entity.Id{}, map[string]entity.Id{}
 	archived := map[entity.Id]bool{}
-	var exportable []entity.Id
 	for _, id := range repo.Issues().AllIds() {
 		e, err := repo.Issues().ResolveExcerpt(id)
 		if err != nil {
@@ -37,11 +34,6 @@ func NewIndex(repo *cache.RepoCache, m *Mapping) (*Index, error) {
 				archived[other] == archived[id] && id < other {
 				issues[jid] = id
 			}
-			continue
-		}
-		typeKey, _ := issue.String(e.Fields[schema.TypeKey])
-		if _, mapped := m.IssueType(typeKey); mapped && !archived[id] {
-			exportable = append(exportable, id)
 		}
 	}
 	var holders []entity.Id
@@ -61,7 +53,7 @@ func NewIndex(repo *cache.RepoCache, m *Mapping) (*Index, error) {
 			}
 		}
 	}
-	ix := IndexOf(issues, users, exportable)
+	ix := IndexOf(issues, users)
 	for i, id := range holders {
 		ix.accounts[id] = accounts[i]
 	}
@@ -69,20 +61,16 @@ func NewIndex(repo *cache.RepoCache, m *Mapping) (*Index, error) {
 }
 
 // IndexOf builds an index from its tables, for tests.
-func IndexOf(issues, users map[string]entity.Id, exportable []entity.Id) *Index {
+func IndexOf(issues, users map[string]entity.Id) *Index {
 	ix := &Index{
 		issues: map[string]entity.Id{}, jiraIssues: map[entity.Id]string{},
 		users: map[string]entity.Id{}, accounts: map[entity.Id]string{},
-		exportable: map[entity.Id]bool{},
 	}
 	for jid, id := range issues {
 		ix.AddIssue(jid, id)
 	}
 	for account, id := range users {
 		ix.AddUser(account, id)
-	}
-	for _, id := range exportable {
-		ix.exportable[id] = true
 	}
 	return ix
 }
@@ -111,14 +99,9 @@ func (ix *Index) Account(id entity.Id) (string, bool) {
 	return account, ok
 }
 
-// WillExport says an unlinked issue of a mapped type, unarchived, will be
-// created this run: a relation to it is a Skip to retry, not a dead end.
-func (ix *Index) WillExport(id entity.Id) bool { return ix.exportable[id] }
-
 func (ix *Index) AddIssue(jiraId string, id entity.Id) {
 	ix.issues[jiraId] = id
 	ix.jiraIssues[id] = jiraId
-	delete(ix.exportable, id)
 }
 
 func (ix *Index) AddUser(accountId string, id entity.Id) {

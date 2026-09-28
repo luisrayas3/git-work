@@ -146,6 +146,9 @@ func metaId(m jiraapi.FieldMeta) string {
 	return m.Key
 }
 
+// Owns says a Jira key is this project's, by its prefix.
+func (p *Project) Owns(key string) bool { return strings.HasPrefix(key, p.Key+"-") }
+
 // cmpId orders Jira ids numerically where they are numbers, "3" before
 // "10000", and textually otherwise, `customfield_9` before `customfield_10`.
 func cmpId(a, b string) int {

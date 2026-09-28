@@ -471,7 +471,7 @@ func TestAdvCrashAtEveryWrite(t *testing.T) {
 	for _, variant := range []struct {
 		name string
 		opts []jiratest.Option
-	}{{"default", nil}, {"no-comment-props", []jiratest.Option{jiratest.WithCommentProperties(false), jiratest.WithVerbatimADF()}}} {
+	}{{"default", nil}, {"verbatim-adf", []jiratest.Option{jiratest.WithVerbatimADF()}}} {
 		t.Run(variant.name, func(t *testing.T) { crashMatrix(t, names, variant.opts) })
 	}
 }
@@ -794,7 +794,7 @@ func TestAdvE11LinkOutsideProject(t *testing.T) {
 			require.False(t, p.Retry, "nothing Retry: %+v", p)
 		}
 	}
-	require.Equal(t, `[]`, field(t, ic, "blocks"))
+	require.Empty(t, field(t, ic, "blocks"), "an empty set is not stored")
 	b, _ := jira.CurrentBase(ic.Snapshot())
 	require.Empty(t, b.Retry)
 	w.still()
@@ -836,8 +836,8 @@ func TestAdvE17CursorHoldsAtFailure(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 1, sum.Failed)
 	st, _ = jira.LoadState(w.c.LocalStorage())
-	require.False(t, st.Cursor.After(w.srv.Issue(b).Updated), "the cursor %v is not past B %v", st.Cursor, w.srv.Issue(b).Updated)
 	require.True(t, st.Cursor.After(start))
+	require.Contains(t, st.Failed, bid, "B is named in the next search, whatever the cursor (A6)")
 	require.Equal(t, `"C2"`, field(t, w.byKey(c), "title"), "C synced all the same")
 
 	lines, _ := w.mustSync(jira.Options{})
@@ -942,48 +942,6 @@ func TestAdvE24TwoIssuesOneEntity(t *testing.T) {
 	lines, _ = w.mustSync(jira.Options{Full: true})
 	require.True(t, reported(lines), "--full reports it")
 	require.Equal(t, 1, w.localIssues(), "never imported")
-}
-
-// The fallback of JS12 (comment properties unreturned): two identical
-// local comments posted before a crash pair one to one, in order.
-func TestAdvCommentFallbackIdenticalTexts(t *testing.T) {
-	w := newWorld(t, jiratest.WithCommentProperties(false))
-	key, ic := w.imported("Twins")
-	w.comment(ic, "+1")
-	w.comment(ic, "+1")
-	// the run crashes after posting both comments
-	n := 0
-	h := &hookRT{after: func(r *http.Request, i int) error {
-		if r.Method == "POST" && strings.HasSuffix(r.URL.Path, "/comment") {
-			n++
-			if n == 2 {
-				return errCrash
-			}
-		}
-		return nil
-	}}
-	_, _, err := w.runWith(context.Background(), h, jira.Options{}, true)
-	require.Error(t, err)
-	w.converge(3)
-	require.Len(t, w.srv.Issue(key).Comments, 2, "not posted again")
-	require.Len(t, ic.Snapshot().Comments, 3, "paired, not imported")
-	w.quietFull()
-}
-
-// A comment the token's account wrote in Jira itself (not from here) with
-// the same text as an unpaired local comment: the fallback pairs them, and
-// the local comment is never posted. Acceptable, but it must not lose the
-// Jira comment either.
-func TestAdvCommentFallbackForeignSameText(t *testing.T) {
-	w := newWorld(t, jiratest.WithCommentProperties(false))
-	key, ic := w.imported("Same text")
-	w.srv.As(jiratest.MiaID).AddComment(key, "LGTM")
-	w.comment(ic, "LGTM")
-	w.mustSync(jira.Options{})
-	require.GreaterOrEqual(t, len(w.srv.Issue(key).Comments), 1)
-	require.Len(t, ic.Snapshot().Comments, 2)
-	w.still()
-	w.quietFull()
 }
 
 // A comment edited on both sides: Jira's text wins, the local edit is in

@@ -22,7 +22,8 @@ type State struct {
 	Project  string                     `json:"project"`
 	Cursor   time.Time                  `json:"cursor"`             // Jira's updated, UTC (JS20)
 	Creating map[entity.Id]time.Time    `json:"creating,omitempty"` // the create journal (JS15)
-	Seen     map[entity.Id]lamport.Time `json:"seen,omitempty"`     // edit lamport after the last sync
+	Seen     map[entity.Id]lamport.Time `json:"seen,omitempty"`     // edit lamport after the last sync (JS20)
+	Failed   map[string]time.Time       `json:"failed,omitempty"`   // Jira id -> updated of a hit that failed (JS20)
 }
 
 // LoadState reads the state file; a missing one is an empty state.
@@ -49,6 +50,9 @@ func (s *State) init() *State {
 	}
 	if s.Seen == nil {
 		s.Seen = map[entity.Id]lamport.Time{}
+	}
+	if s.Failed == nil {
+		s.Failed = map[string]time.Time{}
 	}
 	return s
 }

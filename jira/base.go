@@ -1,11 +1,12 @@
 package jira
 
 import (
-	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"maps"
+	"slices"
 	"time"
 
 	"github.com/git-bug/git-bug/entities/issue"
@@ -66,17 +67,12 @@ func (b *Base) Equal(o *Base) bool {
 
 func (b *Base) clone() *Base {
 	c := *b
-	c.Fields = make(map[string]issue.Value, len(b.Fields))
-	for k, v := range b.Fields {
-		c.Fields[k] = v
+	c.Fields = maps.Clone(b.Fields)
+	if c.Fields == nil {
+		c.Fields = map[string]issue.Value{}
 	}
-	if b.Comments != nil {
-		c.Comments = make(map[string]string, len(b.Comments))
-		for k, v := range b.Comments {
-			c.Comments[k] = v
-		}
-	}
-	c.Retry = append([]string(nil), b.Retry...)
+	c.Comments = maps.Clone(b.Comments)
+	c.Retry = slices.Clone(b.Retry)
 	return &c
 }
 
@@ -121,17 +117,3 @@ func Digest(text string) string {
 	sum := sha256.Sum256([]byte("v1\n" + jiraapi.NormalizeText(text)))
 	return "v1:" + hex.EncodeToString(sum[:])
 }
-
-// canon is a value as compared: compacted JSON, absent and null alike.
-func canon(v issue.Value) issue.Value {
-	if len(v) == 0 {
-		return issue.Value("null")
-	}
-	var buf bytes.Buffer
-	if err := json.Compact(&buf, v); err != nil {
-		return v
-	}
-	return buf.Bytes()
-}
-
-func same(a, b issue.Value) bool { return bytes.Equal(canon(a), canon(b)) }

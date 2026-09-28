@@ -37,12 +37,15 @@ type JiraBinding struct {
 
 func jiraBinding(repo *cache.RepoCache) (JiraBinding, error) {
 	var b JiraBinding
-	for key, into := range map[string]*string{JiraURLKey: &b.URL, JiraProjectKey: &b.Project, JiraEmailKey: &b.Email} {
-		v, err := repo.AnyConfig().ReadString(key)
+	for _, kv := range []struct {
+		key  string
+		into *string
+	}{{JiraURLKey, &b.URL}, {JiraProjectKey, &b.Project}, {JiraEmailKey, &b.Email}} {
+		v, err := repo.AnyConfig().ReadString(kv.key)
 		if err != nil && !errors.Is(err, repository.ErrNoConfigEntry) {
 			return b, err
 		}
-		*into = strings.TrimSpace(v)
+		*kv.into = strings.TrimSpace(v)
 	}
 	if b.URL == "" || b.Project == "" || b.Email == "" {
 		return b, fmt.Errorf("this clone is not bound to a Jira project: set %s, %s and %s with git config",
@@ -142,9 +145,8 @@ func JiraSync(ctx context.Context, repo *cache.RepoCache, opts jira.Options, emi
 	if err != nil {
 		return jira.Summary{}, nil, err
 	}
-	if !typeAliased(live) {
-		return jira.Summary{}, nil, errors.New("no type of the schema is mapped to a Jira issue type yet; review the first mapping:\n" +
-			"  git work jira schema > jira.yaml\n  $EDITOR jira.yaml\n  git work schema import jira.yaml --dry-run\n  git work schema import jira.yaml")
+	if err := jira.Mapped(live); err != nil {
+		return jira.Summary{}, nil, err
 	}
 
 	doc, notes, err := jiraDerive(repo, p)
@@ -211,13 +213,4 @@ func lockJiraSync(repo *cache.RepoCache) (func(), error) {
 	}
 	_ = os.WriteFile(path, []byte(strconv.Itoa(os.Getpid())), 0o644)
 	return func() { _ = lock.Unlock() }, nil
-}
-
-func typeAliased(s *schema.Schema) bool {
-	for _, t := range s.Types {
-		if t.Aliases["jira"] != "" {
-			return true
-		}
-	}
-	return false
 }

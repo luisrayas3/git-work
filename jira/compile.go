@@ -1,11 +1,13 @@
 package jira
 
 import (
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
 
 	"github.com/git-bug/git-bug/schema"
+	"github.com/git-bug/git-bug/util/sorted"
 )
 
 // Compile turns the aliases of a loaded schema into a Mapping against one
@@ -19,6 +21,9 @@ func Compile(s *schema.Schema, p *Project) (*Mapping, []Note, error) {
 		notes = append(notes, Note{Level: level, Key: key, Message: fmt.Sprintf(format, args...)})
 	}
 
+	if err := Mapped(s); err != nil {
+		return nil, nil, err
+	}
 	var aliases []string
 	owners := map[string][]string{}
 	for _, key := range s.TypeKeys() {
@@ -26,10 +31,6 @@ func Compile(s *schema.Schema, p *Project) (*Mapping, []Note, error) {
 			aliases = append(aliases, a)
 			owners[a] = append(owners[a], key)
 		}
-	}
-	if len(aliases) == 0 {
-		return nil, nil, fmt.Errorf("no type is mapped to a Jira issue type; review the mapping first: " +
-			"git work jira schema > jira.yaml, edit it, then git work schema import jira.yaml")
 	}
 	sort.Strings(aliases)
 	if err := checkBinding(aliases, p); err != nil {
@@ -56,9 +57,9 @@ func Compile(s *schema.Schema, p *Project) (*Mapping, []Note, error) {
 		if len(owners[it.Id]) > 1 {
 			continue
 		}
-		tm := &typeMap{key: key, issueType: it.Id, fields: map[string]*fieldMap{}, screen: map[string]bool{}}
+		tm := &typeMap{key: key, issueType: it.Id, fields: map[string]*fieldMap{}, required: map[string]bool{}}
 		for _, f := range it.Screen {
-			tm.screen[metaId(f)] = true
+			tm.required[metaId(f)] = f.Required && !f.HasDefaultValue
 		}
 		m.types[key] = tm
 		m.byIssueType[it.Id] = key
@@ -109,15 +110,33 @@ func Compile(s *schema.Schema, p *Project) (*Mapping, []Note, error) {
 				dups = append(dups, fmt.Sprintf("fields %s of %s all map Jira %s", strings.Join(fks, ", "), key, ref))
 			}
 		}
-		tm.keys = append([]string{schema.TitleKey, schema.TypeKey}, sortedKeys(tm.fields)...)
+		tm.keys = append([]string{schema.TitleKey, schema.TypeKey}, sorted.Keys(tm.fields)...)
 	}
 	if len(dups) > 0 {
 		sort.Strings(dups)
 		return nil, notes, fmt.Errorf("the mapping is ambiguous (JS25): %s; state one alias per Jira id and import again",
 			strings.Join(dups, "; "))
 	}
-	m.request = sortedKeys(request)
+	m.request = sorted.Keys(request)
 	return m, notes, nil
+}
+
+// Mapped refuses a schema with no type mapped yet: the first mapping is
+// reviewed, never derived and imported by a sync (JS5).
+func Mapped(s *schema.Schema) error {
+	for _, t := range s.Types {
+		if t.Aliases[System] != "" {
+			return nil
+		}
+	}
+	return errors.New("no type of the schema is mapped to a Jira issue type yet; review the first mapping:\n" +
+		"  git work jira schema > jira.yaml\n  $EDITOR jira.yaml\n  git work schema import jira.yaml --dry-run\n  git work schema import jira.yaml")
+}
+
+// fixedKinds is JS7's table: the kind each fixed Jira field maps to.
+var fixedKinds = map[string]schema.Kind{
+	refStatus: schema.KindEnum, refPriority: schema.KindOrdinalEnum, refAssignee: schema.KindIdentity,
+	refLabels: schema.KindMultiEnum, refDue: schema.KindDate, refParent: schema.KindRelation,
 }
 
 // compileField checks one aliased field against the project and JS7's
@@ -125,20 +144,9 @@ func Compile(s *schema.Schema, p *Project) (*Mapping, []Note, error) {
 func compileField(f *schema.Field, ref string, p *Project, points string) (*fieldMap, string) {
 	fm := &fieldMap{key: f.Key, ref: ref, kind: f.Kind, field: f,
 		toJira: map[string]string{}, fromJira: map[string]string{}, excluded: map[string]bool{}}
-	var want schema.Kind
+	want, fixed := fixedKinds[ref]
 	switch {
-	case ref == refStatus:
-		want = schema.KindEnum
-	case ref == refPriority:
-		want = schema.KindOrdinalEnum
-	case ref == refAssignee:
-		want = schema.KindIdentity
-	case ref == refLabels:
-		want = schema.KindMultiEnum
-	case ref == refDue:
-		want = schema.KindDate
-	case ref == refParent:
-		want = schema.KindRelation
+	case fixed:
 	case strings.HasPrefix(ref, linkPrefix):
 		id := strings.TrimPrefix(ref, linkPrefix)
 		found := false
@@ -166,15 +174,6 @@ func compileField(f *schema.Field, ref string, p *Project, points string) (*fiel
 		return nil, fmt.Sprintf("Jira %s is a %s, this field a %s: not synced", ref, want, f.Kind)
 	}
 	return fm, ""
-}
-
-func sortedKeys[V any](m map[string]V) []string {
-	out := make([]string, 0, len(m))
-	for k := range m {
-		out = append(out, k)
-	}
-	sort.Strings(out)
-	return out
 }
 
 // isDatetime says a custom date field is Jira's datetime: RFC 3339 in UTC locally.

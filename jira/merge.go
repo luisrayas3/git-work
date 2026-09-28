@@ -1,18 +1,20 @@
 package jira
 
 import (
-	"sort"
+	"strings"
 	"time"
 
 	"github.com/git-bug/git-bug/entities/issue"
 	"github.com/git-bug/git-bug/entity"
+	"github.com/git-bug/git-bug/util/sorted"
 )
 
 // BodyKey names comment #0 wherever a key is expected: a Change for the
 // description, a conflict, a report member.
 const BodyKey = "body"
 
-// CommentKey is the key of a comment's conflict or pending entry.
+// CommentKey is the key of a comment's conflict, and the prefix of its
+// pending entry: comment:<Jira id>, or comment:<op> before it has one.
 const CommentKey = "comment"
 
 // typeKey is the built-in type field: import-only in v1 (JS18).
@@ -28,13 +30,17 @@ const (
 	LocalEditBody                     // EditComment of #0 to Text
 	LocalAddComment                   // AddComment Text, metadata jira-comment-id = JiraId
 	LocalEditComment                  // EditComment Op to Text
+	LocalTombstone                    // EditComment Op to a tombstone Text, by the runner now
 	LocalPairComment                  // SetMetadata jira-comment-id = JiraId on Op, no text
 )
+
+// isField says a change writes a field, which the schema checks.
+func (k LocalKind) isField() bool { return k == LocalSet || k == LocalAdd || k == LocalRemove }
 
 // LocalChange is one operation Merge wants committed locally.
 type LocalChange struct {
 	Kind   LocalKind
-	Key    string
+	Key    string // field kinds
 	Value  issue.Value
 	Text   string
 	Op     entity.Id
@@ -79,6 +85,30 @@ const (
 // TombstonePrefix starts the text a comment deleted in Jira is edited to.
 const TombstonePrefix = "Deleted in Jira on "
 
+// verdict is JS9's decision for one key.
+type verdict int
+
+const (
+	agree verdict = iota // l == r: converged
+	take                 // import r
+	give                 // export l
+)
+
+// decide is JS9 over comparable forms, canonical JSON for values and
+// digests for texts, for scalars, the body and comments alike. empty is what
+// an unset local compares as: taking over it is no conflict.
+func decide(b string, hasBase bool, l, r, empty string) (v verdict, conflict bool) {
+	switch {
+	case l == r:
+		return agree, false
+	case hasBase && l == b:
+		return take, false
+	case hasBase && r == b:
+		return give, false
+	}
+	return take, hasBase || l != empty
+}
+
 // Merge decides one issue per key over base b, the local and the remote
 // documents (JS9–JS12). It is pure. b nil is an issue never synced. With
 // export false every local change is pending instead of in Remote/Comments
@@ -100,7 +130,6 @@ func Merge(b *Base, local, remote Doc, multi func(key string) bool, export bool)
 			nb.Retry = append(nb.Retry, s.Key)
 		}
 	}
-
 	pending := func(key, reason string) { p.Pending = append(p.Pending, Skip{Key: key, Reason: reason}) }
 	exportOr := func(key string, write func()) {
 		if export {
@@ -110,19 +139,15 @@ func Merge(b *Base, local, remote Doc, multi func(key string) bool, export bool)
 		}
 	}
 
-	// type first (JS18), then the other keys in order.
-	keys := make([]string, 0, len(remote.Fields))
-	for k := range remote.Fields {
-		if k != typeKey && !skipped[k] {
-			keys = append(keys, k)
-		}
-	}
-	sort.Strings(keys)
-	if _, ok := remote.Fields[typeKey]; ok && !skipped[typeKey] {
+	// type first (JS18), then the other keys in order
+	keys := sorted.Keys(remote.Fields)
+	if _, ok := remote.Fields[typeKey]; ok {
 		keys = append([]string{typeKey}, keys...)
 	}
-
-	for _, k := range keys {
+	for i, k := range keys {
+		if skipped[k] || k == typeKey && i > 0 {
+			continue
+		}
 		bv, hasBase := b.Fields[k]
 		lv, rv := local.Fields[k], remote.Fields[k]
 
@@ -135,43 +160,41 @@ func Merge(b *Base, local, remote Doc, multi func(key string) bool, export bool)
 				p.Local = append(p.Local, LocalChange{Kind: LocalRemove, Key: k, Value: it, At: remote.Updated})
 			}
 			if len(rAdd)+len(rRem) == 0 {
-				nb.Fields[k] = canon(issue.ItemsValue(merged))
+				nb.Fields[k] = merged
 			} else {
 				exportOr(k, func() { p.Remote = append(p.Remote, Change{Key: k, Add: rAdd, Remove: rRem}) })
 			}
 			continue
 		}
 
-		switch {
-		case same(lv, rv):
-		case hasBase && same(lv, bv):
+		switch v, conflict := decide(string(canon(bv)), hasBase, string(canon(lv)), string(canon(rv)), string(null)); v {
+		case take:
 			p.Local = append(p.Local, LocalChange{Kind: LocalSet, Key: k, Value: canon(rv), At: remote.Updated})
-		case hasBase && same(rv, bv):
+			if conflict {
+				p.Conflicts = append(p.Conflicts, Conflict{Key: k, Local: canon(lv), Jira: canon(rv)})
+			}
+		case give:
 			if k == typeKey {
 				pending(k, reasonTypeChange)
 			} else {
 				exportOr(k, func() { p.Remote = append(p.Remote, Change{Key: k, Set: canon(lv)}) })
 			}
 			continue // the base stays until Jira holds l
-		default: // all three differ, or no base (JS9's last rows)
-			p.Local = append(p.Local, LocalChange{Kind: LocalSet, Key: k, Value: canon(rv), At: remote.Updated})
-			if hasBase || !issue.IsNull(canon(lv)) {
-				p.Conflicts = append(p.Conflicts, Conflict{Key: k, Local: canon(lv), Jira: canon(rv)})
-			}
 		}
 		nb.Fields[k] = canon(rv)
 	}
 
 	// the description (JS11)
 	if !skipped[BodyKey] {
-		bd, ld, rd := b.Body, Digest(local.Body.Text), Digest(remote.Body.Text)
-		switch {
-		case ld == rd:
+		ld, rd := Digest(local.Body.Text), Digest(remote.Body.Text)
+		switch v, conflict := decide(b.Body, b.Body != "", ld, rd, Digest("")); v {
+		case take:
+			p.Local = append(p.Local, LocalChange{Kind: LocalEditBody, Text: remote.Body.Text, At: remote.Updated})
+			if conflict {
+				p.Conflicts = append(p.Conflicts, Conflict{Key: BodyKey, Local: issue.StringValue(ld), Jira: issue.StringValue(rd)})
+			}
 			nb.Body = rd
-		case bd != "" && ld == bd:
-			p.Local = append(p.Local, LocalChange{Kind: LocalEditBody, Key: BodyKey, Text: remote.Body.Text, At: remote.Updated})
-			nb.Body = rd
-		case bd != "" && rd == bd:
+		case give:
 			if !remote.Body.Lossless {
 				pending(BodyKey, reasonLossy)
 			} else {
@@ -180,16 +203,11 @@ func Merge(b *Base, local, remote Doc, multi func(key string) bool, export bool)
 				})
 			}
 		default:
-			p.Local = append(p.Local, LocalChange{Kind: LocalEditBody, Key: BodyKey, Text: remote.Body.Text, At: remote.Updated})
-			if bd != "" || ld != Digest("") {
-				p.Conflicts = append(p.Conflicts, Conflict{Key: BodyKey, Local: issue.StringValue(ld), Jira: issue.StringValue(rd)})
-			}
 			nb.Body = rd
 		}
 	}
 
 	mergeComments(&p, b, nb, local, remote, pending, exportOr)
-
 	p.Base = *nb
 	return p
 }
@@ -206,54 +224,48 @@ func mergeComments(p *Plan, b, nb *Base, local, remote Doc, pending func(key, re
 		if lc.JiraId != "" {
 			byJira[lc.JiraId] = lc
 		}
-		if lc.Op != "" {
-			byOp[lc.Op] = lc
-		}
+		byOp[lc.Op] = lc
 	}
 	done := map[entity.Id]bool{}
 
 	for _, rc := range remote.Comments {
 		rd := Digest(rc.Text.Text)
+		key := CommentKey + ":" + rc.JiraId
 		if lc, ok := byJira[rc.JiraId]; ok {
 			done[lc.Op] = true
 			bd, hasBase := b.Comments[rc.JiraId]
-			hasBase = hasBase && bd != ""
 			ld := Digest(lc.Text.Text)
-			edit := LocalChange{Kind: LocalEditComment, Key: CommentKey, Op: lc.Op, JiraId: rc.JiraId,
-				Text: rc.Text.Text, Author: rc.Editor, At: rc.Edited}
-			switch {
-			case ld == rd:
-			case hasBase && ld == bd:
-				p.Local = append(p.Local, edit)
-			case hasBase && rd == bd:
+			switch v, conflict := decide(bd, hasBase && bd != "", ld, rd, Digest("")); v {
+			case take:
+				p.Local = append(p.Local, LocalChange{Kind: LocalEditComment, Op: lc.Op, JiraId: rc.JiraId,
+					Text: rc.Text.Text, Author: rc.Editor, At: rc.Edited})
+				if conflict {
+					p.Conflicts = append(p.Conflicts, Conflict{Key: CommentKey, Comment: rc.JiraId,
+						Local: issue.StringValue(ld), Jira: issue.StringValue(rd)})
+				}
+			case give:
 				if !rc.Text.Lossless {
-					pending(CommentKey+":"+rc.JiraId, reasonLossy)
+					pending(key, reasonLossy)
 				} else {
-					exportOr(CommentKey+":"+rc.JiraId, func() {
+					exportOr(key, func() {
 						p.Comments = append(p.Comments, CommentWrite{Op: lc.Op, JiraId: rc.JiraId, Text: lc.Text.Text})
 					})
 				}
 				continue
-			default:
-				p.Local = append(p.Local, edit)
-				p.Conflicts = append(p.Conflicts, Conflict{Key: CommentKey, Comment: rc.JiraId,
-					Local: issue.StringValue(ld), Jira: issue.StringValue(rd)})
 			}
 			nb.Comments[rc.JiraId] = rd
 			continue
 		}
-		if rc.Op != "" {
-			if lc, ok := byOp[rc.Op]; ok {
-				// our own export whose pairing never committed (JS12's crash row)
-				done[lc.Op] = true
-				if lc.JiraId == "" && !lc.Note {
-					p.Local = append(p.Local, LocalChange{Kind: LocalPairComment, Key: CommentKey, Op: lc.Op, JiraId: rc.JiraId})
-					nb.Comments[rc.JiraId] = rd
-				}
-				continue
+		if lc, ok := byOp[rc.Op]; ok && rc.Op != "" {
+			// our own export whose pairing never committed (JS12's crash row)
+			done[lc.Op] = true
+			if lc.JiraId == "" && !lc.Note {
+				p.Local = append(p.Local, LocalChange{Kind: LocalPairComment, Op: lc.Op, JiraId: rc.JiraId})
+				nb.Comments[rc.JiraId] = rd
 			}
+			continue
 		}
-		p.Local = append(p.Local, LocalChange{Kind: LocalAddComment, Key: CommentKey, JiraId: rc.JiraId,
+		p.Local = append(p.Local, LocalChange{Kind: LocalAddComment, JiraId: rc.JiraId,
 			Text: rc.Text.Text, Author: rc.Author, At: rc.At})
 		nb.Comments[rc.JiraId] = rd
 	}
@@ -263,7 +275,7 @@ func mergeComments(p *Plan, b, nb *Base, local, remote Doc, pending func(key, re
 			continue
 		}
 		if lc.JiraId == "" {
-			exportOr(CommentKey, func() { p.Comments = append(p.Comments, CommentWrite{Op: lc.Op, Text: lc.Text.Text}) })
+			exportOr(CommentKey+":"+lc.Op.Human(), func() { p.Comments = append(p.Comments, CommentWrite{Op: lc.Op, Text: lc.Text.Text}) })
 			continue
 		}
 		// paired, and gone from Jira
@@ -274,8 +286,7 @@ func mergeComments(p *Plan, b, nb *Base, local, remote Doc, pending func(key, re
 			}
 			continue
 		}
-		p.Local = append(p.Local, LocalChange{Kind: LocalEditComment, Key: CommentKey, Op: lc.Op, JiraId: lc.JiraId,
-			Text: Tombstone(remote.Updated)})
+		p.Local = append(p.Local, LocalChange{Kind: LocalTombstone, Op: lc.Op, JiraId: lc.JiraId, Text: Tombstone(remote.Updated)})
 		if hasBase && Digest(lc.Text.Text) != bd {
 			p.Conflicts = append(p.Conflicts, Conflict{Key: CommentKey, Comment: lc.JiraId})
 		}
@@ -291,58 +302,41 @@ func Tombstone(at time.Time) string {
 	return TombstonePrefix + at.UTC().Format("2006-01-02") + "."
 }
 
-func IsTombstone(text string) bool {
-	return len(text) >= len(TombstonePrefix) && text[:len(TombstonePrefix)] == TombstonePrefix
-}
+func IsTombstone(text string) bool { return strings.HasPrefix(text, TombstonePrefix) }
 
 // mergeSet is JS10: an item survives when neither side removed it or either
 // side added it. It returns the merged set and the diffs against l and r.
-func mergeSet(b, l, r issue.Value) (merged, lAdd, lRem, rAdd, rRem []issue.Value) {
-	bs, ls, rs := itemSet(b), itemSet(l), itemSet(r)
-	all := map[string]issue.Value{}
-	for _, s := range []map[string]issue.Value{bs, ls, rs} {
+func mergeSet(b, l, r issue.Value) (merged issue.Value, lAdd, lRem, rAdd, rRem []issue.Value) {
+	bs, ls, rs := setOf(b), setOf(l), setOf(r)
+	all, keep := itemSet{}, itemSet{}
+	for _, s := range []itemSet{bs, ls, rs} {
 		for k, v := range s {
 			all[k] = v
 		}
 	}
-	keys := make([]string, 0, len(all))
-	for k := range all {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-	for _, k := range keys {
+	for _, k := range sorted.Keys(all) {
 		_, inB := bs[k]
 		_, inL := ls[k]
 		_, inR := rs[k]
-		keep := inL || inR
+		kept := inL || inR
 		if inB {
-			keep = inL && inR
+			kept = inL && inR
 		}
-		if keep {
-			merged = append(merged, all[k])
+		if kept {
+			keep[k] = all[k]
 		}
 		switch {
-		case keep && !inL:
+		case kept && !inL:
 			lAdd = append(lAdd, all[k])
-		case !keep && inL:
+		case !kept && inL:
 			lRem = append(lRem, all[k])
 		}
 		switch {
-		case keep && !inR:
+		case kept && !inR:
 			rAdd = append(rAdd, all[k])
-		case !keep && inR:
+		case !kept && inR:
 			rRem = append(rRem, all[k])
 		}
 	}
-	return
-}
-
-func itemSet(v issue.Value) map[string]issue.Value {
-	items, _ := issue.Items(canon(v))
-	s := make(map[string]issue.Value, len(items))
-	for _, it := range items {
-		c := canon(it)
-		s[string(c)] = c
-	}
-	return s
+	return keep.value(), lAdd, lRem, rAdd, rRem
 }

@@ -3,6 +3,7 @@ package jira
 import (
 	"context"
 	"encoding/json"
+	"slices"
 	"strings"
 	"testing"
 
@@ -62,7 +63,7 @@ func newConv(t *testing.T) *conv {
 	s, _, _, _ := derived(t, starts(t)["preset"], p)
 	m, _, err := Compile(s.schema(t), p)
 	require.NoError(t, err)
-	ix := IndexOf(nil, map[string]entity.Id{jiratest.MiaID: eid('1'), jiratest.RaviID: eid('2')}, []entity.Id{eid('e')})
+	ix := IndexOf(nil, map[string]entity.Id{jiratest.MiaID: eid('1'), jiratest.RaviID: eid('2')})
 	return &conv{t: t, srv: srv, c: c, p: p, m: m, ix: ix}
 }
 
@@ -78,19 +79,35 @@ func (cv *conv) get(key string) Doc {
 	return cv.m.FromJira(cv.raw(key), cs, cv.ix)
 }
 
-// create posts Create's body and checks that every key it carried reads back
-// byte-equal: Jira's normal form of our create is our value (P1).
+// create posts Create's body, then writes the rest as the engine's
+// ordinary merge does, and checks that every key reads back byte-equal:
+// Jira's normal form of our create is our value (P1).
 func (cv *conv) create(local Doc, id entity.Id) string {
 	t := cv.t
-	body, keys, skips := cv.m.Create(local, id, cv.ix)
+	body, sent, skips := cv.m.Create(local, id, cv.ix)
 	require.Empty(t, skips)
+	require.Subset(t, sent, []string{"title", "type"})
 	ref, err := cv.c.CreateIssue(context.Background(), body.Fields, body.Properties)
 	require.NoError(t, err)
 	cv.ix.AddIssue(ref.ID, id)
+	var rest []Change
+	for k, v := range local.Fields {
+		switch {
+		case slices.Contains(sent, k) || issue.IsNull(v):
+		case cv.m.Multi(local.Type, k):
+			vs, _ := issue.Items(v)
+			rest = append(rest, Change{Key: k, Add: vs})
+		default:
+			rest = append(rest, Change{Key: k, Set: v})
+		}
+	}
+	ws, skips := cv.m.ToJira(local.Type, rest, cv.raw(ref.Key), cv.ix)
+	require.Empty(t, skips)
+	cv.apply(ref.Key, ws)
 	remote := cv.get(ref.Key)
 	require.Empty(t, remote.Skip)
 	require.Equal(t, local.Type, remote.Type)
-	for _, k := range keys {
+	for k := range local.Fields {
 		require.Equal(t, string(local.Fields[k]), string(remote.Fields[k]), k)
 	}
 	require.Equal(t, local.Body, remote.Body)
@@ -108,13 +125,7 @@ func (cv *conv) apply(key string, ws []Write) {
 				fields[w.Field] = w.Set
 				continue
 			}
-			var ops []map[string]json.RawMessage
-			require.NoError(t, json.Unmarshal(w.Update, &ops))
-			for _, op := range ops {
-				for verb, v := range op {
-					update[w.Field] = append(update[w.Field], jiraapi.Op{Verb: verb, Value: v})
-				}
-			}
+			update[w.Field] = append(update[w.Field], w.Update...)
 		case WriteTransition:
 			trs, err := cv.c.Transitions(ctx, key)
 			require.NoError(t, err)
@@ -249,7 +260,8 @@ func TestFromJiraSkips(t *testing.T) {
 	require.Equal(t, "", cv.m.FromJira(ri, nil, cv.ix).Type, "an unmapped type is skipped by the engine")
 }
 
-// JS17: a local value Jira cannot hold is a Skip; one about to exist, a Retry.
+// JS17: a local value Jira cannot hold is a Skip, never a Retry: the issue
+// stays a candidate because local differs from its base.
 func TestToJiraSkips(t *testing.T) {
 	cv := newConv(t)
 	ws, skips := cv.m.ToJira("task", []Change{
@@ -267,7 +279,7 @@ func TestToJiraSkips(t *testing.T) {
 		retry[s.Key] = s.Retry
 	}
 	require.Equal(t, map[string]bool{"title": false, "type": false, "status": false, "labels": false,
-		"assignee": false, "parent": true, "rank": false}, retry)
+		"assignee": false, "parent": false, "rank": false}, retry)
 
 	_, ok := cv.m.IssueType("iteration")
 	require.False(t, ok, "a local-only type is never exported")
@@ -293,7 +305,7 @@ func TestDatetime(t *testing.T) {
 	require.Equal(t, string(v), string(back))
 }
 
-func cv0() *Index { return IndexOf(nil, nil, nil) }
+func cv0() *Index { return IndexOf(nil, nil) }
 
 // JS16: every account an issue and its comments name, once, in order.
 func TestUsers(t *testing.T) {

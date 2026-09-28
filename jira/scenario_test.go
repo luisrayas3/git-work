@@ -207,13 +207,16 @@ func TestCrashAfterJiraWrites(t *testing.T) {
 	w := newWorld(t)
 	key, ic := w.imported("Crash")
 	w.set(ic.Id(), "title", str("Written, then crashed"))
-	_, _, err := ic.AddComment("posted, then crashed")
+	_, op, err := ic.AddComment("posted, then crashed")
 	require.NoError(t, err)
 	require.NoError(t, ic.Commit())
 	// what step 4 did before the crash, as the token's account
-	mia := w.srv.As(jiratest.MiaID)
-	mia.Edit(key, map[string]any{"summary": "Written, then crashed"})
-	mia.AddComment(key, "posted, then crashed")
+	w.srv.As(jiratest.MiaID).Edit(key, map[string]any{"summary": "Written, then crashed"})
+	email, token := w.srv.Credentials()
+	c := jiraapi.New(jiraapi.Config{BaseURL: w.srv.URL(), Email: email, Token: token})
+	_, err = c.AddComment(context.Background(), key, jiraapi.TextToADF("posted, then crashed"),
+		jiraapi.Property{Key: jira.PropertyKey, Value: map[string]string{"op": op.Id().String()}})
+	require.NoError(t, err)
 
 	w.srv.ResetRequests()
 	w.mustSync(jira.Options{})
@@ -453,29 +456,26 @@ func TestBadCredential(t *testing.T) {
 
 // JS12: a crash after POST …/comment, before the commit. The comment's
 // git-work property names the local op, so the next run pairs it and posts
-// nothing; with the property unreturned, the token's authorship and the
-// text pair it all the same.
+// nothing.
 func TestCrashAfterCommentPost(t *testing.T) {
-	for _, props := range []bool{true, false} {
-		w := newWorld(t, jiratest.WithCommentProperties(props))
-		key, ic := w.imported("Crash")
-		_, op, err := ic.AddComment("posted, then crashed")
-		require.NoError(t, err)
-		require.NoError(t, ic.Commit())
+	w := newWorld(t)
+	key, ic := w.imported("Crash")
+	_, op, err := ic.AddComment("posted, then crashed")
+	require.NoError(t, err)
+	require.NoError(t, ic.Commit())
 
-		email, token := w.srv.Credentials()
-		c := jiraapi.New(jiraapi.Config{BaseURL: w.srv.URL(), Email: email, Token: token})
-		_, err = c.AddComment(context.Background(), key, jiraapi.TextToADF("posted, then crashed"),
-			jiraapi.Property{Key: jira.PropertyKey, Value: map[string]string{"op": op.Id().String()}})
-		require.NoError(t, err)
+	email, token := w.srv.Credentials()
+	c := jiraapi.New(jiraapi.Config{BaseURL: w.srv.URL(), Email: email, Token: token})
+	_, err = c.AddComment(context.Background(), key, jiraapi.TextToADF("posted, then crashed"),
+		jiraapi.Property{Key: jira.PropertyKey, Value: map[string]string{"op": op.Id().String()}})
+	require.NoError(t, err)
 
-		w.srv.ResetRequests()
-		w.mustSync(jira.Options{})
-		require.Zero(t, w.srv.Writes(), "properties %v: nothing posted twice", props)
-		require.Len(t, w.srv.Issue(key).Comments, 1)
-		require.Len(t, ic.Snapshot().Comments, 2, "paired, not imported")
-		w.quiet()
-	}
+	w.srv.ResetRequests()
+	w.mustSync(jira.Options{})
+	require.Zero(t, w.srv.Writes(), "nothing posted twice")
+	require.Len(t, w.srv.Issue(key).Comments, 1)
+	require.Len(t, ic.Snapshot().Comments, 2, "paired, not imported")
+	w.quiet()
 }
 
 // E16: 429s past the client's retries stop the run, and the cursor does not
