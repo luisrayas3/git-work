@@ -143,17 +143,17 @@ func (p *listPage) rowLine(row *listRow, widths []int, under bool, grabbed bool)
 		parts = append(parts, wash.Render(" "))
 		text := truncate(row.cells[key], widths[at])
 		gap := strings.Repeat(" ", max(widths[at]-ansi.StringWidth(text), 0))
-		style := wash
+		// the cursor cell is reversed over its whole width, padding
+		// included, so an empty cell still shows where the cursor is;
+		// the underline stays on the text alone
+		style, fill := wash, wash
+		if under && at+1 == p.column {
+			style, fill = styleCell, styleCell
+		}
 		if len(row.links[key]) > 0 {
 			style = style.Underline(true)
 		}
-		if under && at+1 == p.column {
-			style = styleCell
-			if len(row.links[key]) > 0 {
-				style = style.Underline(true)
-			}
-		}
-		parts = append(parts, style.Render(text)+wash.Render(gap))
+		parts = append(parts, style.Render(text)+fill.Render(gap))
 		used += 1 + widths[at]
 	}
 	if under && p.width > used {

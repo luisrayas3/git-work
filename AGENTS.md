@@ -291,14 +291,11 @@ Gotchas, hardened from use:
 - `termui` and `webui` need a real TTY; a human runs them, not the agent.
   Both read the frozen `refs/issues/*` copy, not the tracker.
 
-## Direction (decided 2026-09-17)
+## Direction (decided 2026-09-17, narrowed 2026-09-28)
 
-Four target workflows drive every design call:
-(1) roadmapping — initiatives/epics on a quarter-scale Gantt with resourcing, AI-assisted;
-(2) weekly status report generated from the op log;
-(3) in-person sync on a live, edit-heavy kanban;
-(4) doing work — my tasks, pick one, link PRs, agents own subtasks (1 subtask ↔ 1 PR);
-(5) sprint planning — allocating, re-prioritizing and grooming the store's backlog for the next iteration.
+This repository tracks two stories,
+a board (`2298f37`) and a gantt (`00a63d9`),
+each in the terminal first and then in the GUI.
 
 Settled calls (details live in the referenced issues):
 
