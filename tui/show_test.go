@@ -112,6 +112,8 @@ func TestShowHasThreeTabs(t *testing.T) {
 	drawn = plainView(page)
 	require.Contains(t, drawn, "set status to in-progress")
 	require.Contains(t, drawn, "commented: a later word")
+	require.Less(t, indexOf(drawn, "set status to in-progress"), indexOf(drawn, "commented: a later word"), "latest first")
+	require.Less(t, indexOf(drawn, "commented: a later word"), indexOf(drawn, "created"))
 
 	page = send(page, "right").(*showPage)
 	require.Equal(t, tabComments, page.tab, "it wraps")
@@ -129,6 +131,20 @@ func TestShowHasThreeTabs(t *testing.T) {
 	page = send(page, "t", "ctrl+pgdown").(*showPage)
 	require.Equal(t, "t", page.box.draft())
 	require.Equal(t, tabDescription, page.tab)
+}
+
+// TestCommentsAreNewestFirst: an issue is opened to see what changed, and
+// the latest is what that is.
+func TestCommentsAreNewestFirst(t *testing.T) {
+	repo := testRepo(t)
+	id := newIssue(t, repo, map[string]any{"title": "one"})
+	for _, body := range []string{"first word", "second word"} {
+		_, err := host.IssueCommentNew(repo, id, body)
+		require.NoError(t, err)
+	}
+
+	drawn := plainView(show(t, repo, id, nil))
+	require.Less(t, indexOf(drawn, "second word"), indexOf(drawn, "first word"))
 }
 
 // TestShowFieldsAreATable: once the cursor is in the table, up and down walk

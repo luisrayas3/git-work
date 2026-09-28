@@ -863,14 +863,20 @@ func tabStrip(active tab, focused bool, width int) []string {
 }
 
 // commentLines is what was said about the issue, after its body: each
-// comment in full, as it reads now.
+// comment in full, as it reads now, newest first.
+//
+// Newest is last in the timeline, which is the operations' causal order, not
+// the comments' wall-clock times: those are for display only, never for
+// ordering (entities/issue).
 func (p *showPage) commentLines() []string {
 	if len(p.snapshot.Comments) <= 1 {
 		return []string{styleDim.Render(" (no comments)")}
 	}
 	var lines []string
-	for at, comment := range p.snapshot.Comments[1:] {
-		if at > 0 {
+	said := p.snapshot.Comments[1:]
+	for at := len(said) - 1; at >= 0; at-- {
+		comment := said[at]
+		if at < len(said)-1 {
 			lines = append(lines, "")
 		}
 		lines = append(lines, styleHeader.Render(fit(fmt.Sprintf(" %s  %s", comment.Author.DisplayName(), comment.FormatTimeRel()), p.width)))
@@ -898,12 +904,13 @@ func (p *showPage) descriptionLines() []string {
 	return lines
 }
 
-// logLines is what was done to the issue, one operation to a line, in the
-// order it was done; a comment is its first line, the comments tab being
-// where it is read.
+// logLines is what was done to the issue, one operation to a line, the
+// latest first; a comment is its first line, the comments tab being where it
+// is read.
 func (p *showPage) logLines() []string {
 	var lines []string
-	for _, entry := range p.log {
+	for at := len(p.log) - 1; at >= 0; at-- {
+		entry := p.log[at]
 		if entry.Type == "noop" {
 			continue
 		}

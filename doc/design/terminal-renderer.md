@@ -421,11 +421,16 @@ which is the tab key of every browser and editor;
 vim's `gt` and `gT` work outside the box.
 `t` is gone: a letter is a bad universal key on a page that opens in a text box.
 
-- **comments**, the default, is what was said: every comment after the body, in full, as it reads now.
+- **comments**, the default, is what was said: every comment after the body, in full, as it reads now, newest first.
 - **description** is the issue's body, its first comment.
-- **log** is what was done, an operation to a line, in the order it was done —
+- **log** is what was done, an operation to a line, latest first —
   *set status to in-progress*, *added cli to area*, *commented: …*.
 
+Both run **newest first** (2026-09-28, Luis):
+an issue is opened to see what changed since last time,
+and the latest is what that is.
+Newest is the end of the operation log, its causal order,
+never the wall-clock times, which are for display only.
 Comments and the log were one timeline for a day;
 they are two tabs again because reading a discussion
 and reading what changed are two different reasons to open an issue.
