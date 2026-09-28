@@ -13,9 +13,10 @@ const (
 	ActionImported = "imported" // new locally
 	ActionCreated  = "created"  // new in Jira
 	ActionUpdated  = "updated"
+	ActionPending  = "pending" // nothing moved; what waits is in pending
 	ActionLinked   = "linked"
 	ActionGone     = "gone"
-	ActionSkipped  = "skipped" // reported, not synced
+	ActionSkipped  = "skipped" // refused or waiting, reported: a person may look
 	ActionFailed   = "failed"
 )
 
@@ -56,8 +57,9 @@ type Summary struct {
 	Conflicts int       `json:"conflicts"`
 	Pending   int       `json:"pending"`
 	Failed    int       `json:"failed"`
-	Skipped   int       `json:"skipped"`
-	Cursor    time.Time `json:"cursor"`
+	Skipped   int       `json:"skipped"`   // reported lines of action skipped
+	Unchanged int       `json:"unchanged"` // candidates with nothing to do, not reported
+	Cursor    time.Time `json:"cursor,omitzero"`
 }
 
 // count adds one issue's line to the summary.
@@ -82,7 +84,7 @@ func (s *Summary) count(l Line) {
 	s.Pending += len(l.Pending)
 }
 
-// touched reports whether the line says anything beyond "nothing to do".
-func (l *Line) touched() bool {
-	return len(l.Imported)+len(l.Exported)+len(l.Conflicts)+len(l.Pending) > 0 || !l.Comments.empty() || l.Error != ""
+// moved reports whether the line changed anything, on either side.
+func (l *Line) moved() bool {
+	return len(l.Imported)+len(l.Exported)+len(l.Conflicts) > 0 || !l.Comments.empty()
 }

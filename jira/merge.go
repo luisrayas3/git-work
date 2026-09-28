@@ -66,7 +66,7 @@ func (cw CommentWrite) key() string {
 }
 
 // Conflict is a double edit Jira won (JS21). Key is a field, "body" or
-// "comment"; texts carry digests.
+// "comment"; texts are not repeated, the local one is in the history.
 type Conflict struct {
 	Key     string      `json:"key"`
 	Local   issue.Value `json:"local,omitempty"`
@@ -188,8 +188,10 @@ func Merge(b *Base, local, remote Doc, multi func(key string) bool, export bool)
 		switch v, conflict := decide(string(canon(bv)), hasBase, string(form(k, lv)), string(form(k, rv)), string(form(k, null))); v {
 		case take:
 			p.Local = append(p.Local, LocalChange{Kind: LocalSet, Key: k, Value: canon(rv), At: remote.Updated})
-			if conflict {
-				p.Conflicts = append(p.Conflicts, Conflict{Key: k, Local: form(k, lv), Jira: form(k, rv)})
+			if conflict && k == BodyKey {
+				p.Conflicts = append(p.Conflicts, Conflict{Key: k}) // texts are in the history, not the report
+			} else if conflict {
+				p.Conflicts = append(p.Conflicts, Conflict{Key: k, Local: canon(lv), Jira: canon(rv)})
 			}
 		case give:
 			switch {
@@ -238,8 +240,7 @@ func mergeComments(p *Plan, b, nb *Base, local, remote Doc, pending func(key, re
 				p.Local = append(p.Local, LocalChange{Kind: LocalEditComment, Op: lc.Op, JiraId: rc.JiraId,
 					Text: rc.Text.Text, Author: rc.Editor, At: rc.Edited})
 				if conflict {
-					p.Conflicts = append(p.Conflicts, Conflict{Key: CommentKey, Comment: rc.JiraId,
-						Local: issue.StringValue(ld), Jira: issue.StringValue(rd)})
+					p.Conflicts = append(p.Conflicts, Conflict{Key: CommentKey, Comment: rc.JiraId})
 				}
 			case give:
 				if !rc.Text.Lossless {

@@ -342,7 +342,7 @@ func (e *engine) runHit(h hit, owner map[entity.Id]string, l *local) error {
 		// JS13 step 1: our own echo, or an overlap re-seeing a synced issue
 		if !e.opts.Full && h.updated.Equal(b.Updated) && len(b.Retry) == 0 && b.Gone == "" && !e.changed(snap, b) {
 			e.done[id] = true
-			e.sum.Skipped++
+			e.sum.Unchanged++
 			return nil
 		}
 		return e.syncLinked(ic)
@@ -369,7 +369,7 @@ func (e *engine) runHit(h hit, owner map[entity.Id]string, l *local) error {
 	}
 	if !h.mapped {
 		// after Derive, an unmapped type is one the schema excludes: silent
-		e.sum.Skipped++
+		e.sum.Unchanged++
 		return nil
 	}
 	return e.importIssue(h.id)

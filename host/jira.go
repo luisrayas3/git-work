@@ -127,6 +127,8 @@ func JiraSchema(ctx context.Context, repo *cache.RepoCache) (*schema.Document, [
 // JiraSync is `git work jira sync`: derive and import the schema, compile
 // the mapping, and run the engine; the state file is saved even when the run
 // stops, since its cursor stops at the failure (JS20, JS23). It never pushes.
+// The mapping's notes are returned only when the schema changed or the run
+// could not start: they say the same thing every run, and cron mails output.
 func JiraSync(ctx context.Context, repo *cache.RepoCache, opts jira.Options, emit func(jira.Line)) (jira.Summary, []jira.Note, error) {
 	if !opts.DryRun {
 		unlock, err := lockJiraSync(repo)
@@ -174,6 +176,9 @@ func JiraSync(ctx context.Context, repo *cache.RepoCache, opts jira.Options, emi
 	st, err := jira.LoadState(repo.LocalStorage())
 	if err != nil {
 		return jira.Summary{}, notes, err
+	}
+	if len(changes) == 0 {
+		notes = nil
 	}
 	st.Bind(b.URL, b.Project)
 	sum, err := jira.Sync(ctx, repo, c, p, m, st, opts, emit)

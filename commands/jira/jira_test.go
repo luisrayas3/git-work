@@ -46,15 +46,20 @@ func TestJiraSchemaThenSync(t *testing.T) {
 	require.ErrorContains(t, err, "git work jira schema > jira.yaml")
 
 	env.Out.Reset()
-	require.NoError(t, runJiraSchema(env, "json"))
+	env.Err.Reset()
+	require.NoError(t, runJiraSchema(env, "json", false))
+	require.NotContains(t, env.Err.String(), "info:", "info notes only with --verbose")
 	doc, err := schema.ParseDocument(env.Out.Bytes())
 	require.NoError(t, err)
 	_, _, err = host.SchemaImport(env.Backend, doc, false, false)
 	require.NoError(t, err)
 
-	// one JSON object per line: issues, then the summary
+	// one JSON object per line: issues, then the summary; the mapping's
+	// notes are not repeated while the schema stands
 	env.Out.Reset()
+	env.Err.Reset()
 	require.NoError(t, runJiraSync(env, syncOptions{format: "json"}, nil))
+	require.Empty(t, env.Err.String())
 	lines := strings.Split(strings.TrimSpace(env.Out.String()), "\n")
 	var first, last jira.Line
 	require.NoError(t, json.Unmarshal([]byte(lines[0]), &first))

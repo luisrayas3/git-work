@@ -243,7 +243,7 @@ func (e *engine) importIssue(jiraId string) error {
 	line.Jira = ri.Key
 	remote := e.m.FromJira(ri, cs, e.ix)
 	if remote.Type == "" {
-		e.sum.Skipped++ // after Derive, an unmapped type is one the schema excludes
+		e.sum.Unchanged++ // after Derive, an unmapped type is one the schema excludes
 		return nil
 	}
 	plan := Merge(nil, Doc{Type: remote.Type, Fields: map[string]issue.Value{}}, remote, e.multi(remote.Type), false)

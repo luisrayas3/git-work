@@ -31,7 +31,10 @@ and says so in a note on the issue; a new issue on either side appears on the
 other. A run interrupted anywhere is finished by the next one.
 
 Output is one JSON object per line: the schema changes derived from Jira, one
-line per issue the run touched or failed on, then a summary. With IDs (id
+line per issue the run touched, left pending, skipped or failed on, then a
+summary; an issue with nothing to do is only counted, as unchanged. Notes on
+what the mapping leaves out go to stderr in a run that changed the schema;
+git work jira schema prints them all. With IDs (id
 prefixes or aliases, a Jira key included) only those issues are synced, with no
 search. --full searches the whole project and marks issues deleted in Jira or
 moved out of it as gone; more than 10 at once are held unless --accept-deletes.
@@ -104,8 +107,12 @@ func textLine(l jira.Line) string {
 	switch {
 	case l.Summary != nil:
 		s := l.Summary
-		return fmt.Sprintf("summary: %d imported, %d created, %d updated, %d linked, %d gone, %d conflicts, %d pending, %d failed, %d skipped; cursor %s",
-			s.Imported, s.Created, s.Updated, s.Linked, s.Gone, s.Conflicts, s.Pending, s.Failed, s.Skipped, s.Cursor.Format("2006-01-02T15:04:05Z07:00"))
+		cursor := "none"
+		if !s.Cursor.IsZero() {
+			cursor = s.Cursor.Format("2006-01-02T15:04:05Z07:00")
+		}
+		return fmt.Sprintf("summary: %d imported, %d created, %d updated, %d linked, %d gone, %d conflicts, %d pending, %d failed, %d skipped, %d unchanged; cursor %s",
+			s.Imported, s.Created, s.Updated, s.Linked, s.Gone, s.Conflicts, s.Pending, s.Failed, s.Skipped, s.Unchanged, cursor)
 	case l.Schema != nil:
 		keys := make([]string, len(l.Schema))
 		for i, c := range l.Schema {

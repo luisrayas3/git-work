@@ -2,6 +2,7 @@ package jira_test
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -265,10 +266,32 @@ func TestTransitionUnavailable(t *testing.T) {
 	require.Equal(t, "To Do", w.srv.Issue(key).Status)
 	require.Equal(t, `"done"`, field(t, ic, "status"), "kept locally")
 
-	// it stays pending every run
-	lines, _ = w.mustSync(jira.Options{})
+	// it stays pending every run, not updated
+	lines, sum = w.mustSync(jira.Options{})
 	require.Len(t, lines, 1)
+	require.Equal(t, jira.ActionPending, lines[0].Action)
+	require.Zero(t, sum.Updated)
 	require.Equal(t, "status", lines[0].Pending[0].Key)
+}
+
+// JS22: an issue with nothing to do is counted unchanged, not skipped; a
+// body is reported by its first line; a run with no cursor prints none.
+func TestReportShapes(t *testing.T) {
+	w := newWorld(t)
+	_, sum := w.mustSync(jira.Options{DryRun: true})
+	raw, err := json.Marshal(sum)
+	require.NoError(t, err)
+	require.NotContains(t, string(raw), "cursor", "no zero cursor")
+
+	key, ic := w.imported("Shapes")
+	w.setBody(ic, "A first line that is long enough to be cut off at sixty characters, surely\nsecond")
+	lines, _ := w.mustSync(jira.Options{})
+	require.Equal(t, `"A first line that is long enough to be cut off at sixty char…"`, string(lines[0].Exported[jira.BodyKey]))
+	w.srv.Edit(key, map[string]any{"labels": []string{"x"}})
+	_, sum = w.mustSync(jira.Options{Full: true})
+	require.Equal(t, 1, sum.Updated)
+	_, sum = w.mustSync(jira.Options{Full: true})
+	require.Equal(t, jira.Summary{Unchanged: 1, Cursor: sum.Cursor}, sum)
 }
 
 // E12: a Jira delete is found under --full only, and marks the issue gone.

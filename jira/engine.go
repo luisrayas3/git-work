@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/url"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/git-bug/git-bug/cache"
@@ -176,9 +177,12 @@ func (e *engine) fail(line Line, err error) error {
 }
 
 func (e *engine) report(l Line) {
-	if l.Action == ActionUpdated && !l.touched() {
-		e.sum.Skipped++
-		return
+	if l.Action == ActionUpdated && !l.moved() && l.Error == "" {
+		if len(l.Pending) == 0 {
+			e.sum.Unchanged++
+			return
+		}
+		l.Action = ActionPending
 	}
 	// a key and reason reported twice (step 4 and step 6) is one entry (A8)
 	seen := map[[2]string]bool{}
@@ -231,14 +235,31 @@ func (l *Line) imported(key string, v issue.Value) {
 	if l.Imported == nil {
 		l.Imported = map[string]json.RawMessage{}
 	}
-	l.Imported[key] = json.RawMessage(canon(v))
+	l.Imported[key] = reported(key, v)
 }
 
 func (l *Line) exported(key string, v issue.Value) {
 	if l.Exported == nil {
 		l.Exported = map[string]json.RawMessage{}
 	}
-	l.Exported[key] = json.RawMessage(canon(v))
+	l.Exported[key] = reported(key, v)
+}
+
+// reported is a value as a line shows it: the body's first line, at most
+// 60 characters, since a description does not fit a line.
+func reported(key string, v issue.Value) json.RawMessage {
+	if key != BodyKey {
+		return json.RawMessage(canon(v))
+	}
+	text, _ := issue.String(v)
+	first, _, cut := strings.Cut(strings.TrimSpace(text), "\n")
+	if r := []rune(first); len(r) > 60 {
+		first, cut = string(r[:60]), true
+	}
+	if cut {
+		first += "…"
+	}
+	return json.RawMessage(issue.StringValue(first))
 }
 
 func (l *Line) comments() *CommentCounts {
