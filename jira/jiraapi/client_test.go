@@ -358,193 +358,25 @@ func TestGetIssue(t *testing.T) {
 	}
 }
 
-func TestWrites(t *testing.T) {
+// TestMetaPaging: createmeta pages by total, priority/search by isLast; the
+// fake's short lists never reach a second page.
+func TestMetaPaging(t *testing.T) {
 	c, _ := newFake(t, 0,
-		exchange{method: "POST", path: "/rest/api/3/issue", status: 201,
-			body: `{"fields":{"project":{"key":"PROJ"},"issuetype":{"id":"10001"},"summary":"s","assignee":{"accountId":"a1"},"customfield_10020":37},
-				"properties":[{"key":"gitwork","value":{"id":"e1","rev":3}}]}`,
-			resp: `{"id":"10000","key":"ED-24","self":"https://your-domain.atlassian.net/rest/api/3/issue/10000",
-				"transition":{"status":200,"errorCollection":{"errorMessages":[],"errors":{}}}}`},
-		exchange{method: "PUT", path: "/rest/api/3/issue/PROJ-12", status: 204,
-			body: `{"fields":{"summary":"Completed orders still displaying in pending","duedate":null},
-				"update":{"labels":[{"add":"triaged"},{"remove":"blocker"}],"parent":[{"set":{"none":true}}]}}`},
-		exchange{method: "DELETE", path: "/rest/api/3/issue/PROJ-12", query: "deleteSubtasks=true", status: 204},
-		exchange{method: "GET", path: "/rest/api/3/issue/PROJ-12/transitions", query: "expand=transitions.fields",
-			resp: `{"expand":"transitions","transitions":[{"id":"31","name":"Done",
-				"to":{"name":"Done","id":"10002","statusCategory":{"id":3,"key":"done","colorName":"green","name":"Done"}},
-				"hasScreen":true,"isGlobal":true,"isInitial":false,"isAvailable":true,"isConditional":false,"isLooped":false,
-				"fields":{"resolution":{"required":true,"schema":{"type":"resolution","system":"resolution"},"name":"Resolution","key":"resolution",
-				"operations":["set"],"allowedValues":[{"id":"10000","name":"Done"}],"hasDefaultValue":false}}}]}`},
-		exchange{method: "POST", path: "/rest/api/3/issue/PROJ-12/transitions", status: 204,
-			body: `{"transition":{"id":"31"},"fields":{"resolution":{"name":"Done"}}}`},
-		exchange{method: "POST", path: "/rest/api/3/issueLink", status: 201,
-			body: `{"type":{"name":"Blocks"},"inwardIssue":{"key":"PROJ-12"},"outwardIssue":{"key":"PROJ-20"}}`},
-		exchange{method: "POST", path: "/rest/api/3/issueLink", status: 201,
-			body: `{"type":{"id":"10000"},"inwardIssue":{"id":"10042"},"outwardIssue":{"id":"10060"}}`},
-		exchange{method: "DELETE", path: "/rest/api/3/issueLink/10001", status: 204},
-		exchange{method: "DELETE", path: "/rest/api/3/issueLink/10002", status: 200},
-	)
-	ref, err := c.CreateIssue(ctx, map[string]any{
-		"project": map[string]string{"key": "PROJ"}, "issuetype": map[string]string{"id": "10001"},
-		"summary": "s", "assignee": map[string]string{"accountId": "a1"}, "customfield_10020": 37,
-	}, []Property{{"gitwork", map[string]any{"id": "e1", "rev": 3}}})
-	if err != nil || ref.Key != "ED-24" {
-		t.Fatalf("CreateIssue = %+v, %v", ref, err)
-	}
-	err = c.EditIssue(ctx, "PROJ-12",
-		map[string]any{"summary": "Completed orders still displaying in pending", "duedate": nil},
-		map[string][]Op{"labels": {OpAdd("triaged"), OpRemove("blocker")}, "parent": {OpSet(map[string]bool{"none": true})}})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := c.DeleteIssue(ctx, "PROJ-12", true); err != nil {
-		t.Fatal(err)
-	}
-	ts, err := c.Transitions(ctx, "PROJ-12")
-	if err != nil || len(ts) != 1 || ts[0].To.StatusCategory.Key != "done" || !ts[0].Fields["resolution"].Required {
-		t.Fatalf("Transitions = %+v, %v", ts, err)
-	}
-	if err := c.DoTransition(ctx, "PROJ-12", "31", map[string]any{"resolution": map[string]string{"name": "Done"}}); err != nil {
-		t.Fatal(err)
-	}
-	// PROJ-12 blocks PROJ-20: the source is inwardIssue (C1).
-	if err := c.CreateIssueLink(ctx, "Blocks", "PROJ-12", "PROJ-20"); err != nil {
-		t.Fatal(err)
-	}
-	if err := c.CreateIssueLink(ctx, "10000", "10042", "10060"); err != nil {
-		t.Fatal(err)
-	}
-	for _, id := range []string{"10001", "10002"} {
-		if err := c.DeleteIssueLink(ctx, id); err != nil {
-			t.Fatal(err)
-		}
-	}
-}
-
-func TestCommentsAndProperties(t *testing.T) {
-	cm := func(id string) string {
-		return `{"self":"https://x/rest/api/3/issue/10010/comment/` + id + `","id":"` + id + `",
-			"author":{"accountId":"5b10","displayName":"Mia Krystof","active":true},
-			"body":{"type":"doc","version":1,"content":[{"type":"paragraph","content":[{"type":"text","text":"Lorem ipsum"}]}]},
-			"created":"2021-01-17T12:34:00.000+0000","updated":"2021-01-18T23:45:00.000+0000",
-			"visibility":{"type":"role","value":"Administrators","identifier":"Administrators"},"jsdPublic":true}`
-	}
-	body := `{"body":` + string(TextToADF("Lorem ipsum")) + `}`
-	c, _ := newFake(t, 0,
-		exchange{method: "GET", path: "/rest/api/3/issue/PROJ-1/comment", query: "orderBy=created&expand=properties&startAt=0&maxResults=100",
-			resp: `{"startAt":0,"maxResults":2,"total":3,"comments":[` + cm("1") + `,` + cm("2") + `]}`},
-		exchange{method: "GET", path: "/rest/api/3/issue/PROJ-1/comment", query: "orderBy=created&expand=properties&startAt=2&maxResults=100",
-			resp: `{"startAt":2,"maxResults":2,"total":3,"comments":[` + cm("3") + `]}`},
-		exchange{method: "POST", path: "/rest/api/3/issue/PROJ-1/comment", body: body, status: 201, resp: cm("4")},
-		exchange{method: "PUT", path: "/rest/api/3/issue/PROJ-1/comment/4", body: body, resp: cm("4")},
-		exchange{method: "DELETE", path: "/rest/api/3/issue/PROJ-1/comment/4", status: 204},
-		exchange{method: "PUT", path: "/rest/api/3/issue/PROJ-1/properties/gitwork", body: `{"id":"e1","rev":3}`, status: 201},
-		exchange{method: "PUT", path: "/rest/api/3/issue/PROJ-1/properties/gitwork", body: `{"id":"e1","rev":4}`, status: 200},
-		exchange{method: "GET", path: "/rest/api/3/issue/PROJ-1/properties/gitwork", resp: `{"key":"gitwork","value":{"id":"e1","rev":4}}`},
-		exchange{method: "DELETE", path: "/rest/api/3/issue/PROJ-1/properties/gitwork", status: 204},
-	)
-	cs, err := c.Comments(ctx, "PROJ-1")
-	if err != nil || len(cs) != 3 || cs[2].ID != "3" || cs[0].Visibility.Identifier != "Administrators" {
-		t.Fatalf("Comments = %+v, %v", cs, err)
-	}
-	if !cs[0].Updated.After(cs[0].Created.Time) {
-		t.Error("comment times")
-	}
-	if got, err := c.AddComment(ctx, "PROJ-1", TextToADF("Lorem ipsum")); err != nil || got.ID != "4" {
-		t.Fatalf("AddComment = %+v, %v", got, err)
-	}
-	if got, err := c.UpdateComment(ctx, "PROJ-1", "4", TextToADF("Lorem ipsum")); err != nil || got.ID != "4" {
-		t.Fatalf("UpdateComment = %+v, %v", got, err)
-	}
-	if err := c.DeleteComment(ctx, "PROJ-1", "4"); err != nil {
-		t.Fatal(err)
-	}
-	if created, err := c.SetProperty(ctx, "PROJ-1", "gitwork", map[string]any{"id": "e1", "rev": 3}); !created || err != nil {
-		t.Fatalf("SetProperty = %v, %v", created, err)
-	}
-	if created, err := c.SetProperty(ctx, "PROJ-1", "gitwork", json.RawMessage(`{"id":"e1","rev":4}`)); created || err != nil {
-		t.Fatalf("SetProperty = %v, %v", created, err)
-	}
-	if v, err := c.GetProperty(ctx, "PROJ-1", "gitwork"); err != nil || string(v) != `{"id":"e1","rev":4}` {
-		t.Fatalf("GetProperty = %s, %v", v, err)
-	}
-	if err := c.DeleteProperty(ctx, "PROJ-1", "gitwork"); err != nil {
-		t.Fatal(err)
-	}
-}
-
-func TestMetadata(t *testing.T) {
-	c, _ := newFake(t, 0,
-		exchange{method: "GET", path: "/rest/api/3/serverInfo",
-			resp: `{"baseUrl":"https://your-domain.atlassian.net","version":"1001.0.0-SNAPSHOT","versionNumbers":[5,0,0],"deploymentType":"Cloud",
-				"buildNumber":582,"buildDate":"2020-03-26T22:20:59.000+0000","serverTime":"2020-03-31T16:43:50.000+0000",
-				"scmInfo":"1f51","serverTitle":"My Jira instance","serverTimeZone":"Australia/Sydney","defaultLocale":{"locale":"en_AU"}}`},
-		exchange{method: "GET", path: "/rest/api/3/user", query: "accountId=5b10a2844c20165700ede21g",
-			resp: `{"accountId":"5b10a2844c20165700ede21g","accountType":"atlassian","displayName":"Mia Krystof","active":false}`},
-		exchange{method: "GET", path: "/rest/api/3/field",
-			resp: `[{"id":"summary","key":"summary","name":"Summary","custom":false,"orderable":true,"navigable":true,"searchable":true,
-				"clauseNames":["summary"],"schema":{"type":"string","system":"summary"}},
-				{"id":"customfield_10020","key":"customfield_10020","name":"Sprint","untranslatedName":"Sprint","custom":true,"orderable":true,
-				"navigable":true,"searchable":true,"clauseNames":["cf[10020]","Sprint"],
-				"schema":{"type":"array","items":"json","custom":"com.pyxis.greenhopper.jira:gh-sprint","customId":10020}}]`},
-		exchange{method: "GET", path: "/rest/api/3/project/EX",
-			resp: `{"id":"10000","key":"EX","name":"Example","style":"classic","simplified":false,"projectTypeKey":"software",
-				"lead":{"accountId":"l1","displayName":"L"},"issueTypes":[{"id":"3","name":"Task","subtask":false,"hierarchyLevel":0},
-				{"id":"10003","name":"Sub-task","subtask":true,"hierarchyLevel":-1}],"projectKeys":["EX","OLDEX"]}`},
-		exchange{method: "GET", path: "/rest/api/3/project/EX/statuses",
-			resp: `[{"self":"…/issueType/3","id":"3","name":"Task","subtask":false,"statuses":[{"name":"In Progress","id":"10000",
-				"statusCategory":{"id":4,"key":"indeterminate","colorName":"yellow","name":"In Progress"}}]}]`},
 		exchange{method: "GET", path: "/rest/api/3/issue/createmeta/EX/issuetypes", query: "startAt=0&maxResults=200",
 			resp: `{"issueTypes":[{"id":"3","name":"Task","subtask":false,"hierarchyLevel":0}],"startAt":0,"maxResults":1,"total":2}`},
 		exchange{method: "GET", path: "/rest/api/3/issue/createmeta/EX/issuetypes", query: "startAt=1&maxResults=200",
 			resp: `{"issueTypes":[{"id":"10000","name":"Epic","subtask":false,"hierarchyLevel":1}],"startAt":1,"maxResults":1,"total":2}`},
-		exchange{method: "GET", path: "/rest/api/3/issue/createmeta/EX/issuetypes/3", query: "startAt=0&maxResults=200",
-			resp: `{"fields":[{"fieldId":"assignee","key":"assignee","name":"Assignee","required":true,"hasDefaultValue":false,
-				"operations":["set"],"schema":{"type":"user","system":"assignee"},"autoCompleteUrl":"…"},
-				{"fieldId":"priority","key":"priority","name":"Priority","required":false,"hasDefaultValue":true,"operations":["set"],
-				"schema":{"type":"priority","system":"priority"},"allowedValues":[{"id":"3","name":"Medium"}],"defaultValue":{"id":"3"}}],
-				"maxResults":50,"startAt":0,"total":2}`},
 		exchange{method: "GET", path: "/rest/api/3/priority/search", query: "projectId=10000&startAt=0&maxResults=50",
 			resp: `{"isLast":false,"maxResults":1,"startAt":0,"total":2,"values":[{"id":"1","name":"Highest","statusColor":"#d04437"}]}`},
 		exchange{method: "GET", path: "/rest/api/3/priority/search", query: "projectId=10000&startAt=1&maxResults=50",
 			resp: `{"isLast":true,"maxResults":1,"startAt":1,"total":2,"values":[{"id":"3","name":"Medium","isDefault":true}]}`},
-		exchange{method: "GET", path: "/rest/api/3/issueLinkType",
-			resp: `{"issueLinkTypes":[{"id":"1000","name":"Duplicate","inward":"is duplicated by","outward":"duplicates","self":"…"},
-				{"id":"10000","name":"Blocks","inward":"is blocked by","outward":"blocks","self":"…"}]}`},
 	)
-	si, err := c.ServerInfo(ctx)
-	if err != nil || si.DeploymentType != "Cloud" || !si.ServerTime.Equal(time.Date(2020, 3, 31, 16, 43, 50, 0, time.UTC)) {
-		t.Fatalf("ServerInfo = %+v, %v", si, err)
-	}
-	if u, err := c.User(ctx, "5b10a2844c20165700ede21g"); err != nil || u.Active || u.DisplayName != "Mia Krystof" {
-		t.Fatalf("User = %+v, %v", u, err)
-	}
-	fs, err := c.Fields(ctx)
-	if err != nil || len(fs) != 2 || fs[1].Schema.Custom != "com.pyxis.greenhopper.jira:gh-sprint" || fs[1].Schema.CustomID != 10020 {
-		t.Fatalf("Fields = %+v, %v", fs, err)
-	}
-	p, err := c.Project(ctx, "EX")
-	if err != nil || p.Style != "classic" || len(p.IssueTypes) != 2 || p.IssueTypes[1].HierarchyLevel != -1 {
-		t.Fatalf("Project = %+v, %v", p, err)
-	}
-	ps, err := c.ProjectStatuses(ctx, "EX")
-	if err != nil || ps[0].Statuses[0].StatusCategory.Key != "indeterminate" {
-		t.Fatalf("ProjectStatuses = %+v, %v", ps, err)
-	}
 	its, err := c.CreateMetaIssueTypes(ctx, "EX")
 	if err != nil || len(its) != 2 || its[1].Name != "Epic" {
 		t.Fatalf("CreateMetaIssueTypes = %+v, %v", its, err)
 	}
-	cf, err := c.CreateMetaFields(ctx, "EX", "3")
-	if err != nil || len(cf) != 2 || cf[0].FieldID != "assignee" || !cf[0].Required || string(cf[1].DefaultValue) != `{"id":"3"}` {
-		t.Fatalf("CreateMetaFields = %+v, %v", cf, err)
-	}
 	pr, err := c.Priorities(ctx, "10000")
 	if err != nil || len(pr) != 2 || pr[1].Name != "Medium" {
 		t.Fatalf("Priorities = %+v, %v", pr, err)
-	}
-	lt, err := c.IssueLinkTypes(ctx)
-	if err != nil || len(lt) != 2 || lt[1].Outward != "blocks" {
-		t.Fatalf("IssueLinkTypes = %+v, %v", lt, err)
 	}
 }

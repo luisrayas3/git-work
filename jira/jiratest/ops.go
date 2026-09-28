@@ -337,20 +337,6 @@ func (a *Actor) Link(source, linkType, dest string) string {
 	return strconv.Itoa(id)
 }
 
-// Unlink deletes a link.
-func (a *Actor) Unlink(linkID string) {
-	a.s.t.Helper()
-	a.do(func() error {
-		id, _ := strconv.Atoi(linkID)
-		l := a.s.links[id]
-		if l == nil {
-			return fmt.Errorf("no link %s", linkID)
-		}
-		a.s.unlink(l, a.id)
-		return nil
-	})
-}
-
 // SetProperty sets an issue property, which bumps nothing.
 func (a *Actor) SetProperty(key, prop string, value any) {
 	a.s.t.Helper()
@@ -379,7 +365,6 @@ func (s *Server) DeleteComment(key, id string)     { s.t.Helper(); s.UI().Delete
 func (s *Server) Delete(key string)                { s.t.Helper(); s.UI().Delete(key) }
 func (s *Server) Move(key, project string) string  { s.t.Helper(); return s.UI().Move(key, project) }
 func (s *Server) Link(src, typ, dst string) string { s.t.Helper(); return s.UI().Link(src, typ, dst) }
-func (s *Server) Unlink(linkID string)             { s.t.Helper(); s.UI().Unlink(linkID) }
 
 // Issue is the stored state of an issue, for assertions.
 type Issue struct {
