@@ -12,7 +12,6 @@ import (
 	"fmt"
 	"math/rand/v2"
 	"net/http"
-	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -385,14 +384,14 @@ func crashSetup(t *testing.T, opts ...jiratest.Option) *crashWorld {
 	return &crashWorld{world: w, key: key, ic: ic, newId: newId}
 }
 
-// ageJournal is time passing beyond Overlap for the create journal, whose
-// entries are on the local clock.
+// ageJournal is time passing beyond Settle for the create journal, whose
+// entries are on Jira's clock.
 func (w *world) ageJournal() {
 	w.t.Helper()
 	st, err := jira.LoadState(w.c.LocalStorage())
 	require.NoError(w.t, err)
 	for id := range st.Creating {
-		st.Creating[id] = time.Now().Add(-time.Hour).UTC()
+		st.Creating[id] = w.srv.Now().Add(-time.Hour).UTC()
 	}
 	require.NoError(w.t, st.Save(w.c.LocalStorage()))
 }
@@ -482,13 +481,6 @@ func crashMatrix(t *testing.T, names []string, opts []jiratest.Option) {
 			for _, save := range []bool{true, false} {
 				name := fmt.Sprintf("%d_%s_landed=%v_saved=%v", n, strings.ReplaceAll(names[n-1], "/", "_"), landed, save)
 				t.Run(name, func(t *testing.T) {
-					post := slices.Index(names, "POST /rest/api/3/issue") + 1
-					if landed && n == post {
-						t.Skip("BUG: POST /issue whose response is lost drops the create journal (engine.go create), so the next run POSTs a duplicate")
-					}
-					if !save && (n > post || (n == post && landed)) {
-						t.Skip("BUG: the create journal is saved only at the end of the run (host.JiraSync), so a killed process POSTs a duplicate")
-					}
 					cw := crashSetup(t, opts...)
 					h := &hookRT{}
 					crash := func(r *http.Request, i int) error {
@@ -629,13 +621,14 @@ func TestAdvIdsRespectCreateJournal(t *testing.T) {
 	st, err := jira.LoadState(w.c.LocalStorage())
 	require.NoError(t, err)
 	st.Bind(w.srv.URL(), "PROJ")
-	st.Creating[id] = timeNow()
+	st.Creating[id] = w.srv.Now()
 	require.NoError(t, st.Save(w.c.LocalStorage()))
 
-	w.sync(jira.Options{Ids: []entity.Id{id}})
-	if len(w.srv.Keys()) != 1 {
-		t.Skip("BUG: sync ID... ignores the create journal and the git-work property, and POSTs a duplicate (engine.go runIds -> create)")
-	}
+	w.mustSync(jira.Options{Ids: []entity.Id{id}}) // the index lags: pending
+	require.Len(t, w.srv.Keys(), 1, "never POSTed again")
+	w.mustSync(jira.Options{Ids: []entity.Id{id}})
+	require.Len(t, w.srv.Keys(), 1, "never POSTed again")
+	require.Equal(t, key, jiraKeyOf(t, mustIssue(t, w.c, id)), "linked by its property")
 }
 
 // ID... on an archived unlinked issue must not export it: v1 exports every

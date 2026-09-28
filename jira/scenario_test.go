@@ -2,10 +2,12 @@ package jira_test
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 
+	"github.com/gofrs/flock"
 	"github.com/stretchr/testify/require"
 
 	"github.com/git-bug/git-bug/cache"
@@ -233,7 +235,7 @@ func TestCrashAfterCreate(t *testing.T) {
 	st, err := jira.LoadState(w.c.LocalStorage())
 	require.NoError(t, err)
 	st.Bind(w.srv.URL(), "PROJ")
-	st.Creating[id] = timeNow()
+	st.Creating[id] = w.srv.Now()
 	require.NoError(t, st.Save(w.c.LocalStorage()))
 
 	// inside Overlap and lagging: neither found nor created again
@@ -449,8 +451,6 @@ func TestBadCredential(t *testing.T) {
 	}
 }
 
-func timeNow() time.Time { return time.Now().UTC() }
-
 // JS12: a crash after POST …/comment, before the commit. The comment's
 // git-work property names the local op, so the next run pairs it and posts
 // nothing; with the property unreturned, the token's authorship and the
@@ -496,4 +496,25 @@ func TestRateLimitExhausted(t *testing.T) {
 	require.False(t, st.Cursor.After(cursor))
 	w.mustSync(jira.Options{})
 	w.byKey(key)
+}
+
+// A10: a second run while one holds the sync lock does nothing and says so;
+// two runs would both POST one new issue.
+func TestConcurrentRunRefused(t *testing.T) {
+	w := newWorld(t)
+	w.newLocal("Once", "", nil)
+	path := filepath.Join(w.c.LocalStorage().Root(), "jira", "sync.lock")
+	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
+	held := flock.New(path)
+	ok, err := held.TryLock()
+	require.NoError(t, err)
+	require.True(t, ok)
+	_, _, err = w.sync(jira.Options{})
+	require.ErrorContains(t, err, "already running")
+	require.Empty(t, w.srv.Keys())
+	_, _, err = w.sync(jira.Options{DryRun: true})
+	require.NoError(t, err, "a dry run takes no lock")
+	require.NoError(t, held.Unlock())
+	w.mustSync(jira.Options{})
+	require.Len(t, w.srv.Keys(), 1)
 }

@@ -24,6 +24,7 @@ type Options struct {
 	Ids                         []entity.Id // only these issues: no search, no cursor, no Gone
 	DryRun, Full, AcceptDeletes bool
 	Overlap                     time.Duration // default 5m
+	Settle                      time.Duration // default 15m: how long an unanswered create stays in doubt (JS15)
 	MaxDeletes                  int           // default 10
 }
 
@@ -39,6 +40,9 @@ func Sync(ctx context.Context, repo *cache.RepoCache, c *jiraapi.Client, p *Proj
 	st *State, opts Options, emit func(Line)) (Summary, error) {
 	if opts.Overlap == 0 {
 		opts.Overlap = 5 * time.Minute
+	}
+	if opts.Settle == 0 {
+		opts.Settle = 15 * time.Minute
 	}
 	if opts.MaxDeletes == 0 {
 		opts.MaxDeletes = 10
@@ -84,6 +88,25 @@ type engine struct {
 	grew    bool        // the run imported or created an issue
 	cursor  time.Time
 	sum     Summary
+	created map[entity.Id]string // in-doubt creates found by the created search (JS15); nil until searched
+}
+
+// now is Jira's clock, from the Date of its last response, so journal times
+// compare with Jira's created without client skew; the fallback is local.
+func (e *engine) now() time.Time {
+	if d := e.c.ServerDate(); !d.IsZero() {
+		return d.UTC()
+	}
+	return time.Now().UTC()
+}
+
+// persist saves the state now: the create journal must be on disk before
+// the POST it guards (JS15).
+func (e *engine) persist() error {
+	if err := e.st.Save(e.repo.LocalStorage()); err != nil {
+		return fatal{fmt.Errorf("jira: saving the create journal: %w", err)}
+	}
+	return nil
 }
 
 // fatal marks an error that stops the run (JS23).
@@ -199,10 +222,19 @@ func (e *engine) runIds() error {
 	return nil
 }
 
-func (e *engine) runAll() error {
+// location is the zone JQL literals are read in (JS20).
+func (e *engine) location() (*time.Location, error) {
 	loc, err := e.p.Me.Location()
 	if err != nil || e.p.Me.TimeZone == "" {
-		return fmt.Errorf("jira: the account's time zone %q does not load; JQL dates would be misread (JS20)", e.p.Me.TimeZone)
+		return nil, fatal{fmt.Errorf("jira: the account's time zone %q does not load; JQL dates would be misread (JS20)", e.p.Me.TimeZone)}
+	}
+	return loc, nil
+}
+
+func (e *engine) runAll() error {
+	loc, err := e.location()
+	if err != nil {
+		return err
 	}
 	l, err := e.scan()
 	if err != nil {
@@ -260,13 +292,14 @@ func (e *engine) runAll() error {
 		}
 	}
 
+	// a journal entry of an issue no longer to create is stale
+	for id := range e.st.Creating {
+		if ex, ok := l.byId[id]; !ok || ex.CreateMetadata[MetaId] != "" {
+			delete(e.st.Creating, id)
+		}
+	}
 	for _, id := range l.creates {
 		if e.done[id] {
-			continue
-		}
-		if t, ok := e.st.Creating[id]; ok && time.Since(t) < e.opts.Overlap {
-			e.report(Line{Issue: id, Action: ActionSkipped,
-				Pending: []Skip{{Key: "*", Reason: "created in Jira moments ago; waiting for the search to show it", Retry: true}}})
 			continue
 		}
 		ic, err := e.repo.Issues().Resolve(id)
@@ -284,8 +317,9 @@ func (e *engine) runAll() error {
 	return nil
 }
 
-// lowerBound is min(cursor, oldest journal entry) − Overlap; without a
-// cursor it starts from the newest marker in the store (JS20).
+// lowerBound is the cursor − Overlap; without a cursor it starts from the
+// newest marker in the store (JS20). A create's issue is always later than
+// the cursor, which only moves to hits seen before any POST.
 func (e *engine) lowerBound(l *local) (time.Time, bool) {
 	lb := e.st.Cursor
 	if lb.IsZero() {
@@ -300,11 +334,6 @@ func (e *engine) lowerBound(l *local) (time.Time, bool) {
 		}
 		if lb.IsZero() {
 			return lb, false
-		}
-	}
-	for _, t := range e.st.Creating {
-		if t.Before(lb) {
-			lb = t
 		}
 	}
 	return lb.Add(-e.opts.Overlap), true
@@ -1090,8 +1119,9 @@ func (e *engine) statusName(id string) string {
 
 // ---- creates, links and imports (JS15) ----
 
-// create exports a local issue with no jira-id: journal, POST, then the
-// ordinary merge from a create base.
+// create exports a local issue with no jira-id (JS15). A journal entry
+// says an earlier POST may have landed: the issue is looked for by its
+// property first, and created again only once the entry has settled.
 func (e *engine) create(ic *cache.IssueCache) error {
 	id := ic.Id()
 	e.done[id] = true
@@ -1100,6 +1130,22 @@ func (e *engine) create(ic *cache.IssueCache) error {
 	line := Line{Issue: id, Action: ActionCreated}
 	if _, ok := e.m.IssueType(typ); !ok {
 		return nil
+	}
+	if t, ok := e.st.Creating[id]; ok {
+		jid, err := e.findCreated(id)
+		if err != nil {
+			return e.fail(line, err)
+		}
+		if jid != "" {
+			return e.linkCreated(ic, jid)
+		}
+		if e.now().Sub(t) < e.opts.Settle {
+			line.Action = ActionSkipped
+			line.Pending = append(line.Pending, Skip{Key: "*", Retry: true,
+				Reason: "a create at " + t.Format(time.RFC3339) + " may have landed; waiting for Jira's search to show it"})
+			e.report(line)
+			return nil
+		}
 	}
 	local := e.m.Local(snap, typ)
 	body, carried, skips := e.m.Create(local, id, e.ix)
@@ -1116,7 +1162,10 @@ func (e *engine) create(ic *cache.IssueCache) error {
 	if !hasProperty(props, PropertyKey) {
 		props = append(props, jiraapi.Property{Key: PropertyKey, Value: map[string]string{"id": id.String()}})
 	}
-	e.st.Creating[id] = time.Now().UTC()
+	e.st.Creating[id] = e.now()
+	if err := e.persist(); err != nil {
+		return err
+	}
 	ref, err := e.c.CreateIssue(e.ctx, body.Fields, props)
 	// JS13 step 4, as for a PUT: refused fields are dropped once, and pending
 	var apiErr *jiraapi.Error
@@ -1134,7 +1183,9 @@ func (e *engine) create(ic *cache.IssueCache) error {
 		ref, err = e.c.CreateIssue(e.ctx, body.Fields, props)
 	}
 	if err != nil {
-		delete(e.st.Creating, id)
+		if refused(err) {
+			delete(e.st.Creating, id)
+		}
 		return e.fail(line, err)
 	}
 	e.ix.AddIssue(ref.ID, id)
@@ -1152,6 +1203,43 @@ func (e *engine) create(ic *cache.IssueCache) error {
 		line.exported(k, local.Fields[k])
 	}
 	return e.converge(ic, b, ri, cs, map[string]string{MetaId: ri.ID, MetaAlias: ri.Key}, line)
+}
+
+// refused says Jira answered a write and did not make it: a 4xx other than
+// a timeout or a rate limit. Anything else may have landed.
+func refused(err error) bool {
+	s := jiraapi.StatusCode(err)
+	return s >= 400 && s < 500 && s != 408 && s != 429
+}
+
+// findCreated is the Jira issue whose property names id among those created
+// since the oldest journal entry − Overlap, the lower id of two; one search
+// per run answers every entry (JS15).
+func (e *engine) findCreated(id entity.Id) (string, error) {
+	if e.created == nil {
+		loc, err := e.location()
+		if err != nil {
+			return "", err
+		}
+		var since time.Time
+		for _, t := range e.st.Creating {
+			if since.IsZero() || t.Before(since) {
+				since = t
+			}
+		}
+		hits, err := e.search("project = " + jiraapi.JQLQuote(e.p.Key) + " AND created >= " +
+			jiraapi.JQLTime(since.Add(-e.opts.Overlap), loc) + " ORDER BY created ASC, id ASC")
+		if err != nil {
+			return "", err
+		}
+		e.created = map[entity.Id]string{}
+		for _, h := range hits {
+			if cur, ok := e.created[h.prop]; h.prop != "" && (!ok || cmpId(h.id, cur) < 0) {
+				e.created[h.prop] = h.id
+			}
+		}
+	}
+	return e.created[id], nil
 }
 
 func hasProperty(ps []jiraapi.Property, key string) bool {

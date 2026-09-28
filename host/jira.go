@@ -7,8 +7,12 @@ import (
 	"net"
 	"net/url"
 	"os"
+	"path/filepath"
+	"strconv"
 	"strings"
 	_ "time/tzdata" // JQL literals are in the account's zone, any IANA zone (JS20)
+
+	"github.com/gofrs/flock"
 
 	"github.com/git-bug/git-bug/cache"
 	"github.com/git-bug/git-bug/jira"
@@ -121,6 +125,13 @@ func JiraSchema(ctx context.Context, repo *cache.RepoCache) (*schema.Document, [
 // the mapping, and run the engine; the state file is saved even when the run
 // stops, since its cursor stops at the failure (JS20, JS23). It never pushes.
 func JiraSync(ctx context.Context, repo *cache.RepoCache, opts jira.Options, emit func(jira.Line)) (jira.Summary, []jira.Note, error) {
+	if !opts.DryRun {
+		unlock, err := lockJiraSync(repo)
+		if err != nil {
+			return jira.Summary{}, nil, err
+		}
+		defer unlock()
+	}
 	b, c, p, err := jiraConnect(ctx, repo)
 	if err != nil {
 		return jira.Summary{}, nil, err
@@ -170,6 +181,36 @@ func JiraSync(ctx context.Context, repo *cache.RepoCache, opts jira.Options, emi
 		}
 	}
 	return sum, notes, err
+}
+
+// jiraSyncLock excludes a second run for the whole of one, beside the
+// state file: two runs would both POST one new issue (JS15). It never
+// waits, and the kernel drops it when the process dies, like the write lock.
+const jiraSyncLock = "jira/sync.lock"
+
+func lockJiraSync(repo *cache.RepoCache) (func(), error) {
+	root := repo.LocalStorage().Root()
+	if fi, err := os.Stat(root); err != nil || !fi.IsDir() {
+		return func() {}, nil // in-memory storage: no other process can share it
+	}
+	path := filepath.Join(root, filepath.FromSlash(jiraSyncLock))
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return nil, err
+	}
+	lock := flock.New(path)
+	locked, err := lock.TryLock()
+	if err != nil {
+		return nil, err
+	}
+	if !locked {
+		holder := ""
+		if pid, err := os.ReadFile(path); err == nil && len(pid) > 0 {
+			holder = " (pid " + strings.TrimSpace(string(pid)) + ")"
+		}
+		return nil, fmt.Errorf("a jira sync is already running in this clone%s; this run did nothing", holder)
+	}
+	_ = os.WriteFile(path, []byte(strconv.Itoa(os.Getpid())), 0o644)
+	return func() { _ = lock.Unlock() }, nil
 }
 
 func typeAliased(s *schema.Schema) bool {
