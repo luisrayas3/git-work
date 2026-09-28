@@ -97,15 +97,22 @@ is reported pending and `base[k]` is unchanged. `merge(b, l, r)` with
 **I2 — The base is Jira-observed, and moves only with local.** `base[k]` is
 written only in the commit that makes `local[k]` equal to it, and its value
 is one Jira was seen to hold (`R` or the post-write `R′`), in local terms
-(the body's as its digest). The export path never writes a base directly:
-`B′[k] = written` is only the second merge's input, which records `R′`'s
-value by row 1 or imports Jira's normal form; a written key `R′` does not
-show yet is *unconfirmed* and keeps its prior base, so it is exported again
-rather than the old value imported over the local edit
-(`TestAdvUnconfirmedWriteNotBase`); unconfirmed twice, it has no base, and
-Jira's value imports with a conflict note (JS13 step 5). A crash can only leave a base *older*
-than both sides, which the first merge row (`l == r` ⇒ converged) absorbs.
-One exception, `Gone` (JS19).
+(the body's as its digest). **Jira's 2xx is its acceptance, and a GET its
+observation.** What a run writes goes into the marker's `Sent` (the key's
+form; a comment's key is `comment:<Jira id>`, its value the digest), with
+`Wrote`, Jira's clock just before the write; a comment created is paired
+from its `201`, never from a re-read; the base does not move. Before every
+merge, `confirm` settles `Sent` against the `GET` in hand, by Jira's clock,
+never by counting runs (JS13 step 5): shown, the value is the base; a `GET`
+whose `updated` is older than `Wrote`, within `Settle`, may be stale, and the
+key is pending, neither imported, exported nor re-based
+(`TestAdv2UnconfirmedThenLocalEdit`, `TestAdv2SlowGetNoFlap`);
+otherwise Jira holds something else and its value imports, as Jira's normal
+form when `R′` answers this run's own write, else with a conflict note over a
+base that equals neither side, so no local value, a clear included, is ever
+reverted silently (`TestAdv2StaleClearNeverSilent`). A crash can only leave a
+base *older* than both sides, which the first merge row (`l == r` ⇒
+converged) absorbs. One exception, `Gone` (JS19).
 
 **I3 — Links are immutable facts on operations.** An issue's Jira id is
 metadata on its create operation, a comment's Jira id metadata on its
@@ -371,6 +378,9 @@ type Base struct {
 	Comments map[string]string      `json:"comments,omitempty"` // Jira comment id -> digest; "" once deleted in Jira
 	Retry    []string               `json:"retry,omitempty"`    // keys skipped with Retry (JS17)
 	Gone     string                 `json:"gone,omitempty"`     // "deleted" | "moved" | "" (JS19)
+	Sent     map[string]issue.Value `json:"sent,omitempty"`     // written, not yet seen: key (or comment:<id>) -> form (I2)
+	Wrote    time.Time              `json:"wrote,omitzero"`     // Jira's clock before the last of those writes
+	Fresh    bool                   `json:"fresh,omitempty"`    // a create not merged yet: JS15's create rule applies
 }
 ```
 
@@ -504,13 +514,13 @@ comments are keyed `comment:<Jira id>`, or `comment:<op>` before one exists.
 ### JS13 — One issue at a time: Jira writes first, then one commit decided under the lock
 
 1. **Candidate** (JS20). Skip when the search's `updated` equals
-   `base.Updated`, `local == base`, `base.Retry` is empty, the issue is not
-   `Gone`, and the run is not `--full`.
+   `base.Updated`, `local == base`, the base is settled (no `Retry`, no
+   `Sent`, not `Fresh`), the issue is not `Gone`, and the run is not `--full`.
 2. **Read** `R = GET /issue/{id}?fields=<the mapping's>&properties=git-work`
    and its comments; ensure identities for the accounts they name (JS16),
    each its own commit. A 404 or a key outside the project is not a failure
    but JS19's business.
-3. **Plan**, lock-free: `plan₁ = merge(B, L, fromIssue(R), export=true)`;
+3. **Plan**, lock-free: `plan₁ = merge(confirm(B, R), L, fromIssue(R), export=true)`;
    `toWrites` turns `plan₁.Remote` into writes, one per local key.
 4. **Write**, each independent, success recorded per key: one `PUT` with every
    edit; the transition; link adds and removes; comment creates and edits.
@@ -521,22 +531,26 @@ comments are keyed `comment:<Jira id>`, or `comment:<op>` before one exists.
    would block "done" on most company-managed workflows); any other required
    field, or no such transition, is pending; a 409 re-reads the transitions
    and retries once.
-5. **Re-read** `R′ = GET` if anything was written, else `R′ = R`. A key
-   written this run that `R′` still shows at its `R` value is
-   *unconfirmed* — a stale read, not a Jira edit: it keeps its prior base
-   (I2) and is a `Skip{Retry}` for step 6, so `plan₂` never imports the
-   pre-write value over local; the next run reads it again and, if Jira
-   still holds the old value, exports again. Unconfirmed a second run in a
-   row (the key is in the base's `Retry`), Jira holds its value — it
-   normalised ours back to it, as a trimmed summary does, or someone set
-   it — so the key loses its base and `plan₂` imports Jira's value with a
-   conflict note: two runs, never a loop and never a silent revert
-   (`TestAdvNormalisedBackToOld`).
-6. **Commit**, `IssueCache.Update`: `B′ = B` with each written scalar and
-   text set to the form written (a set's base stays `b`: against `r′ =
-   merged`, the second merge reaches the merged set locally, where `B′ =
-   merged` would remove Jira's additions); under the lock, on the fresh
-   snapshot `L′`, `plan₂ = merge(B′, L′, fromIssue(R′), export=false)`; the
+5. **Re-read** `R′ = GET` if anything was written, else `R′ = R`. Each
+   write that landed is in `B′.Sent`, with `B′.Wrote` Jira's clock (the `Date`
+   of the response before the first write, which no write of the run
+   precedes). `confirm(B′, R′)` settles each key of `Sent`:
+
+   | `R′` shows | the key |
+   | --- | --- |
+   | the value written | confirmed: its base is that value |
+   | something else, `R′.updated < Wrote`, `now − Wrote < Settle` | possibly stale: `Skip{Retry}`, no import, no export, no base change; `Sent` kept |
+   | something else, written this run, `R′.updated ≥ Wrote` | Jira's normal form of ours: base = the value written, so it imports as an ordinary change (`TestAdvLocalNormalisationConverges`) |
+   | something else, any other case | Jira holds its own value (a later edit, or ours normalised back to the old one, which leaves `updated` alone): base = `unknownBase`, which equals neither side, so Jira's value imports **with a conflict note** naming the local one; next run `l == r` (`TestAdvNormalisedBackToOld`, `TestAdvUnconfirmedWriteNotBase`) |
+
+   A set keeps its base in every row, JS10 deciding (`B′ = merged` would
+   remove Jira's additions); `Sent` only holds it back from a stale `GET`. A
+   comment `R′` does not list is, in the last row, deleted in Jira. A failed
+   re-read commits step 6 against `R`, where everything written is still
+   pending, and then fails the issue: nothing Jira answered is lost.
+6. **Commit**, `IssueCache.Update`: under the lock, on the fresh snapshot
+   `L′`, with the comments step 4 created paired from their `201`s,
+   `plan₂ = merge(confirm(B′, R′), L′, fromIssue(R′), export=false)`; the
    ops are `plan₂`'s local changes, each pre-checked per key with the run's
    checker (`admit`: a refused key keeps its old base and moves to `Retry`,
    so `Update`'s own check never refuses the batch), the conflict note, the
@@ -544,18 +558,44 @@ comments are keyed `comment:<Jira id>`, or `comment:<op>` before one exists.
    from the current (JS8). Keys `plan₂` still wants to export are reported
    pending, not written.
 
+**Staleness by Jira's clock, decided 2026-09-28** (review 3). The rule it
+replaces kept an unconfirmed key's prior base and, unconfirmed a second run
+in a row, dropped it, so `plan₂` imported Jira's value. Six of that review's
+eight bugs came from counting runs: a slow `GET` two runs in a row reverted
+a local edit with a false note and flapped; a dropped base made a local clear
+a silent take (the missing-base row takes over an empty local with no note);
+a kept prior base read our own echo as a Jira edit over a newer local edit;
+and pairing a comment only from the re-read posted it again every run. Jira's
+clock answers what the count guessed: a `GET` older than our write cannot
+have seen it, one at or past it has. Two points differ from a plain "Jira
+wins with a note whenever it shows another value". The `R′` that follows
+this run's own write, and shows it landed, keeps the old rule of importing
+Jira's normal form silently: the only other explanation is a Jira edit in
+the milliseconds between the write and the read, and noting every trimmed
+summary or rounded number would be a note per normalisation. And the
+window is `Settle`, the bound already trusted for an unanswered create,
+because a normalisation back to Jira's old value leaves `updated` alone and
+is indistinguishable from a stale read until then: such a key is pending,
+never re-exported, for one `Settle`. The residual: `Wrote` is second
+resolution, so a Jira edit in the same second before our write passes as
+fresh, and costs a note and one flap, never a silent loss.
+
 Every local decision is made under the lock on the entity as it is then, so a
 user editing during steps 3–5 is seen by `plan₂` — a double edit if Jira
 changed that key, pending otherwise. The lock is never held across the
-network. Setting `B′[k]` to what was written makes each confirmed success
-collapse to row 1, each failure stay a local change, and each Jira
-normalisation arrive as an ordinary import.
+network. Settling `Sent` before each merge makes each confirmed success
+collapse to row 1, each failure stay a local change, each Jira
+normalisation arrive as an ordinary import, and each stale read a pending
+key.
 
 | stops after | state | next run |
 | --- | --- | --- |
 | 1–3 | nothing written | identical run |
-| part of 4, or 5 | some Jira writes, nothing local | a written key is `l == r`: converged; an unwritten one is still local: written; comments pair by property, creates by their attempt and property (JS15) |
+| part of 4 | some Jira writes, nothing local | a written key is `l == r`: converged; an unwritten one is still local: written; comments pair by property, creates by their attempt and property (JS15) |
+| 5, the re-read fails | Jira's answers in hand | step 6 commits them against `R`: pairings from the `201`s, `Sent` and `Wrote`; the issue fails; next run settles `Sent` (I2) |
+| 5, a stale `R′` | Jira does not show the writes | the written keys are pending with `Sent` kept, comments paired; each later run leaves them alone until a `GET` reaches `Wrote` or `Settle` passes |
 | the `POST /issue` answer lost | the issue may exist in Jira | the `jira-create` attempt, committed before the `POST`, is in doubt: found by property, linked; not found, pending until `Settle`, then created again (JS15) |
+| `POST` `201`, the `GET` after it fails | the id and key in hand | committed at once: `jira-id`, `alias:jira` and a `Fresh` marker; a linked issue, never in doubt; a 404 within `Settle` is pending, not gone (JS15) |
 | 4, refused (400) | Jira refused a key | pending every run until fixed on either side |
 | 4, no transition | status diverged | pending with the reason; a later Jira status change imports, with a conflict |
 | 6, schema check | a value the schema lacks | that key `Retry`, the rest commits |
@@ -590,16 +630,24 @@ the **create attempt** is what stands between a lost answer and a duplicate:
    `git-work={"id":…}`, and each field the create screen marks required with
    no default that local holds (a set stated whole) — nothing else, so a
    per-field refusal cannot fail a create that Jira would take. On `201` the
-   issue is `GET` as `R` and continues from step 3 with a **create base**: a
-   sent key's `B[k] = L[k]` (so Jira's normal form imports in `plan₂`);
-   another key's `B[k] = R[k]` when local holds a value (so it is written now,
-   in the one `PUT` and the transition every create pays anyway) and `L[k]`
-   when local is null or empty (so a Jira default such as priority imports
-   rather than being cleared forever); comments are local-only and exported.
+   issue is `GET` as `R` and continues from step 3 with a **create base**:
+   each sent key is in `Sent` with `Wrote` the attempt's time, and `R`, the
+   read that answers the `POST`, settles it (I2: Jira's normal form imports
+   in `plan₂`); the marker is `Fresh`, so another key's `B[k] = R[k]` when
+   local holds a value (so it is written now, in the one `PUT` and the
+   transition every create pays anyway) and `L[k]` when local is null or
+   empty (so a Jira default such as priority imports rather than being
+   cleared forever); comments are local-only and exported.
    Step 6 adds `jira-id` and `alias:jira` by `SetMetadata` on the create op,
-   which ends the doubt. An ordinary merge against the created issue as base
-   would export `null` over every Jira default; the create base is why it
-   differs.
+   which ends the doubt. When the `GET` fails, the `201` is committed alone —
+   `jira-id`, `alias:jira` and the `Fresh` marker — so the next run syncs a
+   linked issue rather than doubting a create whose answer it had
+   (`TestAdv2CreateAnswerDiscarded`); a 404 while `now − Wrote < Settle` is
+   the index not showing it yet, pending, never `Gone`. An ordinary merge
+   against the created issue as base would export `null` over every Jira
+   default; the create base is why it differs. `--dry-run` reports the
+   create's follow-up writes too, merging the create base against a Jira
+   that holds what was `POST`ed and nothing else.
 3. A definitive answer — a 4xx other than 408 and 429 — says nothing was
    made: the attempt is recorded in the state's `Refused` with the issue's
    edit lamport, is not in doubt, and is neither `POST`ed nor committed again
@@ -706,7 +754,8 @@ returns every id of the project; a linked issue whose id is missing and not
 `Gone` is read with `GET`. A 404 (deleted, or hidden: Jira will not say) is
 `Gone: deleted`; a 200 in another project is `Gone: moved`. A sync that meets
 either on its own `GET` — a locally edited issue, a lagging index still
-returning a deleted one — is no failure: incrementally it is a skipped line
+returning a deleted one — is no failure (and a `Fresh` create younger than
+`Settle` answering 404 is not gone at all, JS15): incrementally it is a skipped line
 ("…; --full marks it gone"), and under `--full` it goes to the Gone pass
 whatever the search returned (`TestJiraDeleteSeenByGet`). The status field,
 under its own key, is set to the first value in its canceled category, a note
@@ -737,7 +786,9 @@ key included), with no search, no cursor and no `Gone`. `--full` searches
 The cursor is Jira's own `updated` (UTC in the state file), so client clock
 skew is irrelevant. At the end of a run it becomes the greatest `updated`
 reached; unreached hits are later than it. A hit that failed is kept in the
-state's `Failed` and re-read by `GET` on the next run (at most 100 a run),
+state's `Failed` and re-read by `GET` on the next run (at most 100 a run,
+round robin from the state's `FailedAfter`, so each is read within
+`ceil(n/100)` runs; one that fails again is a failed line and exit 1),
 until it syncs, is dropped on a 404 or a move, so one issue failing forever
 (a 403, a value the schema refuses on every run) costs one `GET`, not a
 window that only grows. It is never named in the JQL: Jira refuses a whole
@@ -909,10 +960,10 @@ the authority for signatures; what follows is where each decision lives.
 | `compile.go` | `Compile` → `Mapping` with the binding and duplicate-alias checks; `Mapped` (JS5, JS25) |
 | `mapping.go`, `value.go` | `Mapping.Local`, `fromIssue`, `toWrites`, `createBody`; canonical values (JS7) |
 | `index.go` | `Index`: Jira id ↔ entity id, accountId ↔ identity (JS17, JS25) |
-| `merge.go`, `base.go` | `merge`, `form`, `decide`, `mergeSet`, `mergeComments`; `Base`, `CurrentBase`, `digest` (JS8–JS12) |
+| `merge.go`, `base.go` | `merge`, `form`, `decide`, `mergeSet`, `mergeComments`; `Base`, `CurrentBase`, `confirm`, `fresh`, `digest` (JS8–JS12, I2) |
 | `engine.go` | `Sync`, `Options`, the run/issue failure split `runFatal` (JS23), `report` |
 | `candidates.go` | the scan, the search, failed hits, `changed`, the re-pass (JS17, JS20) |
-| `issue.go`, `write.go` | JS13: `syncLinked`, `converge`, `unconfirmed`, `commit`, `admit`; the Jira writes and transitions |
+| `issue.go`, `write.go` | JS13: `syncLinked`, `converge`, `settle`, `commit`, `admit`; the Jira writes and transitions, recorded in `Sent` |
 | `create.go` | creates, attempts, `findCreated`, `linkCreated`, link requests, imports, Gone (JS15, JS19) |
 | `report.go`, `state.go` | `Line`, `Summary`; `State` (JS8, JS20, JS22) |
 
@@ -957,7 +1008,14 @@ The tests are the plan, named after what they check:
   commits, stale reads and unconfirmed writes, failed hits deleted, time
   zones, DST, clock skew, type changes, moves, links to deleted issues, two
   clones' races, lossy texts, unwritable values, and a seeded random-edit
-  property run (`TestAdvPropertyRandomEdits`).
+  property run (`TestAdvPropertyRandomEdits`); `adversarial2_test.go`:
+  staleness by Jira's clock, the `jira-create` marker across two clones,
+  failed-hit re-reads, the body as a key, `--dry-run`'s honesty, and
+  `TestAdv2PropertyHarsh`, random edits on both sides under a lagging index,
+  stale reads, comment bumps, rate-limit bursts and transition conflicts, whose
+  oracle requires every overwrite of a local value to be in a conflict note
+  (a local value set back to its base is no edit to a state merge, and is not
+  followed), no duplicate, and a fixpoint within 6 clean runs.
 
 ## Earlier tasks
 
@@ -984,8 +1042,9 @@ family, stated aliases never removed).
   step) is untested end to end; datetime custom fields are covered by
   conversion tests only (`TestDatetime`).
 - **Awaiting the spike** (`0a4390d`): whether `GET /issue` is
-  read-after-write consistent (the `unconfirmed` guard exists for
-  `WithStaleReads`), whether `expand=properties` is honoured on the comment
+  read-after-write consistent (`Sent` and `Wrote` exist for
+  `WithStaleReads`; if it is, they only ever cost the normalised-back case
+  its `Settle` of pending), whether `expand=properties` is honoured on the comment
   list (JS12), whether an issue property reaches the search index with the
   same lag as fields (I4), and how Jira answers JQL naming a deleted id
   (JS20; the fake answers 400, the worse case).

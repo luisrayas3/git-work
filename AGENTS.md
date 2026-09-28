@@ -261,7 +261,10 @@ one line per issue touched, pending, skipped or failed, a summary whose
 `unchanged` counts the rest) and exits 1 when an issue failed or
 deletes were held; the mapping's notes reach stderr only in a run that changed
 the schema, so cron stays quiet. Jira wins a field edited on both sides, with a
-`jira-note: conflict` comment on the issue. It **never pushes**; bind one
+`jira-note: conflict` comment on the issue, and so does a value Jira shows
+other than the one written, unless it is the normal form Jira answered the
+write with; a write Jira's `GET` does not show yet is pending, never written
+again, until Jira's `updated` reaches it or 15 minutes of Jira's clock pass. It **never pushes**; bind one
 clone only: two bound clones syncing before they exchange duplicate issues,
 which the sync then reports but cannot undo (JS25). One run at a time: a
 second exits 1 with `a jira sync is already running`, having done nothing.
