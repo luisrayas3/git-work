@@ -89,17 +89,6 @@ func (s *Server) linkByID(c *call) (*link, error) {
 	return l, nil
 }
 
-func (s *Server) getIssueLink(c *call) (int, any, error) {
-	l, err := s.linkByID(c)
-	if err != nil {
-		return 0, nil, err
-	}
-	if c.user == nil {
-		return 0, nil, notFound(fmt.Sprintf("No issue link with id '%s' exists.", c.v("linkId")))
-	}
-	return http.StatusOK, s.linkJSON(l, 0), nil
-}
-
 func (s *Server) deleteIssueLink(c *call) (int, any, error) {
 	l, err := s.linkByID(c)
 	if err != nil {

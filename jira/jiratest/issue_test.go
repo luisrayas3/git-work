@@ -2,6 +2,7 @@ package jiratest_test
 
 import (
 	"net/http"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -239,7 +240,7 @@ func TestEditIssue(t *testing.T) {
 }
 
 func TestEditParent(t *testing.T) {
-	s := newServer(t)
+	s := newServer(t, jiratest.WithOrderedChangelog())
 	e1 := s.CreateIssue(jiratest.IssueSpec{Project: "PROJ", Type: "Epic", Summary: "e1"})
 	e2 := s.CreateIssue(jiratest.IssueSpec{Project: "PROJ", Type: "Epic", Summary: "e2"})
 	story := s.CreateIssue(jiratest.IssueSpec{Project: "PROJ", Type: "Story", Summary: "s", Parent: e1})
@@ -251,9 +252,10 @@ func TestEditParent(t *testing.T) {
 	require.Empty(t, s.Issue(story).Parent)
 
 	// C2: IssueParentAssociation, parent ids in from/to, keys in the strings, no fieldId.
-	cl := get(t, s, "/rest/api/3/issue/"+story+"/changelog").obj(t)
-	values := cl["values"].([]any)
+	cl := get(t, s, "/rest/api/3/issue/"+story+"?fields=summary&expand=changelog").obj(t)
+	values := path(cl, "changelog", "histories").([]any)
 	require.Len(t, values, 2)
+	slices.Reverse(values) // served newest first
 	it := path(values[0], "items").([]any)[0].(map[string]any)
 	require.Equal(t, "IssueParentAssociation", it["field"])
 	require.NotContains(t, it, "fieldId")
@@ -321,8 +323,6 @@ func TestIssueProperties(t *testing.T) {
 
 	m := get(t, s, "/rest/api/3/issue/"+key+"?fields=summary&properties=gitwork").obj(t)
 	require.Equal(t, map[string]any{"gitwork": map[string]any{"rev": 2.0}}, m["properties"])
-	keys := get(t, s, "/rest/api/3/issue/"+key+"/properties").obj(t)["keys"].([]any)
-	require.Len(t, keys, 2)
 
 	require.Equal(t, http.StatusNoContent, do(t, s, http.MethodDelete, "/rest/api/3/issue/"+key+"/properties/other", nil).status)
 	require.Equal(t, http.StatusNotFound, get(t, s, "/rest/api/3/issue/"+key+"/properties/other").status)

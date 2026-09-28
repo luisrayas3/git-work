@@ -6,6 +6,8 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -80,10 +82,35 @@ func get(t *testing.T, s *jiratest.Server, path string, opts ...reqOpt) resp {
 	return do(t, s, http.MethodGet, path, nil, opts...)
 }
 
-// search is GET /search/jql with the query parameters given.
+// search is POST /search/jql, the one form the client sends, with a body
+// built from params: lists stay lists, expand is comma-delimited, and
+// maxResults and reconcileIssues are numbers.
 func search(t *testing.T, s *jiratest.Server, params url.Values, opts ...reqOpt) resp {
 	t.Helper()
-	return get(t, s, "/rest/api/3/search/jql?"+params.Encode(), opts...)
+	body := map[string]any{}
+	for k, v := range params {
+		switch k {
+		case "jql", "nextPageToken":
+			body[k] = v[0]
+		case "expand":
+			body[k] = strings.Join(v, ",")
+		case "maxResults":
+			n, err := strconv.Atoi(v[0])
+			require.NoError(t, err)
+			body[k] = n
+		case "reconcileIssues":
+			var ids []int
+			for _, id := range strings.Split(strings.Join(v, ","), ",") {
+				n, err := strconv.Atoi(id)
+				require.NoError(t, err)
+				ids = append(ids, n)
+			}
+			body[k] = ids
+		default:
+			body[k] = v
+		}
+	}
+	return do(t, s, http.MethodPost, "/rest/api/3/search/jql", body, opts...)
 }
 
 func keysOf(t *testing.T, page map[string]any) []string {

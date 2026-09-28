@@ -59,10 +59,6 @@ func TestProject(t *testing.T) {
 	require.Equal(t, true, m["simplified"])
 	require.NotEmpty(t, byID(t, m["issueTypes"].([]any), "10020")["entityId"])
 
-	h := get(t, s, "/rest/api/3/project/10000/hierarchy").obj(t)
-	require.EqualValues(t, 10000, h["projectId"])
-	require.EqualValues(t, -1, path(h["hierarchy"].([]any)[0], "level"))
-
 	sts := get(t, s, "/rest/api/3/project/PROJ/statuses").arr(t)
 	story := byID(t, sts, "10001")
 	qa := byID(t, story["statuses"].([]any), "10001")
@@ -70,9 +66,6 @@ func TestProject(t *testing.T) {
 	require.Equal(t, "indeterminate", path(qa, "statusCategory", "key"))
 	epic := byID(t, sts, "10000")
 	require.Len(t, epic["statuses"], 3)
-
-	its := get(t, s, "/rest/api/3/issuetype/project?projectId=10000&level=-1").arr(t)
-	require.Len(t, its, 1)
 }
 
 func TestCreateMeta(t *testing.T) {
@@ -114,32 +107,13 @@ func TestCreateMeta(t *testing.T) {
 	}
 }
 
-func TestEditMeta(t *testing.T) {
+func TestPriorities(t *testing.T) {
 	s := newServer(t)
-	key := s.CreateIssue(jiratest.IssueSpec{Project: "PROJ", Type: "Story", Summary: "s"})
-	f := get(t, s, "/rest/api/3/issue/"+key+"/editmeta").obj(t)["fields"].(map[string]any)
-	require.Contains(t, f, jiratest.FieldSprint)
-	require.NotContains(t, f, "status")
-	require.NotContains(t, f, jiratest.FieldRank)
-	require.Equal(t, []any{"add", "set", "remove"}, path(f, "labels", "operations"))
-}
-
-func TestSiteMetadata(t *testing.T) {
-	s := newServer(t)
-	cats := get(t, s, "/rest/api/3/statuscategory").arr(t)
-	require.Len(t, cats, 4)
-	require.Equal(t, "indeterminate", get(t, s, "/rest/api/3/statuscategory/4").obj(t)["key"])
-
 	p := get(t, s, "/rest/api/3/priority/search?maxResults=2").obj(t)
 	require.EqualValues(t, 5, p["total"])
 	require.Equal(t, false, p["isLast"])
 	require.Len(t, p["values"], 2)
-	require.Len(t, get(t, s, "/rest/api/3/priority").arr(t), 5)
 	require.Equal(t, true, byID(t, get(t, s, "/rest/api/3/priority/search").obj(t)["values"].([]any), "3")["isDefault"])
-
-	require.Len(t, get(t, s, "/rest/api/3/resolution").arr(t), 4)
-	require.Len(t, get(t, s, "/rest/api/3/resolution/search?id=10001").obj(t)["values"], 1)
-	require.Len(t, get(t, s, "/rest/api/3/status").arr(t), 5)
 }
 
 func TestUsers(t *testing.T) {
@@ -147,22 +121,13 @@ func TestUsers(t *testing.T) {
 	u := get(t, s, "/rest/api/3/user?accountId="+url.QueryEscape(jiratest.JoID)).obj(t)
 	require.Equal(t, false, u["active"])
 	require.Equal(t, http.StatusNotFound, get(t, s, "/rest/api/3/user?accountId=nobody").status)
-
-	find := func(q string) []any { return get(t, s, "/rest/api/3/user/search?query="+url.QueryEscape(q)).arr(t) }
-	require.Len(t, find("mi"), 1)
-	require.Len(t, find("patel"), 1)
-	require.Empty(t, find("ravi@"), "a hidden email needs the exact address")
-	require.Len(t, find("ravi@example.com"), 1)
-	require.Equal(t, http.StatusBadRequest, get(t, s, "/rest/api/3/user/search").status)
-	apps := find("automation")
-	require.Len(t, apps, 1)
-	require.Equal(t, "app", apps[0].(map[string]any)["accountType"])
+	require.Equal(t, "app", get(t, s, "/rest/api/3/user?accountId="+url.QueryEscape(jiratest.AutomationID)).obj(t)["accountType"])
 }
 
 func TestDeny(t *testing.T) {
 	s := newServer(t)
 	key := s.CreateIssue(jiratest.IssueSpec{Project: "PROJ", Type: "Task", Summary: "t"})
-	s.Deny("getFields", "getUser", "findUsers", "getTransitions", "getIssue", "searchAndReconsileIssuesUsingJql",
+	s.Deny("getFields", "getUser", "getTransitions", "getIssue", "searchAndReconsileIssuesUsingJqlPost",
 		"getCreateIssueMetaIssueTypes", "getProject", "editIssue")
 
 	fields := get(t, s, "/rest/api/3/field").arr(t)
@@ -170,7 +135,6 @@ func TestDeny(t *testing.T) {
 		require.Equal(t, false, f.(map[string]any)["custom"], "system fields only")
 	}
 	require.Equal(t, http.StatusForbidden, get(t, s, "/rest/api/3/user?accountId="+jiratest.MiaID).status)
-	require.Empty(t, get(t, s, "/rest/api/3/user/search?query=mia").arr(t))
 	require.Empty(t, get(t, s, "/rest/api/3/issue/"+key+"/transitions").obj(t)["transitions"])
 	require.Equal(t, http.StatusNotFound, get(t, s, "/rest/api/3/issue/"+key).status)
 	r := search(t, s, url.Values{"jql": {"project = PROJ"}})

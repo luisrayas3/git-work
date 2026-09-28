@@ -312,32 +312,6 @@ func (s *Server) quietly(rec *record, next *issueState) {
 	rec.versions = append(rec.versions, version{st: next, at: s.clock(), tick: s.tick})
 }
 
-func (s *Server) getChangelog(c *call) (int, any, error) {
-	rec := s.lookup(c.v("issueIdOrKey"))
-	if rec == nil || c.user == nil {
-		return 0, nil, issueNotFound()
-	}
-	start, max, err := paging(c, 100, 100)
-	if err != nil {
-		return 0, nil, err
-	}
-	// Oldest first, as the dedicated endpoint documents (api.md §4.1).
-	values := []map[string]any{}
-	for i := start; i < len(rec.histories) && i < start+max; i++ {
-		values = append(values, s.historyJSON(rec.histories[i]))
-	}
-	base := v3 + "/issue/" + rec.cur.key + "/changelog"
-	out := map[string]any{
-		"self":       s.self(fmt.Sprintf("%s?startAt=%d&maxResults=%d", base, start, max)),
-		"maxResults": max, "startAt": start, "total": len(rec.histories),
-		"isLast": start+max >= len(rec.histories), "values": values,
-	}
-	if start+max < len(rec.histories) {
-		out["nextPage"] = s.self(fmt.Sprintf("%s?startAt=%d&maxResults=%d", base, start+max, max))
-	}
-	return http.StatusOK, out, nil
-}
-
 // paging reads startAt and maxResults, capping maxResults at limit.
 func paging(c *call, def, limit int) (int, int, error) {
 	start, max := 0, def
@@ -359,31 +333,6 @@ func paging(c *call, def, limit int) (int, int, error) {
 		max = limit
 	}
 	return start, max, nil
-}
-
-func (s *Server) editMeta(c *call) (int, any, error) {
-	rec := s.lookup(c.v("issueIdOrKey"))
-	if rec == nil {
-		return 0, nil, issueNotFound()
-	}
-	if c.q.Get("overrideScreenSecurity") == "true" || c.q.Get("overrideEditableFlag") == "true" {
-		return 0, nil, &apiError{status: http.StatusForbidden, messages: []string{"You do not have permission to override."}}
-	}
-	st := rec.cur
-	fields := map[string]any{}
-	for _, id := range s.fieldIDs(st.typ) {
-		if readOnly[id] || id == "project" || id == "resolution" || id == "issuetype" {
-			continue
-		}
-		if id != "summary" && id != "comment" && !typeHas(st.typ, id) {
-			continue
-		}
-		if f := s.field(id); f != nil && f.Kind == KindRank {
-			continue
-		}
-		fields[id] = s.fieldMeta(st.project, st.typ, id, id == "summary")
-	}
-	return http.StatusOK, map[string]any{"fields": fields}, nil
 }
 
 // fieldMeta is a FieldMetadata (editmeta, transition screens) or, with
@@ -433,18 +382,6 @@ func (s *Server) fieldMeta(p *project, t *IssueType, id string, required bool) m
 		m["allowedValues"] = vals
 	}
 	return m
-}
-
-func (s *Server) propertyKeys(c *call) (int, any, error) {
-	rec := s.lookup(c.v("issueIdOrKey"))
-	if rec == nil {
-		return 0, nil, issueNotFound()
-	}
-	keys := []map[string]any{}
-	for _, k := range sortedKeys(rec.props) {
-		keys = append(keys, map[string]any{"self": s.self(v3 + "/issue/" + strconv.Itoa(rec.cur.id) + "/properties/" + k), "key": k})
-	}
-	return http.StatusOK, map[string]any{"keys": keys}, nil
 }
 
 func (s *Server) getProperty(c *call) (int, any, error) {

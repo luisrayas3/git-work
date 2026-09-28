@@ -85,13 +85,11 @@ func TestDateHeaderAndClock(t *testing.T) {
 
 func TestOldSearchIsGone(t *testing.T) {
 	s := newServer(t)
-	for _, p := range []string{"/rest/api/3/search?jql=project%3DPROJ", "/rest/api/2/search?jql=project%3DPROJ"} {
-		r := get(t, s, p)
-		require.Equal(t, http.StatusGone, r.status, p)
-		msgs, _ := errorBody(t, r)
-		require.Contains(t, msgs[0], "has been removed")
-	}
-	r := do(t, s, http.MethodPost, "/rest/api/3/search", map[string]any{"jql": "project = PROJ"})
+	r := get(t, s, "/rest/api/3/search?jql=project%3DPROJ")
+	require.Equal(t, http.StatusGone, r.status)
+	msgs, _ := errorBody(t, r)
+	require.Contains(t, msgs[0], "has been removed")
+	r = do(t, s, http.MethodPost, "/rest/api/3/search", map[string]any{"jql": "project = PROJ"})
 	require.Equal(t, http.StatusGone, r.status)
 }
 

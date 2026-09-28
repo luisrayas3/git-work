@@ -52,17 +52,8 @@ func TestComments(t *testing.T) {
 	require.Equal(t, "c2", path(cs[0], "body", "content").([]any)[0].(map[string]any)["content"].([]any)[0].(map[string]any)["text"])
 	require.Equal(t, http.StatusBadRequest, get(t, s, base+"?orderBy=updated").status)
 
-	one := get(t, s, base+"/"+id+"?expand=renderedBody").obj(t)
-	require.Equal(t, "<p>edited</p>", one["renderedBody"])
-
-	require.Equal(t, http.StatusBadRequest, do(t, s, http.MethodPost, "/rest/api/3/comment/list",
-		map[string]any{"ids": []any{id}}).status, "ids are int64, not strings")
-	list := do(t, s, http.MethodPost, "/rest/api/3/comment/list", `{"ids":[`+id+`]}`).obj(t)
-	require.EqualValues(t, 1, list["total"])
-	require.Equal(t, true, list["isLast"])
-
 	require.Equal(t, http.StatusNoContent, do(t, s, http.MethodDelete, base+"/"+id, nil).status)
-	require.Equal(t, http.StatusNotFound, get(t, s, base+"/"+id).status)
+	require.Equal(t, http.StatusNotFound, do(t, s, http.MethodDelete, base+"/"+id, nil).status)
 	require.Len(t, s.Issue(key).Comments, 4)
 	require.Equal(t, http.StatusMethodNotAllowed, do(t, s, http.MethodDelete, base+"/"+s.Issue(key).Comments[0].ID, nil, noAuth).status)
 }

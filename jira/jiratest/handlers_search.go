@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"net/http"
 	"slices"
-	"strconv"
-	"strings"
 	"time"
 )
 
@@ -35,31 +33,6 @@ type cursor struct {
 type hit struct {
 	rec *record
 	st  *issueState
-}
-
-func (s *Server) searchGet(c *call) (int, any, error) {
-	req := searchReq{
-		JQL:           c.q.Get("jql"),
-		NextPageToken: c.q.Get("nextPageToken"),
-		Fields:        c.q["fields"],
-		Expand:        strings.Join(c.q["expand"], ","),
-		Properties:    c.q["properties"],
-	}
-	if v := c.q.Get("maxResults"); v != "" {
-		n, err := strconv.Atoi(v)
-		if err != nil {
-			return 0, nil, badRequest("The 'maxResults' parameter must be an integer.")
-		}
-		req.MaxResults = &n
-	}
-	for _, v := range splitList(c.q["reconcileIssues"]) {
-		n, err := strconv.ParseInt(v, 10, 64)
-		if err != nil {
-			return 0, nil, badRequest(fmt.Sprintf("The value '%s' of 'reconcileIssues' is not an issue id.", v))
-		}
-		req.ReconcileIssues = append(req.ReconcileIssues, n)
-	}
-	return s.search(c, req)
 }
 
 func (s *Server) searchPost(c *call) (int, any, error) {
@@ -200,19 +173,4 @@ func (s *Server) search(c *call, req searchReq) (int, any, error) {
 		out["schema"] = schema
 	}
 	return http.StatusOK, out, nil
-}
-
-func (s *Server) countIssues(c *call) (int, any, error) {
-	var req struct {
-		JQL string `json:"jql"`
-	}
-	if err := c.decode(&req); err != nil {
-		return 0, nil, err
-	}
-	s.tick++
-	hits, err := s.query(c, req.JQL, nil)
-	if err != nil {
-		return 0, nil, err
-	}
-	return http.StatusOK, map[string]any{"count": len(hits)}, nil
 }

@@ -25,13 +25,9 @@ var routes = []*route{
 	{method: "GET", pattern: v3 + "/myself", op: "getCurrentUser", h: (*Server).getMyself},
 	{method: "GET", pattern: v3 + "/serverInfo", op: "getServerInfo", anonymous: true, h: (*Server).getServerInfo},
 
-	{method: "GET", pattern: v3 + "/search/jql", op: "searchAndReconsileIssuesUsingJql", anonymous: true, h: (*Server).searchGet},
 	{method: "POST", pattern: v3 + "/search/jql", op: "searchAndReconsileIssuesUsingJqlPost", anonymous: true, h: (*Server).searchPost},
-	{method: "POST", pattern: v3 + "/search/approximate-count", op: "countIssues", anonymous: true, h: (*Server).countIssues},
 	{method: "GET", pattern: v3 + "/search", op: "searchForIssuesUsingJql", anonymous: true, h: gone},
 	{method: "POST", pattern: v3 + "/search", op: "searchForIssuesUsingJqlPost", anonymous: true, h: gone},
-	{method: "GET", pattern: "/rest/api/2/search", op: "searchForIssuesUsingJql", anonymous: true, h: gone},
-	{method: "POST", pattern: "/rest/api/2/search", op: "searchForIssuesUsingJqlPost", anonymous: true, h: gone},
 
 	{method: "POST", pattern: v3 + "/issue", op: "createIssue", write: true, h: (*Server).createIssue},
 	{method: "GET", pattern: v3 + "/issue/createmeta/{projectIdOrKey}/issuetypes", op: "getCreateIssueMetaIssueTypes", h: (*Server).createMetaTypes},
@@ -39,40 +35,25 @@ var routes = []*route{
 	{method: "GET", pattern: v3 + "/issue/{issueIdOrKey}", op: "getIssue", anonymous: true, h: (*Server).getIssue},
 	{method: "PUT", pattern: v3 + "/issue/{issueIdOrKey}", op: "editIssue", write: true, h: (*Server).editIssue},
 	{method: "DELETE", pattern: v3 + "/issue/{issueIdOrKey}", op: "deleteIssue", write: true, h: (*Server).deleteIssue},
-	{method: "GET", pattern: v3 + "/issue/{issueIdOrKey}/changelog", op: "getChangeLogs", anonymous: true, h: (*Server).getChangelog},
 	{method: "GET", pattern: v3 + "/issue/{issueIdOrKey}/transitions", op: "getTransitions", anonymous: true, h: (*Server).getTransitions},
 	{method: "POST", pattern: v3 + "/issue/{issueIdOrKey}/transitions", op: "doTransition", write: true, h: (*Server).doTransition},
 	{method: "GET", pattern: v3 + "/issue/{issueIdOrKey}/comment", op: "getComments", anonymous: true, h: (*Server).getComments},
 	{method: "POST", pattern: v3 + "/issue/{issueIdOrKey}/comment", op: "addComment", write: true, h: (*Server).addComment},
-	{method: "GET", pattern: v3 + "/issue/{issueIdOrKey}/comment/{id}", op: "getComment", anonymous: true, h: (*Server).getComment},
 	{method: "PUT", pattern: v3 + "/issue/{issueIdOrKey}/comment/{id}", op: "updateComment", write: true, h: (*Server).updateComment},
 	{method: "DELETE", pattern: v3 + "/issue/{issueIdOrKey}/comment/{id}", op: "deleteComment", anonymous: true, write: true, h: (*Server).deleteComment},
-	{method: "GET", pattern: v3 + "/issue/{issueIdOrKey}/editmeta", op: "getEditIssueMeta", h: (*Server).editMeta},
-	{method: "GET", pattern: v3 + "/issue/{issueIdOrKey}/properties", op: "getIssuePropertyKeys", h: (*Server).propertyKeys},
 	{method: "GET", pattern: v3 + "/issue/{issueIdOrKey}/properties/{propertyKey}", op: "getIssueProperty", h: (*Server).getProperty},
 	{method: "PUT", pattern: v3 + "/issue/{issueIdOrKey}/properties/{propertyKey}", op: "setIssueProperty", write: true, h: (*Server).setProperty},
 	{method: "DELETE", pattern: v3 + "/issue/{issueIdOrKey}/properties/{propertyKey}", op: "deleteIssueProperty", write: true, h: (*Server).deleteProperty},
-	{method: "POST", pattern: v3 + "/comment/list", op: "getCommentsByIds", h: (*Server).commentsByIDs},
 
 	{method: "POST", pattern: v3 + "/issueLink", op: "linkIssues", write: true, h: (*Server).linkIssues},
-	{method: "GET", pattern: v3 + "/issueLink/{linkId}", op: "getIssueLink", anonymous: true, h: (*Server).getIssueLink},
 	{method: "DELETE", pattern: v3 + "/issueLink/{linkId}", op: "deleteIssueLink", write: true, h: (*Server).deleteIssueLink},
 	{method: "GET", pattern: v3 + "/issueLinkType", op: "getIssueLinkTypes", h: (*Server).getLinkTypes},
 
 	{method: "GET", pattern: v3 + "/field", op: "getFields", h: (*Server).getFields},
 	{method: "GET", pattern: v3 + "/project/{projectIdOrKey}", op: "getProject", h: (*Server).getProject},
 	{method: "GET", pattern: v3 + "/project/{projectIdOrKey}/statuses", op: "getAllStatuses", h: (*Server).getProjectStatuses},
-	{method: "GET", pattern: v3 + "/project/{projectId}/hierarchy", op: "getHierarchy", h: (*Server).getHierarchy},
-	{method: "GET", pattern: v3 + "/issuetype/project", op: "getIssueTypesForProject", h: (*Server).getTypesForProject},
-	{method: "GET", pattern: v3 + "/priority", op: "getPriorities", h: (*Server).getPriorities},
 	{method: "GET", pattern: v3 + "/priority/search", op: "searchPriorities", h: (*Server).searchPriorities},
-	{method: "GET", pattern: v3 + "/resolution", op: "getResolutions", h: (*Server).getResolutions},
-	{method: "GET", pattern: v3 + "/resolution/search", op: "searchResolutions", h: (*Server).searchResolutions},
-	{method: "GET", pattern: v3 + "/statuscategory", op: "getStatusCategories", h: (*Server).getStatusCategories},
-	{method: "GET", pattern: v3 + "/statuscategory/{idOrKey}", op: "getStatusCategory", h: (*Server).getStatusCategory},
-	{method: "GET", pattern: v3 + "/status", op: "getStatuses", h: (*Server).getStatuses},
 	{method: "GET", pattern: v3 + "/user", op: "getUser", h: (*Server).getUser},
-	{method: "GET", pattern: v3 + "/user/search", op: "findUsers", anonymous: true, h: (*Server).findUsers},
 }
 
 func init() {
@@ -125,45 +106,34 @@ func gone(*Server, *call) (int, any, error) {
 // selfDenying operations answer a denial themselves, with an empty result
 // or a filtered one, because that is how Jira hides what the caller may not see.
 var selfDenying = map[string]bool{
-	"searchAndReconsileIssuesUsingJql":     true, // the project "does not exist"
 	"searchAndReconsileIssuesUsingJqlPost": true,
-	"countIssues":                          true,
 	"getFields":                            true, // system fields only
 	"getCreateIssueMetaIssueTypes":         true, // no types
 	"getCreateIssueMetaIssueTypeId":        true,
-	"findUsers":                            true, // [] without Browse users (§10.2)
 	"getTransitions":                       true, // [] without Transition issues (§6.1)
-	"getCommentsByIds":                     true,
-	"getIssueTypesForProject":              true, // 404, as for a missing project
 }
 
 // denials are the documented answers of the other operations to a caller
 // without the permission (the 404s hide existence, api.md §12.3).
 var denials = map[string]func(c *call) *apiError{
-	"getIssue":             deny404Issue,
-	"getChangeLogs":        deny404Issue,
-	"getComments":          deny404Issue,
-	"getComment":           deny404Issue,
-	"getEditIssueMeta":     deny404Issue,
-	"getIssuePropertyKeys": deny404Issue,
-	"getIssueProperty":     deny404Issue,
-	"deleteIssueProperty":  deny404Issue,
-	"editIssue":            deny(http.StatusBadRequest, "You do not have permission to edit issues in this project."),
-	"doTransition":         deny(http.StatusBadRequest, "You do not have permission to transition this issue."),
-	"addComment":           deny(http.StatusBadRequest, "You do not have the permission to comment on this issue."),
-	"updateComment":        deny(http.StatusBadRequest, "You do not have the permission to edit this comment."),
-	"deleteComment":        deny(http.StatusBadRequest, "You do not have the permission to delete this comment."),
-	"createIssue":          deny(http.StatusForbidden, "You do not have permission to create issues in this project."),
-	"deleteIssue":          deny(http.StatusForbidden, "You do not have permission to delete issues in this project."),
-	"setIssueProperty":     deny(http.StatusForbidden, "You do not have permission to edit this issue."),
-	"linkIssues":           deny(http.StatusNotFound, "No Link Issue Permission for issue."),
-	"getIssueLink":         deny(http.StatusNotFound, "No issue link with id exists."),
-	"deleteIssueLink":      deny(http.StatusNotFound, "No issue link with id exists."),
-	"getIssueLinkTypes":    deny(http.StatusNotFound, "Issue linking is currently disabled."),
-	"getProject":           denyProject,
-	"getAllStatuses":       denyProject,
-	"getHierarchy":         denyProject,
-	"getUser":              deny(http.StatusForbidden, "You do not have the permission to see the specified user."),
+	"getIssue":            deny404Issue,
+	"getComments":         deny404Issue,
+	"getIssueProperty":    deny404Issue,
+	"deleteIssueProperty": deny404Issue,
+	"editIssue":           deny(http.StatusBadRequest, "You do not have permission to edit issues in this project."),
+	"doTransition":        deny(http.StatusBadRequest, "You do not have permission to transition this issue."),
+	"addComment":          deny(http.StatusBadRequest, "You do not have the permission to comment on this issue."),
+	"updateComment":       deny(http.StatusBadRequest, "You do not have the permission to edit this comment."),
+	"deleteComment":       deny(http.StatusBadRequest, "You do not have the permission to delete this comment."),
+	"createIssue":         deny(http.StatusForbidden, "You do not have permission to create issues in this project."),
+	"deleteIssue":         deny(http.StatusForbidden, "You do not have permission to delete issues in this project."),
+	"setIssueProperty":    deny(http.StatusForbidden, "You do not have permission to edit this issue."),
+	"linkIssues":          deny(http.StatusNotFound, "No Link Issue Permission for issue."),
+	"deleteIssueLink":     deny(http.StatusNotFound, "No issue link with id exists."),
+	"getIssueLinkTypes":   deny(http.StatusNotFound, "Issue linking is currently disabled."),
+	"getProject":          denyProject,
+	"getAllStatuses":      denyProject,
+	"getUser":             deny(http.StatusForbidden, "You do not have the permission to see the specified user."),
 }
 
 func deny(status int, msg string) func(*call) *apiError {

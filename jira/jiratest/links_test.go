@@ -50,10 +50,6 @@ func TestLinkOrientation(t *testing.T) {
 	require.Equal(t, path(la[0], "id"), path(lb[0], "id"), "one link, seen from both ends")
 
 	id := la[0].(map[string]any)["id"].(string)
-	l := get(t, s, "/rest/api/3/issueLink/"+id).obj(t)
-	require.Equal(t, a, path(l, "inwardIssue", "key"))
-	require.Equal(t, b, path(l, "outwardIssue", "key"))
-
 	ia := s.Issue(a)
 	require.Equal(t, []jiratest.IssueLink{{ID: id, Type: "Blocks", Outward: true, Other: b}}, ia.Links)
 	item := ia.Changelog[0].Items[0]
@@ -63,8 +59,8 @@ func TestLinkOrientation(t *testing.T) {
 	require.Equal(t, http.StatusNoContent, do(t, s, http.MethodDelete, "/rest/api/3/issueLink/"+id, nil).status)
 	require.Empty(t, issueLinks(t, s, a))
 	require.Empty(t, issueLinks(t, s, b))
-	require.Equal(t, http.StatusNotFound, get(t, s, "/rest/api/3/issueLink/"+id).status)
-	require.Equal(t, http.StatusBadRequest, get(t, s, "/rest/api/3/issueLink/abc").status)
+	require.Equal(t, http.StatusNotFound, do(t, s, http.MethodDelete, "/rest/api/3/issueLink/"+id, nil).status)
+	require.Equal(t, http.StatusBadRequest, do(t, s, http.MethodDelete, "/rest/api/3/issueLink/abc", nil).status)
 	require.Equal(t, "This issue blocks "+b, s.Issue(a).Changelog[1].Items[0].FromString)
 }
 

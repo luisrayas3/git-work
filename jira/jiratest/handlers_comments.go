@@ -66,18 +66,6 @@ func (s *Server) getComments(c *call) (int, any, error) {
 	return http.StatusOK, map[string]any{"startAt": start, "maxResults": max, "total": len(cs), "comments": page}, nil
 }
 
-func (s *Server) getComment(c *call) (int, any, error) {
-	rec := s.lookup(c.v("issueIdOrKey"))
-	if rec == nil || c.user == nil {
-		return 0, nil, issueNotFound()
-	}
-	i := findComment(rec.cur, c.v("id"))
-	if i < 0 {
-		return 0, nil, commentNotFound(c.v("id"))
-	}
-	return http.StatusOK, s.commentJSON(rec.cur, rec.cur.comments[i], parseExpand(c.q["expand"]...)["renderedBody"]), nil
-}
-
 func (s *Server) readCommentBody(c *call) (json.RawMessage, json.RawMessage, []property, error) {
 	var in commentBody
 	if err := c.decode(&in); err != nil {
@@ -172,42 +160,6 @@ func (s *Server) removeComment(rec *record, i int, author string) {
 	next := rec.cur.clone()
 	next.comments = slices.Delete(next.comments, i, i+1)
 	s.commit(rec, next, author, s.cfg.commentDeleteBumps)
-}
-
-// commentsByIDs is POST /comment/list: at most 1000 ids, a PageBeanComment (C13).
-func (s *Server) commentsByIDs(c *call) (int, any, error) {
-	var in struct {
-		IDs []int64 `json:"ids"`
-	}
-	if err := c.decode(&in); err != nil {
-		return 0, nil, err
-	}
-	if len(in.IDs) == 0 || len(in.IDs) > 1000 {
-		return 0, nil, badRequest("The number of comment ids must be between 1 and 1000.")
-	}
-	want := map[int]bool{}
-	for _, id := range in.IDs {
-		want[int(id)] = true
-	}
-	rendered := parseExpand(c.q["expand"]...)["renderedBody"]
-	values := []map[string]any{}
-	if !c.denied {
-		for _, id := range sortedIssueIDs(s.issues) {
-			st := s.issues[id].cur
-			if st.deleted {
-				continue
-			}
-			for _, cm := range st.comments {
-				if want[cm.id] {
-					values = append(values, s.commentJSON(st, cm, rendered))
-				}
-			}
-		}
-	}
-	return http.StatusOK, map[string]any{
-		"self": s.self(v3 + "/comment/list"), "maxResults": 1000, "startAt": 0,
-		"total": len(values), "isLast": true, "values": values,
-	}, nil
 }
 
 func sortedIssueIDs(m map[int]*record) []int {

@@ -138,55 +138,6 @@ func (s *Server) getProjectStatuses(c *call) (int, any, error) {
 	return http.StatusOK, out, nil
 }
 
-// getHierarchy has integer ids, unlike the rest of the platform API (api.md §8.4).
-func (s *Server) getHierarchy(c *call) (int, any, error) {
-	p, err := s.projectOr404(c.v("projectId"))
-	if err != nil {
-		return 0, nil, err
-	}
-	levels := map[int][]map[string]any{}
-	for _, t := range p.def.IssueTypes {
-		id, _ := strconv.Atoi(t.ID)
-		levels[t.HierarchyLevel] = append(levels[t.HierarchyLevel], map[string]any{"id": id, "name": t.Name, "avatarId": 10300})
-	}
-	names := map[int]string{-1: "Subtask", 0: "Base", 1: "Epic"}
-	var keys []int
-	for l := range levels {
-		keys = append(keys, l)
-	}
-	slices.Sort(keys)
-	out := []map[string]any{}
-	for _, l := range keys {
-		name := names[l]
-		if name == "" {
-			name = "Level " + strconv.Itoa(l)
-		}
-		out = append(out, map[string]any{"level": l, "name": name, "issueTypes": levels[l]})
-	}
-	pid, _ := strconv.Atoi(p.def.ID)
-	return http.StatusOK, map[string]any{"projectId": pid, "hierarchy": out}, nil
-}
-
-func (s *Server) getTypesForProject(c *call) (int, any, error) {
-	id := c.q.Get("projectId")
-	if _, err := strconv.ParseInt(id, 10, 64); err != nil {
-		return 0, nil, badRequest("The projectId parameter must be a number.")
-	}
-	p := s.projectByKey(id)
-	if p == nil || c.denied {
-		return 0, nil, notFound(fmt.Sprintf("No project could be found with id '%s'.", id))
-	}
-	out := []map[string]any{}
-	for i := range p.def.IssueTypes {
-		t := &p.def.IssueTypes[i]
-		if l := c.q.Get("level"); l != "" && l != strconv.Itoa(t.HierarchyLevel) {
-			continue
-		}
-		out = append(out, s.issueTypeJSON(p, t))
-	}
-	return http.StatusOK, out, nil
-}
-
 // createMetaTypes is the paginated createmeta (api.md §8.8); a caller
 // without Create issues gets no types.
 func (s *Server) createMetaTypes(c *call) (int, any, error) {
@@ -262,14 +213,6 @@ func (s *Server) priorityFull(p Priority) map[string]any {
 	return m
 }
 
-func (s *Server) getPriorities(c *call) (int, any, error) {
-	out := []map[string]any{}
-	for _, p := range s.priorities {
-		out = append(out, s.priorityFull(p))
-	}
-	return http.StatusOK, out, nil
-}
-
 // pageBean is the offset page bean with isLast (api.md §0).
 func (s *Server) pageBean(path string, all []map[string]any, start, max int) map[string]any {
 	page := window(all, start, max)
@@ -304,64 +247,6 @@ func (s *Server) searchPriorities(c *call) (int, any, error) {
 	return http.StatusOK, s.pageBean(v3+"/priority/search", all, start, max), nil
 }
 
-func (s *Server) getResolutions(c *call) (int, any, error) {
-	out := []any{}
-	for _, r := range s.resolutions {
-		out = append(out, s.resolutionJSON(r.ID))
-	}
-	return http.StatusOK, out, nil
-}
-
-func (s *Server) searchResolutions(c *call) (int, any, error) {
-	start, max, err := paging(c, 50, 50)
-	if err != nil {
-		return 0, nil, err
-	}
-	ids := splitList(c.q["id"])
-	var all []map[string]any
-	for i, r := range s.resolutions {
-		if len(ids) > 0 && !slices.Contains(ids, r.ID) {
-			continue
-		}
-		m := s.resolutionJSON(r.ID).(map[string]any)
-		m["isDefault"] = i == 0
-		all = append(all, m)
-	}
-	return http.StatusOK, s.pageBean(v3+"/resolution/search", all, start, max), nil
-}
-
-func (s *Server) getStatusCategories(c *call) (int, any, error) {
-	out := []map[string]any{}
-	for _, cat := range categories {
-		out = append(out, s.categoryJSON(cat.key))
-	}
-	return http.StatusOK, out, nil
-}
-
-func (s *Server) getStatusCategory(c *call) (int, any, error) {
-	for _, cat := range categories {
-		if strconv.Itoa(cat.id) == c.v("idOrKey") || cat.key == c.v("idOrKey") {
-			return http.StatusOK, s.categoryJSON(cat.key), nil
-		}
-	}
-	return 0, nil, notFound(fmt.Sprintf("The status category with id '%s' does not exist.", c.v("idOrKey")))
-}
-
-func (s *Server) getStatuses(c *call) (int, any, error) {
-	out := []map[string]any{}
-	seen := map[string]bool{}
-	for _, p := range s.projects {
-		for i := range p.def.Statuses {
-			st := &p.def.Statuses[i]
-			if !seen[st.ID] {
-				seen[st.ID] = true
-				out = append(out, s.statusJSON(p, st))
-			}
-		}
-	}
-	return http.StatusOK, out, nil
-}
-
 func (s *Server) getUser(c *call) (int, any, error) {
 	id := c.q.Get("accountId")
 	if id == "" {
@@ -372,39 +257,4 @@ func (s *Server) getUser(c *call) (int, any, error) {
 		return 0, nil, notFound("Specified user does not exist or you do not have required permissions")
 	}
 	return http.StatusOK, u, nil
-}
-
-// findUsers is /user/search: a bare array, empty rather than an error for
-// a caller who may not browse users; a hidden email matches only exactly
-// (api.md §10.2).
-func (s *Server) findUsers(c *call) (int, any, error) {
-	q, acc := c.q.Get("query"), c.q.Get("accountId")
-	switch {
-	case q == "" && acc == "" && c.q.Get("property") == "":
-		return 0, nil, badRequest("One of 'accountId', 'query' or 'property' query parameters is required.")
-	case q != "" && acc != "":
-		return 0, nil, badRequest("The 'query' and 'accountId' query parameters cannot be combined.")
-	}
-	start, max, err := paging(c, 50, 1000)
-	if err != nil {
-		return 0, nil, err
-	}
-	var all []any
-	if c.user != nil && !c.denied {
-		lq := strings.ToLower(q)
-		for _, u := range s.users {
-			match := acc != "" && u.AccountID == acc
-			if q != "" {
-				for _, w := range append([]string{u.DisplayName}, strings.Fields(u.DisplayName)...) {
-					match = match || strings.HasPrefix(strings.ToLower(w), lq)
-				}
-				email := strings.ToLower(u.Email)
-				match = match || (u.Email != "" && (email == lq || (!u.EmailHidden && strings.HasPrefix(email, lq))))
-			}
-			if match {
-				all = append(all, s.userJSON(u.AccountID))
-			}
-		}
-	}
-	return http.StatusOK, window(all, start, max), nil
 }

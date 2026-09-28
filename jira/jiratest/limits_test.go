@@ -3,6 +3,7 @@ package jiratest_test
 import (
 	"fmt"
 	"net/http"
+	"slices"
 	"testing"
 	"time"
 
@@ -71,8 +72,9 @@ func TestPerIssueWriteLimit(t *testing.T) {
 	})
 }
 
-func TestChangelogPaging(t *testing.T) {
-	s := newServer(t, jiratest.WithCustomFieldIDs())
+// TestChangelogItems: the items as expand=changelog serves them, newest first.
+func TestChangelogItems(t *testing.T) {
+	s := newServer(t, jiratest.WithCustomFieldIDs(), jiratest.WithOrderedChangelog())
 	key := s.CreateIssue(jiratest.IssueSpec{Project: "PROJ", Type: "Story", Summary: "s", Labels: []string{"a"}})
 	s.Edit(key, map[string]any{"labels": []string{"a", "b"}})
 	s.Edit(key, map[string]any{jiratest.FieldSprint: 37})
@@ -80,13 +82,11 @@ func TestChangelogPaging(t *testing.T) {
 	s.Edit(key, map[string]any{jiratest.FieldStoryPoints: 2})
 	s.Transition(key, "In Progress")
 
-	base := "/rest/api/3/issue/" + key + "/changelog"
-	m := get(t, s, base+"?maxResults=2").obj(t)
-	require.EqualValues(t, 5, m["total"])
-	require.Equal(t, false, m["isLast"])
-	require.Contains(t, m["nextPage"], "startAt=2")
-	values := m["values"].([]any)
-	require.Len(t, values, 2)
+	cl := path(get(t, s, "/rest/api/3/issue/"+key+"?fields=summary&expand=changelog").obj(t), "changelog").(map[string]any)
+	require.EqualValues(t, 5, cl["total"])
+	values := cl["histories"].([]any)
+	require.Len(t, values, 5)
+	slices.Reverse(values)
 
 	labels := path(values[0], "items").([]any)[0].(map[string]any)
 	require.Equal(t, map[string]any{"field": "labels", "fieldtype": "jira", "fieldId": "labels",
@@ -102,15 +102,10 @@ func TestChangelogPaging(t *testing.T) {
 	require.Nil(t, sprint["from"])
 	require.Equal(t, "37", sprint["to"])
 
-	m = get(t, s, base+"?startAt=2&maxResults=2").obj(t)
-	sprint = path(m["values"].([]any)[0], "items").([]any)[0].(map[string]any)
+	sprint = path(values[2], "items").([]any)[0].(map[string]any)
 	require.Equal(t, "37", sprint["from"])
 	require.Equal(t, "38", sprint["to"])
 	require.Equal(t, "PROJ Sprint 5, the long one", sprint["toString"], "parse to, never toString")
-
-	m = get(t, s, base+"?startAt=4").obj(t)
-	require.Equal(t, true, m["isLast"])
-	require.NotContains(t, m, "nextPage")
 
 	t.Run("custom fieldIds go missing by default (C8)", func(t *testing.T) {
 		s := newServer(t, jiratest.WithSeed(3))

@@ -272,7 +272,7 @@ func TestSearchOrderAndDefaults(t *testing.T) {
 	require.Equal(t, keys, keysOf(t, m))
 }
 
-func TestSearchPostAndCount(t *testing.T) {
+func TestSearchPost(t *testing.T) {
 	s := newServer(t)
 	seedTasks(t, s, 3)
 	r := do(t, s, http.MethodPost, "/rest/api/3/search/jql", map[string]any{
@@ -284,10 +284,6 @@ func TestSearchPostAndCount(t *testing.T) {
 	r = do(t, s, http.MethodPost, "/rest/api/3/search/jql", map[string]any{
 		"jql": "project = PROJ", "fields": []string{"summary"}, "maxResults": 2, "reconcileIssues": []int{10001}, "nextPageToken": token})
 	require.Len(t, r.obj(t)["issues"], 1)
-
-	c := do(t, s, http.MethodPost, "/rest/api/3/search/approximate-count", map[string]any{"jql": "project = PROJ"})
-	require.Equal(t, map[string]any{"count": 3.0}, c.obj(t))
-	require.Equal(t, http.StatusBadRequest, do(t, s, http.MethodPost, "/rest/api/3/search/approximate-count", map[string]any{"jql": ""}).status)
 }
 
 func TestSearchExpandChangelog(t *testing.T) {
