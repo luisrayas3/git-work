@@ -38,8 +38,8 @@ func TestEditAnEnumPicksFromTheSchema(t *testing.T) {
 	page := list(t, repo, `{"fields":["title","status"]}`)
 
 	// the column cursor moves from the id across the field columns, and
-	// ctrl+enter edits the one it is on
-	page = send(page, "l", "l", "ctrl+enter").(*listPage)
+	// enter edits the one it is on
+	page = send(page, "l", "l", "enter").(*listPage)
 	require.NotNil(t, page.editor)
 
 	drawn := plainView(page)
@@ -60,7 +60,7 @@ func TestEditCanBeCancelled(t *testing.T) {
 	id := newIssue(t, repo, map[string]any{"title": "one", "status": "to-do"})
 
 	page := list(t, repo, `{"fields":["title","status"]}`)
-	page = send(page, "l", "l", "f2", "j", "esc").(*listPage)
+	page = send(page, "l", "l", "enter", "j", "esc").(*listPage)
 
 	require.Nil(t, page.editor)
 	require.Equal(t, "to-do", fieldOf(t, repo, id, "status"))
@@ -73,7 +73,7 @@ func TestEditATextFieldWritesIt(t *testing.T) {
 	id := newIssue(t, repo, map[string]any{"title": "one"})
 
 	page := list(t, repo, `{"fields":["title"]}`)
-	page = send(page, "l", "ctrl+enter").(*listPage)
+	page = send(page, "l", "enter").(*listPage)
 	require.NotNil(t, page.editor)
 
 	page.editor.input.SetValue("a better title")
@@ -89,7 +89,7 @@ func TestASchemaRefusalIsAStatusLine(t *testing.T) {
 	id := newIssue(t, repo, map[string]any{"title": "one", "estimate": 3})
 
 	page := list(t, repo, `{"fields":["estimate"]}`)
-	page = send(page, "l", "ctrl+enter").(*listPage)
+	page = send(page, "l", "enter").(*listPage)
 	require.NotNil(t, page.editor)
 
 	page.editor.input.SetValue("three")
@@ -106,20 +106,24 @@ func TestASetValuedFieldSaysWhereToEditIt(t *testing.T) {
 	newIssue(t, repo, map[string]any{"title": "one"})
 
 	page := list(t, repo, `{"fields":["labels"]}`)
-	page = send(page, "l", "ctrl+enter").(*listPage)
+	page = send(page, "l", "enter").(*listPage)
 
 	require.Nil(t, page.editor)
 	require.Contains(t, plainView(page), "git work issue add/remove")
 }
 
-// TestTheIdIsNotEditable: the bell, and the status line saying why.
+// TestTheIdIsNotEditable: enter on the id opens the issue, and a paste onto
+// it is the bell and the status line saying why.
 func TestTheIdIsNotEditable(t *testing.T) {
 	repo := testRepo(t)
-	newIssue(t, repo, map[string]any{"title": "one"})
+	id := newIssue(t, repo, map[string]any{"title": "one"})
 
 	page := list(t, repo, "")
-	updated, cmd := page.Update(press("ctrl+enter"))
+	_, cmd := page.Update(press("enter"))
+	require.NotNil(t, cmd)
+	require.Equal(t, id, cmd().(pushMsg).page.(*showPage).id)
 
+	updated, cmd := page.Update(tea.PasteMsg{Content: "abc"})
 	require.NotNil(t, cmd, "the bell")
 	require.Nil(t, updated.(*listPage).editor)
 	require.Contains(t, plainView(updated), "id not editable")

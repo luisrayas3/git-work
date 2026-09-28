@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"strings"
 
+	"github.com/charmbracelet/x/ansi"
+
 	"github.com/git-bug/git-bug/view"
 )
 
@@ -54,6 +56,38 @@ func callLine(call *view.Call, lead, leadArg string, width int) string {
 	}
 
 	return fit(strings.Join(parts, "  "), width)
+}
+
+// command is the whole call as the shell command that draws it, which is
+// what the call line unfolds into when the cursor is on it and what copy
+// copies there: the command is the spec, so this is the spec, verbatim.
+func command(call *view.Call) string {
+	args, err := json.Marshal(call.Args)
+	if err != nil || len(call.Args) == 0 {
+		args = []byte("{}")
+	}
+	return "git work view " + call.Kind + " " + shellQuote(string(args))
+}
+
+// shellQuote is a string as one shell word, in single quotes, which is how
+// every recipe in AGENTS.md writes a document argument.
+func shellQuote(s string) string {
+	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
+}
+
+// commandLines is the command wrapped to the window, the cursor's mark on
+// the first line, every line reversed as the cell under the cursor is.
+func commandLines(call *view.Call, width int) []string {
+	inner := max(width-2, 10)
+	var lines []string
+	for at, line := range strings.Split(ansi.Hardwrap(command(call), inner, false), "\n") {
+		marker := "  "
+		if at == 0 {
+			marker = "› "
+		}
+		lines = append(lines, marker+styleCell.Render(pad(line, inner)))
+	}
+	return lines
 }
 
 // argText is an argument as it reads: a string is itself, on one line, and

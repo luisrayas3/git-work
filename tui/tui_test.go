@@ -89,10 +89,6 @@ func press(spelling string) tea.KeyPressMsg {
 		return tea.KeyPressMsg{Code: tea.KeyTab}
 	case "shift+tab":
 		return tea.KeyPressMsg{Code: tea.KeyTab, Mod: tea.ModShift}
-	case "ctrl+enter":
-		return tea.KeyPressMsg{Code: tea.KeyEnter, Mod: tea.ModCtrl}
-	case "f2":
-		return tea.KeyPressMsg{Code: tea.KeyF2}
 	case "ctrl+c":
 		return tea.KeyPressMsg{Code: 'c', Mod: tea.ModCtrl}
 	case "ctrl+shift+c":
@@ -155,31 +151,60 @@ func TestTheFirstLineIsTheCall(t *testing.T) {
 	require.NotContains(t, plainView(page), "? keys · 1 issue · map", "the query left the status line")
 }
 
-// TestBackTwiceFromTheFirstViewQuits: back is always back, and back from
-// the first view asks once more, because a stray esc must not end a session.
-func TestBackTwiceFromTheFirstViewQuits(t *testing.T) {
+// TestBackFromTheFirstViewLandsOnTheCall: back is always back, and back from
+// the first view puts the cursor on the call line, which unfolds into the
+// whole command; back from there quits, because a stray esc must not end a
+// session, and the place the second back quits from is worth standing on.
+func TestBackFromTheFirstViewLandsOnTheCall(t *testing.T) {
 	repo := testRepo(t)
 	newIssue(t, repo, map[string]any{"title": "one"})
 
 	for _, spelling := range []string{"esc", "q"} {
-		stack := &root{pages: []page{list(t, repo, "")}, width: 100, height: 20}
+		stack := &root{pages: []page{list(t, repo, `{"group_by":"status"}`)}, width: 300, height: 20}
+		stack.Update(tea.WindowSizeMsg{Width: 300, Height: 20})
 
 		_, cmd := stack.Update(press(spelling))
 		_, cmd = stack.Update(cmd())
-		require.Nil(t, cmd, "the first back only warns")
-		require.Contains(t, ansiPattern.ReplaceAllString(stack.View().Content, ""), "back again to quit")
+		require.Nil(t, cmd, "the first back does not quit")
+		require.True(t, stack.onCall)
+		drawn := ansiPattern.ReplaceAllString(stack.View().Content, "")
+		require.Contains(t, drawn, `› git work view list '{"fields":["type","title"],"group_by":"status","query":"map(select(.fields.archived != true))`)
+		require.Contains(t, drawn, "esc: quit")
+		require.Len(t, strings.Split(drawn, "\n"), 20, "the page keeps its height")
 
-		// another key in between disarms it
+		// narrow, the command wraps and the page still keeps its height
+		stack.Update(tea.WindowSizeMsg{Width: 40, Height: 20})
+		drawn = ansiPattern.ReplaceAllString(stack.View().Content, "")
+		lines := strings.Split(drawn, "\n")
+		require.Len(t, lines, 20)
+		require.True(t, strings.HasPrefix(lines[0], "› git work view list '{"), lines[0])
+		require.True(t, strings.HasPrefix(lines[1], "  "), "the wrapped lines are indented under the mark")
+
+		// a key in between goes back into the view, and means what it means there
 		stack.Update(press("j"))
+		require.False(t, stack.onCall)
 		_, cmd = stack.Update(press(spelling))
 		_, cmd = stack.Update(cmd())
 		require.Nil(t, cmd)
 
+		// copy on the call copies the command
+		_, cmd = stack.Update(press("ctrl+c"))
+		require.NotNil(t, cmd)
+		require.True(t, stack.onCall, "copying stays on the call")
+
 		_, cmd = stack.Update(press(spelling))
-		_, cmd = stack.Update(cmd())
 		require.NotNil(t, cmd)
 		require.IsType(t, tea.QuitMsg{}, cmd())
 	}
+}
+
+// TestTheCommandIsOneShellWord: a query holding a quote still pastes.
+func TestTheCommandIsOneShellWord(t *testing.T) {
+	var values map[string]json.RawMessage
+	require.NoError(t, json.Unmarshal([]byte(`{"query":"map(select(.fields.title == \"it's\"))"}`), &values))
+	call, err := view.Parse(view.KindList, values)
+	require.NoError(t, err)
+	require.Equal(t, `git work view list '{"fields":["type","title"],"query":"map(select(.fields.title == \"it'\''s\"))"}'`, command(call))
 }
 
 // TestALinkIsTheIssueItNames: a relation cell is the short id and title of
@@ -329,10 +354,14 @@ func TestHelpHasATabPerFamily(t *testing.T) {
 	page := list(t, repo, "")
 	page = send(page, "?").(*listPage)
 	drawn := plainView(page)
-	for _, spelling := range []string{"standard", "vim", "emacs", "pgup", "home", "ctrl+enter", "f2", "ctrl+c", "alt+c", "ctrl+pgdown", "ctrl+q"} {
+	for _, spelling := range []string{"standard", "vim", "emacs", "pgup", "home", "enter", "ctrl+c", "alt+c", "ctrl+pgdown", "ctrl+q"} {
 		require.Contains(t, drawn, spelling)
 	}
 	require.NotContains(t, drawn, "ctrl+n")
+	// enter is the one action key; the keys that were one key here and
+	// another there are gone
+	require.NotContains(t, drawn, "ctrl+enter")
+	require.NotContains(t, drawn, "f2")
 
 	page = send(page, "l").(*listPage)
 	drawn = plainView(page)

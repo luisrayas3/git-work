@@ -78,6 +78,10 @@ type listRow struct {
 	text string
 }
 
+func (p *listPage) Call() *view.Call {
+	return p.call
+}
+
 func newListPage(repo *cache.RepoCache, call *view.Call) (*listPage, error) {
 	p := &listPage{
 		repo:    repo,
@@ -365,12 +369,8 @@ func (p *listPage) key(press tea.KeyPressMsg) (page, tea.Cmd) {
 	case keys.right.matches(press):
 		p.column = min(len(p.fields), p.column+1)
 
-	// edit before open: without the kitty protocol ctrl+enter is enter, and
-	// with it the two are different keys, so the order only matters there
-	case keys.edit.matches(press):
-		return p, p.startEdit(nil)
-	case keys.open.matches(press):
-		return p.open()
+	case keys.act.matches(press):
+		return p.act()
 
 	case keys.copyId.matches(press):
 		return p, p.copyId()
@@ -405,16 +405,20 @@ func (p *listPage) move(by int) {
 	p.cursor = min(max(p.cursor+by, 0), max(len(p.order)-1, 0))
 }
 
-// open opens the issue under the cursor, or, on a cell that links other
-// issues, the one it links: a link is followed where it is drawn.
-func (p *listPage) open() (page, tea.Cmd) {
+// act is enter, the one action key: on the id it opens the issue, on a cell
+// that links other issues it follows the link, and on any other cell it
+// edits it (doc/design/terminal-renderer.md, 2026-09-28).
+func (p *listPage) act() (page, tea.Cmd) {
 	row := p.current()
 	if row == nil {
 		return p, nil
 	}
+	if p.column == 0 {
+		return p, p.push(row.id)
+	}
 	switch links := row.links[p.fieldKey()]; len(links) {
 	case 0:
-		return p, p.push(row.id)
+		return p, p.startEdit(nil)
 	case 1:
 		return p, p.push(links[0])
 	default:
@@ -435,7 +439,7 @@ func (p *listPage) updateChoice(press tea.KeyPressMsg) (page, tea.Cmd) {
 		p.choosing.cursor = max(0, p.choosing.cursor-1)
 	case keys.down.matches(press):
 		p.choosing.cursor = min(len(p.choosing.items)-1, p.choosing.cursor+1)
-	case keys.open.matches(press):
+	case keys.act.matches(press):
 		id := p.choosing.items[p.choosing.cursor].value
 		p.choosing = nil
 		return p, p.push(id)
@@ -522,7 +526,7 @@ func (p *listPage) updateFilter(msg tea.Msg) (page, tea.Cmd) {
 			p.filter = ""
 			p.reorder()
 			return p, nil
-		case keys.open.matches(press):
+		case keys.act.matches(press):
 			p.filtering = nil
 			p.reorder()
 			return p, nil
@@ -649,7 +653,7 @@ func (p *listPage) updateGrab(press tea.KeyPressMsg) (page, tea.Cmd) {
 	case keys.down.matches(press):
 		p.dragBy(1)
 
-	case keys.grab.matches(press), keys.open.matches(press):
+	case keys.grab.matches(press), keys.act.matches(press):
 		return p, p.drop()
 	}
 	return p, nil

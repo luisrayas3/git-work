@@ -36,8 +36,12 @@ func styleRow() lipgloss.Style {
 }
 
 // styleTitle is the issue's title on show: as large as a terminal allows,
-// which is bold, in the accent colour, over a rule.
-var styleTitle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("6"))
+// which is bold, in the terminal's own foreground, over a rule.
+var styleTitle = lipgloss.NewStyle().Bold(true)
+
+// styleArchived is the header's archived cell, when the issue is: the one
+// word on the page that says what is drawn is out of every default list.
+var styleArchived = lipgloss.NewStyle().Foreground(lipgloss.Color("3")).Bold(true)
 
 // styleLink is a value that names another issue: enter follows it.
 var styleLink = lipgloss.NewStyle().Underline(true)

@@ -107,6 +107,18 @@ func enumChoices(repo *cache.RepoCache, typeKey, fieldKey string) ([]choice, err
 	if err != nil {
 		return nil, err
 	}
+	if fieldKey == schema.TypeKey {
+		// the type's values are the types, and there is no clearing it
+		out := make([]choice, 0, len(s.Types))
+		for _, key := range s.TypeKeys() {
+			label := s.Types[key].Name
+			if label == "" {
+				label = key
+			}
+			out = append(out, choice{label: label, dim: key, value: key})
+		}
+		return out, nil
+	}
 	field, ok := s.Field(typeKey, fieldKey)
 	if !ok {
 		return nil, fmt.Errorf("no field %s on %s", fieldKey, typeKey)
@@ -178,7 +190,7 @@ func (e *editor) Update(msg tea.Msg) (done bool, cancelled bool, cmd tea.Cmd) {
 		switch {
 		case keys.cancel.matches(press):
 			return true, true, nil
-		case keys.open.matches(press):
+		case keys.act.matches(press):
 			return true, false, nil
 		}
 	}

@@ -117,8 +117,7 @@ type keymap struct {
 	pageUp, pageDn        *chord
 	top, bottom           *chord
 	next, previous        *chord
-	open                  *chord
-	edit                  *chord
+	act                   *chord
 	copy, copyId, paste   *chord
 	filter                *chord
 	grab                  *chord
@@ -127,9 +126,8 @@ type keymap struct {
 	back                  *chord
 	quit                  *chord
 
-	// submit and cancel are the text widgets' own: they are read before the
-	// widget sees the key, so they must not be keys a person types text with.
-	submit *chord
+	// cancel is the text widgets' own: it is read before the widget sees the
+	// key, so it must not be a key a person types text with.
 	cancel *chord
 }
 
@@ -154,10 +152,12 @@ var keys = keymap{
 	previousTab: newChord("previous tab", one("ctrl+pgup"), nil, nil).
 		show(vim, "gT ctrl+pgup"),
 
-	open: newChord("open, follow link, press", one("enter"), nil, nil),
-	// ctrl+enter and super+enter need the kitty keyboard protocol; f2 is the
-	// edit key every terminal sends (doc/design/terminal-renderer.md).
-	edit: newChord("edit field", one("ctrl+enter", "super+enter", "f2"), nil, nil),
+	// Enter is the one action key: it does what the thing under the cursor
+	// is for. ctrl+enter and f2 are gone, because ctrl+enter is enter on
+	// every terminal without the kitty keyboard protocol, and a key that is
+	// one key here and another there is not a key the renderer reads
+	// (doc/design/terminal-renderer.md, 2026-09-28).
+	act: newChord("act: open id, follow link, edit cell, press", one("enter"), nil, nil),
 
 	// Copy and paste are the terminal's first: cmd+c and ctrl+shift+c copy
 	// what the mouse selected, and cmd+v and ctrl+shift+v paste, arriving as
@@ -183,7 +183,6 @@ var keys = keymap{
 	// ctrl+q is the quit nothing swallows, at once, from anywhere.
 	quit: newChord("quit now", one("ctrl+q"), nil, nil),
 
-	submit: newChord("send comment", one("ctrl+enter", "super+enter"), nil, nil),
 	cancel: newChord("cancel", one("esc"), one("esc"), one("esc", "ctrl+g")),
 }
 
@@ -193,7 +192,7 @@ func helpRows() []*chord {
 		keys.up, keys.down, keys.left, keys.right,
 		keys.pageUp, keys.pageDn, keys.top, keys.bottom,
 		keys.next, keys.previous,
-		keys.open, keys.edit,
+		keys.act,
 		keys.copy, keys.copyId, keys.paste,
 		keys.filter, keys.grab, keys.nextTab, keys.previousTab,
 		keys.back, keys.help, keys.quit,
@@ -241,7 +240,6 @@ func (h *help) View(width int) string {
 		lines = append(lines, fit("  "+pad(row.spelling(h.tab), 30)+row.what, width))
 	}
 	lines = append(lines, "",
-		styleDim.Render(fit("  cmd and ctrl+enter need the kitty keyboard protocol", width)),
 		styleDim.Render(fit("  ←/→ tab 1-3: switch · esc ?: close", width)))
 	return strings.Join(lines, "\n")
 }

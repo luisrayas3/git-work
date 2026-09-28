@@ -60,6 +60,16 @@ func (c *commentBox) Update(msg tea.Msg) tea.Cmd {
 	return cmd
 }
 
+// onFirstLine and onLastLine say the text cursor is at an edge of the text,
+// where up and down leave the text rather than move within it.
+func (c *commentBox) onFirstLine() bool {
+	return c.area.Line() == 0
+}
+
+func (c *commentBox) onLastLine() bool {
+	return c.area.Line() >= c.area.LineCount()-1
+}
+
 // draft is what has been typed, as it would be sent.
 func (c *commentBox) draft() string {
 	return strings.TrimSpace(c.area.Value())

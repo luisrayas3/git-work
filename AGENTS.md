@@ -214,17 +214,23 @@ KWARGS is read from standard input when it is `-`, like every document argument.
 Standard, vim and emacs keys are all read at once, and `?` shows them as three tabs;
 the cursor starts on the id column and the row under it is washed,
 `Space` grabs an item to move it (only when `rank` is bound),
-`C-Enter` (`F2` where the terminal cannot send it) edits the field under the cursor,
+and `Enter` is the one action key, doing what the cell under the cursor is for:
+on the id it opens the issue as show,
+on a relation, drawn as the issue it names, it opens that issue,
+on any other cell it edits it,
 where a value list ends with `(none)` and an emptied box clears the field
-(`title` excepted, it cannot be cleared),
-the terminal's own copy and paste keys stay the terminal's,
+(`title` excepted, it cannot be cleared) and a bool flips at once.
+`C-Enter` and `F2` are gone, because `C-Enter` is `Enter` on most terminals (2026-09-28).
+The terminal's own copy and paste keys stay the terminal's,
 `C-c`/`y`/`M-w` copy the cell under the cursor and `M-c`/`Y` the id,
-a paste opens the editor with the text in it, `/` or `C-s` filters,
-a relation is drawn as the issue it names and `Enter` on it opens that issue,
-`Enter` elsewhere opens show — title, comment box, fields table,
-and comments/description/log tabs switched with ←/→ —
-opening in the comment box (`C-Enter` sends it).
-`Esc` (or vim's `q`, emacs's `C-g`) is always back, and twice from the first view quits;
+a paste opens the editor with the text in it, `/` or `C-s` filters.
+Show is a header — type, title, archived, each a cell `Enter` edits or flips —
+then the fields table, the comment box, and comments/description/log tabs switched with ←/→;
+it opens in the comment box, and `↓` then `Enter` sends the comment
+(`Tab` skips the box whole; its buttons are reached from its text).
+`Esc` (or vim's `q`, emacs's `C-g`) is always back;
+from the first view it parks on the call line, unfolded into the whole
+`git work view …` command (`C-c` copies it), and from there it quits;
 `C-q` quits at once; `C-c` does not.
 Every view's first line is the call that drew it.
 

@@ -1,10 +1,13 @@
 package tui
 
 import (
+	"strings"
+
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/git-bug/git-bug/cache"
 	"github.com/git-bug/git-bug/entity"
+	"github.com/git-bug/git-bug/view"
 )
 
 // page is one screen of the renderer: the list, or one issue.
@@ -17,6 +20,8 @@ type page interface {
 	Update(msg tea.Msg) (page, tea.Cmd)
 	// View draws the page, already fitted to the size it was last given.
 	View() string
+	// Call is the call the page is drawing, its first line.
+	Call() *view.Call
 }
 
 // The messages the pages send each other through the program.
@@ -38,12 +43,15 @@ type root struct {
 	pages         []page
 	width, height int
 
-	// armed says the last key went back from the first view: the next back
-	// quits. It is disarmed by any other key.
-	armed bool
-	// confirming is armed as it stood before the key being handled.
-	confirming bool
+	// onCall says the cursor is on the call line, where back from the first
+	// view puts it: the line unfolds into the whole command, back from there
+	// quits, and any other key returns to the view
+	// (doc/design/terminal-renderer.md, 2026-09-28).
+	onCall bool
 }
+
+// callHint is the status line while the cursor is on the call line.
+const callHint = "esc: quit · enter: back · ctrl+c: copy the command"
 
 func (r *root) Init() tea.Cmd {
 	// the terminal's background decides the highlight colours, which have to
@@ -73,7 +81,9 @@ func (r *root) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.String() == "ctrl+q" {
 			return r, tea.Quit
 		}
-		r.confirming, r.armed = r.armed, false
+		if r.onCall {
+			return r.callKey(msg)
+		}
 
 	case tea.BackgroundColorMsg:
 		darkBackground = msg.IsDark()
@@ -87,15 +97,11 @@ func (r *root) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case popMsg:
 		// Back from the first view is the one back that loses the view, so it
-		// asks for a second one: a stray esc must not end a session.
+		// lands on the call line instead, and quits from there: a stray esc
+		// must not end a session.
 		if len(r.pages) <= 1 {
-			if r.confirming {
-				return r, tea.Quit
-			}
-			r.armed = true
-			top, cmd := r.top().Update(statusMsg("back again to quit"))
-			r.pages[0] = top
-			return r, cmd
+			r.onCall = true
+			return r, r.say(callHint)
 		}
 		r.pages = r.pages[:len(r.pages)-1]
 		return r, nil
@@ -109,10 +115,62 @@ func (r *root) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return r, cmd
 }
 
+// callKey is a key with the cursor on the call line: back quits, copy copies
+// the command, and anything else returns to the view — a direction, enter or
+// tab does only that, and every other key then means what it means there.
+func (r *root) callKey(press tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	switch {
+	case keys.back.matches(press):
+		return r, tea.Quit
+	case keys.copy.matches(press):
+		return r, tea.Batch(tea.SetClipboard(command(r.top().Call())), r.say("copied the command"))
+	}
+	r.onCall = false
+	cmd := r.say("")
+	switch {
+	case keys.act.matches(press), keys.next.matches(press), keys.previous.matches(press),
+		keys.up.matches(press), keys.down.matches(press), keys.left.matches(press), keys.right.matches(press):
+		return r, cmd
+	}
+	top, more := r.top().Update(press)
+	r.pages[len(r.pages)-1] = top
+	return r, tea.Batch(cmd, more)
+}
+
+// say puts a line in the top page's status line.
+func (r *root) say(status string) tea.Cmd {
+	top, cmd := r.top().Update(statusMsg(status))
+	r.pages[len(r.pages)-1] = top
+	return cmd
+}
+
 func (r *root) View() tea.View {
-	view := tea.NewView(r.top().View())
+	content := r.top().View()
+	if r.onCall {
+		content = r.withCallUnfolded(content)
+	}
+	view := tea.NewView(content)
 	view.AltScreen = true
 	return view
+}
+
+// withCallUnfolded replaces the page's first line, the call, with the whole
+// command it stands for, as many lines as that takes, keeping the status line
+// and giving up what is under the call to make the room.
+func (r *root) withCallUnfolded(content string) string {
+	lines := strings.Split(content, "\n")
+	if len(lines) < 2 {
+		return content
+	}
+	unfolded := commandLines(r.top().Call(), r.width)
+	status := lines[len(lines)-1]
+	rest := lines[1 : len(lines)-1]
+	room := max(r.height-len(unfolded)-1, 0)
+	if len(rest) > room {
+		rest = rest[:room]
+	}
+	out := append(unfolded, rest...)
+	return strings.Join(append(out, status), "\n")
 }
 
 func (r *root) top() page {

@@ -166,7 +166,6 @@ put three spellings in every cell, which read as noise to all three).
 | page up / down | `PgUp` `PgDn` | `C-u` `C-d` | `M-v` `C-v` |
 | start / end | `Home` `End` | `g` `G` | `M-<` `M->` |
 | next / previous stop (show) | `Tab` `S-Tab` | | |
-| edit the field under the cursor | `C-Enter` `⌘-Enter` `F2` | | |
 | copy the cell under the cursor | `C-c`, and `⌘-c` `C-S-c` where the terminal hands them over | `y` | `M-w` |
 | copy the issue id, from any column | `M-c` | `Y` | |
 | paste into the field under the cursor | the terminal's paste (`⌘-v`, `C-S-v`) | `p` | `C-y` |
@@ -176,7 +175,7 @@ put three spellings in every cell, which read as noise to all three).
 | quit, at once | `C-q` | | |
 
 A blank cell is the standard key, which every family also reads.
-`Enter` opens, `Space` grabs and `?` is the help in every family.
+`Enter` acts on what is under the cursor, `Space` grabs and `?` is the help in every family.
 
 **`C-c` copies; it no longer quits.**
 It is the key a standard user copies with,
@@ -186,29 +185,56 @@ so the renderer is free to give it that meaning.
 grabbed, in a text box, in a picker —
 which is the guarantee `C-c` used to carry.
 
-**Back is always back** (revised 2026-09-28, Luis).
+**Back is always back** (revised again 2026-09-28, Luis).
 `Esc`, vim's `q` and emacs's `C-g` leave whatever is open —
 a filter, a picker, an issue —
 and from the first view they leave the program,
-but only on the second press:
-the first says *back again quits*,
-and any other key in between disarms it.
+but only on the second press.
+The first press moves the cursor **onto the call line**,
+which unfolds from the one line that names the view
+into the whole command, `git work view list '{…}'`,
+every argument in it, wrapped over as many lines as it takes;
+it is not editable yet, but copy copies it,
+so the command that drew the screen is one keystroke from the shell.
+Back from there leaves the program;
+`Enter`, `Tab` or a direction key goes back into the view,
+and any other key does too and then means what it means there.
 Back from the first view is the one back that loses the view,
-and a stray `Esc` must not end a session.
+and a stray `Esc` must not end a session;
+the call line is where it lands instead of a warning,
+because the place where the second back quits from
+is a place worth standing on.
 `q` is therefore not a quit key any more, and there is no single-key quit
 except `C-q`.
 
-**`C-Enter` edits; `e` is gone.**
-A letter that edits is a letter that cannot be typed,
+**`Enter` is the one action key; `C-Enter` and `F2` are gone**
+(revised 2026-09-28, Luis).
+`Enter` does what the thing under the cursor is for:
+on a list's id column it opens the issue,
+on a link it follows it,
+on any other cell it edits it —
+a value list for an enum or a person,
+an input line for text, a number or a date,
+and a bool flips at once —
+on a button it presses it,
+and in the comment box's text it is a newline.
+`C-Enter` was the edit key and the send key for a week, and it is banned:
+it exists only on a terminal that speaks the kitty keyboard protocol
+(kitty, Ghostty, WezTerm, foot, iTerm2 with CSI u),
+and everywhere else — gnome-terminal, Terminal.app, Windows Terminal, xterm,
+tmux without extended keys —
+the terminal sends the same byte for `Enter` and `C-Enter`,
+so the program cannot tell them apart
+and one key did two things on two machines.
+A key that is one key here and another there is not a key the renderer reads.
+`F2` was the fallback every terminal sends, and it goes too:
+a function key is not where a hand is,
+and with `Enter` acting nothing needs it.
+Every action is direction keys and `Enter`,
+which every terminal has had since the VT100.
+`e` stays gone: a letter that edits is a letter that cannot be typed,
 and the comment box on `show` is where a user types.
-`C-Enter` and `⌘-Enter` exist only on a terminal
-that speaks the kitty keyboard protocol
-(kitty, Ghostty, WezTerm, foot, iTerm2 with CSI u);
-elsewhere `C-Enter` arrives as `Enter` and opens the issue,
-and `⌘` never arrives at all, because the terminal keeps it.
-`F2` is the edit key every terminal sends,
-and `y`/`M-w` the copy, so no terminal is left without either.
-A field that cannot be edited — the id, a set-valued field,
+A cell that cannot be edited — a set-valued field,
 a field the schema does not know — **rings the bell**,
 the terminal's own blink, and says why in the status line.
 
@@ -374,36 +400,54 @@ and because `Enter` from any kind opens it.
 It takes `id`, and `fields` to narrow and order what it prints;
 by default it prints the type's fields in schema order.
 
-The page is **four stops**, top to bottom (revised 2026-09-28, Luis):
+The page is **four stops**, top to bottom (revised again 2026-09-28, Luis):
 
-1. the **title**;
-2. the **comment box**, immediately below it, with its buttons under it;
-3. the **fields table**;
+1. the **header**: the type, the title, and whether the issue is archived;
+2. the **fields table**;
+3. the **comment box**, with its buttons inside it;
 4. the **tabs**: comments, description and log.
 
-The title is a heading.
-A terminal has one size of text,
-so it is made to read as one the other ways:
-bold, in the accent colour, over a rule as long as it is,
-with a blank line on either side, the type dim beside it.
+The header is the three built-in fields,
+which are on every type and are not rows of the table:
+the type first, dim, because the list shows it left of the title too;
+the title bold, in the terminal's own foreground —
+a terminal has one size of text, so the title reads as a heading
+by being bold, over a rule as long as it is,
+with a blank line on either side —
+and *archived*, in the warning colour, when the issue is;
+when it is not, the cell is drawn only while the cursor is on it, as *archive*, dim.
+Left and right walk the three cells as they walk a list row,
+and `Enter` on the type opens the schema's types,
+on the title an input line,
+and on archived flips it, both ways, in one press:
+an archive is an operation like any other, and the same press undoes it.
 
 The cursor opens **in the comment box**,
+though the box is drawn under the fields,
 because opening an issue to say something about it is the common case,
 and the box is where the typing goes.
 It opens two lines tall and grows with what is typed, up to a paragraph.
 The textarea's highlighted cursor line is turned off:
 its shade is the colour of the text on the wrong kind of terminal,
 and what was typed disappeared into it.
-`Tab` and `S-Tab` move between stops from anywhere, the box included,
-and step through the box's buttons on the way,
-because a button that `Tab` cannot reach is one a terminal without `C-Enter`
-cannot press.
+The box is **one stop with an inside**:
+its text, and under the text a footer line holding its buttons.
+`Down` on the text's last line moves onto the footer,
+left and right pick a button there, `Enter` presses it,
+and `Up` goes back into the text;
+`Up` on the text's first line leaves for the fields table above.
+`Tab` and `S-Tab` move between stops and skip the block whole,
+because the buttons are the box's own and not places on the page
+(they were tab stops for a day, and a page whose tab order
+stopped on a button read as a form).
+So sending a comment is `Down`, `Enter`, on every terminal there is,
+and the status line says so while the cursor is in the text.
 Outside the box's text the directions work within a stop first
 and move to the next stop at its edge:
 in the table, up and down walk the rows,
-and past the last row is the tab strip;
+past the last row is the box, and past the box's footer is the tab strip;
 on the tabs, up and down scroll.
-Edit and copy work on the title and on each row as on a list cell;
+Copy works on each header cell and on each row as on a list cell;
 copy on the description copies the description.
 
 The fields table is two columns, the key dim and the value,
@@ -412,7 +456,7 @@ A relation is a link here as on a list,
 and a `multi-relation` is a line per issue it names,
 so that each is a link the cursor can stand on and `Enter` can follow.
 
-The tabs are drawn **as tabs**, under the fields table:
+The tabs are drawn **as tabs**, under the comment box:
 boxes on a rule, the one drawn open into what is under it.
 **Left and right switch them**, from anywhere but the box's text —
 the tab keys of this page, since nothing else on it goes sideways —
@@ -435,19 +479,17 @@ Comments and the log were one timeline for a day;
 they are two tabs again because reading a discussion
 and reading what changed are two different reasons to open an issue.
 
-The box submits with `C-Enter`,
-or with `Tab` to a button and `Enter`, which every terminal can send.
 `Enter` in the box is a newline:
 a comment is prose, and sending half of one is worse than a second key.
 `Esc` in an empty box goes back to the view that opened the issue;
-with a draft in it, `Esc` leaves the box for the buttons and keeps the draft,
+with a draft in it, `Esc` leaves the text for the footer and keeps the draft,
 and going back with a draft asks for a second `Esc`,
 because a draft is the one thing on the page the store does not have.
 
 The buttons are **Submit comment** alone, today.
 They are where actions injected into views (deferred, below) land on `show`:
 a view invocation that names, say, *Comment and close*
-gets a second button beside the first,
+gets a second button beside the first in the footer,
 running the comment and then its action.
 
 ## Nesting
@@ -490,6 +532,13 @@ Not decided, and grouped here because they are one conversation:
 - **Questions to the user** — choose, confirm, ask, form —
   which is how a flow asks something without a view.
 - **Reparenting by grab**, above.
+- **The mouse** (postponed 2026-09-28, Luis, after the keys were settled).
+  A click on a cell edits it, on a link follows it, on a tab switches to it,
+  and the wheel scrolls:
+  Bubble Tea reports clicks, and the page knows which line each thing is on.
+  What it costs is the terminal's own drag-select,
+  which every terminal keeps behind `Shift` once a program asks for the mouse,
+  and that is worth writing down before it is turned on.
 
 `pick=True` on a list is **removed**, not deferred.
 `flow pick ID` (`9a24c8e`) takes its id from the command line,
