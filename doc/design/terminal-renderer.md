@@ -15,9 +15,10 @@ without a second query language, a second data path, or a second lock.
 `9a24c8e` (`flow pick`),
 `ca81145` (the chat pin, folded in here).
 
-**Status:** decided 2026-09-24 (Luis); keys and `show` revised 2026-09-27 (Luis).
-List and show are being built now;
-board, gantt and nesting come after the migration (`bf6f392`).
+**Status:** decided 2026-09-24 (Luis); keys and `show` revised 2026-09-27 (Luis);
+the board decided and built 2026-09-28 (Luis).
+List and show landed 2026-09-24, the board 2026-09-28;
+gantt and nesting are the gantt story's (`00a63d9`).
 This document revises `config-entity.md` E9,
 which is now the short form and points here.
 
@@ -413,6 +414,91 @@ A drop writes **one** midpoint key to **one** issue,
 which is the whole point of a fractional index:
 two people dragging at once both keep their drag.
 
+## Board
+
+`board` is a list with a second axis:
+a column per value of one field, `columns`,
+a card per issue, and a swimlane per value of `group_by` when it is bound.
+Decided with the list's keys in hand, on 2026-09-28 (Luis),
+and built the same day.
+
+**The only edits a board makes are moves.**
+`Enter` on a card opens the issue in `show`,
+and nothing on a card is edited in place:
+a card is a summary,
+the page where a field is edited is the one with the field on it,
+and what a board is for is moving cards.
+So a card has no cell cursor inside it,
+copy in every spelling copies the id,
+and a paste has nowhere to go and says so.
+This supersedes the earlier "ask which field on a card",
+written when `e` was still the edit key.
+
+**Grab needs no rank on a board.**
+Moving a card to another column is the board's reason to exist,
+so `Space` always grabs;
+`←` and `→` carry the card into the neighbouring column, empty or not,
+and the drop writes the `columns` field — `null` when dropped in `(none)`.
+Only `↑` and `↓` need `rank`, because they need an order to write,
+and without one they ring the bell and say *no rank*.
+The drop is one `set` with up to two keys, which is one commit:
+the field when the column changed,
+and the rank whenever `rank` is bound and the card moved at all,
+because a card in a new column has new neighbours.
+A card dropped where it was picked up writes nothing.
+A drop the schema refuses — a task dragged into a column
+only an iteration's status has —
+is a status line and nothing else, as every refusal is.
+A refresh while a card is grabbed lets it go,
+because the board under it is no longer the one it was picked up from.
+
+**The columns** are `values` when given, in that order,
+else the field's schema order,
+read off the types the cards on the board have —
+every type owns its own field (`e7e58f2`),
+and an iteration's statuses are not columns of a board of tasks —
+and off every type when there are no cards at all.
+Then, trailing, every value the data has that is not listed,
+and `(none)` for the cards with no value,
+because a board that silently drops issues
+is worse than a board with a ragged edge.
+A listed column is drawn when it is empty;
+the trailing ones exist only while a card is in them.
+The header is each column's name and count;
+the count is across every lane.
+
+**A card** is the short id, dim,
+the title wrapped to the column's width,
+then each other `card` field on a line of its own as `key: value`,
+the key dim, a relation drawn as the issue it names as everywhere else,
+and a blank line before the next card.
+The card under the cursor has the wash over its whole width
+and its id reversed, as a list row and its cell do,
+and the grabbed card carries the blinking markers on its id line.
+
+**Directions.**
+`↑` and `↓` walk the column, and past its end
+into the same column of the next lane that has a card there;
+`←` and `→` go to the nearest column with a card in this lane,
+because an empty column is nothing to stand on —
+unless a card is grabbed, when it is exactly where the card goes.
+The page keys move within the column; `Home` and `End` are its ends.
+
+**Columns keep a minimum width** of twenty cells,
+and when they do not all fit
+the board scrolls sideways by whole columns
+to keep the cursor's column on screen,
+the sideways twin of the vertical scroll;
+`‹` and `›` at the ends of the header say there is more.
+When they do fit, they share the window.
+Squeezing every column to fit was the alternative,
+and a column four characters wide is not a column.
+The board scrolls vertically as one canvas,
+so that the lanes stay aligned across the columns.
+
+`card` is not spelled on the call line, as `fields` is not:
+the cards are on the screen.
+
 ## Show
 
 `show` is a view kind like the others,
@@ -591,7 +677,7 @@ The ref watcher is started when a view opens and stopped when it closes.
    Being built now, in parallel with this document.
 2. **The migration** (`bf6f392`),
    which deletes `entities/bug`, `commands/bug`, `termui` and gocui.
-3. **Board, then gantt, then nesting.**
+3. **Board** — landed 2026-09-28 — **then gantt, then nesting.**
 
 Board before gantt because workflow 3 is the in-person kanban
 and a board is a list with a second axis;

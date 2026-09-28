@@ -11,8 +11,8 @@
 // title edited here and a title set from the shell are the same operation
 // against the same write lock. Nothing here touches a ref.
 //
-// Only `list` and `show` are drawn today. A `board` or a `gantt` fails naming
-// this renderer, so a view is never silently a different view than it says.
+// `list`, `show` and `board` are drawn today. A `gantt` fails naming this
+// renderer, so a view is never silently a different view than it says.
 package tui
 
 import (
@@ -115,6 +115,8 @@ func (r *Renderer) page(repo *cache.RepoCache, call *view.Call) (page, error) {
 		return newListPage(repo, call)
 	case view.KindShow:
 		return newShowPage(repo, call.String("id"), call.Strings("fields"))
+	case view.KindBoard:
+		return newBoardPage(repo, call)
 	default:
 		return nil, fmt.Errorf("the terminal renderer does not draw a %s yet (84dfbde)", call.Kind)
 	}

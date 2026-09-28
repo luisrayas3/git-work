@@ -15,9 +15,9 @@ import (
 //
 // A view is exactly its call (the command is the spec), so the line that
 // says what is on the screen is that call: the kind, then its arguments.
-// Two are left out because the screen already says them: `fields` is the
-// columns and the table, and the query goes last without its name, being
-// the one argument that is always there and the one that runs long. An
+// Some are left out because the screen already says them: `fields` is the
+// columns and the table, `card` is the cards, and the query goes last without
+// its name, being the one argument that is always there and the one that runs long. An
 // argument left at its default is dim, so the ones somebody chose stand out.
 //
 // lead is what follows the kind before the arguments, and replaces the one
@@ -43,7 +43,7 @@ func callParts(call *view.Call, lead, leadArg string) (head []string, query stri
 	}
 
 	for _, arg := range view.Kinds[call.Kind] {
-		if arg.Name == leadArg || arg.Name == "fields" {
+		if arg.Name == leadArg || arg.Name == "fields" || arg.Name == "card" {
 			continue
 		}
 		raw, ok := call.Args[arg.Name]

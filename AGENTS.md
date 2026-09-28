@@ -192,8 +192,8 @@ and the command is the whole input:
 one KWARGS object, the same one the Starlark call takes,
 nothing on standard input and nothing printed
 (design in `doc/design/terminal-renderer.md`).
-`list` and `show` render in the terminal (`84dfbde`);
-`board` and `gantt` error naming the renderer until it is built,
+`list`, `show` and `board` render in the terminal (`84dfbde`);
+`gantt` errors naming the renderer until it is built,
 and `--gui` errors until the gui process exists (`8b06191`):
 
 | Action | Command |
@@ -214,13 +214,22 @@ so a kanban with no flow at all is one command:
 KWARGS is read from standard input when it is `-`, like every document argument.
 Standard, vim and emacs keys are all read at once, and `?` shows them as three tabs;
 the cursor starts on the id column and the row under it is washed,
-`Space` grabs an item to move it (only when `rank` is bound),
+`Space` grabs an item to move it (on a list only when `rank` is bound),
 and `Enter` is the one action key, doing what the cell under the cursor is for:
 on the id it opens the issue as show,
 on a relation, drawn as the issue it names, it opens that issue,
 on any other cell it edits it,
 where a value list ends with `(none)` and an emptied box clears the field
 (`title` excepted, it cannot be cleared) and a bool flips at once.
+A board's card has no cells: `Enter` opens it, copy copies its id,
+and its only edits are moves — `Space` grabs with no rank needed,
+`←`/`→` carry the card into the next column (a drop sets the `columns`
+field, `null` in `(none)`), `↑`/`↓` reorder it only with `rank` bound,
+and one drop is one commit.
+Columns are `values` or the field's schema order off the types on the board,
+then the values the data has that are not listed, then `(none)`;
+they keep a minimum width and scroll sideways to follow the cursor
+(2026-09-28, `doc/design/terminal-renderer.md`, Board).
 `C-Enter` and `F2` are gone, because `C-Enter` is `Enter` on most terminals (2026-09-28).
 The terminal's own copy and paste keys stay the terminal's,
 `C-c`/`y`/`M-w` copy the cell under the cursor and `M-c`/`Y` the id

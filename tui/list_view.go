@@ -23,7 +23,7 @@ func (p *listPage) View() string {
 	// one line for the call, one for the header, the rest for the rows, the
 	// bottom for whatever is open and the status line
 	room := max(p.height-2-len(bottom), 1)
-	p.scroll(cursorLine, room, len(rows))
+	scroll(&p.top, cursorLine, room, len(rows))
 
 	lines := make([]string, 0, p.height)
 	lines = append(lines, callLine(p.call, "", "", p.width), header)
@@ -230,19 +230,20 @@ func (p *listPage) widths() []int {
 	return widths
 }
 
-// scroll moves the window so the cursor's line is in it, and no further.
-func (p *listPage) scroll(cursorLine, room, total int) {
-	if cursorLine < p.top {
-		p.top = cursorLine
+// scroll moves a window of room lines over total so that the cursor's line
+// is in it, and no further: top is the first line drawn.
+func scroll(top *int, cursorLine, room, total int) {
+	if cursorLine < *top {
+		*top = cursorLine
 	}
-	if cursorLine >= p.top+room {
-		p.top = cursorLine - room + 1
+	if cursorLine >= *top+room {
+		*top = cursorLine - room + 1
 	}
-	if p.top > total-room {
-		p.top = total - room
+	if *top > total-room {
+		*top = total - room
 	}
-	if p.top < 0 {
-		p.top = 0
+	if *top < 0 {
+		*top = 0
 	}
 }
 

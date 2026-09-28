@@ -175,7 +175,7 @@ var keys = keymap{
 		show(standard, "terminal paste (cmd+v, ctrl+shift+v)"),
 
 	filter: newChord("filter", one("/"), one("/"), one("ctrl+s")),
-	grab:   newChord("grab / drop row (needs rank)", one("space", " "), nil, nil),
+	grab:   newChord("grab / drop (move; rank to reorder)", one("space", " "), nil, nil),
 	help:   newChord("help", one("?"), nil, nil),
 	// Back is always back: out of a filter, out of an issue, and from the
 	// first view, twice, out of the program (doc/design/terminal-renderer.md).

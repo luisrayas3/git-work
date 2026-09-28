@@ -425,22 +425,17 @@ func TestNestingIsRefused(t *testing.T) {
 	require.ErrorContains(t, err, "expand")
 }
 
-func TestBoardAndGanttNameTheRenderer(t *testing.T) {
+func TestGanttNamesTheRenderer(t *testing.T) {
 	repo := testRepo(t)
 	renderer := &Renderer{}
 
-	kwargs := map[string]map[string]json.RawMessage{
-		view.KindBoard: {"columns": json.RawMessage(`"status"`)},
-		view.KindGantt: {"start": json.RawMessage(`"due"`), "stop": json.RawMessage(`"due"`)},
-	}
+	call, err := view.Parse(view.KindGantt, map[string]json.RawMessage{
+		"start": json.RawMessage(`"due"`), "stop": json.RawMessage(`"due"`),
+	})
+	require.NoError(t, err)
 
-	for _, kind := range []string{view.KindBoard, view.KindGantt} {
-		call, err := view.Parse(kind, kwargs[kind])
-		require.NoError(t, err)
-
-		_, err = renderer.Render(t.Context(), repo, call)
-		require.ErrorContains(t, err, "does not draw a "+kind+" yet (84dfbde)")
-	}
+	_, err = renderer.Render(t.Context(), repo, call)
+	require.ErrorContains(t, err, "does not draw a gantt yet (84dfbde)")
 }
 
 func indexOf(haystack, needle string) int {

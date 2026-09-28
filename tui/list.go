@@ -220,13 +220,7 @@ func (p *listPage) reorder() {
 			// concurrent drags both survive (441dcbb).
 			sort.SliceStable(rows, func(i, j int) bool {
 				left, right := p.rows[rows[i]], p.rows[rows[j]]
-				if (left.rank == "") != (right.rank == "") {
-					return right.rank == ""
-				}
-				if left.rank != right.rank {
-					return left.rank < right.rank
-				}
-				return left.id < right.id
+				return lessByRank(left.rank, left.id, right.rank, right.id)
 			})
 		}
 		p.order = append(p.order, rows...)
@@ -724,3 +718,16 @@ func blinkTick() tea.Cmd {
 }
 
 const blinkInterval = 400 * time.Millisecond
+
+// lessByRank is the order rule a bound rank imposes: (rank, id), the issues
+// without a rank last. Never rank alone: the tie-break by id is what makes
+// two concurrent drags into the same gap both survive (441dcbb).
+func lessByRank(rankI, idI, rankJ, idJ string) bool {
+	if (rankI == "") != (rankJ == "") {
+		return rankJ == ""
+	}
+	if rankI != rankJ {
+		return rankI < rankJ
+	}
+	return idI < idJ
+}
