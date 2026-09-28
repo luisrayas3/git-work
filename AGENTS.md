@@ -260,7 +260,12 @@ schema itself after that, prints one JSON object per line (schema changes,
 one line per issue touched, a summary) and exits 1 when an issue failed or
 deletes were held. Jira wins a field edited on both sides, with a
 `jira-note: conflict` comment on the issue. It **never pushes**; bind one
-clone only. Run state is `.git/git-work/jira/state.json`, disposable.
+clone only: two bound clones syncing before they exchange duplicate issues,
+which the sync then reports but cannot undo (JS25). One run at a time: a
+second exits 1 with `a jira sync is already running`, having done nothing.
+Run state is `.git/git-work/jira/state.json`; it holds the create journal,
+written before every `POST`, so do not delete it while a create is pending.
+There is no `work.jira.*` in Starlark yet (v2), a known gap in the 1:1 rule.
 
 Gotchas, hardened from use:
 

@@ -377,8 +377,11 @@ Every marker is the whole base, so reading it is reading one operation.
 **The current base is the marker with the greatest `Updated`**, ties to the
 later in compiled order: the base describing the newest Jira state best
 predicts Jira. An undecodable marker is skipped and reported (D6). A marker
-is written only when `Plan.Base` differs from the current base, so a quiet
-run commits nothing.
+is written only when `Plan.Base` differs from the current base in anything
+but `Updated`, so a quiet run commits nothing: Jira bumps `updated` for what
+the mapping does not cover and for both ends of a link, and a marker per bump
+would be a commit per bump. The cost is a `GET` while the overlap re-returns
+such an issue.
 
 **Every key the sync writes:**
 
@@ -396,10 +399,12 @@ run commits nothing.
 `jira-id`, `alias:jira` and `jira-comment-id` are set at creation on an
 import and by `SetMetadata` in the step-6 commit on an export, never
 elsewhere. `alias:jira` is never refreshed in v1: after a move the old key
-still resolves locally and in Jira. Local, disposable run state — the cursor,
-the create journal, the per-issue edit lamport at last sync — is in
-`.git/git-work/jira/state.json`; losing it costs a slower run, never a
-wrong one.
+still resolves locally and in Jira. Local run state — the cursor, the failed hits, the create journal,
+the per-issue edit lamport at last sync — is in
+`.git/git-work/jira/state.json`, written through a temporary file and a
+rename. Losing it costs a slower run, never a wrong one, with one exception:
+an entry of the journal lost inside `Settle` of a `POST` whose answer never
+came can duplicate that issue (JS15).
 
 ### JS9 — The merge rule for scalars
 
@@ -442,8 +447,10 @@ edit of one item.
 
 The description (comment #0) follows the scalar table on digests; a text is
 never merged within itself. `Digest(t)` is `"v1:" + hex(sha256("v1\n" +
-norm(t)))`, where `norm` turns CRLF into LF, trims trailing space on every
-line and trailing newlines; the version is in the input, so a later
+norm(t)))`, where `norm` is `jiraapi.NormalizeText`, exactly the normal
+form `TextToADF` preserves (CRLF to LF, trailing space and newlines, and
+the rest `TextToADF` cannot tell apart), so two texts Jira holds alike never
+differ; the version is in the input, so a later
 normalisation change re-imports each text once instead of mis-comparing.
 
 `jiraapi.ADFToText` renders ADF as Markdown over a fixed subset —
@@ -476,10 +483,16 @@ comment, with digests against `Base.Comments`:
 
 The model has no local comment delete, so there is no local-delete row. The
 property is the idempotence key: a crash between `POST` and the commit is
-repaired by the pairing row next run, never by a second `POST`. The review
-dropped the scratch design's digest-matching fallback; it stays dropped until
-a live run shows comment properties are not returned. An exported comment is
-authored in Jira by the token's account; its property records the local op.
+repaired by the pairing row next run, never by a second `POST`. The comments
+a run posts pair by the ids `POST` returned, so only that crash needs the
+property to come back. There is no digest-matching fallback: it would pair a
+comment the runner typed in Jira with an identical unexported local one, and
+lose the local one. If the live spike (`0a4390d`) shows `expand=properties`
+is not honoured on the list, the repair is a `GET
+/comment/{id}/properties/git-work` for each unpaired comment by the token's
+account, not the fallback. An exported comment is authored in Jira by the
+token's account; its property records the local op. Pending entries of
+comments are keyed `comment:<Jira id>`, or `comment:<op>` before one exists.
 
 ### JS13 — One issue at a time: Jira writes first, then one commit decided under the lock
 
@@ -492,19 +505,28 @@ authored in Jira by the token's account; its property records the local op.
 4. **Write**, each independent, success recorded per key: one `PUT` with every
    `Edit`; the transition; link adds and removes; comment creates and edits.
    A `PUT` refused with per-field `errors` is retried once without those
-   fields, which become pending. `TransitionTo` takes the transition whose
+   fields, which become pending; a 400 naming no field sent fails the edit. `TransitionTo` takes the transition whose
    `to.id` is the target; a required `resolution` is filled with the first
    of that transition's `allowedValues` (the review made it pending, which
    would block "done" on most company-managed workflows, and needs no
    discovery); any other required field, or no such transition, is pending.
-5. **Re-read** `R′ = GET` if anything was written, else `R′ = R`.
-6. **Commit**, `IssueCache.Update`: `B′ = B` with each written key set to the
-   value written; under the lock, on the fresh snapshot `L′`,
+5. **Re-read** `R′ = GET` if anything was written, else `R′ = R`. A key
+   written this run that `R′` still shows at its `R` value is
+   *unconfirmed* — a stale read, not a Jira edit — and is a `Skip{Retry}`
+   for step 6, so `plan₂` never imports the pre-write value over local; the
+   next run reads it again. Normalisation back to the old value costs one
+   more run, not a loop: then `l == b′`, and `r` imports.
+6. **Commit**, `IssueCache.Update`: `B′ = B` with each written scalar and
+   text set to the value written (a set's base stays `b`: against `r′ =
+   merged`, the second merge reaches the merged set locally, where `B′ =
+   merged` would remove Jira's additions); under the lock, on the fresh snapshot `L′`,
    `plan₂ = Merge(B′, L′, FromJira(R′), export=false)`; the ops are
    `plan₂`'s local changes, each pre-checked per key with the run's checker
-   (a refused key moves to `Retry`), the conflict note, the `SetMetadata`s
-   for new pairings, and a marker when `plan₂.Base` differs from the current.
-   Keys `plan₂` still wants to export are reported pending, not written.
+   (`admit`: a refused key keeps its old base and moves to `Retry`, so
+   `Update`'s own check never refuses the batch), the conflict note, the
+   `SetMetadata`s for new pairings, and a marker when `plan₂.Base` differs
+   from the current (JS8). Keys `plan₂` still wants to export are reported
+   pending, not written.
 
 Every local decision is made under the lock on the entity as it is then, so a
 user editing during steps 3–5 is seen by `plan₂` — a double edit if Jira
@@ -518,7 +540,8 @@ write back to the value it already held.
 | stops after | state | next run |
 | --- | --- | --- |
 | 1–3 | nothing written | identical run |
-| part of 4, or 5 | some Jira writes, nothing local | a written key is `l == r`: converged; an unwritten one is still local: written; comments pair by property, creates by journal (JS15) |
+| part of 4, or 5 | some Jira writes, nothing local | a written key is `l == r`: converged; an unwritten one is still local: written; comments pair by property, creates by journal and property (JS15) |
+| the `POST /issue` answer lost | the issue may exist in Jira | the journal entry, on disk before the `POST`, is in doubt: found by property, linked; not found, pending until `Settle`, then created again (JS15) |
 | 4, refused (400) | Jira refused a key | pending every run until fixed on either side |
 | 4, no transition | status diverged | pending with the reason; a later Jira status change imports, with a conflict |
 | 6, schema check | a value the schema lacks | that key `Retry`, the rest commits |
@@ -539,35 +562,60 @@ re-return synced issues, which step 1 skips with no `GET`.
 ### JS15 — Creates in both directions, and linking pre-existing aliases
 
 **Local to Jira.** An unarchived local issue of a mapped type with no
-`jira-id` is exported: journal `(entity id, now)` in the state file;
-`POST /issue` with project, `issuetype.id`, summary, description and every
-mapped field on the create screen, plus the property `git-work`; on `201`,
-`GET` it as `R` and continue from step 3 with a **create base**: for a key the
-body carried, `B[k] = L[k]` (so Jira's normal form imports in `plan₂`); for a
-key it could not carry, `B[k] = R[k]` when local holds a value (so status,
-links and the rest are written now) and `L[k]` when local is null (so a Jira
-default such as priority imports rather than being cleared forever); comments
-are local-only and exported. Step 6 adds `jira-id` and `alias:jira` by
-`SetMetadata` on the create op and drops the journal entry. The review's
-"ordinary merge against the created issue as base" would export `null` over
-every Jira default; this rule is why it differs.
+`jira-id` is exported; `sync ID...` of one archived or of a local-only type
+reports why it is not. Jira has no idempotency key and its search lags, so
+the **create journal** is what stands between a lost answer and a duplicate:
 
-A crash between `POST` and step 6 is repaired by the property: every search
-hit whose `git-work.id` names a local entity without `jira-id` is linked, not
-imported. While a journal entry is younger than `Overlap` it forbids a
-second `POST`; the search's lower bound is `min(cursor, oldest journal
-entry) − Overlap`, so the created issue is inside the next search window —
-the review dropped the scratch design's extra `created >=` query on the
-assumption that the ordinary search covers it, which holds only with that
-bound. Two Jira issues naming one entity: the lower id links, the other is
-skipped and reported as a duplicate every run.
+1. The entry `(entity id, Jira's now)` is saved to the state file **before**
+   `POST /issue`. Jira's now is the `Date` of its last response, so the entry
+   compares with Jira's `created` with no client skew.
+2. `POST` carries project, `issuetype.id`, summary, description, the property
+   `git-work={"id":…}`, and each field the create screen marks required with
+   no default that local holds (a set stated whole) — nothing else, so a
+   per-field refusal cannot fail a create that Jira would take. On `201` the
+   issue is `GET` as `R` and continues from step 3 with a **create base**: a
+   sent key's `B[k] = L[k]` (so Jira's normal form imports in `plan₂`);
+   another key's `B[k] = R[k]` when local holds a value (so it is written now,
+   in the one `PUT` and the transition every create pays anyway) and `L[k]`
+   when local is null or empty (so a Jira default such as priority imports
+   rather than being cleared forever); comments are local-only and exported.
+   Step 6 adds `jira-id` and `alias:jira` by `SetMetadata` on the create op
+   and drops the entry.
+3. A `POST` error keeps the entry, except a definitive answer — a 4xx other
+   than 408 and 429 — which says nothing was made and drops it.
+4. An entry left **in doubt** is resolved in `create` itself, the path `sync
+   ID...` shares: one search per run, `project = P AND created >= "<oldest
+   entry − Overlap>"` with the property, and the lower Jira id whose
+   `git-work.id` names the issue is linked (`linkCreated`, which resumes as a
+   create). Not found, the issue is pending while the entry is younger than
+   `Settle` (15 minutes, an option: longer than any index lag seen), and
+   created again after.
 
-**Jira to local.** A search hit with no link and no property is imported with
-`Issues().NewRaw(reporter identity, created, summary, description text,
-fields, {jira-id, alias:jira, jira-sync})` — the create op is the first
-marker, its base holding the fields and body; fields that fail the pre-check
-are omitted and `Retry`. Comments follow in the ordinary step 6. An issue of
-an unmapped type is skipped, reported once per run.
+A crash between `POST` and step 6 is also repaired by the ordinary search:
+every hit whose `git-work.id` names a local entity without `jira-id` is
+linked, not imported; one whose entity this clone has not pulled is skipped
+("pull first"), never imported, which would make a second entity. The search's
+lower bound needs no journal term: a created issue is always later than the
+cursor, which only moves to hits seen before any `POST`. Two Jira issues
+naming one entity: the lower id links, the other is skipped and reported as a
+duplicate every run. A run holds a non-blocking `flock` on
+`.git/git-work/jira/sync.lock` for its whole length, so two cron runs cannot
+both `POST` one issue; the second exits with "a jira sync is already running",
+having done nothing, and the kernel drops the lock when a process dies, like
+the write lock's. `--dry-run` takes no lock.
+
+The review's "ordinary merge against the created issue as base" would export
+`null` over every Jira default; the create base is why it differs.
+
+**Jira to local.** A search hit with no link and no property is imported:
+`Merge(nil, empty, R)` decides it like any issue, the same pre-check as step 6
+(`admit`) drops what the schema refuses into `Retry`, and the admitted fields
+and body go to `Issues().NewRaw(reporter identity, created, summary,
+description text, fields, {jira-id, alias:jira, jira-sync})` — the create op
+is the first marker. An empty set or a null is not stored. Comments follow in
+the ordinary step 6. A hit of an unmapped type is skipped silently, before any
+`GET`: after `Derive`, every issue type is mapped or one the schema excludes
+(`aliases: {jira: ""}`).
 
 **Link requests.** A local issue with `alias:jira` and no `jira-id` is linked,
 never created: `GET` by key; its `git-work` property naming another entity is
@@ -586,7 +634,8 @@ displayName is empty, "", nil, {jira-account-id})`, before step 6 and never
 inside `Update` (the lock is not re-entrant). Email adoption is not
 attempted, because Cloud hides most emails. At run start the `/myself`
 account tags the current user identity by `SetMetadata` when no identity
-carries it; another identity already carrying it is reported, not merged.
+carries it; one that does is left as it is. Two identities carrying one
+account (two clones, JS25) resolve to the lower id, and both export as it.
 Field imports, markers, notes and tombstones are authored by the current
 user (the runner) — at Jira's `updated` for imports, at now for the rest.
 
@@ -602,7 +651,9 @@ relation is stored on the source only, so `FromJira` reads only entries with
 never sent on a link. Parent is `fields.parent {id}`; its removal is
 `update.parent [{"set":{"none":true}}]`.
 
-A target outside the project (its key's prefix is not the bound key) is
+A target outside the project (its key's prefix is not the bound key), or of
+an issue type the schema does not map or excludes (the link's
+`outwardIssue.fields.issuetype`, the parent's own), can never import and is
 **dropped**: a scalar relation is excluded from the merge for that issue, a
 multi item from both sides, so nothing is imported, exported or cleared. An
 in-project target not yet in the `Index`, an account whose identity creation
@@ -611,10 +662,11 @@ true}` on the remote side: the key is left alone and recorded in the
 marker's `Retry`, which makes the issue a candidate every run until it
 converts. At the end of a run, issues that came back with `Retry` keys are
 re-run once, which resolves a child imported before its parent. A local
-value Jira cannot hold — a local-only status or target, a dead alias, a label
-with a space, a summary over 255 runes, an identity without an account — is a
-`Skip{Retry: false}` from `ToJira`: pending, and a candidate anyway because
-`local ≠ base`.
+value Jira cannot hold — a local-only status or target, a target not in Jira
+yet, a dead alias, a label with a space, a summary over 255 runes, an identity
+without an account — is a `Skip` from `ToJira`, never `Retry`: pending, and a
+candidate anyway because `local ≠ base`. A link item whose target is not in
+Jira is skipped alone; the key's other items are still written.
 
 ### JS18 — A Jira type change is imported; a local one is pending
 
@@ -630,9 +682,8 @@ Jira".
 Polling by `updated` never sees an issue vanish. Under `--full` the search
 returns every id of the project; a linked issue whose id is missing and not
 `Gone` is read with `GET`. A 404 (deleted, or hidden: Jira will not say) is
-`Gone: deleted`; a 200 in another project is `Gone: moved`. The status is
-set to the first value in the canceled category of its type's status field
-(`Mapping.Canceled`), a note with `jira-note = deleted` says why, and a
+`Gone: deleted`; a 200 in another project is `Gone: moved`. The status field, under its own key, is
+set to the first value in its canceled category (`Mapping.Canceled`), a note with `jira-note = deleted` says why, and a
 `Gone` issue is never exported. Never `rm`. **The one exception to I2**: the
 marker's base status is that canceled value, so that when the issue answers
 again (permission regained), Jira's status imports instead of the local
@@ -648,16 +699,22 @@ run: a permission change looks exactly like a mass delete, and `/myself`
 A run's candidates, in this order: link requests (JS15); search hits of
 `project = P AND updated >= "<lower bound>" ORDER BY updated ASC, id ASC`;
 linked issues with `local ≠ base` or a non-empty `Retry`; unlinked local
-issues to create. "Locally changed" is computed from snapshots, skipping any
-issue whose edit lamport equals the one the state file recorded after its
-last sync. `ID...` takes exactly those issues (id prefixes or aliases, a Jira
+issues to create. "Locally changed" is computed from snapshots, and an issue
+whose excerpt's edit lamport equals the one the state file recorded after its
+last converged sync (`Seen`, never recorded while it has `Retry` keys or
+pending ones) is not even read. A `Gone` issue edited locally is reported
+pending by every incremental run, without a `GET`. `ID...` takes exactly those issues (id prefixes or aliases, a Jira
 key included), with no search, no cursor and no `Gone`. `--full` searches
 `project = P` with no lower bound, ignores step 1's skip, and runs JS19.
 
 The cursor is Jira's own `updated` (UTC in the state file), so client clock
-skew is irrelevant. At the end of a run it becomes the `updated` of the first
-search hit that failed or was not reached, else the greatest seen. The lower
-bound is `min(cursor, oldest journal entry) − Overlap` (5 minutes), converted
+skew is irrelevant. At the end of a run it becomes the greatest `updated`
+reached; unreached hits are later than it. A hit that failed is kept in the
+state's `Failed` and named in the next search, `(updated >= … OR id in
+(…))`, until it syncs or stops being returned, so one issue failing forever
+(a 403, a value the schema refuses on every run) costs one id in the query,
+not a window that only grows. The lower bound is `cursor − Overlap` (5
+minutes), converted
 to `/myself.timeZone` and truncated to the minute, formatted
 `"yyyy/MM/dd HH:mm"`: JQL literals are read in the **user's profile zone**
 (C6), which can differ from the zone responses are rendered in. The overlap
@@ -718,7 +775,8 @@ file — printing `plan₁` with `"dry_run": true`; it cannot predict a
 transition that fails or a normalisation Jira applies, and keys whose values
 need the schema changes it did not apply show as pending. `--format text` is
 one line per issue. Exit status is 0 when every issue synced or is only
-pending, 1 when any failed, the run stopped early, or deletes were held.
+pending, 1 when any failed, the run stopped early, deletes were held, or
+another run holds the lock (JS15). A pending key of `*` is the whole issue.
 
 ### JS23 — Failure classes
 
@@ -734,26 +792,42 @@ local change `plan₂` did not export.
 ### JS24 — Rate limits and retries belong to the client
 
 The client honours `Retry-After` on 429 and 503; otherwise it backs off
-exponentially from 2 s, capped at 30 s, jitter ×0.7–1.3, at most 4 retries.
-It spaces writes to one issue under the per-issue limit (20 per 2 s) and
-batches every field into one `PUT`. On 409 from a transition it re-reads the
-transitions and retries once. It never sends `notifyUsers` (C5: `false`
+exponentially from 2 s, capped at 30 s, jitter ×0.7–1.3, at most 4 retries;
+a request times out after 60 s, a transport error like any other. The engine
+batches every field into one `PUT`, which with a transition, links and
+comments stays under the per-issue limit (20 per 2 s) for any one issue; a
+429 past it is waited out by `Retry-After`. On 409 from a transition the
+engine re-reads the transitions and retries once. It never sends `notifyUsers` (C5: `false`
 without admin fails the whole edit), never calls `/search` (410, C7), always
 sends `Content-Type: application/json`, pages `/search/jql` until `isLast`
-or a missing, null or empty token, and never relies on a full page.
+or a missing, null or empty token, and never relies on a full page, and gives up an offset-paged read past 10000
+items (a server ignoring `startAt`).
 
 ### JS25 — Two clones, duplicates, and E7
 
-No value is lost when two bound clones sync: imports carry Jira's current
-value, the latest lamport wins after merge, markers are chosen by `Updated`,
-pairings are facts (I3), and duplicate creates are caught by the property.
-Two residual costs are why one clone is bound: two clones exporting
-different values to one key is Jira last-writer-wins with no note; two clones
-deriving the same **new** Jira type or field create two config entities with
-one key (E7, reported by every schema command). A new **value** is an
-attribute and merges. `Compile` refuses two entities carrying one alias for
-one system (types, fields of a type, values of a field), which two clones can
-produce by merging; the check lives there rather than in `Reconcile`, so
+**One clone is bound.** Two bound clones that exchange before each sync lose
+nothing and duplicate nothing: imports carry Jira's current value, the latest
+lamport wins after merge, markers are chosen by `Updated`, pairings are facts
+(I3), and a create is caught by the property. Their residual costs are two
+clones exporting different values to one key (Jira last-writer-wins, no note)
+and two clones deriving the same **new** Jira type or field (two config
+entities with one key, E7, reported by every schema command; a new **value**
+is an attribute and merges).
+
+Two bound clones that sync **before** they exchange duplicate, and nothing
+local can prevent it, because each has yet to see the other's work:
+
+| race | result | what the sync does |
+| --- | --- | --- |
+| both import one new Jira issue | two local issues with one `jira-id` | the unarchived, then the lower entity id, is the `Index`'s and syncs; the other is reported every run and never syncs; archiving it silences it |
+| both create one pulled local issue | two Jira issues with one property | after the exchange one `jira-id` wins on the create op (`SetMetadata`, first writer); the other Jira issue is reported as a second issue naming it (E24) |
+| both create an identity for one account | two identities with one `jira-account-id` | the lower id is the account's; both export as it; the runner is never re-tagged |
+
+A marker naming its clone was considered and rejected as a guard: it catches
+only what an exchange already made safe, and it would forbid handing the
+binding to another clone. `Compile` refuses two entities carrying one alias
+for one system (types, fields of a type, values of a field), which two clones
+can produce by merging; the check lives there rather than in `Reconcile`, so
 `schema` stays alias-agnostic.
 
 ### JS26 — One fake, over HTTP, shared by every test
@@ -966,7 +1040,7 @@ func (m *Mapping) Request() []string                            // fields= for G
 func (m *Mapping) LocalType(issueTypeId string) (string, bool)  // unmapped: skipped, reported
 func (m *Mapping) IssueType(typeKey string) (string, bool)      // local-only: never exported
 func (m *Mapping) Multi(typeKey, key string) bool
-func (m *Mapping) Canceled(typeKey string) (issue.Value, bool)  // JS19
+func (m *Mapping) Canceled(typeKey string) (key string, v issue.Value, ok bool) // JS19
 func (m *Mapping) Users(ri *jiraapi.Issue, cs []jiraapi.Comment) []jiraapi.User // to ensure first (JS16)
 // Local is the snapshot in local terms for typeKey's mapped keys; the engine
 // passes the type the merge settles on (JS18). Notes carry Note.
@@ -974,25 +1048,29 @@ func (m *Mapping) Local(snap *issue.Snapshot, typeKey string) Doc
 // FromJira converts one issue and its comments: canonical values (JS7), texts
 // through ADFToText, out-of-project relations dropped, the rest in Skip (JS17).
 func (m *Mapping) FromJira(ri *jiraapi.Issue, cs []jiraapi.Comment, ix *Index) Doc
-// ToJira turns merged changes into writes, one per local key; remote gives link ids.
+// ToJira turns merged changes into writes, one per local key, the description
+// included; remote gives link ids.
 func (m *Mapping) ToJira(typeKey string, ch []Change, remote *jiraapi.Issue, ix *Index) ([]Write, []Skip)
-// Create is the POST body and the keys it carries (JS15's create base).
-func (m *Mapping) Create(local Doc, id entity.Id, ix *Index) (jiraapi.CreateIssue, []string, []Skip)
+// Create is the POST body and the keys it sends (JS15's create base).
+func (m *Mapping) Create(local Doc, id entity.Id, ix *Index) (NewIssue, []string, []Skip)
+type NewIssue struct{ Fields map[string]any; Properties []jiraapi.Property }
 
-type Index struct{ /* Jira id <-> entity id, accountId <-> identity id, exportable unlinked ids */ }
-func NewIndex(repo *cache.RepoCache, m *Mapping) (*Index, error) // one pass over excerpts and identities
-func IndexOf(issues, users map[string]entity.Id, exportable []entity.Id) *Index // tests
-func (ix *Index) Issue(jiraId string) (entity.Id, bool)
+type Index struct{ /* Jira id <-> entity id, accountId <-> identity id */ }
+func NewIndex(repo *cache.RepoCache) (*Index, error) // one pass over excerpts and identities
+func IndexOf(issues, users map[string]entity.Id) *Index // tests
+func (ix *Index) Issue(jiraId string) (entity.Id, bool)   // of two, the unarchived, then the lower id
 func (ix *Index) JiraIssue(id entity.Id) (string, bool)
-func (ix *Index) User(accountId string) (entity.Id, bool)
-func (ix *Index) Account(id entity.Id) (string, bool)
-func (ix *Index) WillExport(id entity.Id) bool // unlinked, mapped type, unarchived: a target to Retry on
+func (ix *Index) User(accountId string) (entity.Id, bool) // of two, the lower id
+func (ix *Index) Account(id entity.Id) (string, bool)     // every identity carrying one
 func (ix *Index) AddIssue(jiraId string, id entity.Id)
 func (ix *Index) AddUser(accountId string, id entity.Id)
 
 type Doc struct {
 	Id, Key  string                 // remote only
 	Updated  time.Time              // remote only
+	Created  time.Time              // remote only
+	Reporter string                 // remote only: accountId
+	Status   string                 // remote only: the status name
 	Type     string
 	Fields   map[string]issue.Value // mapped keys, title and type included
 	Body     Text                   // comment #0
@@ -1016,9 +1094,9 @@ type Write struct {
 	Kind   WriteKind
 	Field  string          // Edit: Jira field id
 	Set    json.RawMessage // Edit: fields.<Field>; "null" clears
-	Update json.RawMessage // Edit: update.<Field>, when Set cannot say it
+	Update []jiraapi.Op    // Edit: update.<Field>, when Set cannot say it
 	Status string          // Transition: target status id
-	Add    []jiraapi.NewLink
+	Add    []NewLink // Link: {LinkType, Source, Destination} as POST /issueLink orients them
 	Remove []string // Link: issueLink ids
 }
 
@@ -1030,11 +1108,11 @@ func Digest(text string) string
 func Merge(b *Base, local, remote Doc, multi func(key string) bool, export bool) Plan
 
 // LocalKind: LocalSet | LocalAdd | LocalRemove | LocalEditBody | LocalAddComment |
-// LocalEditComment | LocalPairComment (a SetMetadata of JiraId on Op, no text).
+// LocalEditComment | LocalTombstone | LocalPairComment (a SetMetadata of JiraId on Op, no text).
 type LocalKind int
 type LocalChange struct {
 	Kind   LocalKind
-	Key    string
+	Key    string // field kinds
 	Value  issue.Value
 	Text   string
 	Op     entity.Id
@@ -1059,19 +1137,24 @@ type Options struct {
 	Ids                         []entity.Id
 	DryRun, Full, AcceptDeletes bool
 	Overlap                     time.Duration // default 5m
+	Settle                      time.Duration // default 15m: an unanswered create stays in doubt (JS15)
 	MaxDeletes                  int           // default 10
 }
 type State struct {
 	Site, Project string
 	Cursor        time.Time
-	Creating      map[entity.Id]time.Time    // the create journal
-	Seen          map[entity.Id]lamport.Time // edit lamport after the last sync
+	Creating      map[entity.Id]time.Time    // the create journal, on Jira's clock; saved before every POST
+	Seen          map[entity.Id]lamport.Time // edit lamport after the last converged sync
+	Failed        map[string]time.Time       // Jira id -> updated of a hit that failed (JS20)
 }
 func LoadState(fs repository.LocalStorage) (*State, error) // jira/state.json
 func (s *State) Save(fs repository.LocalStorage) error     // temp file and rename
 
+// Sync saves st itself before every POST /issue; the caller saves it at the
+// end, holding the sync lock (host.JiraSync).
 func Sync(ctx context.Context, repo *cache.RepoCache, c *jiraapi.Client, p *Project, m *Mapping,
 	st *State, opts Options, emit func(Line)) (Summary, error)
+func Mapped(s *schema.Schema) error // no type mapped yet: review the first mapping (JS5)
 
 // Line is one JSON line (JS22): exactly one of Schema, Issue, Summary is set.
 type Line struct {
@@ -1192,7 +1275,7 @@ every output passing `Document.Validate`:
 - E2 Import echo: import a Jira edit, run again → nothing exported.
 - E3 Normalisation: sorted labels and a trimmed description → imported in the same commit; the next run is quiet.
 - E4 Crash after the Jira writes, before step 6 → next run converges; no duplicate comment, one marker.
-- E5 Crash after `POST /issue`, index lagging, next run inside and after `Overlap` → linked by property, never created twice.
+- E5 Crash before, during and after `POST /issue` (answer lost, process killed), index lagging, for every write of a run → linked by property or created again after `Settle`, never twice; `sync ID...` alike; a second run while one holds the lock does nothing.
 - E6 No transition to the target → status pending with the reason, other keys synced; a later Jira status change imports with a conflict.
 - E7 `PUT` refused for one field → retried without it; the rest land; that key pending.
 - E8 A concurrent local commit between steps 3 and 6 → a conflict if Jira changed that key, pending otherwise; nothing lost.
@@ -1201,10 +1284,10 @@ every output passing `Document.Validate`:
 - E11 Parent or link outside the project → dropped; the local value untouched; nothing reported as `Retry`.
 - E12 Jira delete under `--full` → `Gone`, canceled status, note, never exported; more than 10 → nothing marked, exit 1; `--accept-deletes` marks them; the issue answering again → Jira's status imported.
 - E13 Move to another project → `Gone: moved`.
-- E14 Two clones on one fake, exchanging through a bare remote → no value lost, markers read as one base, a local edit on B before pulling A's import exported or noted; one new Jira field derived on both → E7 reported; one new status → one value.
+- E14 Two clones on one fake (and the JS25 races: each reported as the table says), exchanging through a bare remote → no value lost, markers read as one base, a local edit on B before pulling A's import exported or noted; one new Jira field derived on both → E7 reported; one new status → one value.
 - E15 The overlap re-returns synced issues → no `GET`, no commit.
 - E16 429 exhausted mid-run → the run stops, exit 1, the cursor not past the failing issue.
-- E17 Cursor: a failed issue mid-page → the next run starts at or before it; a lost state file → a search from the markers, every hit skipped.
+- E17 Cursor: a failed issue mid-page → kept in `Failed` and named in the next search, which syncs it; a lost state file → a search from the markers, every hit skipped.
 - E18 `--dry-run` → plan printed; refs, state file and the fake's write log unchanged.
 - E19 `ID...` → only those issues read and synced; no search; cursor untouched.
 - E20 A Jira status the schema lacks mid-run → `Retry`; the next run's schema step adds it and the key imports.
@@ -1252,26 +1335,14 @@ Each is also a comment on its task, per the working conventions.
 
 ## As implemented
 
-Deviations the code made, each for a reason found while building it:
+Deviations the code made, each for a reason found while building it; the
+review rounds' changes are folded into the decisions above.
 
-- **JS11**: `Digest` normalises with `jiraapi.NormalizeText`, the exact
-  normal form `TextToADF` preserves, not only CRLF and trailing space: two
-  texts Jira cannot tell apart never differ.
-- **JS12**: comment properties are sent on create and read with
-  `expand=properties`, which api.md does not vouch for on the list endpoint.
-  So the dropped fallback is back, narrowed: a Jira comment by the token's
-  account, unknown to the base, pairs with an unpaired local comment of the
-  same digest. `jiratest.WithCommentProperties(false)` tests it.
-- **JS13 step 6**: `B′[k] = written` for scalars and texts only. A set's
-  base stays `b`: against `r′ = merged`, the second merge then reaches the
-  merged set locally, where `B′ = merged` would remove Jira's additions.
-  `Seen` records an issue only when nothing is pending, so a pending key
-  stays a candidate. A `POST /issue` refused per field is retried once
-  without those fields, and the create base then counts no key as carried,
-  so each is written, or pending, by the ordinary merge.
-- **JS20**: a Gone issue edited locally is reported pending by every
-  incremental run, without a `GET`.
 - **E14**: `entity/dag` (pristine) fails to read a merged history whose two
   branches differ in length ("creation lamport time not set": its reversed
   BFS is not a topological order). It is independent of the sync and flagged
   rather than fixed; the two-clone scenario diverges by one commit per side.
+- **Fake gaps**: a type change in Jira (JS18, M12) cannot be staged by
+  `jiratest`, so `TestAdvTypeChangeInJira` skips; so do a status added
+  mid-run (E20) and datetime custom fields, which are covered by conversion
+  tests only.
