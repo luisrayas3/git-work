@@ -2,6 +2,8 @@ package cache
 
 import (
 	"encoding/json"
+	"errors"
+	"slices"
 	"time"
 
 	"github.com/git-bug/git-bug/entities/identity"
@@ -236,6 +238,126 @@ func (c *IssueCache) CommitOperations(ops []issue.Operation) error {
 		return err
 	}
 	return c.Commit()
+}
+
+// Update takes the write lock, reads the issue again, and hands fn the fresh
+// snapshot. The operations fn returns are validated and schema-checked as one
+// change — against the type they set, if they set one — then appended and
+// committed behind one ref update. No operations: nothing is written.
+//
+// It is the read-modify-commit a plan made outside the lock cannot be: a
+// decision that depends on the issue's current state (a 3-way merge, say) is
+// made on the entity as it is under the lock, so nothing committed in between
+// is decided against blind (concurrent-store.md).
+//
+// fn runs under the entity's mutex: it may read other excerpts and a
+// *schema.Checker obtained beforehand, but must not call a cache writer,
+// c.Snapshot(), or the network. The lock is not re-entrant, and it is held
+// for as long as fn runs.
+func (c *IssueCache) Update(fn func(snap *issue.Snapshot) ([]issue.Operation, error)) error {
+	unlock, err := lockWrite(c.repo)
+	if err != nil {
+		return err
+	}
+	defer unlock()
+
+	c.mu.Lock()
+	var staged []issue.Operation
+	if s, ok := c.entity.(stagedOperations[issue.Operation]); ok {
+		staged = s.StagedOperations()
+	}
+	if err := c.reloadLocked(staged); err != nil {
+		c.mu.Unlock()
+		return err
+	}
+	snap := c.entity.Compile()
+	ops, err := fn(snap)
+	c.mu.Unlock()
+	if err != nil {
+		return err
+	}
+	if len(ops) == 0 {
+		return nil
+	}
+
+	// The check runs outside the entity's mutex, because resolving a relation
+	// by alias reads a snapshot, possibly this one's. Nothing can commit in
+	// between: the write lock is still held.
+	if err := c.checkOperations(issueTypeOf(snap.Fields), ops); err != nil {
+		return err
+	}
+
+	c.mu.Lock()
+	for _, op := range ops {
+		c.entity.Append(op)
+	}
+	err = c.commitLocked()
+	c.mu.Unlock()
+	if err != nil {
+		return err
+	}
+	return c.notifyUpdated()
+}
+
+// checkOperations validates a batch of operations and measures its field
+// writes against the live schema, every problem reported at once.
+//
+// The batch is one change, so every field operation is checked against the
+// type the batch leaves the issue with: a type set anywhere in it is the type
+// its other keys belong to. Comments and metadata have no schema.
+func (c *IssueCache) checkOperations(currentType string, ops []issue.Operation) error {
+	for _, op := range ops {
+		if err := op.Validate(); err != nil {
+			return err
+		}
+	}
+
+	checker, err := c.liveChecker()
+	if err != nil || checker == nil {
+		return err
+	}
+
+	typeKey := currentType
+	for _, op := range ops {
+		if set, ok := op.(*issue.SetFieldOperation); ok && set.Key == schema.TypeKey {
+			if next, ok := issue.String(set.Value); ok {
+				typeKey = next
+			}
+		}
+	}
+
+	problems := &schema.Problems{}
+	collect := func(err error) error {
+		var p *schema.Problems
+		if errors.As(err, &p) {
+			// one op at a time, so an unknown type would be said once per op
+			for _, line := range p.List {
+				if !slices.Contains(problems.List, line) {
+					problems.List = append(problems.List, line)
+				}
+			}
+			return nil
+		}
+		return err
+	}
+	for _, op := range ops {
+		var err error
+		switch op := op.(type) {
+		case *issue.SetFieldOperation:
+			err = checker.CheckFields(typeKey, map[string]json.RawMessage{op.Key: json.RawMessage(op.Value)})
+		case *issue.AddValueOperation:
+			err = checker.CheckItems(typeKey, map[string][]json.RawMessage{op.Key: {json.RawMessage(op.Item)}})
+		case *issue.RemoveValueOperation:
+			err = checker.CheckItems(typeKey, map[string][]json.RawMessage{op.Key: {json.RawMessage(op.Item)}})
+		}
+		if err := collect(err); err != nil {
+			return err
+		}
+	}
+	if len(problems.List) > 0 {
+		return problems
+	}
+	return nil
 }
 
 func (c *IssueCache) EditComment(target entity.CombinedId, message string) (*issue.EditCommentOperation, error) {

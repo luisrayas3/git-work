@@ -85,12 +85,23 @@ func (e *CachedEntityBase[SnapT, OpT]) Commit() error {
 		e.mu.Unlock()
 		return err
 	}
-	err = e.entity.Commit(e.repo)
+	err = e.commitLocked()
 	e.mu.Unlock()
 	if err != nil {
 		return err
 	}
 	return e.notifyUpdated()
+}
+
+// commitLocked writes the staged operations behind one ref update.
+//
+// It is the one commit path, shared by Commit and IssueCache.Update, which
+// each make the entity current first — Commit by rebasing what is staged,
+// Update by reading the entity again before deciding anything.
+//
+// Callers must hold both the write lock and e.mu.
+func (e *CachedEntityBase[SnapT, OpT]) commitLocked() error {
+	return e.entity.Commit(e.repo)
 }
 
 func (e *CachedEntityBase[SnapT, OpT]) CommitAsNeeded() error {
@@ -127,6 +138,14 @@ func (e *CachedEntityBase[SnapT, OpT]) rebaseStaged() error {
 		return nil
 	}
 
+	return e.reloadLocked(ops)
+}
+
+// reloadLocked replaces the entity with a fresh read from git, the given
+// staged operations appended to it.
+//
+// Callers must hold both the write lock and e.mu.
+func (e *CachedEntityBase[SnapT, OpT]) reloadLocked(ops []OpT) error {
 	fresh, err := e.reload()
 	if err != nil {
 		return err
