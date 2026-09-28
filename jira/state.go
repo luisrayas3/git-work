@@ -20,10 +20,12 @@ const statePath = "jira/state.json"
 type State struct {
 	Site    string                     `json:"site"`
 	Project string                     `json:"project"`
-	Cursor  time.Time                  `json:"cursor"`            // Jira's updated, UTC (JS20)
-	Seen    map[entity.Id]lamport.Time `json:"seen,omitempty"`    // edit lamport after the last sync (JS20)
-	Failed  map[string]time.Time       `json:"failed,omitempty"`  // Jira id -> updated of a hit that failed (JS20)
-	Refused map[entity.Id]refusal      `json:"refused,omitempty"` // creates Jira answered and did not make (JS15)
+	Cursor  time.Time                  `json:"cursor"`           // Jira's updated, UTC (JS20)
+	Seen    map[entity.Id]lamport.Time `json:"seen,omitempty"`   // edit lamport after the last sync (JS20)
+	Failed  map[string]time.Time       `json:"failed,omitempty"` // Jira id -> updated of a hit that failed (JS20)
+	// FailedAfter is the last failed id re-read: the next run starts after it
+	FailedAfter string                `json:"failed_after,omitempty"`
+	Refused     map[entity.Id]refusal `json:"refused,omitempty"` // creates Jira answered and did not make (JS15)
 }
 
 // refusal is a create attempt Jira refused: not in doubt, and not tried

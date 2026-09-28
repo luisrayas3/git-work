@@ -394,9 +394,7 @@ func TestAdv2FailedRefetchIsSilent(t *testing.T) {
 	}
 	t.Logf("requests per run: %v", gets)
 	for i, s := range sums {
-		if s.Failed == 0 {
-			t.Skipf("BUG: run %d: the failed hit %s re-read by GET fails again (403) and the run reports nothing, exit 0: %+v", i, b, s)
-		}
+		require.NotZero(t, s.Failed, "run %d: the failed hit %s re-read by GET fails again: a failed line, exit 1: %+v", i, b, s)
 	}
 }
 
@@ -450,9 +448,7 @@ func TestAdv2FailedHitsStarve(t *testing.T) {
 	}
 	st, _ := jira.LoadState(w.c.LocalStorage())
 	t.Logf("failed kept: %d; healed and imported: %d of 5", len(st.Failed), imported)
-	if imported < 5 {
-		t.Skipf("BUG: with more than 100 failed hits, the 100 lowest ids that keep failing starve the rest: %d of 5 healed issues never imported", 5-imported)
-	}
+	require.Equal(t, 5, imported, "with more than 100 failed hits, every one is re-read within ceil(n/100) runs")
 }
 
 // ---- the body is a key ----

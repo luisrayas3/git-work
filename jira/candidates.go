@@ -248,22 +248,26 @@ func (e *engine) hitOf(ri *jiraapi.Issue) hit {
 // not return, each read by GET: the database (I4), and never named in the
 // JQL, because Jira refuses a whole query naming an id it cannot see, and a
 // failed hit is most often an issue since deleted or hidden (A6). An id
-// that is gone or moved out is dropped; Gone decides about its issue.
+// that is gone or moved out is dropped; Gone decides about its issue. One
+// that fails again is a failed line. At most maxFailed are read, round
+// robin from the state's FailedAfter, so every one is read within
+// ceil(n/maxFailed) runs.
 func (e *engine) refetch(failed []string, hits []hit) ([]hit, error) {
 	found := map[string]bool{}
 	for _, h := range hits {
 		found[h.id] = true
 	}
+	failed = slices.DeleteFunc(slices.Clone(failed), func(id string) bool { return found[id] })
+	start, _ := slices.BinarySearch(failed, e.st.FailedAfter+"\x00")
+	failed = append(failed[start:], failed[:start]...)
 	for _, id := range failed[:min(len(failed), maxFailed)] {
-		if found[id] {
-			continue
-		}
+		e.st.FailedAfter = id
 		ri, err := e.c.GetIssue(e.ctx, id, []string{"updated", "issuetype", "project"}, nil, PropertyKey)
 		switch {
 		case jiraapi.StatusCode(err) == 404:
 			delete(e.st.Failed, id)
 		case err != nil:
-			if err := stop(err); err != nil {
+			if err := stop(e.fail(Line{Jira: id}, err)); err != nil {
 				return nil, err
 			}
 		case !e.p.owns(ri.Key):
