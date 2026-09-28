@@ -84,6 +84,7 @@ the recipes below use its keys.
 | Open work | `git work issue 'map(select(.fields.status != "done"))'` · `--format text` |
 | One type | `git work issue 'map(select(.fields.type == "decision"))'` · by area: `select(.fields.area // [] \| index("cli"))` |
 | Live list | `git work view list '{"fields":["type","status","priority","title"],"group_by":"status"}'` (TTY) |
+| Overview | `git work flow run overview` (TTY): open stories, open decisions and open tasks with no parent, grouped by type; `'{"group_by":"status"}'` regroups |
 | Create | `git work issue new '{"fields":{"title":"…","type":"task","status":"to-do","priority":"medium","area":["cli"],"parent":"<story id>"},"body":"…"}'` → prints the id |
 | Show | `git work issue get <id>` · `--format text` |
 | Close / reopen | `git work issue set <id> '{"status":"done"}'` · `'{"status":"to-do"}'` |
@@ -399,6 +400,19 @@ migrated onto fields by `bf6f392`, mapping in `doc/design/store-migration.md`;
 because the parent story orders the work).
 Edit the file and `git work schema import schema.yaml`;
 the import writes only what differs.
+
+## The flows
+
+`flows/` holds the tracker's own flows, one `.star` file per flow,
+the authoring copy of `refs/work-flows` the way `schema.yaml` is of `refs/work-schema`.
+The directory is a review convention, not something the tool knows
+(`doc/design/config-entity.md`):
+edit a file and `git work flow import flows/`,
+an upsert keyed on the function's name.
+The first is `overview` (`b322a8e`):
+open stories, open decisions and open tasks with no parent,
+where open is the status category read from the schema at run time,
+never a status name.
 
 ## Working conventions
 
