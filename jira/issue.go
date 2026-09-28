@@ -67,18 +67,6 @@ func (e *engine) author(accountId string) identity.Interface {
 	return a
 }
 
-// remote is fromIssue with the comments this run posted paired to their ops
-// even if Jira returned no comment property (JS12).
-func (e *engine) remote(ri *jiraapi.Issue, cs []jiraapi.Comment, pairs map[string]entity.Id) Doc {
-	r := e.m.fromIssue(ri, cs, e.ix)
-	for i := range r.Comments {
-		if op, ok := pairs[r.Comments[i].JiraId]; ok {
-			r.Comments[i].Op = op
-		}
-	}
-	return r
-}
-
 func (e *engine) multi(typ string) func(string) bool {
 	return func(k string) bool { return e.m.multi(typ, k) }
 }
@@ -95,6 +83,11 @@ func (e *engine) syncLinked(ic *cache.IssueCache) error {
 	ri, cs, err := e.read(b.Id)
 	gone := ""
 	switch {
+	case jiraapi.StatusCode(err) == 404 && b.young(e.now(), e.opts.Settle):
+		line.Action = ActionSkipped
+		line.Pending = append(line.Pending, Skip{Key: "*", Retry: true, Reason: "Jira does not show the issue created at " + b.Wrote.Format(time.RFC3339) + " yet"})
+		e.report(line)
+		return nil
 	case jiraapi.StatusCode(err) == 404:
 		gone = "not in Jira: deleted, or hidden from the sync's account"
 	case err != nil:
@@ -113,15 +106,17 @@ func (e *engine) syncLinked(ic *cache.IssueCache) error {
 		return nil
 	}
 	line.Jira = ri.Key
-	return e.converge(ic, b, ri, cs, nil, line)
+	return e.converge(ic, b, ri, cs, nil, nil, line)
 }
 
 // converge is JS13 steps 3–6 for an issue on both sides: b is the base (nil
-// for none), meta the create-op metadata step 6 adds for a new link, line
-// what the caller has to report already.
-func (e *engine) converge(ic *cache.IssueCache, b *Base, ri *jiraapi.Issue, cs []jiraapi.Comment, meta map[string]string, line Line) error {
-	remote := e.remote(ri, cs, nil)
+// for none), meta the create-op metadata step 6 adds for a new link, echo
+// the keys of b.Sent that R answers (a create's, read right after its
+// POST), line what the caller has to report already.
+func (e *engine) converge(ic *cache.IssueCache, b *Base, ri *jiraapi.Issue, cs []jiraapi.Comment, meta map[string]string, echo map[string]bool, line Line) error {
+	remote := e.m.fromIssue(ri, cs, e.ix)
 	local := e.m.Local(ic.Snapshot(), remote.Type)
+	b, remote = e.settle(b, local, remote, echo)
 	plan1 := merge(b, local, remote, e.multi(remote.Type), true)
 	if e.opts.DryRun {
 		line.DryRun = true
@@ -140,46 +135,45 @@ func (e *engine) converge(ic *cache.IssueCache, b *Base, ri *jiraapi.Issue, cs [
 	if err != nil {
 		return e.fail(line, err)
 	}
-	ri2, cs2 := ri, cs
-	var unconfirmed []string
-	if wrote {
-		if ri2, cs2, err = e.read(ri.ID); err != nil {
-			return e.fail(line, err)
-		}
-		// I2: a write Jira does not show yet is not a base; the prior one stays,
-		// so if Jira keeps the old value the next run exports again rather than
-		// importing it over the local edit. Unconfirmed a second run in a row,
-		// Jira holds its value (it normalised ours back to it, or someone set
-		// it): the key loses its base, so plan₂ imports Jira's with a note
-		// instead of exporting every run (I1).
-		for _, k := range e.unconfirmed(plan1.Remote, b2, remote, e.m.fromIssue(ri2, cs2, e.ix)) {
-			if b != nil && slices.Contains(b.Retry, k) {
-				delete(b2.Fields, k)
-				continue
-			}
-			restore(b2, b, k)
-			unconfirmed = append(unconfirmed, k)
+	if !wrote {
+		return e.commit(ic, b2, ri, cs, meta, nil, line)
+	}
+	// step 5: what Jira answered is committed even when the re-read fails,
+	// against R, where every written key is still pending (I2)
+	w := &written{pairs: pairs, echo: map[string]bool{}}
+	for k := range b2.Sent {
+		if _, before := b.Sent[k]; b == nil || !before {
+			w.echo[k] = true
 		}
 	}
-	return e.commit(ic, b2, ri2, cs2, pairs, meta, unconfirmed, line)
+	ri2, cs2, err := e.read(ri.ID)
+	if err != nil {
+		ri2, cs2, w.readErr, w.echo = ri, cs, err, nil
+	}
+	return e.commit(ic, b2, ri2, cs2, meta, w, line)
 }
 
-// unconfirmed are the keys written this run that the re-read still shows
-// with their pre-write value: a stale read, not a Jira edit, so plan₂ must
-// not import it over local. They are left alone and retried (I2).
-func (e *engine) unconfirmed(written []change, b2 *Base, r, r2 Doc) []string {
-	var keys []string
-	for _, ch := range written {
-		switch {
-		case ch.Set == nil: // a set's base waits for the second merge anyway
-		default:
-			k := ch.Key
-			if v, ok := b2.Fields[k]; ok && same(v, form(k, ch.Set)) && same(form(k, r2.Fields[k]), form(k, r.Fields[k])) && !same(form(k, r.Fields[k]), v) {
-				keys = append(keys, k)
-			}
-		}
+// written is what step 4 leaves step 6: the comments it created, paired from
+// their 201s; the keys it wrote, which R′ answers; a failed re-read.
+type written struct {
+	pairs   map[string]entity.Id
+	echo    map[string]bool
+	readErr error
+}
+
+// settle is the base a merge against remote starts from: a create's first
+// base (fresh), and each key written before resolved by confirm, its Skips
+// on remote.
+func (e *engine) settle(b *Base, local, remote Doc, echo map[string]bool) (*Base, Doc) {
+	if b == nil || !b.Fresh && len(b.Sent) == 0 {
+		return b, remote
 	}
-	return keys
+	b = b.clone()
+	if b.Fresh {
+		b.fresh(local, remote)
+	}
+	remote.Skip = append(slices.Clone(remote.Skip), confirm(b, remote, e.multi(remote.Type), echo, e.now(), e.opts.Settle)...)
+	return b, remote
 }
 
 // restore sets key's base in b2 back to prior's (none for a nil prior).
@@ -196,19 +190,36 @@ func restore(b2, prior *Base, key string) {
 
 // commit is step 6: the second merge, decided under the lock on the fresh
 // issue, with nothing exported; its local changes, note, pairings and marker
-// are one commit. line is step 4's; Update calls the closure exactly once.
+// are one commit. w is step 4's (nil when nothing was written): its
+// comments are paired whether or not R′ lists them, and a failed re-read is
+// reported once the rest is committed. line is step 4's; Update calls the
+// closure exactly once.
 func (e *engine) commit(ic *cache.IssueCache, b2 *Base, ri *jiraapi.Issue, cs []jiraapi.Comment,
-	pairs map[string]entity.Id, meta map[string]string, unconfirmed []string, line Line) error {
+	meta map[string]string, w *written, line Line) error {
+	if w == nil {
+		w = &written{}
+	}
 	decided := line
 	var retry bool
 	err := ic.Update(func(snap *issue.Snapshot) ([]issue.Operation, error) {
-		r := e.remote(ri, cs, pairs)
-		for _, k := range unconfirmed {
-			r.Skip = append(r.Skip, Skip{Key: k, Reason: "Jira does not show this run's write yet", Retry: true})
+		r := e.m.fromIssue(ri, cs, e.ix)
+		local := e.m.Local(snap, r.Type)
+		var paired []localChange
+		byOp := map[entity.Id]string{}
+		for jid, op := range w.pairs {
+			byOp[op] = jid
 		}
-		plan := merge(b2, e.m.Local(snap, r.Type), r, e.multi(r.Type), false)
+		for i := range local.Comments {
+			if c := &local.Comments[i]; c.JiraId == "" && byOp[c.Op] != "" {
+				c.JiraId = byOp[c.Op]
+				paired = append(paired, localChange{Kind: localPairComment, Op: c.Op, JiraId: c.JiraId})
+			}
+		}
+		b, r := e.settle(b2, local, r, w.echo)
+		plan := merge(b, local, r, e.multi(r.Type), false)
+		plan.Local = append(plan.Local, paired...)
 		typ, _ := issue.String(snap.Fields[typeKey])
-		decided.Pending = append(decided.Pending, e.admit(&plan, typ, b2)...)
+		decided.Pending = append(decided.Pending, e.admit(&plan, typ, b)...)
 		ops := e.ops(snap, plan, &decided, r)
 		if len(meta) > 0 {
 			ops = append(ops, issue.NewSetMetadataOp(e.me, e.now().Unix(), snap.Operations[0].Id(), meta))
@@ -232,6 +243,9 @@ func (e *engine) commit(ic *cache.IssueCache, b2 *Base, ri *jiraapi.Issue, cs []
 	})
 	if err != nil {
 		return e.fail(line, err)
+	}
+	if w.readErr != nil {
+		return e.fail(decided, w.readErr)
 	}
 	if retry {
 		e.retry = append(e.retry, ic.Id())

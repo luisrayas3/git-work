@@ -1256,8 +1256,8 @@ func TestAdvStaleReadsRevertLocalEdit(t *testing.T) {
 }
 
 // I2: a write the re-read does not show is not recorded as the base, so if
-// Jira then shows the old value the local edit is exported again, never
-// silently replaced by the old value.
+// Jira then shows the old value, set there after the write, Jira's value
+// wins with a note, never silently.
 func TestAdvUnconfirmedWriteNotBase(t *testing.T) {
 	w := newWorld(t, jiratest.WithStaleReads())
 	key := w.srv.CreateIssue(jiratest.IssueSpec{Project: "PROJ", Type: "Task", Summary: "Stale"})
@@ -1271,17 +1271,28 @@ func TestAdvUnconfirmedWriteNotBase(t *testing.T) {
 
 	w.srv.Edit(key, map[string]any{"summary": "Stale"}) // Jira shows the old value
 	w.converge(4)
-	require.Equal(t, `"edited here"`, field(t, ic, "title"), "the local edit survives")
-	require.Equal(t, "edited here", w.srv.Issue(key).Summary, "and is exported again")
+	require.Equal(t, `"Stale"`, field(t, ic, "title"), "Jira wins")
+	require.Contains(t, notesText(ic), `title: local "edited here" -> Jira "Stale"`, "with a note")
+	require.Equal(t, "Stale", w.srv.Issue(key).Summary)
 }
 
-// I1 with I2: a local value Jira normalises back to the value it held is
-// unconfirmed twice, then Jira's is imported with a note: never an export
-// every run, never a silent revert.
+// I1 with I2: a local value Jira normalises back to the value it held
+// leaves updated where it was, so the GET looks stale: pending, never
+// exported again, until Jira's clock passes Settle; then Jira's is imported
+// with a note: never an export every run, never a silent revert.
 func TestAdvNormalisedBackToOld(t *testing.T) {
 	w := newWorld(t)
 	_, ic := w.imported("Fix")
 	w.set(ic.Id(), "title", str("Fix  "))
+	w.srv.ResetRequests()
+	for i := 0; i < 2; i++ {
+		lines, _ := w.mustSync(jira.Options{})
+		require.Len(t, lines, 1)
+		require.Len(t, lines[0].Pending, 1, "%+v", lines)
+		require.Equal(t, "title", lines[0].Pending[0].Key)
+	}
+	require.Equal(t, 1, w.srv.Writes(), "exported once")
+	w.srv.Advance(16 * time.Minute)
 	w.converge(4)
 	require.Equal(t, `"Fix"`, field(t, ic, "title"))
 	require.Contains(t, notesText(ic), `title: local "Fix  " -> Jira "Fix"`)

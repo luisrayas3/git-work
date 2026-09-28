@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/git-bug/git-bug/entities/issue"
 	"github.com/git-bug/git-bug/entity"
 	"github.com/git-bug/git-bug/jira/jiraapi"
 	"github.com/git-bug/git-bug/util/sorted"
@@ -12,12 +13,20 @@ import (
 
 // ---- step 4: the Jira writes ----
 
-// write performs plan's remote changes, each independently, and records in
-// b2 each scalar key and text written (I2: the second merge then imports
-// Jira's normal form). A set's base stays: the second merge against it
-// reaches the merged set on both sides. pairs are the comments it created,
-// by Jira id; wrote says anything landed. Only a run failure is returned.
+// write performs plan's remote changes, each independently. Jira's 2xx is
+// its acceptance: each key and comment written goes into b2.Sent, with
+// b2.Wrote Jira's clock before the first write, and the base stays until a
+// GET shows it (I2, confirm). pairs are the comments it created, by Jira id,
+// from the 201s; wrote says anything landed. Only a run failure is returned.
 func (e *engine) write(ri *jiraapi.Issue, remote Doc, plan mergePlan, b2 *Base, line *Line) (pairs map[string]entity.Id, wrote bool, err error) {
+	before := e.now()
+	sent := func(key string, v issue.Value) {
+		if b2.Sent == nil {
+			b2.Sent = map[string]issue.Value{}
+		}
+		b2.Sent[key] = v
+		b2.Wrote = before
+	}
 	writes, skips := e.m.toWrites(remote.Type, plan.Remote, ri, e.ix)
 	line.Pending = append(line.Pending, skips...)
 	failed := map[string]bool{}
@@ -110,8 +119,12 @@ func (e *engine) write(ri *jiraapi.Issue, remote Doc, plan mergePlan, b2 *Base, 
 	}
 
 	for _, ch := range plan.Remote {
-		if !failed[ch.Key] && ch.Set != nil {
-			b2.Fields[ch.Key] = form(ch.Key, ch.Set)
+		switch {
+		case failed[ch.Key]:
+		case ch.Set != nil:
+			sent(ch.Key, form(ch.Key, ch.Set))
+		default:
+			sent(ch.Key, canonical(changeValue(ch, remote.Fields[ch.Key]), true))
 		}
 	}
 
@@ -125,6 +138,7 @@ func (e *engine) write(ri *jiraapi.Issue, remote Doc, plan mergePlan, b2 *Base, 
 			}
 			if err == nil {
 				pairs[c.ID] = cw.Op
+				sent(commentKey+":"+c.ID, issue.StringValue(digest(cw.Text)))
 			}
 			continue
 		}
@@ -133,10 +147,7 @@ func (e *engine) write(ri *jiraapi.Issue, remote Doc, plan mergePlan, b2 *Base, 
 			return nil, wrote, err
 		}
 		if err == nil {
-			if b2.Comments == nil {
-				b2.Comments = map[string]string{}
-			}
-			b2.Comments[cw.JiraId] = digest(cw.Text)
+			sent(cw.key(), issue.StringValue(digest(cw.Text)))
 		}
 	}
 	line.exports(plan, remote, failed)

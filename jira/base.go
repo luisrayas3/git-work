@@ -7,10 +7,12 @@ import (
 	"fmt"
 	"maps"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/git-bug/git-bug/entities/issue"
 	"github.com/git-bug/git-bug/jira/jiraapi"
+	"github.com/git-bug/git-bug/util/sorted"
 )
 
 // Values of MetaNote and of Base.Gone.
@@ -32,7 +34,22 @@ type Base struct {
 	Comments map[string]string      `json:"comments,omitempty"`
 	Retry    []string               `json:"retry,omitempty"`
 	Gone     string                 `json:"gone,omitempty"`
+	// Sent is each key written and not yet seen in a GET, as its form (a
+	// comment's key is comment:<Jira id>, its value the text's digest);
+	// Wrote is Jira's clock just before the last of those writes (I2).
+	Sent  map[string]issue.Value `json:"sent,omitempty"`
+	Wrote time.Time              `json:"wrote,omitzero"`
+	// Fresh is a create not merged yet: a key with no base takes JS15's
+	// create rule on the first GET.
+	Fresh bool `json:"fresh,omitempty"`
 }
+
+// unknownBase is the base of a key whose write Jira answered and then does
+// not show: it equals neither side, so the merge takes Jira's value with a
+// conflict note (I2). unknownComment is the same for a comment's digest.
+var unknownBase = issue.Value(`{"jira-sync":"unconfirmed"}`)
+
+const unknownComment = "unconfirmed"
 
 const baseVersion = 1
 
@@ -43,7 +60,10 @@ func (b *Base) marshal() string {
 	for k, v := range c.Fields {
 		c.Fields[k] = canon(v)
 	}
-	c.Updated = c.Updated.UTC()
+	for k, v := range c.Sent {
+		c.Sent[k] = canon(v)
+	}
+	c.Updated, c.Wrote = c.Updated.UTC(), c.Wrote.UTC()
 	data, err := json.Marshal(c)
 	if err != nil {
 		panic(err) // every member is plain JSON
@@ -72,7 +92,99 @@ func (b *Base) clone() *Base {
 	}
 	c.Comments = maps.Clone(b.Comments)
 	c.Retry = slices.Clone(b.Retry)
+	c.Sent = maps.Clone(b.Sent)
 	return &c
+}
+
+// settled says nothing waits on Jira: no Retry, no Sent, not Fresh.
+func (b *Base) settled() bool { return len(b.Retry) == 0 && len(b.Sent) == 0 && !b.Fresh }
+
+// young says the issue is a create whose first GET may not see it yet.
+func (b *Base) young(now time.Time, window time.Duration) bool {
+	return b.Fresh && now.Sub(b.Wrote) < window
+}
+
+// fresh is JS15's create base, for the keys a create's marker leaves
+// without one: local's when local holds nothing, so a Jira default imports;
+// Jira's otherwise, so the local value is written now.
+func (b *Base) fresh(local, remote Doc) {
+	for k, rv := range remote.Fields {
+		_, based := b.Fields[k]
+		if _, sent := b.Sent[k]; based || sent {
+			continue
+		}
+		if lv := form(k, local.Fields[k]); issue.IsNull(lv) || string(lv) == "[]" {
+			b.Fields[k] = lv
+		} else {
+			b.Fields[k] = form(k, rv)
+		}
+	}
+	b.Fresh = false
+}
+
+// confirm resolves each key of b.Sent against the GET r, before a merge
+// (I2). Jira showing the value written confirms it: that is its base. A GET
+// older than the write (r.Updated before b.Wrote), within window of Jira's
+// clock, may be stale: the key is a Skip{Retry}, so the merge neither
+// imports, exports nor re-bases it. Otherwise Jira holds something else.
+// For a key of echo, written this run and r the GET that follows the write
+// and shows it landed, that is Jira's normal form of ours: the base is the
+// value written, so it imports as an ordinary change. For any other, it
+// may as well be a later Jira edit, or ours normalised back to the old
+// value: the base is unknownBase, and Jira's value imports with a note. A
+// set keeps its base in every case, JS10 deciding: Sent only holds it back
+// from a stale GET.
+func confirm(b *Base, r Doc, multi func(string) bool, echo map[string]bool, now time.Time, window time.Duration) []Skip {
+	landed := !r.Updated.Before(b.Wrote)
+	stale := !landed && now.Sub(b.Wrote) < window
+	var skips []Skip
+	for _, k := range sorted.Keys(b.Sent) {
+		sent := b.Sent[k]
+		var held, shown bool
+		var based issue.Value
+		if jid, ok := strings.CutPrefix(k, commentKey+":"); ok {
+			sd, _ := issue.String(sent)
+			for _, c := range r.Comments {
+				if c.JiraId == jid {
+					shown, held = true, digest(c.Text.Text) == sd
+				}
+			}
+			if b.Comments == nil {
+				b.Comments = map[string]string{}
+			}
+			switch {
+			case held || !shown && !stale: // gone after holding ours: deleted in Jira
+				b.Comments[jid] = sd
+			case landed && echo[k]:
+				b.Comments[jid] = sd
+			case !stale:
+				b.Comments[jid] = unknownComment
+			}
+		} else {
+			m := multi != nil && multi(k)
+			held = same(canonical(form(k, r.Fields[k]), m), canonical(sent, m))
+			switch {
+			case m: // the base stays: against it JS10 reaches the merged set on both sides
+			case held, landed && echo[k]:
+				based = sent
+			case !stale:
+				based = unknownBase
+			}
+			if based != nil {
+				b.Fields[k] = based
+			}
+		}
+		if !held && stale {
+			skips = append(skips, Skip{Key: k, Retry: true,
+				Reason: "Jira does not show the write of " + b.Wrote.UTC().Format(time.RFC3339) + " yet"})
+			continue
+		}
+		delete(b.Sent, k)
+	}
+	if len(b.Sent) == 0 {
+		b.Sent = nil
+	}
+	return skips
 }
 
 // CurrentBase is the base of a linked issue: the marker with the greatest

@@ -130,14 +130,14 @@ func decide(b string, hasBase bool, l, r, empty string) (v verdict, conflict boo
 // merge decides one issue per key over base b, the local and the remote
 // documents (JS9–JS12). It is pure. b nil is an issue never synced. With
 // export false every local change is pending instead of in Remote/Comments
-// (JS13 step 6). A key in mergePlan.Remote keeps its old base: the engine records
-// the value written (I2).
+// (JS13 step 6). A key in mergePlan.Remote keeps its old base: the engine
+// records the value written in Base.Sent, and confirm settles it (I2).
 func merge(b *Base, local, remote Doc, multi func(key string) bool, export bool) mergePlan {
 	if b == nil {
 		b = &Base{V: baseVersion}
 	}
 	nb := b.clone()
-	nb.V, nb.Id, nb.Key, nb.Updated, nb.Gone, nb.Retry = baseVersion, remote.Id, remote.Key, remote.Updated, "", nil
+	nb.V, nb.Id, nb.Key, nb.Updated, nb.Gone, nb.Retry, nb.Fresh = baseVersion, remote.Id, remote.Key, remote.Updated, "", nil, false
 	p := mergePlan{}
 
 	skipped := map[string]bool{}
@@ -207,13 +207,14 @@ func merge(b *Base, local, remote Doc, multi func(key string) bool, export bool)
 		nb.Fields[k] = form(k, rv)
 	}
 
-	mergeComments(&p, b, nb, local, remote, pending, exportOr)
+	mergeComments(&p, b, nb, local, remote, skipped, pending, exportOr)
 	p.Base = *nb
 	return p
 }
 
 // mergeComments is JS12's table.
-func mergeComments(p *mergePlan, b, nb *Base, local, remote Doc, pending func(key, reason string), exportOr func(string, func())) {
+// A comment key in skipped (a write a stale GET does not show) is left alone.
+func mergeComments(p *mergePlan, b, nb *Base, local, remote Doc, skipped map[string]bool, pending func(key, reason string), exportOr func(string, func())) {
 	if nb.Comments == nil {
 		nb.Comments = map[string]string{}
 	}
@@ -233,6 +234,9 @@ func mergeComments(p *mergePlan, b, nb *Base, local, remote Doc, pending func(ke
 		key := commentKey + ":" + rc.JiraId
 		if lc, ok := byJira[rc.JiraId]; ok {
 			done[lc.Op] = true
+			if skipped[key] {
+				continue
+			}
 			bd, hasBase := b.Comments[rc.JiraId]
 			ld := digest(lc.Text.Text)
 			switch v, conflict := decide(bd, hasBase && bd != "", ld, rd, digest("")); v {
@@ -270,7 +274,7 @@ func mergeComments(p *mergePlan, b, nb *Base, local, remote Doc, pending func(ke
 	}
 
 	for _, lc := range local.Comments {
-		if done[lc.Op] || lc.Note {
+		if done[lc.Op] || lc.Note || lc.JiraId != "" && skipped[commentKey+":"+lc.JiraId] {
 			continue
 		}
 		if lc.JiraId == "" {

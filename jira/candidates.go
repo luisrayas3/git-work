@@ -149,7 +149,7 @@ func (e *engine) runAll() error {
 		}
 		snap := ic.Snapshot()
 		b, _ := CurrentBase(snap)
-		if len(b.Retry) == 0 && !e.changed(snap, b) {
+		if b.settled() && !e.changed(snap, b) {
 			if b.Gone == "" {
 				e.st.Seen[id] = ic.EditLamportTime()
 			}
@@ -344,7 +344,7 @@ func (e *engine) runHit(h hit, owner map[entity.Id]string, l *local) error {
 		snap := ic.Snapshot()
 		b, _ := CurrentBase(snap)
 		// JS13 step 1: our own echo, or an overlap re-seeing a synced issue
-		if !e.opts.Full && h.updated.Equal(b.Updated) && len(b.Retry) == 0 && b.Gone == "" && !e.changed(snap, b) {
+		if !e.opts.Full && h.updated.Equal(b.Updated) && b.settled() && b.Gone == "" && !e.changed(snap, b) {
 			e.done[id] = true
 			e.sum.Unchanged++
 			return nil

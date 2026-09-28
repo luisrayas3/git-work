@@ -84,11 +84,44 @@ func (e *engine) create(ic *cache.IssueCache) error {
 	for _, k := range sent {
 		line.exported(k, local.Fields[k])
 	}
+	// the 201 is the link (I3): with the GET, step 6 commits it; without, it
+	// is committed alone, with the create's marker, so the next run syncs a
+	// linked issue instead of doubting the create (JS15)
+	b := &Base{V: baseVersion, Id: ref.ID, Key: ref.Key, Fields: map[string]issue.Value{},
+		Sent: e.sentForms(local, sent), Wrote: at, Fresh: true}
+	link := map[string]string{MetaId: ref.ID, MetaAlias: ref.Key}
 	ri, cs, err := e.read(ref.ID)
-	if err != nil {
-		return e.fail(line, err)
+	if err == nil {
+		echo := map[string]bool{}
+		for k := range b.Sent {
+			echo[k] = true
+		}
+		return e.converge(ic, b, ri, cs, link, echo, line)
 	}
-	return e.resume(ic, ri, cs, local, sent, line)
+	uerr := ic.Update(func(snap *issue.Snapshot) ([]issue.Operation, error) {
+		return []issue.Operation{
+			issue.NewSetMetadataOp(e.me, e.now().Unix(), snap.Operations[0].Id(), link),
+			issue.NewNoOpOp(e.me, e.now().Unix(), map[string]string{MetaSync: b.marshal()}),
+		}, nil
+	})
+	switch {
+	case uerr != nil:
+		return e.fail(line, uerr)
+	case jiraapi.StatusCode(err) == 404:
+		line.Pending = append(line.Pending, Skip{Key: "*", Retry: true, Reason: "Jira does not show the issue it created yet"})
+		e.report(line)
+		return nil
+	}
+	return e.fail(line, err)
+}
+
+// sentForms is Base.Sent for the keys a create POSTed.
+func (e *engine) sentForms(local Doc, sent []string) map[string]issue.Value {
+	forms := map[string]issue.Value{}
+	for _, k := range sent {
+		forms[k] = canonical(form(k, local.Fields[k]), e.m.multi(local.Type, k))
+	}
+	return forms
 }
 
 // inDoubt is the latest create attempt of an unlinked issue, unless Jira
@@ -108,11 +141,12 @@ func (e *engine) inDoubt(ic *cache.IssueCache) (time.Time, bool) {
 	return at.UTC(), true
 }
 
-// resume continues a create whose POST landed, from its create base.
+// resume continues a create whose POST landed and whose answer was lost,
+// from its create base.
 func (e *engine) resume(ic *cache.IssueCache, ri *jiraapi.Issue, cs []jiraapi.Comment, local Doc, sent []string, line Line) error {
 	line.Jira = ri.Key
-	b := createBase(local, e.m.fromIssue(ri, cs, e.ix), sent)
-	return e.converge(ic, b, ri, cs, map[string]string{MetaId: ri.ID, MetaAlias: ri.Key}, line)
+	b := &Base{V: baseVersion, Id: ri.ID, Key: ri.Key, Fields: map[string]issue.Value{}, Sent: e.sentForms(local, sent), Fresh: true}
+	return e.converge(ic, b, ri, cs, map[string]string{MetaId: ri.ID, MetaAlias: ri.Key}, nil, line)
 }
 
 // refused says Jira answered a write and did not make it: a 4xx other than
@@ -143,26 +177,6 @@ func (e *engine) findCreated(id entity.Id, at time.Time) (string, error) {
 		e.created = lowestByProperty(hits)
 	}
 	return e.created[id], nil
-}
-
-// createBase is JS15's: a sent key's base is local, so Jira's normal form
-// imports; another is Jira's when local holds a value, so it is written now,
-// and local's when not, so a Jira default imports.
-func createBase(local, remote Doc, sent []string) *Base {
-	b := &Base{V: baseVersion, Id: remote.Id, Key: remote.Key, Fields: map[string]issue.Value{}}
-	carried := map[string]bool{}
-	for _, k := range sent {
-		carried[k] = true
-	}
-	for k, rv := range remote.Fields {
-		lv := form(k, local.Fields[k])
-		if carried[k] || issue.IsNull(lv) || string(lv) == "[]" {
-			b.Fields[k] = lv
-		} else {
-			b.Fields[k] = form(k, rv)
-		}
-	}
-	return b
 }
 
 // linkCreated links an issue whose POST landed and whose commit did not,
@@ -227,7 +241,7 @@ func (e *engine) linkRequest(ic *cache.IssueCache) error {
 	}
 	e.ix.addIssue(ri.ID, id)
 	b := &Base{V: baseVersion, Id: ri.ID, Key: ri.Key, Fields: map[string]issue.Value{}}
-	return e.converge(ic, b, ri, cs, map[string]string{MetaId: ri.ID}, line)
+	return e.converge(ic, b, ri, cs, map[string]string{MetaId: ri.ID}, nil, line)
 }
 
 // importIssue creates a Jira issue locally (B3): the merge against no base
@@ -305,7 +319,7 @@ func (e *engine) importIssue(jiraId string) error {
 		return nil
 	}
 	b, _ := CurrentBase(ic.Snapshot())
-	return e.commit(ic, b, ri, cs, nil, nil, nil, line)
+	return e.commit(ic, b, ri, cs, nil, nil, line)
 }
 
 // ---- Gone (JS19) ----
@@ -337,6 +351,8 @@ func (e *engine) runGone(hits []hit, l *local) error {
 		}
 		ri, err := e.c.GetIssue(e.ctx, jid, []string{"project"}, nil)
 		switch {
+		case jiraapi.StatusCode(err) == 404 && b.young(e.now(), e.opts.Settle):
+			// a create the database does not show yet is not a delete
 		case jiraapi.StatusCode(err) == 404:
 			found = append(found, gone{ic, b, GoneDeleted, b.Key})
 		case err != nil:

@@ -179,9 +179,7 @@ func TestAdv2TwoStrikeClearIsSilent(t *testing.T) {
 				require.Equal(t, "", jiraText(t, w.srv, key))
 				require.Equal(t, "", w.body(ic))
 			}
-			if silent {
-				t.Skipf("BUG: a local clear of %s unconfirmed two runs in a row is reverted to Jira's old value with no conflict note", tc.key)
-			}
+			require.False(t, silent, "a local clear of %s Jira does not show yet is never reverted silently", tc.key)
 		})
 	}
 }
@@ -202,9 +200,8 @@ func TestAdv2TwoStrikeSlowGetFlaps(t *testing.T) {
 	require.Equal(t, "New title", w.srv.Issue(key).Summary)
 	require.Equal(t, `"New title"`, field(t, ic, "title"), "converged on the local edit")
 	w.quietFull()
-	if mid == `"Old title"` {
-		t.Skipf("BUG: a slow GET two runs in a row reverts the local edit to Jira's stale value with a false note (%q), then flaps back", note)
-	}
+	require.Equal(t, `"New title"`, mid, "a slow GET neither reverts nor notes (%q)", note)
+	require.Empty(t, note)
 }
 
 // A write unconfirmed once, then a new local edit of that key: when Jira's
@@ -218,13 +215,11 @@ func TestAdv2UnconfirmedThenLocalEdit(t *testing.T) {
 	w.set(ic.Id(), "title", str("Second"))
 	w.srv.Advance(11 * time.Minute) // Jira's GET now shows First
 	w.mustSync(jira.Options{})
-	lost := field(t, ic, "title") == `"First"`
-	note := notesText(ic)
+	require.Equal(t, `"Second"`, field(t, ic, "title"), "First, the sync's own export, is no Jira edit")
+	w.srv.Advance(11 * time.Minute) // and then Second
 	w.converge(4)
 	w.quietFull()
-	if lost {
-		t.Skipf("BUG: the newer local edit \"Second\" was replaced by the sync's own earlier export \"First\" (note %q); Jira now %q", note, w.srv.Issue(key).Summary)
-	}
+	require.Empty(t, notesText(ic))
 	require.Equal(t, "Second", w.srv.Issue(key).Summary)
 	require.Equal(t, `"Second"`, field(t, ic, "title"))
 }
@@ -730,7 +725,7 @@ func TestAdv2PropertyHarsh(t *testing.T) {
 					for _, x := range v {
 						t.Log("violation: " + x)
 					}
-					t.Skipf("BUG: %d violation(s), first: %s", len(v), v[0])
+					t.Errorf("%d violation(s), first: %s", len(v), v[0])
 				}
 			})
 		}
@@ -966,9 +961,6 @@ func TestAdv2StaleReadsDuplicateComment(t *testing.T) {
 	w.srv.Advance(11 * time.Minute)
 	w.converge(4)
 	n := len(w.srv.Issue(key).Comments)
-	if n > 1 {
-		t.Skipf("BUG: one local comment is %d comments in Jira: a POSTed comment the stale re-read omits is not paired from the POST's answer, so every run re-POSTs it", n)
-	}
 	require.Equal(t, 1, n)
 }
 
@@ -1009,9 +1001,6 @@ func TestAdv2CreateAnswerDiscarded(t *testing.T) {
 			w.srv.Advance(10 * time.Minute)
 			for i := 0; i < 3; i++ {
 				w.sync(jira.Options{})
-			}
-			if n := len(w.srv.Keys()); n > 1 {
-				t.Skipf("BUG: the 201's Jira id is not committed before the GET; with the index slower than Settle the create is POSTed again: %v", w.srv.Keys())
 			}
 			require.Len(t, w.srv.Keys(), 1)
 		})
