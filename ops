@@ -1,1 +1,1 @@
-{"author":{"id":"a3a282966ced55effb4560271fcd98e13241af24ea76b00ec76a0f18154bc8ee"},"ops":[{"type":9,"timestamp":1790622960,"nonce":"qhqK+BpATouE5/g4G98rThDC95Q=","key":"status","value":"canceled"}]}
+{"author":{"id":"a3a282966ced55effb4560271fcd98e13241af24ea76b00ec76a0f18154bc8ee"},"ops":[{"type":3,"timestamp":1790622960,"nonce":"To3cjhBEXajNVyYSLGpYhqjqZMI=","message":"Canceled 2026-09-28 with its story, which was specific to another project's needs; the repository tracks a board (2298f37) and a gantt (00a63d9) instead. Reopen if a workflow here needs it.","files":null}]}
