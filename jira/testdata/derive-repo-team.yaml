@@ -316,33 +316,6 @@ types:
           name: MCP
         - id: infra
           name: Infrastructure
-      phase:
-        kind: enum
-        name: Phase
-        description: Ordered by dependency, not calendar; the first six are current.
-        values:
-        - id: 0-bootstrap
-          name: 0 Bootstrap
-        - id: 1-concurrency
-          name: 1 Concurrency
-        - id: 2-issue-model
-          name: 2 Issue model
-        - id: 3-jira-sync
-          name: 3 Jira sync
-        - id: 4-flows
-          name: 4 Flows
-        - id: 5-surfaces
-          name: 5 Surfaces
-        - id: 1-issue-model
-          name: 1 Issue model (retired)
-        - id: 2-bridge
-          name: 2 Bridge (retired)
-        - id: 3-app-reshape
-          name: 3 App reshape (retired)
-        - id: 4-harness
-          name: 4 Harness (retired)
-        - id: 5-roadmap
-          name: 5 Roadmap (retired)
       clones:
         kind: multi-relation
         name: Clones
@@ -495,33 +468,6 @@ types:
           name: MCP
         - id: infra
           name: Infrastructure
-      phase:
-        kind: enum
-        name: Phase
-        description: Ordered by dependency, not calendar; the first six are current.
-        values:
-        - id: 0-bootstrap
-          name: 0 Bootstrap
-        - id: 1-concurrency
-          name: 1 Concurrency
-        - id: 2-issue-model
-          name: 2 Issue model
-        - id: 3-jira-sync
-          name: 3 Jira sync
-        - id: 4-flows
-          name: 4 Flows
-        - id: 5-surfaces
-          name: 5 Surfaces
-        - id: 1-issue-model
-          name: 1 Issue model (retired)
-        - id: 2-bridge
-          name: 2 Bridge (retired)
-        - id: 3-app-reshape
-          name: 3 App reshape (retired)
-        - id: 4-harness
-          name: 4 Harness (retired)
-        - id: 5-roadmap
-          name: 5 Roadmap (retired)
       clones:
         kind: multi-relation
         name: Clones
@@ -627,33 +573,6 @@ types:
           name: MCP
         - id: infra
           name: Infrastructure
-      phase:
-        kind: enum
-        name: Phase
-        description: Ordered by dependency, not calendar; the first six are current.
-        values:
-        - id: 0-bootstrap
-          name: 0 Bootstrap
-        - id: 1-concurrency
-          name: 1 Concurrency
-        - id: 2-issue-model
-          name: 2 Issue model
-        - id: 3-jira-sync
-          name: 3 Jira sync
-        - id: 4-flows
-          name: 4 Flows
-        - id: 5-surfaces
-          name: 5 Surfaces
-        - id: 1-issue-model
-          name: 1 Issue model (retired)
-        - id: 2-bridge
-          name: 2 Bridge (retired)
-        - id: 3-app-reshape
-          name: 3 App reshape (retired)
-        - id: 4-harness
-          name: 4 Harness (retired)
-        - id: 5-roadmap
-          name: 5 Roadmap (retired)
   bug:
     name: Bug
     description: Something that does not work.
@@ -1008,7 +927,6 @@ types:
 # info story/iteration: local-only field: never exported
 # info story/rank: local-only field: never exported
 # info story/area: local-only field: never exported
-# info story/phase: local-only field: never exported
 # warn task/customfield_10019: Jira field Rank (customfield_10019, com.pyxis.greenhopper.jira:gh-lexo-rank) is not mapped
 # info task/status: adopts Jira field Status (status)
 # info task/status:to-do: adopts Jira value To Do (10030)
@@ -1035,7 +953,6 @@ types:
 # info task/iteration: local-only field: never exported
 # info task/rank: local-only field: never exported
 # info task/area: local-only field: never exported
-# info task/phase: local-only field: never exported
 # warn bug/customfield_10019: Jira field Rank (customfield_10019, com.pyxis.greenhopper.jira:gh-lexo-rank) is not mapped
 # info bug/status: adopts Jira field Status (status)
 # info bug/status:to-do: adopts Jira value To Do (10030)
@@ -1111,39 +1028,39 @@ types:
 # {"action":"update","shape":"field","key":"story/due","id":"0000000000000000000000000000000000000000000000000000000000000030","set":{"alias_jira":"duedate"}}
 # {"action":"update","shape":"field","key":"story/parent","id":"0000000000000000000000000000000000000000000000000000000000000031","set":{"alias_jira":"parent","name":"Parent"}}
 # {"action":"update","shape":"field","key":"story/blocks","id":"0000000000000000000000000000000000000000000000000000000000000033","set":{"alias_jira":"link:10000"}}
-# {"action":"create","shape":"field","key":"story/clones","set":{"alias_jira":"link:10001","inverse":"is-cloned-by","kind":"multi-relation","name":"Clones","ordinal":130}}
-# {"action":"create","shape":"field","key":"story/duplicates","set":{"alias_jira":"link:10002","inverse":"is-duplicated-by","kind":"multi-relation","name":"Duplicates","ordinal":140}}
-# {"action":"create","shape":"field","key":"story/relates-to","set":{"alias_jira":"link:10003","kind":"multi-relation","name":"Relates to","ordinal":150}}
-# {"action":"update","shape":"field","key":"task/status","id":"0000000000000000000000000000000000000000000000000000000000000037","set":{"alias_jira":"status","alias_jira/done":"10032","alias_jira/in-progress":"10031","alias_jira/to-do":"10030"}}
-# {"action":"update","shape":"field","key":"task/priority","id":"0000000000000000000000000000000000000000000000000000000000000038","set":{"alias_jira":"priority","alias_jira/high":"2","alias_jira/highest":"1","alias_jira/low":"4","alias_jira/lowest":"5","alias_jira/medium":"3"}}
-# {"action":"update","shape":"field","key":"task/assignee","id":"0000000000000000000000000000000000000000000000000000000000000039","set":{"alias_jira":"assignee"}}
-# {"action":"update","shape":"field","key":"task/labels","id":"0000000000000000000000000000000000000000000000000000000000000040","set":{"alias_jira":"labels"}}
-# {"action":"update","shape":"field","key":"task/estimate","id":"0000000000000000000000000000000000000000000000000000000000000041","set":{"alias_jira":"customfield_10036","name":"Story point estimate"}}
-# {"action":"update","shape":"field","key":"task/due","id":"0000000000000000000000000000000000000000000000000000000000000042","set":{"alias_jira":"duedate"}}
-# {"action":"update","shape":"field","key":"task/parent","id":"0000000000000000000000000000000000000000000000000000000000000043","set":{"alias_jira":"parent"}}
-# {"action":"update","shape":"field","key":"task/blocks","id":"0000000000000000000000000000000000000000000000000000000000000045","set":{"alias_jira":"link:10000"}}
-# {"action":"create","shape":"field","key":"task/clones","set":{"alias_jira":"link:10001","inverse":"is-cloned-by","kind":"multi-relation","name":"Clones","ordinal":130}}
-# {"action":"create","shape":"field","key":"task/duplicates","set":{"alias_jira":"link:10002","inverse":"is-duplicated-by","kind":"multi-relation","name":"Duplicates","ordinal":140}}
-# {"action":"create","shape":"field","key":"task/relates-to","set":{"alias_jira":"link:10003","kind":"multi-relation","name":"Relates to","ordinal":150}}
-# {"action":"update","shape":"field","key":"bug/status","id":"0000000000000000000000000000000000000000000000000000000000000058","set":{"alias_jira":"status","alias_jira/done":"10032","alias_jira/in-progress":"10031","alias_jira/to-do":"10030"}}
-# {"action":"update","shape":"field","key":"bug/priority","id":"0000000000000000000000000000000000000000000000000000000000000059","set":{"alias_jira":"priority","alias_jira/high":"2","alias_jira/highest":"1","alias_jira/low":"4","alias_jira/lowest":"5","alias_jira/medium":"3"}}
-# {"action":"update","shape":"field","key":"bug/assignee","id":"0000000000000000000000000000000000000000000000000000000000000060","set":{"alias_jira":"assignee"}}
-# {"action":"update","shape":"field","key":"bug/labels","id":"0000000000000000000000000000000000000000000000000000000000000061","set":{"alias_jira":"labels"}}
-# {"action":"update","shape":"field","key":"bug/estimate","id":"0000000000000000000000000000000000000000000000000000000000000062","set":{"alias_jira":"customfield_10036","name":"Story point estimate"}}
-# {"action":"update","shape":"field","key":"bug/due","id":"0000000000000000000000000000000000000000000000000000000000000063","set":{"alias_jira":"duedate"}}
-# {"action":"update","shape":"field","key":"bug/parent","id":"0000000000000000000000000000000000000000000000000000000000000064","set":{"alias_jira":"parent","name":"Parent"}}
-# {"action":"update","shape":"field","key":"bug/blocks","id":"0000000000000000000000000000000000000000000000000000000000000066","set":{"alias_jira":"link:10000"}}
+# {"action":"create","shape":"field","key":"story/clones","set":{"alias_jira":"link:10001","inverse":"is-cloned-by","kind":"multi-relation","name":"Clones","ordinal":120}}
+# {"action":"create","shape":"field","key":"story/duplicates","set":{"alias_jira":"link:10002","inverse":"is-duplicated-by","kind":"multi-relation","name":"Duplicates","ordinal":130}}
+# {"action":"create","shape":"field","key":"story/relates-to","set":{"alias_jira":"link:10003","kind":"multi-relation","name":"Relates to","ordinal":140}}
+# {"action":"update","shape":"field","key":"task/status","id":"0000000000000000000000000000000000000000000000000000000000000036","set":{"alias_jira":"status","alias_jira/done":"10032","alias_jira/in-progress":"10031","alias_jira/to-do":"10030"}}
+# {"action":"update","shape":"field","key":"task/priority","id":"0000000000000000000000000000000000000000000000000000000000000037","set":{"alias_jira":"priority","alias_jira/high":"2","alias_jira/highest":"1","alias_jira/low":"4","alias_jira/lowest":"5","alias_jira/medium":"3"}}
+# {"action":"update","shape":"field","key":"task/assignee","id":"0000000000000000000000000000000000000000000000000000000000000038","set":{"alias_jira":"assignee"}}
+# {"action":"update","shape":"field","key":"task/labels","id":"0000000000000000000000000000000000000000000000000000000000000039","set":{"alias_jira":"labels"}}
+# {"action":"update","shape":"field","key":"task/estimate","id":"0000000000000000000000000000000000000000000000000000000000000040","set":{"alias_jira":"customfield_10036","name":"Story point estimate"}}
+# {"action":"update","shape":"field","key":"task/due","id":"0000000000000000000000000000000000000000000000000000000000000041","set":{"alias_jira":"duedate"}}
+# {"action":"update","shape":"field","key":"task/parent","id":"0000000000000000000000000000000000000000000000000000000000000042","set":{"alias_jira":"parent"}}
+# {"action":"update","shape":"field","key":"task/blocks","id":"0000000000000000000000000000000000000000000000000000000000000044","set":{"alias_jira":"link:10000"}}
+# {"action":"create","shape":"field","key":"task/clones","set":{"alias_jira":"link:10001","inverse":"is-cloned-by","kind":"multi-relation","name":"Clones","ordinal":120}}
+# {"action":"create","shape":"field","key":"task/duplicates","set":{"alias_jira":"link:10002","inverse":"is-duplicated-by","kind":"multi-relation","name":"Duplicates","ordinal":130}}
+# {"action":"create","shape":"field","key":"task/relates-to","set":{"alias_jira":"link:10003","kind":"multi-relation","name":"Relates to","ordinal":140}}
+# {"action":"update","shape":"field","key":"bug/status","id":"0000000000000000000000000000000000000000000000000000000000000055","set":{"alias_jira":"status","alias_jira/done":"10032","alias_jira/in-progress":"10031","alias_jira/to-do":"10030"}}
+# {"action":"update","shape":"field","key":"bug/priority","id":"0000000000000000000000000000000000000000000000000000000000000056","set":{"alias_jira":"priority","alias_jira/high":"2","alias_jira/highest":"1","alias_jira/low":"4","alias_jira/lowest":"5","alias_jira/medium":"3"}}
+# {"action":"update","shape":"field","key":"bug/assignee","id":"0000000000000000000000000000000000000000000000000000000000000057","set":{"alias_jira":"assignee"}}
+# {"action":"update","shape":"field","key":"bug/labels","id":"0000000000000000000000000000000000000000000000000000000000000058","set":{"alias_jira":"labels"}}
+# {"action":"update","shape":"field","key":"bug/estimate","id":"0000000000000000000000000000000000000000000000000000000000000059","set":{"alias_jira":"customfield_10036","name":"Story point estimate"}}
+# {"action":"update","shape":"field","key":"bug/due","id":"0000000000000000000000000000000000000000000000000000000000000060","set":{"alias_jira":"duedate"}}
+# {"action":"update","shape":"field","key":"bug/parent","id":"0000000000000000000000000000000000000000000000000000000000000061","set":{"alias_jira":"parent","name":"Parent"}}
+# {"action":"update","shape":"field","key":"bug/blocks","id":"0000000000000000000000000000000000000000000000000000000000000063","set":{"alias_jira":"link:10000"}}
 # {"action":"create","shape":"field","key":"bug/clones","set":{"alias_jira":"link:10001","inverse":"is-cloned-by","kind":"multi-relation","name":"Clones","ordinal":110}}
 # {"action":"create","shape":"field","key":"bug/duplicates","set":{"alias_jira":"link:10002","inverse":"is-duplicated-by","kind":"multi-relation","name":"Duplicates","ordinal":120}}
 # {"action":"create","shape":"field","key":"bug/relates-to","set":{"alias_jira":"link:10003","kind":"multi-relation","name":"Relates to","ordinal":130}}
-# {"action":"update","shape":"field","key":"subtask/status","id":"0000000000000000000000000000000000000000000000000000000000000068","set":{"alias_jira":"status","alias_jira/done":"10032","alias_jira/in-progress":"10031","alias_jira/to-do":"10030"}}
-# {"action":"update","shape":"field","key":"subtask/priority","id":"0000000000000000000000000000000000000000000000000000000000000069","set":{"alias_jira":"priority","alias_jira/high":"2","alias_jira/highest":"1","alias_jira/low":"4","alias_jira/lowest":"5","alias_jira/medium":"3"}}
-# {"action":"update","shape":"field","key":"subtask/assignee","id":"0000000000000000000000000000000000000000000000000000000000000070","set":{"alias_jira":"assignee"}}
-# {"action":"update","shape":"field","key":"subtask/labels","id":"0000000000000000000000000000000000000000000000000000000000000071","set":{"alias_jira":"labels"}}
-# {"action":"update","shape":"field","key":"subtask/estimate","id":"0000000000000000000000000000000000000000000000000000000000000072","set":{"alias_jira":"customfield_10036","name":"Story point estimate"}}
-# {"action":"update","shape":"field","key":"subtask/due","id":"0000000000000000000000000000000000000000000000000000000000000073","set":{"alias_jira":"duedate"}}
-# {"action":"update","shape":"field","key":"subtask/parent","id":"0000000000000000000000000000000000000000000000000000000000000074","set":{"alias_jira":"parent","target_types/bug":{}}}
-# {"action":"update","shape":"field","key":"subtask/blocks","id":"0000000000000000000000000000000000000000000000000000000000000076","set":{"alias_jira":"link:10000"}}
+# {"action":"update","shape":"field","key":"subtask/status","id":"0000000000000000000000000000000000000000000000000000000000000065","set":{"alias_jira":"status","alias_jira/done":"10032","alias_jira/in-progress":"10031","alias_jira/to-do":"10030"}}
+# {"action":"update","shape":"field","key":"subtask/priority","id":"0000000000000000000000000000000000000000000000000000000000000066","set":{"alias_jira":"priority","alias_jira/high":"2","alias_jira/highest":"1","alias_jira/low":"4","alias_jira/lowest":"5","alias_jira/medium":"3"}}
+# {"action":"update","shape":"field","key":"subtask/assignee","id":"0000000000000000000000000000000000000000000000000000000000000067","set":{"alias_jira":"assignee"}}
+# {"action":"update","shape":"field","key":"subtask/labels","id":"0000000000000000000000000000000000000000000000000000000000000068","set":{"alias_jira":"labels"}}
+# {"action":"update","shape":"field","key":"subtask/estimate","id":"0000000000000000000000000000000000000000000000000000000000000069","set":{"alias_jira":"customfield_10036","name":"Story point estimate"}}
+# {"action":"update","shape":"field","key":"subtask/due","id":"0000000000000000000000000000000000000000000000000000000000000070","set":{"alias_jira":"duedate"}}
+# {"action":"update","shape":"field","key":"subtask/parent","id":"0000000000000000000000000000000000000000000000000000000000000071","set":{"alias_jira":"parent","target_types/bug":{}}}
+# {"action":"update","shape":"field","key":"subtask/blocks","id":"0000000000000000000000000000000000000000000000000000000000000073","set":{"alias_jira":"link:10000"}}
 # {"action":"create","shape":"field","key":"subtask/clones","set":{"alias_jira":"link:10001","inverse":"is-cloned-by","kind":"multi-relation","name":"Clones","ordinal":110}}
 # {"action":"create","shape":"field","key":"subtask/duplicates","set":{"alias_jira":"link:10002","inverse":"is-duplicated-by","kind":"multi-relation","name":"Duplicates","ordinal":120}}
 # {"action":"create","shape":"field","key":"subtask/relates-to","set":{"alias_jira":"link:10003","kind":"multi-relation","name":"Relates to","ordinal":130}}
