@@ -1,1 +1,1 @@
-{"author":{"id":"7674679dac9170669f752d932f8b5955b1d55717359e13b1c1e687003c7bb99f"},"ops":[{"type":6,"timestamp":1790613958,"nonce":"gmbPPKmiILWrwlOFAmRF7EJ1kTY=","target":"d1e20bbe5927537f5c7f50439df5e03b0eca0ad93f6fc5ff954f4f2ed7b98665","message":"(A test comment, emptied 2026-09-28.)","files":null}]}
+{"author":{"id":"a3a282966ced55effb4560271fcd98e13241af24ea76b00ec76a0f18154bc8ee"},"ops":[{"type":9,"timestamp":1790622960,"nonce":"C/NMK0jnWMRo2MFrtFbovnpFLLk=","key":"status","value":"canceled"}]}
