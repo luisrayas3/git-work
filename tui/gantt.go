@@ -180,6 +180,11 @@ func (p *ganttPage) rebuild() {
 	switch {
 	case hadCol:
 		p.col = p.index(at)
+	case p.from == "" && p.to == "" && p.index(today()) >= 0 && p.index(today()) < len(p.periods):
+		// with neither `from` nor `to` the chart opens on today, its period
+		// the left-most
+		p.col = p.index(today())
+		p.colOffset = p.col
 	case p.cursor < len(p.order):
 		// the cursor opens on the first row's first cell: where its bar
 		// starts, which is where a grab would move its start
@@ -429,8 +434,10 @@ func (p *ganttPage) extent(index int) (first, last time.Time, own, ok bool) {
 }
 
 // layoutPeriods sets the chart's periods: from `from` to `to` when given,
-// else over the extent of the dates on the chart, and today's period when
-// nothing on it has a date.
+// else over the extent of the dates on the chart; with neither, today's
+// period is in the extent too, and the chart runs on to fill the window
+// from the first period drawn, so that today can be the left-most whatever
+// the data's end.
 func (p *ganttPage) layoutPeriods() {
 	var first, last time.Time
 	found := false
@@ -447,8 +454,10 @@ func (p *ganttPage) layoutPeriods() {
 		}
 		found = true
 	}
-	if !found {
-		first, last = today(), today()
+	if now := today(); !found {
+		first, last = now, now
+	} else if p.from == "" && p.to == "" {
+		first, last = minTime(first, now), maxTime(last, now)
 	}
 	if t, ok := parseDate(p.from); ok {
 		first = t
@@ -468,6 +477,25 @@ func (p *ganttPage) layoutPeriods() {
 	if len(p.periods) == 0 {
 		p.periods = append(p.periods, first)
 	}
+	if p.from == "" && p.to == "" {
+		for len(p.periods) < p.colOffset+p.capacity() && len(p.periods) <= 10000 {
+			p.periods = append(p.periods, shift(p.periods[len(p.periods)-1], p.scale, 1))
+		}
+	}
+}
+
+func minTime(a, b time.Time) time.Time {
+	if b.Before(a) {
+		return b
+	}
+	return a
+}
+
+func maxTime(a, b time.Time) time.Time {
+	if b.After(a) {
+		return b
+	}
+	return a
 }
 
 // index is the period a day is in: -1 before the chart, len(periods) after.
@@ -499,7 +527,14 @@ func (p *ganttPage) count() int {
 func (p *ganttPage) Update(msg tea.Msg) (page, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
+		// the chart fills the window, so it is laid out again
 		p.width, p.height = msg.Width, msg.Height
+		at, hadCol := p.colDate()
+		p.layoutPeriods()
+		if hadCol {
+			p.col = p.index(at)
+		}
+		p.clampCol()
 		return p, nil
 
 	case statusMsg:

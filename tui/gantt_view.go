@@ -70,17 +70,7 @@ func (p *ganttPage) indent() int {
 // chart scrolls sideways by whole periods so that the cursor's is on
 // screen, colOffset moving as the board's does.
 func (p *ganttPage) layout() (labelWidth, visible int) {
-	longest := 0
-	for _, index := range p.order {
-		longest = max(longest, ansi.StringWidth(p.bars[index].label))
-	}
-	// the marker, the tree's indent, the id, a space, the label
-	labelWidth = 1 + p.indent() + idWidth + 1 + longest
-	labelWidth = min(labelWidth, max(p.width*2/5, 1+p.indent()+idWidth+1+4))
-
-	w := periodWidth(p.scale)
-	chart := max(p.width-labelWidth-1, w)
-	visible = max(chart/w, 1)
+	labelWidth, visible = p.labelWidth(), p.capacity()
 	if p.col < p.colOffset {
 		p.colOffset = p.col
 	}
@@ -89,6 +79,23 @@ func (p *ganttPage) layout() (labelWidth, visible int) {
 	}
 	p.colOffset = min(max(p.colOffset, 0), max(len(p.periods)-visible, 0))
 	return labelWidth, min(visible, len(p.periods))
+}
+
+// labelWidth is the label column's: the marker, the tree's indent, the
+// id, a space and the label, up to two fifths of the window.
+func (p *ganttPage) labelWidth() int {
+	longest := 0
+	for _, index := range p.order {
+		longest = max(longest, ansi.StringWidth(p.bars[index].label))
+	}
+	labelWidth := 1 + p.indent() + idWidth + 1 + longest
+	return min(labelWidth, max(p.width*2/5, 1+p.indent()+idWidth+1+4))
+}
+
+// capacity is how many periods the window has room for.
+func (p *ganttPage) capacity() int {
+	w := periodWidth(p.scale)
+	return max(max(p.width-p.labelWidth()-1, w)/w, 1)
 }
 
 // headerLines are the chart's header: the coarse labels, the month over

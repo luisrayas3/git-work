@@ -102,7 +102,7 @@ func TestGanttDrawsBarsBetweenStartAndStop(t *testing.T) {
 	a := newIssue(t, repo, map[string]any{"title": "write the renderer", "start": "2026-09-07", "stop": "2026-09-20"})
 	b := newIssue(t, repo, map[string]any{"title": "ship it", "start": "2026-09-21", "stop": "2026-09-21"})
 
-	page := gantt(t, repo, `{"start":"start","stop":"stop","query":"sort_by(.fields.start)"}`)
+	page := gantt(t, repo, `{"start":"start","stop":"stop","from":"2026-09-07","query":"sort_by(.fields.start)"}`)
 	drawn := plainView(page)
 	lines := strings.Split(drawn, "\n")
 
@@ -134,7 +134,7 @@ func TestGanttCursorIsACell(t *testing.T) {
 	newIssue(t, repo, map[string]any{"title": "first", "start": "2026-09-14", "stop": "2026-09-27"})
 	newIssue(t, repo, map[string]any{"title": "second", "start": "2026-09-07", "stop": "2026-09-13"})
 
-	page := gantt(t, repo, `{"start":"start","stop":"stop","query":"sort_by(.fields.title)"}`)
+	page := gantt(t, repo, `{"start":"start","stop":"stop","from":"2026-09-07","query":"sort_by(.fields.title)"}`)
 	require.Equal(t, 0, page.cursor)
 	require.Equal(t, 1, page.col, "the first row's bar starts on the second week")
 
@@ -161,6 +161,7 @@ func TestGanttGrabShiftsTheBar(t *testing.T) {
 	id := newIssue(t, repo, map[string]any{"title": "the task", "start": "2026-09-07", "stop": "2026-09-20"})
 
 	page := gantt(t, repo, `{"start":"start","stop":"stop"}`)
+	send(page, "left", "left", "left")
 	require.Equal(t, 0, page.col)
 
 	// on the first cell: only the start moves
@@ -178,7 +179,7 @@ func TestGanttGrabShiftsTheBar(t *testing.T) {
 	// one cell: left grows the start
 	send(page, "left", "space", "left", "enter")
 	require.Equal(t, `"2026-09-07"`, field(t, repo, id, "start"))
-	require.Equal(t, 3, len(page.periods))
+	require.Equal(t, "2026-09-07", page.periods[0].Format(time.DateOnly), "the chart grew back to the bar")
 	require.Equal(t, 0, page.col)
 
 	// in the middle: both move and the bar keeps its length
@@ -188,7 +189,7 @@ func TestGanttGrabShiftsTheBar(t *testing.T) {
 
 	// on the last cell: only the stop moves, down to one cell, and from
 	// there left grows the start
-	send(page, "right", "right", "space", "left", "left", "left", "enter")
+	send(page, "right", "space", "left", "left", "left", "enter")
 	require.Equal(t, `"2026-09-14"`, field(t, repo, id, "start"))
 	require.Equal(t, `"2026-09-27"`, field(t, repo, id, "stop"))
 
@@ -208,7 +209,7 @@ func TestGanttGrabCanBePutBack(t *testing.T) {
 	withDates(t, repo)
 	id := newIssue(t, repo, map[string]any{"title": "the task", "start": "2026-09-07", "stop": "2026-09-20"})
 
-	page := gantt(t, repo, `{"start":"start","stop":"stop"}`)
+	page := gantt(t, repo, `{"start":"start","stop":"stop","from":"2026-09-07"}`)
 	before := plainView(page)
 	send(page, "right", "space", "right", "right")
 	require.NotEqual(t, before, plainView(page))
@@ -226,8 +227,8 @@ func TestGanttMilestonesAndDatelessRows(t *testing.T) {
 	stone := newIssue(t, repo, map[string]any{"title": "the release", "start": "2026-09-14"})
 	bare := newIssue(t, repo, map[string]any{"title": "someday"})
 
-	page := gantt(t, repo, `{"start":"start","stop":"stop","query":"sort_by(.fields.title)"}`)
-	require.Contains(t, rowOf(page, stone), "│▓▓▒", "the trail ends with the chart")
+	page := gantt(t, repo, `{"start":"start","stop":"stop","from":"2026-09-07","query":"sort_by(.fields.title)"}`)
+	require.Contains(t, rowOf(page, stone), "│   ▓▓▒", "the trail ends with the chart")
 	require.NotContains(t, rowOf(page, bare), "▓")
 	require.Contains(t, rowOf(page, bare), "│"+strings.Repeat("░", 3*len(page.periods)), "the band spans the chart")
 
@@ -246,7 +247,7 @@ func TestGanttProgressFillsTheBar(t *testing.T) {
 	withDates(t, repo)
 	id := newIssue(t, repo, map[string]any{"title": "half", "start": "2026-09-07", "stop": "2026-09-20", "progress": 0.5})
 
-	page := gantt(t, repo, `{"start":"start","stop":"stop","progress":"progress"}`)
+	page := gantt(t, repo, `{"start":"start","stop":"stop","from":"2026-09-07","progress":"progress"}`)
 	require.Contains(t, rowOf(page, id), strings.Repeat("▓", 3)+strings.Repeat("░", 3))
 }
 
@@ -259,12 +260,12 @@ func TestGanttGrabUpAndDownNeedsARank(t *testing.T) {
 	first := newIssue(t, repo, map[string]any{"title": "first", "start": "2026-09-07", "stop": "2026-09-13", "rank": "a"})
 	second := newIssue(t, repo, map[string]any{"title": "second", "start": "2026-09-07", "stop": "2026-09-13", "rank": "b"})
 
-	page := gantt(t, repo, `{"start":"start","stop":"stop"}`)
+	page := gantt(t, repo, `{"start":"start","stop":"stop","from":"2026-09-07"}`)
 	send(page, "space", "down")
 	require.Equal(t, "no rank: cannot reorder", page.status)
 	send(page, "esc")
 
-	page = gantt(t, repo, `{"start":"start","stop":"stop","rank":"rank"}`)
+	page = gantt(t, repo, `{"start":"start","stop":"stop","from":"2026-09-07","rank":"rank"}`)
 	require.Equal(t, first, page.current().id)
 	send(page, "down", "space", "up", "right", "enter")
 	require.Equal(t, second, page.current().id)
@@ -291,7 +292,7 @@ func TestGanttNestsRowsUnderRows(t *testing.T) {
 	one := newTyped(t, repo, "task", map[string]any{"title": "one", "start": "2026-09-07", "stop": "2026-09-13", "parent": story})
 	two := newTyped(t, repo, "task", map[string]any{"title": "two", "start": "2026-09-21", "stop": "2026-09-27", "parent": story})
 
-	page := gantt(t, repo, `{"start":"start","stop":"stop","expand":"children","query":"map(select(.fields.type == \"story\"))"}`)
+	page := gantt(t, repo, `{"start":"start","stop":"stop","from":"2026-09-07","expand":"children","query":"map(select(.fields.type == \"story\"))"}`)
 	drawn := plainView(page)
 	require.Contains(t, drawn, "3 issues")
 	require.Contains(t, rowOf(page, story), "▾")
@@ -324,7 +325,7 @@ func TestGanttScrollsSideways(t *testing.T) {
 	withDates(t, repo)
 	newIssue(t, repo, map[string]any{"title": "long", "start": "2026-01-05", "stop": "2026-12-20"})
 
-	page := gantt(t, repo, `{"start":"start","stop":"stop","scale":"day"}`)
+	page := gantt(t, repo, `{"start":"start","stop":"stop","from":"2026-01-05","scale":"day"}`)
 	page.Update(tea.WindowSizeMsg{Width: 60, Height: 20})
 	require.Contains(t, strings.Split(plainView(page), "\n")[2], "›")
 	require.NotContains(t, strings.Split(plainView(page), "\n")[2], "‹")
@@ -346,7 +347,7 @@ func TestGanttScalesAndExtent(t *testing.T) {
 	withDates(t, repo)
 	newIssue(t, repo, map[string]any{"title": "the task", "start": "2026-02-10", "stop": "2026-08-01"})
 
-	page := gantt(t, repo, `{"start":"start","stop":"stop","scale":"month"}`)
+	page := gantt(t, repo, `{"start":"start","stop":"stop","from":"2026-02-01","scale":"month"}`)
 	require.Equal(t, 7, len(page.periods))
 	lines := strings.Split(plainView(page), "\n")
 	require.Contains(t, lines[1], "2026")
@@ -386,7 +387,7 @@ func TestGanttGroupsEnterAndCopy(t *testing.T) {
 	id := newIssue(t, repo, map[string]any{"title": "the task", "start": "2026-09-07", "stop": "2026-09-13", "status": "in-progress"})
 	newIssue(t, repo, map[string]any{"title": "the other", "start": "2026-09-07", "stop": "2026-09-13", "status": "done"})
 
-	page := gantt(t, repo, `{"start":"start","stop":"stop","group_by":"status","query":"sort_by(.fields.status)"}`)
+	page := gantt(t, repo, `{"start":"start","stop":"stop","from":"2026-09-07","group_by":"status","query":"sort_by(.fields.status)"}`)
 	drawn := plainView(page)
 	require.Less(t, indexOf(drawn, "done"), indexOf(drawn, "in-progress"))
 
@@ -416,7 +417,7 @@ func TestGanttMilestonesTrailAwayFromTheirDate(t *testing.T) {
 	begins := newIssue(t, repo, map[string]any{"title": "begins", "start": "2026-09-14"})
 	ends := newIssue(t, repo, map[string]any{"title": "ends", "stop": "2026-09-14"})
 
-	page := gantt(t, repo, `{"start":"start","stop":"stop"}`)
+	page := gantt(t, repo, `{"start":"start","stop":"stop","from":"2026-09-07"}`)
 	require.Contains(t, rowOf(page, begins), "│   ▓▓▒▒░░")
 	require.Contains(t, rowOf(page, ends), "│░░▒▒▓▓")
 }
@@ -431,7 +432,7 @@ func TestGanttGroupsByRelationTitleAndTint(t *testing.T) {
 	newTyped(t, repo, "task", map[string]any{"title": "one", "start": "2026-09-07", "stop": "2026-09-13", "parent": north})
 	newTyped(t, repo, "task", map[string]any{"title": "two", "start": "2026-09-14", "stop": "2026-09-20", "parent": south})
 
-	page := gantt(t, repo, `{"start":"start","stop":"stop","group_by":"parent","query":"map(select(.fields.type == \"task\"))"}`)
+	page := gantt(t, repo, `{"start":"start","stop":"stop","from":"2026-09-07","group_by":"parent","query":"map(select(.fields.type == \"task\"))"}`)
 	drawn := plainView(page)
 	lines := strings.Split(drawn, "\n")
 	cross := strings.Index(lines[2], "│") + 1 + 3
@@ -451,7 +452,7 @@ func TestGanttRefreshKeepsTheCursorOnTheIssue(t *testing.T) {
 	first := newIssue(t, repo, map[string]any{"title": "first", "start": "2026-09-07", "stop": "2026-09-13"})
 	second := newIssue(t, repo, map[string]any{"title": "second", "start": "2026-09-14", "stop": "2026-09-20"})
 
-	page := gantt(t, repo, `{"start":"start","stop":"stop","query":"sort_by(.fields.start)"}`)
+	page := gantt(t, repo, `{"start":"start","stop":"stop","from":"2026-09-07","query":"sort_by(.fields.start)"}`)
 	send(page, "down")
 	require.Equal(t, second, page.current().id)
 
@@ -464,4 +465,28 @@ func TestGanttRefreshKeepsTheCursorOnTheIssue(t *testing.T) {
 	require.Equal(t, -1, page.grabbed)
 	require.Equal(t, "store changed: grab released", page.status)
 	require.Equal(t, first, page.bars[page.order[1]].id)
+}
+
+// TestGanttOpensOnToday: with neither `from` nor `to` the chart opens with
+// today's period the left-most and the cursor on it, the past a scroll to
+// the left and the future filling the window; `from` pins the left edge.
+func TestGanttOpensOnToday(t *testing.T) {
+	repo := testRepo(t)
+	withDates(t, repo)
+	newIssue(t, repo, map[string]any{"title": "past", "start": "2026-09-07", "stop": "2026-09-13"})
+
+	page := gantt(t, repo, `{"start":"start","stop":"stop"}`)
+	lines := strings.Split(plainView(page), "\n")
+	require.Contains(t, lines[2], "‹40 41 42", "today's week first, the past off to the left")
+	require.Contains(t, lines[3], "┼▼")
+	require.Equal(t, "2026-09-28", page.periods[page.col].Format(time.DateOnly))
+	require.Equal(t, page.col, page.colOffset)
+	require.Greater(t, len(page.periods)-page.colOffset, 30, "the future fills the window")
+
+	send(page, "left", "left", "left")
+	require.Equal(t, 0, page.col, "the past is a scroll away")
+
+	page = gantt(t, repo, `{"start":"start","stop":"stop","from":"2026-09-07"}`)
+	require.Equal(t, 0, page.colOffset)
+	require.Equal(t, 1, len(page.periods))
 }

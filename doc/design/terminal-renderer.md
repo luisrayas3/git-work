@@ -540,8 +540,11 @@ the eye is on;
 `←` and `→` move a period, and the chart scrolls sideways
 by whole periods to keep the cursor's on screen,
 `‹` and `›` at the ends of the header saying there is more.
-It opens on the first row, on the period its bar starts in,
-which is where a grab would move its start.
+It opens on the first row and on today's period, the left-most drawn,
+because a plan is read from now on and the past is a scroll to the left
+(2026-09-29).
+With `from` or `to` bound it opens instead on the period the first row's
+bar starts in, which is where a grab would move its start.
 
 **Grab needs no rank.** `Space` always grabs;
 `←` and `→` shift the bar by one period:
@@ -598,8 +601,11 @@ in a column sized to the labels up to two fifths of the window.
 
 **The chart's extent** is `from` to `to` when given,
 else the dates on the chart — the earliest start, or stop, to the latest —
-and today's period when nothing on it has a date;
+and today's period, which is where the chart opens;
 a chart of nothing is not nothing to stand on.
+With neither bound the chart also runs on past its last date
+to fill the window from its first period drawn,
+so that today can be the left-most whatever the data's end.
 Today's period is marked on the rule under the header.
 While a bar is dragged past the edge of a chart sized to the data,
 the chart grows with it.
