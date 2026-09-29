@@ -46,15 +46,6 @@ func (p *listPage) bottom() []string {
 		lines = p.editor.View(p.width)
 	case p.filtering != nil:
 		lines = []string{fit("/"+p.filtering.View(), p.width)}
-	case p.choosing != nil:
-		lines = []string{styleHeader.Render("open which?")}
-		for at, item := range p.choosing.items {
-			marker, label := "  ", item.label
-			if at == p.choosing.cursor {
-				marker, label = "> ", styleCursor.Render(label)
-			}
-			lines = append(lines, fit(marker+label, p.width))
-		}
 	}
 	return append(lines, p.statusLine())
 }
@@ -73,6 +64,11 @@ func (p *listPage) statusLine() string {
 	left := p.status
 	if left == "" {
 		left = "? keys"
+		if row := p.current(); row != nil && p.editor == nil {
+			if links, relation := row.links[p.fieldKey()]; relation {
+				left = relationHint(len(links) > 0)
+			}
+		}
 	}
 
 	line := fmt.Sprintf("%s · %s", left, count)

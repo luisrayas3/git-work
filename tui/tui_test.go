@@ -226,7 +226,7 @@ func TestTheCommandIsOneShellWord(t *testing.T) {
 }
 
 // TestALinkIsTheIssueItNames: a relation cell is the short id and title of
-// the issue it holds, and enter on it opens that issue, not the row's.
+// the issue it holds, and enter, enter on it opens that issue, not the row's.
 func TestALinkIsTheIssueItNames(t *testing.T) {
 	repo := testRepo(t)
 	story := newIssue(t, repo, map[string]any{"type": "story", "title": "the story"})
@@ -237,7 +237,7 @@ func TestALinkIsTheIssueItNames(t *testing.T) {
 	require.Contains(t, drawn, story[:7]+" the story")
 	require.NotContains(t, drawn, story)
 
-	page = send(page, "l", "l").(*listPage)
+	page = send(page, "l", "l", "enter").(*listPage)
 	_, cmd := page.Update(press("enter"))
 	require.NotNil(t, cmd)
 	pushed := cmd().(pushMsg)

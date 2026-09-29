@@ -228,7 +228,11 @@ the cursor starts on the id column and the row under it is washed,
 `Space` grabs an item to move it (on a list only when `rank` is bound),
 and `Enter` is the one action key, doing what the cell under the cursor is for:
 on the id it opens the issue as show,
-on a relation, drawn as the issue it names, it opens that issue,
+on a relation, drawn as the issue it names, it opens the relation's picker:
+first `→ go to` that issue, where the cursor opens, so `Enter`, `Enter` opens it,
+then the issues the field's `target_types` allow, the current one marked,
+`/` narrowing them and `(none)` last (a `multi-relation` has a `go to` per issue,
+and changing its set rings the bell for now: `issue add`/`remove`),
 on any other cell it edits it
 (a person, an `identity` field such as `assignee`, is drawn by name
 and its list shows names and writes the id;

@@ -60,9 +60,7 @@ type listPage struct {
 	filter    string
 	filtering *textinput.Model
 	editor    *editor
-	// choosing is the picker enter opens on a cell that links several issues
-	choosing *picker
-	help     *help
+	help      *help
 
 	// grabbed is the row being dragged, by index into rows, or -1.
 	grabbed int
@@ -334,8 +332,6 @@ func (p *listPage) key(press tea.KeyPressMsg) (page, tea.Cmd) {
 		return p, nil
 	case p.editor != nil:
 		return p.updateEditor(press)
-	case p.choosing != nil:
-		return p.updateChoice(press)
 	case p.filtering != nil:
 		return p.updateFilter(press)
 	case p.grabbed >= 0:
@@ -463,9 +459,10 @@ func (p *listPage) toggleFold() {
 	p.rebuild()
 }
 
-// act is enter, the one action key: on the id it opens the issue, on a cell
-// that links other issues it follows the link, and on any other cell it
-// edits it (doc/design/terminal-renderer.md, 2026-09-28).
+// act is enter, the one action key: on the id it opens the issue, and on
+// any other cell it edits it — a relation's picker opening on "go to" the
+// issue it names, so enter, enter follows the link
+// (doc/design/terminal-renderer.md, 2026-09-29).
 func (p *listPage) act() (page, tea.Cmd) {
 	row := p.current()
 	if row == nil {
@@ -474,35 +471,7 @@ func (p *listPage) act() (page, tea.Cmd) {
 	if p.column == 0 {
 		return p, p.push(row.id)
 	}
-	switch links := row.links[p.fieldKey()]; len(links) {
-	case 0:
-		return p, p.startEdit(nil)
-	case 1:
-		return p, p.push(links[0])
-	default:
-		items := make([]choice, 0, len(links))
-		for _, id := range links {
-			items = append(items, choice{label: linkLabel(p.repo, id), value: id})
-		}
-		p.choosing = newPicker(items, "")
-		return p, nil
-	}
-}
-
-func (p *listPage) updateChoice(press tea.KeyPressMsg) (page, tea.Cmd) {
-	switch {
-	case keys.cancel.matches(press):
-		p.choosing = nil
-	case keys.up.matches(press):
-		p.choosing.cursor = max(0, p.choosing.cursor-1)
-	case keys.down.matches(press):
-		p.choosing.cursor = min(len(p.choosing.items)-1, p.choosing.cursor+1)
-	case keys.act.matches(press):
-		id := p.choosing.items[p.choosing.cursor].value
-		p.choosing = nil
-		return p, p.push(id)
-	}
-	return p, nil
+	return p, p.startEdit(nil)
 }
 
 // push opens an issue over the list.
@@ -619,7 +588,7 @@ func (p *listPage) startEdit(pasted *string) tea.Cmd {
 		return nil
 	}
 
-	ed, refusal, err := editable(p.repo, row.typeKey, fieldKey, row.fields[fieldKey])
+	ed, refusal, err := editable(p.repo, row.id, row.typeKey, fieldKey, row.fields[fieldKey])
 	switch {
 	case err != nil:
 		p.status = err.Error()
@@ -634,7 +603,6 @@ func (p *listPage) startEdit(pasted *string) tea.Cmd {
 			return bell()
 		}
 	}
-	ed.issueId = row.id
 	p.editor = ed
 	p.status = ""
 	return nil
@@ -652,6 +620,13 @@ func (p *listPage) updateEditor(msg tea.Msg) (page, tea.Cmd) {
 		return p, nil
 	}
 
+	if id := ed.goTo(); id != "" {
+		return p, p.push(id)
+	}
+	if refusal := ed.refusal(); refusal != "" {
+		p.status = refusal
+		return p, bell()
+	}
 	value, err := ed.Value()
 	if err != nil {
 		p.status = err.Error()

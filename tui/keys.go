@@ -158,7 +158,7 @@ var keys = keymap{
 	// every terminal without the kitty keyboard protocol, and a key that is
 	// one key here and another there is not a key the renderer reads
 	// (doc/design/terminal-renderer.md, 2026-09-28).
-	act: newChord("act: open id, follow link, edit cell, press", one("enter"), nil, nil),
+	act: newChord("act: open id, edit cell (a link: go to or change), press", one("enter"), nil, nil),
 
 	// Copy and paste are the terminal's first: cmd+c and ctrl+shift+c copy
 	// what the mouse selected, and cmd+v and ctrl+shift+v paste, arriving as
