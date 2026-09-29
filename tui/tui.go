@@ -108,7 +108,7 @@ func (r *Renderer) page(repo *cache.RepoCache, call *view.Call) (page, error) {
 	case view.KindList:
 		return newListPage(repo, call)
 	case view.KindShow:
-		return newShowPage(repo, call.String("id"), call.Strings("fields"))
+		return newShowView(repo, call)
 	case view.KindBoard:
 		return newBoardPage(repo, call)
 	case view.KindGantt:

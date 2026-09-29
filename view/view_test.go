@@ -136,6 +136,29 @@ func TestNullMeansTheDefault(t *testing.T) {
 	require.ErrorContains(t, err, "columns")
 }
 
+// TestParseChildrenShape: show's children are checked for shape by the
+// table, which needs no store; the names are CheckSchema's.
+func TestParseChildrenShape(t *testing.T) {
+	call, err := Parse(KindShow, kwargs(t, `{"id":"abc","children":[{"type":"task","relation":"parent","fields":["status"]},{"relation":"children"}]}`))
+	require.NoError(t, err)
+	require.Equal(t, []Child{
+		{Type: "task", Relation: "parent", Fields: []string{"status"}},
+		{Relation: "children"},
+	}, call.ChildList())
+
+	for doc, says := range map[string]string{
+		`{"id":"abc","children":"parent"}`:                                  "a list of",
+		`{"id":"abc","children":[{"type":"task"}]}`:                         "needs relation",
+		`{"id":"abc","children":[{"relation":""}]}`:                         "empty",
+		`{"id":"abc","children":[{"relation":"parent","as":"x"}]}`:          "no key as",
+		`{"id":"abc","children":[{"relation":"parent","fields":"status"}]}`: "fields is a list",
+	} {
+		_, err := Parse(KindShow, kwargs(t, doc))
+		require.ErrorContains(t, err, says, doc)
+		require.ErrorContains(t, err, "children", doc)
+	}
+}
+
 func TestParseUnknownKind(t *testing.T) {
 	_, err := Parse("burndown", nil)
 	require.Error(t, err)

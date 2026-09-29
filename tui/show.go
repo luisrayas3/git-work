@@ -42,6 +42,9 @@ type showPage struct {
 	log      []cmdjson.IssueOperation
 	// rows is the fields table as drawn, rebuilt on every load
 	rows []tableRow
+	// children are the call's sections of issues pointing at this one,
+	// drawn as rows after the fields (show_children.go)
+	children []view.Children
 
 	box     *commentBox
 	buttons []button
@@ -137,6 +140,9 @@ type tableRow struct {
 	first bool
 	// link is the issue this line names, or ""
 	link string
+	// derived marks a row of a children section: the other side of a
+	// relation, which is not a field and so is never edited
+	derived bool
 }
 
 func newShowPage(repo *cache.RepoCache, id string, fields []string) (*showPage, error) {
@@ -179,7 +185,7 @@ func (p *showPage) load() error {
 	}
 	p.log = entries
 
-	p.rows = p.tableRows()
+	p.rows = append(p.tableRows(), p.childRows()...)
 	return nil
 }
 
@@ -289,7 +295,7 @@ func (p *showPage) field() string {
 	if p.current().stop == stopHeader {
 		return [...]string{schema.TypeKey, schema.TitleKey, issue.ArchivedKey}[p.cell]
 	}
-	if row := p.currentRow(); row != nil {
+	if row := p.currentRow(); row != nil && !row.derived {
 		return row.key
 	}
 	return ""

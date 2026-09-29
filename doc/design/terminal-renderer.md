@@ -130,7 +130,7 @@ a jq program, defaulting to the list's default program
 | `list` | — | `fields` (`["type","title"]`) | `details`, `group_by`, `expand`, `depth`, `rank` |
 | `board` | `columns` | `values` (the field's schema order), `card` (`["title"]`) | `group_by`, `rank` |
 | `gantt` | `start`, `stop` | `label` (title), `scale` (`week`), `from`, `to` (the data's extent) | `progress`, `group_by`, `expand`, `depth`, `rank` |
-| `show` | `id` | `fields` (the type's fields, schema order) | — |
+| `show` | `id` | `fields` (the type's fields, schema order) | `children` |
 
 `fields` on a list is an ordered list of field keys,
 shown as columns and **editable in place**;
@@ -687,6 +687,7 @@ because `git work view show '{"id":"abc1234"}'` is a thing to want on its own
 and because `Enter` from any kind opens it.
 It takes `id`, and `fields` to narrow and order what it prints;
 by default it prints the type's fields in schema order.
+`children` adds the issues that point at it (Children, below).
 
 The page is **four stops**, top to bottom (revised again 2026-09-28, Luis):
 
@@ -786,6 +787,88 @@ They are where actions injected into views (deferred, below) land on `show`:
 a view invocation that names, say, *Comment and close*
 gets a second button beside the first in the footer,
 running the comment and then its action.
+
+### Children
+
+Asked for 2026-09-29 (Luis): show can list the issues that point **at** the shown one —
+a story's tasks, whose `parent` names it —
+given "a type and a relation to find the shown item".
+The relation is stored on the child, never on the shown issue
+(`schema.yaml`, D4), so the shown issue's fields cannot say it;
+the call has to name the child's side.
+
+```json
+{"id": "abc1234",
+ "children": [{"type": "task", "relation": "parent", "fields": ["status"]},
+              {"relation": "blocked_by"}]}
+```
+
+`children` is a **list**, because a story has tasks *and* subtasks,
+and an issue is blocked by some and blocks others:
+one entry is one section, drawn in the list's order.
+An entry is an object rather than a `type/relation` string,
+because it has three parts and a string would grow a grammar:
+
+- **`relation`** (required) is the relation field on the child
+  whose value is the shown issue's id.
+  It may instead be the name the schema's `inverse` gives the other side —
+  `children` for `parent`, `blocked_by` for `blocks` —
+  which is how `expand` reads a derived side (Nesting, below),
+  so the word a list's `expand` takes is a word show takes too.
+  A key that is a field of the type is that field, and has to be a relation;
+  only a key that is not is read as an inverse.
+- **`type`** narrows the children to one type.
+  Left out, every type whose relation matches counts:
+  `{"relation":"children"}` alone is everything whose `parent` is this issue.
+  It is optional because the explicit form is the one asked for
+  and the other costs nothing: the lookup is the one `expand` already does.
+- **`fields`** are drawn after each child's title, joined by `·`,
+  a person by name and a relation as the issue it names.
+  Status is what one wants there, and it is a key the call names,
+  not a default, because there are **no field roles** (`d56e6f1`):
+  nothing can tell which field is the status.
+
+The shape is checked by the table (`view.Parse`), which has no store;
+the names are checked against the live schema in `host.View`,
+before a renderer is chosen, so the command, a flow and the gui refuse
+the same call with the same words, and before anything is drawn.
+An unknown type names the types; a relation no type has, or a field that is not one,
+names every relation of the types in question with its inverse;
+a `fields` key no child type has is refused too.
+
+**A section is rows of the fields table**, after the stored fields,
+not a fourth tab and not a panel of its own.
+The other side of a relation is drawn the way a relation is:
+the key column holds the section's name, on its first line,
+and every child is a line of its own, its short id and title, a link.
+That makes each child a place the cursor stands, `Enter` follows,
+and copy copies the id, through the table's own handling —
+a tab is a scrolled text the cursor does not stand in,
+and links in it would need a second cursor.
+It is also where Jira puts *Child issues*: in the issue's body, with its fields,
+not behind a tab.
+The rows are derived, never stored, so they are **not a field**:
+nothing edits them, and `Enter` on an empty section rings the bell.
+To reparent a task, open it and edit its `parent`.
+
+A section is named by the relation from the shown issue's side:
+the inverse, when the schema gives one — a story's tasks are its `children` —
+else the stored key behind an arrow (`← parent`);
+a named type follows it (`children · task`),
+so two sections of one relation and two types read apart.
+A section with no child is drawn as `(none)`,
+because a section that is not drawn reads as one that was never asked for.
+Children come in the store's order and leave out the archived,
+as `expand` has them.
+
+It is **live** as the rest of the page is:
+the sections are recomputed on every load,
+which the ref watcher's refresh and the page's own writes both do,
+so a task created elsewhere with this story as its parent appears.
+
+Only the call carries `children`.
+`Enter` on a list row, and following a link, open a bare show, as before:
+the options are the call's, and a page reached by a link was not called with any.
 
 ## Nesting
 

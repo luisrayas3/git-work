@@ -202,6 +202,11 @@ func (a Arg) check(raw json.RawMessage) (json.RawMessage, error) {
 			}
 		}
 
+	case ChildRelations:
+		if _, err := parseChildren(raw); err != nil {
+			return nil, err
+		}
+
 	case Int:
 		var n int
 		if err := json.Unmarshal(raw, &n); err != nil {

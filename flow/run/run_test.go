@@ -11,6 +11,7 @@ import (
 
 	"github.com/git-bug/git-bug/cache"
 	"github.com/git-bug/git-bug/entities/config"
+	"github.com/git-bug/git-bug/entities/issue"
 	"github.com/git-bug/git-bug/entity"
 	"github.com/git-bug/git-bug/flow"
 	"github.com/git-bug/git-bug/host"
@@ -307,6 +308,36 @@ func TestViewReachesTheRendererParsed(t *testing.T) {
 	// the defaults the table carries, applied once, in host.View
 	require.Equal(t, view.DefaultQuery, call.String("query"))
 	require.Equal(t, []string{"type", "title"}, call.Strings("fields"))
+}
+
+// TestViewShowTakesChildren: show's children are a list of dicts in
+// Starlark as they are a list of objects on the command line, one to one,
+// and the schema check is host.View's, so a flow is refused as a command is.
+func TestViewShowTakesChildren(t *testing.T) {
+	repo := testRepo(t)
+	_, _, err := host.SchemaInit(repo, "jira", false)
+	require.NoError(t, err)
+	story, err := host.IssueNew(repo, host.IssueDocument{Fields: map[string]issue.Value{
+		"type": issue.StringValue("story"), "title": issue.StringValue("a story"),
+	}})
+	require.NoError(t, err)
+	renderer := &fakeRenderer{}
+
+	_, _, err = runWith(t, repo, renderer, `def story(id):
+    """A story and its tasks."""
+    return work.view.show(id=id, children=[{"type": "task", "relation": "parent", "fields": ["status"]}])
+`, map[string]json.RawMessage{"id": json.RawMessage(`"` + story.String() + `"`)})
+	require.NoError(t, err)
+	require.Len(t, renderer.calls, 1)
+	require.Equal(t, []view.Child{{Type: "task", Relation: "parent", Fields: []string{"status"}}},
+		renderer.calls[0].ChildList())
+
+	_, _, err = runWith(t, repo, renderer, `def story(id):
+    """A relation that is not one."""
+    return work.view.show(id=id, children=[{"type": "task", "relation": "status"}])
+`, map[string]json.RawMessage{"id": json.RawMessage(`"` + story.String() + `"`)})
+	require.ErrorContains(t, err, "not a relation")
+	require.Len(t, renderer.calls, 1, "refused before the renderer")
 }
 
 func TestStepCapTrips(t *testing.T) {
