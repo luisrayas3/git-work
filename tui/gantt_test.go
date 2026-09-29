@@ -401,9 +401,9 @@ func TestGanttGroupsEnterAndCopy(t *testing.T) {
 	require.Equal(t, "nothing to paste into", page.status)
 }
 
-// TestGanttGroupsByRelationTitle: a relation's group is headed by the issue
-// it names.
-func TestGanttGroupsByRelationTitle(t *testing.T) {
+// TestGanttGroupsByRelationTitleAndTint: a relation's group is headed by the
+// issue it names, and each group's bars get their own color.
+func TestGanttGroupsByRelationTitleAndTint(t *testing.T) {
 	repo := testRepo(t)
 	withDates(t, repo)
 	north := newTyped(t, repo, "story", map[string]any{"title": "north"})
@@ -415,6 +415,10 @@ func TestGanttGroupsByRelationTitle(t *testing.T) {
 	drawn := plainView(page)
 	require.Contains(t, drawn, "\n"+north[:idWidth]+" north\n")
 	require.Contains(t, drawn, "\n"+south[:idWidth]+" south\n")
+
+	colors := page.groupColors()
+	require.Len(t, colors, 2)
+	require.NotEqual(t, colors[north[:idWidth]+" north"], colors[south[:idWidth]+" south"])
 }
 
 // TestGanttRefreshKeepsTheCursorOnTheIssue: another writer moves the bar,
