@@ -10,6 +10,7 @@ import (
 
 	"github.com/git-bug/git-bug/cache"
 	"github.com/git-bug/git-bug/entities/issue"
+	"github.com/git-bug/git-bug/host"
 	"github.com/git-bug/git-bug/schema"
 )
 
@@ -148,7 +149,9 @@ func identityChoices(repo *cache.RepoCache) ([]choice, error) {
 		if err != nil {
 			return nil, err
 		}
-		out = append(out, choice{label: identity.Name(), dim: identity.Email(), value: id.String()})
+		// the label is the name a cell draws the value as, so the picker
+		// opens on the one the cell showed
+		out = append(out, choice{label: host.UserName(repo, id.String()), dim: identity.Email(), value: id.String()})
 	}
 	out = append(out, choice{label: "(nobody)", dim: "clear", value: ""})
 	return out, nil

@@ -208,7 +208,7 @@ func (p *ganttPage) newBar(n nested, known *kinds) (bar, treeRow) {
 	if isRelation(known.of(b.typeKey, p.labelKey)) {
 		b.label = linkText(p.repo, linkIds(fields[p.labelKey]))
 	} else {
-		b.label = plainValue(fields[p.labelKey])
+		b.label = known.cellText(b.typeKey, p.labelKey, fields[p.labelKey])
 	}
 	b.startText = plainValue(fields[p.startKey])
 	b.start, b.hasStart = parseDate(b.startText)

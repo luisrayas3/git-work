@@ -3,6 +3,7 @@ package host
 import (
 	"github.com/git-bug/git-bug/cache"
 	"github.com/git-bug/git-bug/commands/cmdjson"
+	"github.com/git-bug/git-bug/entity"
 )
 
 // UserMe returns the identity this repository writes as.
@@ -18,4 +19,45 @@ func UserMe(repo *cache.RepoCache) (*cmdjson.Identity, error) {
 	}
 	out := cmdjson.NewIdentity(i)
 	return &out, nil
+}
+
+// UserName is an identity-valued field (an assignee, a reporter) as a person
+// reads it: the name of the identity it holds, not the 64-character hash the
+// field stores.
+//
+// A Jira user becomes an identity named after its Jira display name (JS16),
+// so an imported assignee reads as Jira shows it. An identity with no name
+// falls back to its login (the Jira account id, when Jira gave no name); an
+// id the store does not resolve, an identity not pulled yet, is its short
+// id, because the value is still true, just not nameable.
+//
+// Only text is named: JSON keeps the id, because the id is the value, and
+// the agent-facing contract is the stored one.
+func UserName(repo *cache.RepoCache, id string) string {
+	if id == "" {
+		return ""
+	}
+	short := id
+	if len(short) > entity.HumanIdLength {
+		short = short[:entity.HumanIdLength]
+	}
+
+	excerpt, err := repo.Identities().ResolveExcerpt(entity.Id(id))
+	if err != nil {
+		// the schema check accepts a prefix (cache.schemaResolver), so a
+		// value written by hand may be stored as one
+		excerpt, err = repo.Identities().ResolveExcerptPrefix(id)
+		if err != nil {
+			return short
+		}
+	}
+	// an identity has a name or a login, or it does not validate
+	// (entities/identity), so there is no email to fall back to
+	if excerpt.Name != "" {
+		return excerpt.Name
+	}
+	if excerpt.Login != "" {
+		return excerpt.Login
+	}
+	return short
 }

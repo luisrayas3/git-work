@@ -229,7 +229,12 @@ func (p *showPage) tableRows() []tableRow {
 				continue
 			}
 		}
-		out = append(out, tableRow{key: key, label: plain(p.snapshot.Fields[key]), first: true})
+		label := plain(p.snapshot.Fields[key])
+		if isPerson(known.of(typeKey, key)) {
+			value, _ := decodeValue(p.snapshot.Fields[key])
+			label = personText(p.repo, value)
+		}
+		out = append(out, tableRow{key: key, label: label, first: true})
 	}
 	return out
 }

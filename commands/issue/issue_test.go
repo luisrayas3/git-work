@@ -306,6 +306,27 @@ func TestIssueGet(t *testing.T) {
 	require.Contains(t, env.Out.String(), `labels: ["area:core"]`)
 }
 
+// TestIssueGetTextNamesAPerson: the text form prints a people field as the
+// person's name, and the JSON keeps the id, which is the value.
+func TestIssueGetTextNamesAPerson(t *testing.T) {
+	env := newTestEnv(t)
+	_, _, err := host.SchemaInit(env.Backend, "jira", false)
+	require.NoError(t, err)
+	ada, err := env.Backend.Identities().NewRaw("Ada Lovelace", "", "", "", nil, map[string]string{"jira-account-id": "5b10ac8d"})
+	require.NoError(t, err)
+
+	id := newTestIssue(t, env, fmt.Sprintf(`{"fields":{"title":"one","type":"task","assignee":%q}}`, ada.Id().String()))
+
+	require.NoError(t, runIssueGet(env, issueGetOptions{format: "text"}, []string{id.Human()}))
+	require.Contains(t, env.Out.String(), "assignee: Ada Lovelace\n")
+	require.NotContains(t, env.Out.String(), ada.Id().String())
+
+	env.Out.Reset()
+	require.NoError(t, runIssueGet(env, issueGetOptions{format: "json"}, []string{id.Human()}))
+	require.Contains(t, env.Out.String(), ada.Id().String())
+	require.NotContains(t, env.Out.String(), "Ada Lovelace")
+}
+
 func TestIssueLog(t *testing.T) {
 	env := newTestEnv(t)
 	id := newDefaultIssue(t, env)

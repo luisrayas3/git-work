@@ -349,6 +349,22 @@ a cell that names several asks which.
 Copy on it copies the id, which is what another command takes.
 A link to an issue the store does not have yet is its short id alone.
 
+**A person is a name** (2026-09-28).
+A field of kind `identity` — `assignee`, a Jira `user` field — holds an identity's whole id
+for the same reason a relation does, and is drawn the same way, as what it names:
+the identity's name, else its login, else the short id when the store has no such identity
+(`host.UserName`, which `git work issue get --format text` uses too).
+A Jira account is such an identity named as Jira names it (JS16, `doc/design/jira-sync.md`),
+so an imported assignee reads as Jira shows it.
+Everywhere a value is drawn it is the name:
+a cell, a card, a gantt label, a group or swimlane header, a board column's header,
+and `/` filters on it.
+It is not a link, because a person has no page:
+`Enter` edits it, the identity list shows the same names and writes the id,
+a board drop into a person's column writes the id,
+and copy copies the id.
+JSON and the `query` a view runs keep the id, because the id is the value.
+
 There is no comment key on a list.
 A comment is written on `show`, where the issue it is about is on the screen
 (revised 2026-09-27, Luis).
