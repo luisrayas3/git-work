@@ -573,6 +573,10 @@ A day stays a day and a time keeps its clock:
 
 **A row with one date is a milestone**, drawn as a diamond on its period,
 and a grab moves the date it has.
+The diamond says which date it is:
+a start sits on its period's first cell and fades to the right,
+a stop on its last and fades to the left, `░▒▓◆`,
+the fade running into the neighboring periods.
 A row with no dates has nothing to move, and says so.
 
 **A parent with no dates of its own draws the envelope of its children's**,
