@@ -579,7 +579,9 @@ and a grab moves the date it has.
 The trail says which date it is:
 a start begins on its period's first cell and fades to the right, `▓▓▒▒░░`,
 a stop ends on its last and fades to the left, `░░▒▒▓▓`,
-the fade running into the neighboring periods.
+the fade running into the neighboring periods,
+and past it the side the missing date leaves open is the dateless band
+to the chart's edge, because a start with no stop is open-ended, not a point.
 It had a diamond on the date too, dropped on 2026-09-29:
 the trail's dense end already marks it.
 **A row with no dates is a dull band** across the whole chart, in its
