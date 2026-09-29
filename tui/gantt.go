@@ -228,7 +228,11 @@ func (p *ganttPage) newBar(n nested, known *kinds) (bar, treeRow) {
 		group:    noGroup,
 	}
 	if p.groupBy != "" {
-		if value := plainValue(fields[p.groupBy]); value != "" {
+		value := known.cellText(b.typeKey, p.groupBy, fields[p.groupBy])
+		if isRelation(known.of(b.typeKey, p.groupBy)) {
+			value = linkText(p.repo, linkIds(fields[p.groupBy]))
+		}
+		if value != "" {
 			node.group = value
 		}
 	}

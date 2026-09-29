@@ -611,6 +611,10 @@ the month over days and weeks, the year over months and quarters —
 the first said whole and a change after it short,
 unless the year changed too.
 
+**`group_by` makes a section per value of the root rows**,
+headed by the value as a cell draws it,
+so a relation's group is the issue it names, `13e21c6 north`.
+
 ## Show
 
 `show` is a view kind like the others,

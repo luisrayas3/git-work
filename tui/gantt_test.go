@@ -401,6 +401,22 @@ func TestGanttGroupsEnterAndCopy(t *testing.T) {
 	require.Equal(t, "nothing to paste into", page.status)
 }
 
+// TestGanttGroupsByRelationTitle: a relation's group is headed by the issue
+// it names.
+func TestGanttGroupsByRelationTitle(t *testing.T) {
+	repo := testRepo(t)
+	withDates(t, repo)
+	north := newTyped(t, repo, "story", map[string]any{"title": "north"})
+	south := newTyped(t, repo, "story", map[string]any{"title": "south"})
+	newTyped(t, repo, "task", map[string]any{"title": "one", "start": "2026-09-07", "stop": "2026-09-13", "parent": north})
+	newTyped(t, repo, "task", map[string]any{"title": "two", "start": "2026-09-14", "stop": "2026-09-20", "parent": south})
+
+	page := gantt(t, repo, `{"start":"start","stop":"stop","group_by":"parent","query":"map(select(.fields.type == \"task\"))"}`)
+	drawn := plainView(page)
+	require.Contains(t, drawn, "\n"+north[:idWidth]+" north\n")
+	require.Contains(t, drawn, "\n"+south[:idWidth]+" south\n")
+}
+
 // TestGanttRefreshKeepsTheCursorOnTheIssue: another writer moves the bar,
 // the refresh keeps the cursor on it, and a grab in flight is let go.
 func TestGanttRefreshKeepsTheCursorOnTheIssue(t *testing.T) {
