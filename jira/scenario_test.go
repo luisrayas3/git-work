@@ -564,3 +564,50 @@ func TestConcurrentRunRefused(t *testing.T) {
 	w.mustSync(jira.Options{})
 	require.Len(t, w.srv.Keys(), 1)
 }
+
+// pull-schema-check.md: a value Jira holds that the derived schema's policy
+// refuses — here a Sub-task under an Epic, where the schema allows only a
+// level-0 parent — is written and reported off-schema, not left pending
+// forever; a local write of the same value is still refused.
+func TestPullOffSchemaWritten(t *testing.T) {
+	w := newWorld(t, jiratest.WithLooseHierarchy())
+	epic := w.srv.CreateIssue(jiratest.IssueSpec{Project: "PROJ", Type: "Epic", Summary: "Epic"})
+	story := w.srv.CreateIssue(jiratest.IssueSpec{Project: "PROJ", Type: "Story", Summary: "Story"})
+	sub := w.srv.CreateIssue(jiratest.IssueSpec{Project: "PROJ", Type: "Sub-task", Summary: "Under an epic", Parent: epic})
+	moved := w.srv.CreateIssue(jiratest.IssueSpec{Project: "PROJ", Type: "Sub-task", Summary: "Moved later", Parent: story})
+
+	lines, sum := w.mustSync(jira.Options{})
+	var line *jira.Line
+	for i := range lines {
+		if lines[i].Jira == sub {
+			line = &lines[i]
+		}
+	}
+	require.NotNil(t, line, "%+v", lines)
+	require.Equal(t, jira.ActionImported, line.Action)
+	require.Empty(t, line.Pending, "an off-schema value is not pending")
+	require.Len(t, line.OffSchema, 1)
+	require.Equal(t, "parent", line.OffSchema[0].Key)
+	require.Contains(t, line.OffSchema[0].Reason, "is a epic")
+	require.Equal(t, 1, sum.OffSchema)
+	require.Zero(t, sum.Pending)
+	ic := w.byKey(sub)
+	require.Equal(t, `"`+w.byKey(epic).Id().String()+`"`, field(t, ic, "parent"))
+	w.quiet()
+
+	// the same through step 6: an imported issue whose parent Jira moves
+	w.srv.Edit(moved, map[string]any{"parent": map[string]any{"key": epic}})
+	lines, sum = w.mustSync(jira.Options{})
+	require.Len(t, lines, 1, "%+v", lines)
+	require.Equal(t, jira.ActionUpdated, lines[0].Action)
+	require.Empty(t, lines[0].Pending)
+	require.Len(t, lines[0].OffSchema, 1)
+	require.Equal(t, "parent", lines[0].OffSchema[0].Key)
+	require.Equal(t, 1, sum.OffSchema)
+	require.Equal(t, `"`+w.byKey(epic).Id().String()+`"`, field(t, w.byKey(moved), "parent"))
+	w.quiet()
+
+	// local writes keep the policy check
+	_, err := ic.PlanSetFields(map[string]issue.Value{"parent": str(w.byKey(epic).Id().String())})
+	require.ErrorContains(t, err, "takes")
+}

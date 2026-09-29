@@ -132,6 +132,35 @@ func TestIssueUpdateRefusedBySchemaWritesNothing(t *testing.T) {
 	require.Equal(t, before, issueRef(t, c, i))
 }
 
+// TestIssueUpdateShapeSkipsThePolicy: UpdateShape and NewRawShape commit a
+// value of the right kind the schema's policy refuses, and still refuse one
+// of the wrong kind (pull-schema-check.md).
+func TestIssueUpdateShapeSkipsThePolicy(t *testing.T) {
+	c, i, me := newUpdateTestIssue(t)
+
+	set := func(update func(func(*issue.Snapshot) ([]issue.Operation, error)) error, key string, v issue.Value) error {
+		return update(func(snap *issue.Snapshot) ([]issue.Operation, error) {
+			return []issue.Operation{issue.NewSetFieldOp(me, time.Now().Unix(), key, v)}, nil
+		})
+	}
+
+	require.Error(t, set(i.Update, "status", issue.StringValue("bogus")))
+	require.NoError(t, set(i.UpdateShape, "status", issue.StringValue("bogus")))
+	require.Equal(t, "bogus", mustFieldString(t, i.Snapshot(), "status"))
+
+	before := issueRef(t, c, i)
+	require.Error(t, set(i.UpdateShape, "status", issue.MustValue(3)), "a number is not an enum value")
+	require.Error(t, set(i.UpdateShape, "nope", issue.StringValue("x")), "a task has no such field")
+	require.Equal(t, before, issueRef(t, c, i))
+
+	fields := map[string]issue.Value{"type": issue.StringValue("task"), "status": issue.StringValue("bogus")}
+	_, _, err := c.Issues().NewRaw(me, time.Now().Unix(), "t", "", nil, fields, nil)
+	require.Error(t, err)
+	n, _, err := c.Issues().NewRawShape(me, time.Now().Unix(), "t", "", nil, fields, nil)
+	require.NoError(t, err)
+	require.Equal(t, "bogus", mustFieldString(t, n.Snapshot(), "status"))
+}
+
 // TestIssueUpdateChecksAgainstTheTypeTheBatchSets: a batch is one change, so
 // a type set in it is the type the batch's other keys belong to.
 func TestIssueUpdateChecksAgainstTheTypeTheBatchSets(t *testing.T) {

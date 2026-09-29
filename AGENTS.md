@@ -136,6 +136,10 @@ value against the field's ids, a relation against its `target_types`. Every
 problem is reported at once, and the check happens at planning time, so
 `--dry-run` refuses what a commit would. With no type defined nothing is
 checked, and `--dry-run` says so on stderr.
+The one writer that skips the policy half — enum membership, `target_types` —
+is the Jira pull, which checks shape only (a value fits its kind, what it names
+exists), because Jira is the authority on what Jira holds
+(`doc/design/pull-schema-check.md`).
 
 The schema itself, types and fields under `refs/work-schema`
 (`3556569`, `bb9e89e`, design in `doc/design/config-entity.md`):
@@ -281,7 +285,9 @@ The Jira sync, one bound clone against one Jira Cloud project
 `sync` refuses until one type carries a Jira alias, derives and imports the
 schema itself after that, prints one JSON object per line (schema changes,
 one line per issue touched, pending, skipped or failed, a summary whose
-`unchanged` counts the rest) and exits 1 when an issue failed or
+`unchanged` counts the rest; a value Jira holds that the schema's policy
+refuses, such as a parent of a type `target_types` omits, is written and listed
+under `off_schema`, never left pending) and exits 1 when an issue failed or
 deletes were held; the mapping's notes reach stderr only in a run that changed
 the schema, so cron stays quiet. Jira wins a field edited on both sides, with a
 `jira-note: conflict` comment on the issue, and so does a value Jira shows

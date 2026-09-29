@@ -255,6 +255,21 @@ func (c *IssueCache) CommitOperations(ops []issue.Operation) error {
 // c.Snapshot(), or the network. The lock is not re-entrant, and it is held
 // for as long as fn runs.
 func (c *IssueCache) Update(fn func(snap *issue.Snapshot) ([]issue.Operation, error)) error {
+	return c.update(fn, false)
+}
+
+// UpdateShape is Update with the shape check only (pull-schema-check.md):
+// a value that fits its field's kind is committed even where the schema's
+// policy — enum membership, a relation's target types — would refuse it.
+//
+// It is for a writer mirroring an authority the schema only approximates,
+// the Jira pull: ops replay whatever was written, and readers already
+// tolerate off-schema values. A local edit uses Update.
+func (c *IssueCache) UpdateShape(fn func(snap *issue.Snapshot) ([]issue.Operation, error)) error {
+	return c.update(fn, true)
+}
+
+func (c *IssueCache) update(fn func(snap *issue.Snapshot) ([]issue.Operation, error), shapeOnly bool) error {
 	unlock, err := lockWrite(c.repo)
 	if err != nil {
 		return err
@@ -283,7 +298,7 @@ func (c *IssueCache) Update(fn func(snap *issue.Snapshot) ([]issue.Operation, er
 	// The check runs outside the entity's mutex, because resolving a relation
 	// by alias reads a snapshot, possibly this one's. Nothing can commit in
 	// between: the write lock is still held.
-	if err := c.checkOperations(issueTypeOf(snap.Fields), ops); err != nil {
+	if err := c.checkOperations(issueTypeOf(snap.Fields), ops, shapeOnly); err != nil {
 		return err
 	}
 
@@ -300,12 +315,13 @@ func (c *IssueCache) Update(fn func(snap *issue.Snapshot) ([]issue.Operation, er
 }
 
 // checkOperations validates a batch of operations and measures its field
-// writes against the live schema, every problem reported at once.
+// writes against the live schema, every problem reported at once; with
+// shapeOnly, against the shape check alone.
 //
 // The batch is one change, so every field operation is checked against the
 // type the batch leaves the issue with: a type set anywhere in it is the type
 // its other keys belong to. Comments and metadata have no schema.
-func (c *IssueCache) checkOperations(currentType string, ops []issue.Operation) error {
+func (c *IssueCache) checkOperations(currentType string, ops []issue.Operation, shapeOnly bool) error {
 	for _, op := range ops {
 		if err := op.Validate(); err != nil {
 			return err
@@ -315,6 +331,9 @@ func (c *IssueCache) checkOperations(currentType string, ops []issue.Operation) 
 	checker, err := c.liveChecker()
 	if err != nil || checker == nil {
 		return err
+	}
+	if shapeOnly {
+		checker = checker.Shape()
 	}
 
 	typeKey := currentType
