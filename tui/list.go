@@ -182,7 +182,7 @@ func (p *listPage) newRow(n nested, known *kinds) (listRow, treeRow) {
 			row.cells[key] = linkText(p.repo, ids)
 			continue
 		}
-		row.cells[key] = plainValue(fields[key])
+		row.cells[key] = known.cellText(row.typeKey, key, fields[key])
 	}
 
 	node := treeRow{

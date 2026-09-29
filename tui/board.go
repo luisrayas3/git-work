@@ -173,13 +173,13 @@ func (p *boardPage) newCard(item map[string]any, known *kinds) card {
 			c.cells[key] = linkText(p.repo, linkIds(fields[key]))
 			continue
 		}
-		c.cells[key] = plainValue(fields[key])
+		c.cells[key] = known.cellText(c.typeKey, key, fields[key])
 	}
 
 	c.value = plainValue(fields[p.columnsKey])
 	c.group = noGroup
 	if p.groupBy != "" {
-		if value := plainValue(fields[p.groupBy]); value != "" {
+		if value := known.cellText(c.typeKey, p.groupBy, fields[p.groupBy]); value != "" {
 			c.group = value
 		}
 	}
@@ -210,11 +210,16 @@ func (p *boardPage) newCard(item map[string]any, known *kinds) card {
 func (p *boardPage) resolveColumns() []column {
 	var columns []column
 	seen := map[string]bool{}
+	// a people field's columns are its people, headed by name
+	person := false
 	add := func(value, label string) {
 		if value == "" || seen[value] {
 			return
 		}
 		seen[value] = true
+		if label == "" && person {
+			label = host.UserName(p.repo, value)
+		}
 		if label == "" {
 			label = value
 		}
@@ -237,6 +242,9 @@ func (p *boardPage) resolveColumns() []column {
 			field, ok := s.Field(typeKey, p.columnsKey)
 			if !ok {
 				continue
+			}
+			if isPerson(field.Kind) {
+				person = true
 			}
 			for _, value := range field.Values {
 				if _, named := names[value.Id]; !named {

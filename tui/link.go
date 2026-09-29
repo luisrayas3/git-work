@@ -5,6 +5,7 @@ import (
 
 	"github.com/git-bug/git-bug/cache"
 	"github.com/git-bug/git-bug/entity"
+	"github.com/git-bug/git-bug/host"
 	"github.com/git-bug/git-bug/schema"
 )
 
@@ -59,6 +60,34 @@ func linkText(repo *cache.RepoCache, ids []string) string {
 		labels = append(labels, linkLabel(repo, id))
 	}
 	return strings.Join(labels, ", ")
+}
+
+// A people field (an assignee, a reporter) holds an identity's whole id, and
+// is drawn as the person's name the same way (host.UserName). It is not a
+// link: there is no page for a person, so enter on it edits it, and the
+// picker lists names and writes the id (identityChoices).
+
+// isPerson says whether a kind's value is an identity id.
+func isPerson(kind schema.Kind) bool {
+	return kind == schema.KindIdentity
+}
+
+// personText is a people value, drawn: the name, or the value as it is when
+// it is not an id at all.
+func personText(repo *cache.RepoCache, value any) string {
+	if id, ok := value.(string); ok {
+		return host.UserName(repo, id)
+	}
+	return plainValue(value)
+}
+
+// cellText is any value that is not a relation as a cell draws it: a person
+// by name, everything else plain.
+func (k *kinds) cellText(typeKey, fieldKey string, value any) string {
+	if isPerson(k.of(typeKey, fieldKey)) {
+		return personText(k.repo, value)
+	}
+	return plainValue(value)
 }
 
 // kinds remembers field kinds for one load, because a list asks for the same

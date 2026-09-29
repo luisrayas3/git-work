@@ -229,7 +229,10 @@ the cursor starts on the id column and the row under it is washed,
 and `Enter` is the one action key, doing what the cell under the cursor is for:
 on the id it opens the issue as show,
 on a relation, drawn as the issue it names, it opens that issue,
-on any other cell it edits it,
+on any other cell it edits it
+(a person, an `identity` field such as `assignee`, is drawn by name
+and its list shows names and writes the id;
+`issue get --format text` names it too, and JSON keeps the id),
 where a value list ends with `(none)` and an emptied box clears the field
 (`title` excepted, it cannot be cleared) and a bool flips at once.
 A board's card has no cells: `Enter` opens it, copy copies its id,

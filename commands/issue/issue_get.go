@@ -9,6 +9,7 @@ import (
 	"github.com/git-bug/git-bug/commands/execenv"
 	"github.com/git-bug/git-bug/entities/issue"
 	"github.com/git-bug/git-bug/host"
+	"github.com/git-bug/git-bug/schema"
 	"github.com/git-bug/git-bug/util/colors"
 )
 
@@ -86,10 +87,21 @@ func issueTextFormatter(env *execenv.Env, snapshot *issue.Snapshot) error {
 		snapshot.EditTime().String(),
 	)
 
-	// Fields, verbatim JSON, title excluded since it is the header
+	// Fields, verbatim JSON, title excluded since it is the header; a people
+	// field is the person's name, as the views draw it (host.UserName)
+	typeKey, _ := snapshot.FieldString(schema.TypeKey)
+	s, _ := env.Backend.LoadSchema()
 	for _, key := range snapshot.FieldKeys() {
 		if key == issue.TitleKey {
 			continue
+		}
+		if s != nil {
+			if field, ok := s.Field(typeKey, key); ok && field.Kind == schema.KindIdentity {
+				if id, ok := issue.String(snapshot.Fields[key]); ok && id != "" {
+					env.Out.Printf("%s: %s\n", key, host.UserName(env.Backend, id))
+					continue
+				}
+			}
 		}
 		env.Out.Printf("%s: %s\n", key, string(snapshot.Fields[key]))
 	}
