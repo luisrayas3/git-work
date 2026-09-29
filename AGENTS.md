@@ -245,7 +245,7 @@ then the values the data has that are not listed, then `(none)`;
 they keep a minimum width and scroll sideways to follow the cursor
 (2026-09-28, `doc/design/terminal-renderer.md`, Board).
 A gantt's cursor is a cell, a row and a period of `scale`
-(`day`, `week`, `month`, `quarter`; the chart is `from` to `to`, else the data's extent):
+(`day`, `week`, `month`, `quarter`; the chart is `from` to `to`, else the data's extent and today, opening with today's period left-most and filling the window):
 `Enter` opens the row, `←`/`→` move a period, `↑`/`↓` a row keeping it, the period washed down the chart, group headers included, as the row is across it,
 `Space` grabs the bar with no rank needed and `←`/`→` shift it a period —
 on its first cell only `start` moves, on its last only `stop`, between them both,
