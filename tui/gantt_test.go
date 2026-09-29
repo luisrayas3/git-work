@@ -219,7 +219,7 @@ func TestGanttGrabCanBePutBack(t *testing.T) {
 }
 
 // TestGanttMilestonesAndDatelessRows: one date is a milestone, and a row
-// with none has nothing to move.
+// with none is a dull band with nothing to move.
 func TestGanttMilestonesAndDatelessRows(t *testing.T) {
 	repo := testRepo(t)
 	withDates(t, repo)
@@ -229,6 +229,7 @@ func TestGanttMilestonesAndDatelessRows(t *testing.T) {
 	page := gantt(t, repo, `{"start":"start","stop":"stop","query":"sort_by(.fields.title)"}`)
 	require.Contains(t, rowOf(page, stone), "│▓▓▒", "the trail ends with the chart")
 	require.NotContains(t, rowOf(page, bare), "▓")
+	require.Contains(t, rowOf(page, bare), "│"+strings.Repeat("░", 3*len(page.periods)), "the band spans the chart")
 
 	require.Equal(t, bare, page.current().id)
 	send(page, "space", "right")

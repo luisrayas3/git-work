@@ -10,13 +10,15 @@ import (
 )
 
 // The glyphs of the chart: a bar's done part and its rest, the envelope a
-// parent draws over its children when it has no dates of its own. Shades
-// rather than a solid block, so that the reversed cell under the cursor
-// still reads as part of the bar.
+// parent draws over its children when it has no dates of its own, and the
+// dull band of a row with no dates at all. Shades rather than a solid
+// block, so that the reversed cell under the cursor still reads as part of
+// the bar.
 const (
 	glyphDone     = "▓"
 	glyphRest     = "░"
 	glyphEnvelope = "═"
+	glyphDateless = "░"
 	glyphToday    = "▼"
 )
 
@@ -260,14 +262,23 @@ func (p *ganttPage) rowLine(index, labelWidth, visible int, under, grabbed bool,
 	case tint != nil:
 		barStyle = wash.Foreground(tint)
 	}
+	// the band of a row with no dates
+	bandStyle := barStyle.Faint(true)
+	if tint != nil && !grabbed {
+		bandStyle = barStyle.Foreground(dull(tint))
+	}
 	for i := p.colOffset; i < p.colOffset+visible; i++ {
 		var text strings.Builder
+		style := barStyle
 		switch {
-		case ok && milestone:
+		case !ok:
+			text.WriteString(strings.Repeat(glyphDateless, w))
+			style = bandStyle
+		case milestone:
 			for k := 0; k < w; k++ {
 				text.WriteString(milestoneGlyph((i-first)*w+k, w, b.hasStart))
 			}
-		case !ok || i < first || i > last:
+		case i < first || i > last:
 			text.WriteString(strings.Repeat(" ", w))
 		case !own:
 			text.WriteString(strings.Repeat(glyphEnvelope, w))
@@ -280,12 +291,11 @@ func (p *ganttPage) rowLine(index, labelWidth, visible int, under, grabbed bool,
 				}
 			}
 		}
-		style := barStyle
 		switch {
 		case under && i == p.col:
 			style = styleCell
 		case i == p.col:
-			style = barStyle.Background(styleRow().GetBackground())
+			style = style.Background(styleRow().GetBackground())
 		}
 		parts = append(parts, style.Render(text.String()))
 	}
@@ -309,6 +319,16 @@ func milestoneGlyph(pos, w int, start bool) string {
 		return milestoneTrail[distance]
 	}
 	return " "
+}
+
+// dull is a group's tint toward the background, for the band of a row
+// with no dates: short of the terminal's faint, which washes the hue out,
+// so the group still tells.
+func dull(tint color.Color) color.Color {
+	if darkBackground {
+		return lipgloss.Darken(tint, 0.35)
+	}
+	return lipgloss.Lighten(tint, 0.35)
 }
 
 // bottom is the filter when one is being typed, and the status line, which
