@@ -56,6 +56,10 @@ const (
 	Id ValueKind = "id"
 	// Query is a jq program over the array `git work issue` prints.
 	Query ValueKind = "query"
+	// ChildRelations is show's `children`: a list of
+	// {"type","relation","fields"} objects, each naming the relation on a
+	// child that holds the shown issue's id (children.go).
+	ChildRelations ValueKind = "child relations"
 )
 
 // Arg is one keyword argument of one view kind.
@@ -149,6 +153,8 @@ var Kinds = map[string][]Arg{
 			Doc: "the issue to show, by id prefix or alias"},
 		{Name: "fields", Tier: Defaulted, Kind: FieldKeys,
 			Doc: "the fields shown, in order; the type's fields in schema order by default"},
+		{Name: "children", Tier: Feature, Kind: ChildRelations,
+			Doc: `the issues pointing at this one, a section each, as [{"type":"task","relation":"parent","fields":["status"]}]; relation may be the inverse name instead, and type and fields may be left out`},
 	},
 }
 

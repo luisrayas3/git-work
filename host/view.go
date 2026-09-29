@@ -24,6 +24,18 @@ func View(ctx context.Context, repo *cache.RepoCache, renderer view.Renderer, ki
 	if err != nil {
 		return nil, err
 	}
+	// what the table cannot check alone is checked against the live schema,
+	// here, so that every surface refuses a bad call the same way, and
+	// before it is drawn
+	if call.Has("children") {
+		s, err := repo.LoadSchema()
+		if err != nil {
+			return nil, err
+		}
+		if err := view.CheckSchema(call, s); err != nil {
+			return nil, err
+		}
+	}
 
 	if renderer == nil {
 		return nil, view.ErrNoTerminal

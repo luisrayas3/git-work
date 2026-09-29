@@ -273,6 +273,13 @@ Show is a header — type, title, `[ ] archived`, each a cell `Enter` edits or f
 then the fields table, the comment box, and description/comments/log tabs switched with ←/→;
 it opens in the comment box, and `↓` then `Enter` sends the comment
 (`Tab` skips the box whole; its buttons are reached from its text).
+Show's `children` lists the issues pointing at it, a section of table rows per entry,
+each child a link `Enter` follows:
+`git work view show '{"id":"<story>","children":[{"type":"task","relation":"parent","fields":["status"]}]}'`,
+where `relation` is the field on the child holding this issue's id, or its inverse name
+(`{"relation":"children"}` alone is every type's `parent`), `type` and `fields` optional;
+names are checked against the schema before anything draws
+(2026-09-29, `doc/design/terminal-renderer.md`, Show, Children).
 `Esc` (or vim's `q`, emacs's `C-g`) is always back;
 from the first view it parks on the call line, the query formatted under it
 (`query/jq.Format`, a pipe per line; `C-c` copies the whole `git work view …` command), and from there it quits;
