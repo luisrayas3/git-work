@@ -2,6 +2,8 @@ package tui
 
 import (
 	"encoding/json"
+	"image/color"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -490,4 +492,83 @@ func TestGanttOpensOnToday(t *testing.T) {
 	page = gantt(t, repo, `{"start":"start","stop":"stop","from":"2026-09-07"}`)
 	require.Equal(t, 0, page.colOffset)
 	require.Equal(t, 1, len(page.periods))
+}
+
+// TestGanttCursorCellReadsOnEitherBackground: the cell under the cursor is
+// a shade of the background with the terminal's own foreground, never
+// reversed, which on a light terminal was a black block over the glyph; on
+// a bar, a milestone and an empty period alike.
+func TestGanttCursorCellReadsOnEitherBackground(t *testing.T) {
+	repo := testRepo(t)
+	withDates(t, repo)
+	bar := newIssue(t, repo, map[string]any{"title": "a bar", "start": "2026-09-07", "stop": "2026-09-20"})
+	stone := newIssue(t, repo, map[string]any{"title": "b stone", "start": "2026-09-14"})
+
+	was := darkBackground
+	t.Cleanup(func() { darkBackground = was })
+
+	for _, dark := range []bool{false, true} {
+		darkBackground = dark
+		mark := "48;5;250m"
+		if dark {
+			mark = "48;5;240m"
+		}
+		page := gantt(t, repo, `{"start":"start","stop":"stop","from":"2026-09-07","to":"2026-10-11","query":"sort_by(.fields.title)"}`)
+		for _, at := range []struct {
+			name        string
+			row, col    int
+			id, covered string
+		}{
+			{"a bar", 0, 0, bar, "▓▓▓"},
+			{"an empty period", 0, 3, bar, "   "},
+			{"a milestone", 1, 1, stone, "▓▓▒"},
+		} {
+			page.cursor, page.col = at.row, at.col
+			var line string
+			for _, l := range strings.Split(page.View(), "\n") {
+				if strings.Contains(ansiPattern.ReplaceAllString(l, ""), at.id[:idWidth]) {
+					line = l
+				}
+			}
+			// what the mark covers, a milestone being styled a cell at a time
+			var covered strings.Builder
+			for _, m := range regexp.MustCompile(regexp.QuoteMeta("\x1b["+mark)+"([^\x1b]*)").FindAllStringSubmatch(line, -1) {
+				covered.WriteString(m[1])
+			}
+			require.Equal(t, at.covered, covered.String(), "dark=%v, on %s: %q", dark, at.name, line)
+			require.NotRegexp(t, `\x1b\[(\d+;)*7m`, line, "dark=%v, on %s: nothing reversed", dark, at.name)
+		}
+	}
+}
+
+// TestGanttCrosshairFollowsTheAnsweredBackground: the terminal's answer to
+// the background query, reaching the root, decides the crosshair's shade:
+// the period's wash down the other rows, the cursor row's across it and the
+// period's label are a light shade on a light terminal and a dark one on a
+// dark terminal, never the other's.
+func TestGanttCrosshairFollowsTheAnsweredBackground(t *testing.T) {
+	repo := testRepo(t)
+	withDates(t, repo)
+	newIssue(t, repo, map[string]any{"title": "a bar", "start": "2026-09-07", "stop": "2026-09-20"})
+	newIssue(t, repo, map[string]any{"title": "b other", "start": "2026-09-14", "stop": "2026-09-27"})
+
+	was := darkBackground
+	t.Cleanup(func() { darkBackground = was })
+
+	for _, answer := range []struct {
+		name        string
+		bg          color.Color
+		wash, wrong string
+	}{
+		{"light", color.RGBA{0xfd, 0xf6, 0xe3, 0xff}, "48;5;254m", "48;5;236m"},
+		{"dark", color.RGBA{0x1e, 0x1e, 0x1e, 0xff}, "48;5;236m", "48;5;254m"},
+	} {
+		g := gantt(t, repo, `{"start":"start","stop":"stop","from":"2026-09-07","to":"2026-10-11","query":"sort_by(.fields.title)"}`)
+		r := &root{pages: []page{g}, width: 120, height: 30}
+		r.Update(tea.BackgroundColorMsg{Color: answer.bg})
+
+		drawn := g.View()
+		require.Contains(t, drawn, answer.wash, "on a %s terminal", answer.name)
+		require.NotContains(t, drawn, answer.wrong, "on a %s terminal", answer.name)
+	}
 }

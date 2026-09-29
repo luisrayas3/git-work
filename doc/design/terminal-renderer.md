@@ -534,6 +534,10 @@ A bar has no cell inside it any more than a card has;
 what a gantt is for is moving bars.
 
 **The cursor is a cell**: a row and a period.
+It is drawn as a shade of the background a step past the row wash,
+in the terminal's own foreground, not reversed as a list's cell is:
+a reversed shade glyph, or an empty period, is a block of the foreground,
+which on a light terminal is black and hid what it covered (2026-09-29).
 `↑` and `↓` move between rows, every level of the tree,
 and keep the period, because a column is a date and the date is what
 the eye is on;
