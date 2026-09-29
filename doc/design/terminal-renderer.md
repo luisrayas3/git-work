@@ -609,9 +609,11 @@ a week starts on Monday, a quarter on its first month —
 and a bar covers every period it touches, its stop inclusive.
 A day or a week is three cells wide, a month or a quarter four:
 room for a day of the month, a month's name or a quarter's.
-The header is the periods' own labels,
-and over them the coarse ones where they change —
-the month over days and weeks, the year over months and quarters —
+The header is the periods' own labels —
+the day of the month, the ISO week number, the month's name, the quarter —
+and over them, dim, the coarse ones where they change —
+the month over days and weeks (a week's is its Monday's),
+the year over months and quarters —
 the first said whole and a change after it short,
 unless the year changed too.
 
