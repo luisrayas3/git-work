@@ -246,7 +246,7 @@ they keep a minimum width and scroll sideways to follow the cursor
 (2026-09-28, `doc/design/terminal-renderer.md`, Board).
 A gantt's cursor is a cell, a row and a period of `scale`
 (`day`, `week`, `month`, `quarter`; the chart is `from` to `to`, else the data's extent):
-`Enter` opens the row, `←`/`→` move a period, `↑`/`↓` a row keeping it, the period washed down the chart as the row is across it,
+`Enter` opens the row, `←`/`→` move a period, `↑`/`↓` a row keeping it, the period washed down the chart, group headers included, as the row is across it,
 `Space` grabs the bar with no rank needed and `←`/`→` shift it a period —
 on its first cell only `start` moves, on its last only `stop`, between them both,
 and a one-cell bar grows — `↑`/`↓` reorder it only with `rank` bound,

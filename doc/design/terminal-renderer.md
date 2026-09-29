@@ -623,7 +623,8 @@ the year over months and quarters —
 the first said whole and a change after it short,
 unless the year changed too.
 The cursor's period has the row wash down every row and on its label,
-a crosshair with the cursor row's.
+a crosshair with the cursor row's,
+and through a `group_by` header too, so the line is unbroken.
 
 **`group_by` makes a section per value of the root rows**,
 headed by the value as a cell draws it,
