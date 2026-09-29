@@ -250,7 +250,7 @@ A gantt's cursor is a cell, a row and a period of `scale`
 `Space` grabs the bar with no rank needed and `←`/`→` shift it a period —
 on its first cell only `start` moves, on its last only `stop`, between them both,
 and a one-cell bar grows — `↑`/`↓` reorder it only with `rank` bound,
-one drop is one commit, a row with one date is a milestone fading away from its date (a start to the right, a stop to the left), `group_by` gives each group a color and heads it as a cell draws the value,
+one drop is one commit, a row with one date is a milestone fading away from its date (a start to the right, a stop to the left) and a row with none a dull band, `group_by` gives each group a color and heads it as a cell draws the value,
 and `progress` fills the bar.
 `expand` nests the list and the gantt along a relation,
 the derived side (`children`) read through the stored one (`parent`),

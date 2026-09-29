@@ -579,7 +579,11 @@ a stop ends on its last and fades to the left, `░░▒▒▓▓`,
 the fade running into the neighboring periods.
 It had a diamond on the date too, dropped on 2026-09-29:
 the trail's dense end already marks it.
-A row with no dates has nothing to move, and says so.
+**A row with no dates is a dull band** across the whole chart, in its
+group's tint blended a third of the way to the background —
+the terminal's faint washed the hue out, so a group could not be told —
+so the row reads as unplanned rather than as missing;
+it has nothing to move, and says so.
 
 **A parent with no dates of its own draws the envelope of its children's**,
 folded or not, in a glyph of its own,
