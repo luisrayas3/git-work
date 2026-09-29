@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"image/color"
 	"strings"
 
 	"charm.land/lipgloss/v2"
@@ -20,6 +21,10 @@ const (
 	glyphMilestone = "◆"
 	glyphToday     = "▼"
 )
+
+// groupColors are the bars' colors, one per group in the order the groups
+// first appear, cycled; yellow is left out, being the grab's.
+var groupColors = []string{"4", "2", "5", "6", "1", "12", "10", "13", "14", "9"}
 
 func (p *ganttPage) View() string {
 	if p.help != nil {
@@ -151,20 +156,41 @@ func (p *ganttPage) headerLines(labelWidth, visible int) []string {
 
 // body draws every row, and says which line the cursor's row is on.
 func (p *ganttPage) body(labelWidth, visible int) (lines []string, cursorLine int) {
+	colors := p.groupColors()
 	group := ""
 	for at, index := range p.order {
 		node := &p.nodes[index]
 		// a group is the root's: its children follow it into the group
 		if p.groupBy != "" && node.level == 0 && node.group != group {
 			group = node.group
-			lines = append(lines, styleGroup.Render(fit(group, p.width)))
+			header := styleGroup
+			if tint, ok := colors[group]; ok {
+				header = header.Foreground(tint)
+			}
+			lines = append(lines, header.Render(fit(group, p.width)))
 		}
 		if at == p.cursor {
 			cursorLine = len(lines)
 		}
-		lines = append(lines, p.rowLine(index, labelWidth, visible, at == p.cursor, index == p.grabbed))
+		lines = append(lines, p.rowLine(index, labelWidth, visible, at == p.cursor, index == p.grabbed, colors[group]))
 	}
 	return lines, cursorLine
+}
+
+// groupColors gives each group but the ungrouped a color, in the order the
+// groups' roots are stored rather than drawn, so a filter keeps them.
+func (p *ganttPage) groupColors() map[string]color.Color {
+	colors := map[string]color.Color{}
+	if p.groupBy == "" {
+		return colors
+	}
+	for _, node := range p.nodes {
+		if _, seen := colors[node.group]; seen || node.level != 0 || node.group == noGroup {
+			continue
+		}
+		colors[node.group] = lipgloss.Color(groupColors[len(colors)%len(groupColors)])
+	}
+	return colors
 }
 
 // rowLine draws one row: the marker, the tree's indent, the short id and
@@ -174,8 +200,9 @@ func (p *ganttPage) body(labelWidth, visible int) (lines []string, cursorLine in
 // under the cursor reversed, as a list's row and cell are; the grabbed bar
 // is drawn in the grab colour with the blinking marker. Every piece is
 // styled on its own, because a style ends in a reset and a reset inside
-// the line would end the wash.
-func (p *ganttPage) rowLine(index, labelWidth, visible int, under, grabbed bool) string {
+// the line would end the wash. A bar is drawn in its group's tint, when it
+// has one.
+func (p *ganttPage) rowLine(index, labelWidth, visible int, under, grabbed bool, tint color.Color) string {
 	b, node := &p.bars[index], &p.nodes[index]
 	w := periodWidth(p.scale)
 	indent := p.indent()
@@ -214,8 +241,11 @@ func (p *ganttPage) rowLine(index, labelWidth, visible int, under, grabbed bool)
 		done = int(min(max(b.progress, 0), 1)*float64(cells) + 0.5)
 	}
 	barStyle := wash
-	if grabbed {
+	switch {
+	case grabbed:
 		barStyle = wash.Foreground(lipgloss.Color("3")).Bold(true)
+	case tint != nil:
+		barStyle = wash.Foreground(tint)
 	}
 	for i := p.colOffset; i < p.colOffset+visible; i++ {
 		var text strings.Builder

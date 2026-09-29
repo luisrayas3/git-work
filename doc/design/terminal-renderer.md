@@ -614,6 +614,9 @@ unless the year changed too.
 **`group_by` makes a section per value of the root rows**,
 headed by the value as a cell draws it,
 so a relation's group is the issue it names, `13e21c6 north`.
+Each group's bars and header take a color of their own,
+given in the order the groups are stored so a filter keeps them,
+yellow left to the grab and the ungrouped left plain.
 
 ## Show
 
