@@ -616,6 +616,8 @@ the month over days and weeks (a week's is its Monday's),
 the year over months and quarters —
 the first said whole and a change after it short,
 unless the year changed too.
+The cursor's period has the row wash down every row and on its label,
+a crosshair with the cursor row's.
 
 **`group_by` makes a section per value of the root rows**,
 headed by the value as a cell draws it,

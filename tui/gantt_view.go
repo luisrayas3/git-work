@@ -153,7 +153,16 @@ func (p *ganttPage) headerLines(labelWidth, visible int) []string {
 
 	first := pad("", labelWidth) + styleDim.Render(sep) + styleDim.Render(fit(string(coarse), chart))
 	idHeader := styleHeader.Render(pad(strings.Repeat(" ", 1+p.indent())+"id", labelWidth))
-	second := idHeader + styleDim.Render(sep) + styleHeader.Render(pad(strings.Join(fine, ""), chart-len(more))) + more
+	labels := make([]string, 0, len(fine)+1)
+	for n, label := range fine {
+		style := styleHeader
+		if p.colOffset+n == p.col {
+			style = style.Background(styleRow().GetBackground())
+		}
+		labels = append(labels, style.Render(label))
+	}
+	labels = append(labels, strings.Repeat(" ", max(chart-len(more)-len(fine)*w, 0)))
+	second := idHeader + styleDim.Render(sep) + strings.Join(labels, "") + more
 	third := styleDim.Render(strings.Repeat("─", labelWidth) + "┼" + string(rule))
 	return []string{fit(first, p.width), fit(second, p.width), fit(third, p.width)}
 }
@@ -201,7 +210,8 @@ func (p *ganttPage) groupColors() map[string]color.Color {
 // the label, then the chart, a cell per period.
 //
 // The row under the cursor has the light wash over its width and the cell
-// under the cursor reversed, as a list's row and cell are; the grabbed bar
+// under the cursor reversed, as a list's row and cell are, and the cursor's
+// period has the wash down every row, a crosshair; the grabbed bar
 // is drawn in the grab colour with the blinking marker. Every piece is
 // styled on its own, because a style ends in a reset and a reset inside
 // the line would end the wash. A bar is drawn in its group's tint, when it
@@ -272,8 +282,11 @@ func (p *ganttPage) rowLine(index, labelWidth, visible int, under, grabbed bool,
 			}
 		}
 		style := barStyle
-		if under && i == p.col {
+		switch {
+		case under && i == p.col:
 			style = styleCell
+		case i == p.col:
+			style = barStyle.Background(styleRow().GetBackground())
 		}
 		parts = append(parts, style.Render(text.String()))
 	}
