@@ -24,7 +24,8 @@ const (
 
 // milestoneTrail is a milestone, an issue with one date and not the other:
 // it starts on the date's cell and fades away from it, toward the side its
-// missing date would be: left of a stop, right of a start.
+// missing date would be: left of a stop, right of a start. Past the trail
+// that side is the dateless band, as far as the chart goes.
 var milestoneTrail = []string{"▓", "▓", "▒", "▒", "░", "░"}
 
 // groupColors are the bars' colors, one per group in the order the groups
@@ -278,10 +279,21 @@ func (p *ganttPage) rowLine(index, labelWidth, visible int, under, grabbed bool,
 	case tint != nil:
 		barStyle = wash.Foreground(tint)
 	}
-	// the band of a row with no dates
+	// the band of a row with no dates, and of a milestone's open side
 	bandStyle := barStyle.Faint(true)
 	if tint != nil && !grabbed {
 		bandStyle = barStyle.Foreground(dull(tint))
+	}
+	// on the cursor's period the cell is reversed on the cursor's row and
+	// washed on every other
+	cursor := func(i int, style lipgloss.Style) lipgloss.Style {
+		switch {
+		case under && i == p.col:
+			return styleCell
+		case i == p.col:
+			return style.Background(styleRow().GetBackground())
+		}
+		return style
 	}
 	for i := p.colOffset; i < p.colOffset+visible; i++ {
 		var text strings.Builder
@@ -291,9 +303,16 @@ func (p *ganttPage) rowLine(index, labelWidth, visible int, under, grabbed bool,
 			text.WriteString(strings.Repeat(glyphDateless, w))
 			style = bandStyle
 		case milestone:
+			// a cell at a time: the trail is the bar's, the rest the band's
 			for k := 0; k < w; k++ {
-				text.WriteString(milestoneGlyph((i-first)*w+k, w, b.hasStart))
+				glyph, band := milestoneGlyph((i-first)*w+k, w, b.hasStart)
+				cell := barStyle
+				if band {
+					cell = bandStyle
+				}
+				parts = append(parts, cursor(i, cell).Render(glyph))
 			}
+			continue
 		case i < first || i > last:
 			text.WriteString(strings.Repeat(" ", w))
 		case !own:
@@ -307,13 +326,7 @@ func (p *ganttPage) rowLine(index, labelWidth, visible int, under, grabbed bool,
 				}
 			}
 		}
-		switch {
-		case under && i == p.col:
-			style = styleCell
-		case i == p.col:
-			style = style.Background(styleRow().GetBackground())
-		}
-		parts = append(parts, style.Render(text.String()))
+		parts = append(parts, cursor(i, style).Render(text.String()))
 	}
 
 	used := labelWidth + 1 + visible*w
@@ -325,16 +338,21 @@ func (p *ganttPage) rowLine(index, labelWidth, visible int, under, grabbed bool,
 
 // milestoneGlyph is the character at pos cells from the start of a
 // milestone's period: the trail starts on the period's first cell for a
-// start, its last for a stop, and fades away from it into the neighbors.
-func milestoneGlyph(pos, w int, start bool) string {
+// start, its last for a stop, and fades away from it into the neighbors,
+// then runs on as the band to the chart's edge, the side its missing date
+// leaves open.
+func milestoneGlyph(pos, w int, start bool) (glyph string, band bool) {
 	distance := pos
 	if !start {
 		distance = w - 1 - pos
 	}
-	if distance >= 0 && distance < len(milestoneTrail) {
-		return milestoneTrail[distance]
+	switch {
+	case distance < 0:
+		return " ", false
+	case distance < len(milestoneTrail):
+		return milestoneTrail[distance], false
 	}
-	return " "
+	return glyphDateless, true
 }
 
 // dull is a group's tint toward the background, for the band of a row

@@ -409,17 +409,18 @@ func TestGanttGroupsEnterAndCopy(t *testing.T) {
 }
 
 // TestGanttMilestonesTrailAwayFromTheirDate: a start fades from its date to
-// its right, a stop to its left, into the neighboring periods.
+// its right, a stop to its left, into the neighboring periods, and the band
+// runs on from the fade to the chart's edge on that side.
 func TestGanttMilestonesTrailAwayFromTheirDate(t *testing.T) {
 	repo := testRepo(t)
 	withDates(t, repo)
-	newIssue(t, repo, map[string]any{"title": "the span", "start": "2026-09-07", "stop": "2026-09-27"})
+	newIssue(t, repo, map[string]any{"title": "the span", "start": "2026-09-07", "stop": "2026-10-25"})
 	begins := newIssue(t, repo, map[string]any{"title": "begins", "start": "2026-09-14"})
-	ends := newIssue(t, repo, map[string]any{"title": "ends", "stop": "2026-09-14"})
+	ends := newIssue(t, repo, map[string]any{"title": "ends", "stop": "2026-09-28"})
 
 	page := gantt(t, repo, `{"start":"start","stop":"stop","from":"2026-09-07"}`)
-	require.Contains(t, rowOf(page, begins), "│   ▓▓▒▒░░")
-	require.Contains(t, rowOf(page, ends), "│░░▒▒▓▓")
+	require.True(t, strings.HasSuffix(rowOf(page, begins), "│   ▓▓▒▒░░"+strings.Repeat("░", 12)), rowOf(page, begins))
+	require.True(t, strings.HasSuffix(strings.TrimRight(rowOf(page, ends), " "), "│"+strings.Repeat("░", 6)+"░░▒▒▓▓"), rowOf(page, ends))
 }
 
 // TestGanttGroupsByRelationTitleAndTint: a relation's group is headed by the
