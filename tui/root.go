@@ -87,7 +87,11 @@ func (r *root) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 	case tea.BackgroundColorMsg:
-		darkBackground = msg.IsDark()
+		// an answer that does not parse carries no color, and IsDark calls
+		// that dark: it is no answer, and the guess stands
+		if msg.Color != nil {
+			darkBackground = msg.IsDark()
+		}
 		return r, r.broadcast(msg)
 
 	case pushMsg:

@@ -35,6 +35,20 @@ func styleRow() lipgloss.Style {
 	return lipgloss.NewStyle().Background(lipgloss.Color("254"))
 }
 
+// styleMark is the cell under the cursor where the cell is a picture and
+// not text, a gantt period: a shade of the background a step past the
+// wash, under the terminal's own foreground. Reversed, as a list's text
+// cell is, a shade glyph or an empty period becomes a block of the
+// terminal's foreground, which on a light terminal is black and hides what
+// it covers; a shade keeps the glyph as it is, in the one foreground that
+// reads on it whichever way the background goes.
+func styleMark() lipgloss.Style {
+	if darkBackground {
+		return lipgloss.NewStyle().Background(lipgloss.Color("240"))
+	}
+	return lipgloss.NewStyle().Background(lipgloss.Color("250"))
+}
+
 // styleTitle is the issue's title on show: as large as a terminal allows,
 // which is bold, in the terminal's own foreground, over a rule.
 var styleTitle = lipgloss.NewStyle().Bold(true)

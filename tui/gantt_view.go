@@ -227,8 +227,8 @@ func (p *ganttPage) groupColors() map[string]color.Color {
 // rowLine draws one row: the marker, the tree's indent, the short id and
 // the label, then the chart, a cell per period.
 //
-// The row under the cursor has the light wash over its width and the cell
-// under the cursor reversed, as a list's row and cell are, and the cursor's
+// The row under the cursor has the light wash over its width, as a list's
+// row has, the cell under the cursor a stronger shade (styleMark), and the cursor's
 // period has the wash down every row, a crosshair; the grabbed bar
 // is drawn in the grab colour with the blinking marker. Every piece is
 // styled on its own, because a style ends in a reset and a reset inside
@@ -284,12 +284,13 @@ func (p *ganttPage) rowLine(index, labelWidth, visible int, under, grabbed bool,
 	if tint != nil && !grabbed {
 		bandStyle = barStyle.Foreground(dull(tint))
 	}
-	// on the cursor's period the cell is reversed on the cursor's row and
-	// washed on every other
+	// on the cursor's period the cell is marked on the cursor's row and
+	// washed on every other; the mark drops the tint, the grab's colour and
+	// the faint, so what it covers is the terminal's foreground on the mark
 	cursor := func(i int, style lipgloss.Style) lipgloss.Style {
 		switch {
 		case under && i == p.col:
-			return styleCell
+			return styleMark()
 		case i == p.col:
 			return style.Background(styleRow().GetBackground())
 		}
