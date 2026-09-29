@@ -227,8 +227,7 @@ func TestGanttMilestonesAndDatelessRows(t *testing.T) {
 	bare := newIssue(t, repo, map[string]any{"title": "someday"})
 
 	page := gantt(t, repo, `{"start":"start","stop":"stop","query":"sort_by(.fields.title)"}`)
-	require.Contains(t, rowOf(page, stone), "◆")
-	require.NotContains(t, rowOf(page, bare), "◆")
+	require.Contains(t, rowOf(page, stone), "│▓▓▒", "the trail ends with the chart")
 	require.NotContains(t, rowOf(page, bare), "▓")
 
 	require.Equal(t, bare, page.current().id)
@@ -407,8 +406,8 @@ func TestGanttGroupsEnterAndCopy(t *testing.T) {
 	require.Equal(t, "nothing to paste into", page.status)
 }
 
-// TestGanttMilestonesTrailAwayFromTheirDate: a start's diamond fades to its
-// right, a stop's to its left, into the neighboring periods.
+// TestGanttMilestonesTrailAwayFromTheirDate: a start fades from its date to
+// its right, a stop to its left, into the neighboring periods.
 func TestGanttMilestonesTrailAwayFromTheirDate(t *testing.T) {
 	repo := testRepo(t)
 	withDates(t, repo)
@@ -417,8 +416,8 @@ func TestGanttMilestonesTrailAwayFromTheirDate(t *testing.T) {
 	ends := newIssue(t, repo, map[string]any{"title": "ends", "stop": "2026-09-14"})
 
 	page := gantt(t, repo, `{"start":"start","stop":"stop"}`)
-	require.Contains(t, rowOf(page, begins), "│   ◆▓▒░  ")
-	require.Contains(t, rowOf(page, ends), "│  ░▒▓◆   ")
+	require.Contains(t, rowOf(page, begins), "│   ▓▓▒▒░░")
+	require.Contains(t, rowOf(page, ends), "│░░▒▒▓▓")
 }
 
 // TestGanttGroupsByRelationTitleAndTint: a relation's group is headed by the
