@@ -571,12 +571,14 @@ left, and a month added to the 31st normalizes once, at the write.
 A day stays a day and a time keeps its clock:
 `2026-09-08T10:00:00Z` moved a week is `2026-09-15T10:00:00Z`.
 
-**A row with one date is a milestone**, drawn as a diamond on its period,
+**A row with one date is a milestone**, a trail six cells long,
 and a grab moves the date it has.
-The diamond says which date it is:
-a start sits on its period's first cell and fades to the right,
-a stop on its last and fades to the left, `░▒▓◆`,
+The trail says which date it is:
+a start begins on its period's first cell and fades to the right, `▓▓▒▒░░`,
+a stop ends on its last and fades to the left, `░░▒▒▓▓`,
 the fade running into the neighboring periods.
+It had a diamond on the date too, dropped on 2026-09-29:
+the trail's dense end already marks it.
 A row with no dates has nothing to move, and says so.
 
 **A parent with no dates of its own draws the envelope of its children's**,

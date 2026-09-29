@@ -10,21 +10,20 @@ import (
 )
 
 // The glyphs of the chart: a bar's done part and its rest, the envelope a
-// parent draws over its children when it has no dates of its own, and a
-// milestone, an issue with one date and not the other. Shades rather than
-// a solid block, so that the reversed cell under the cursor still reads as
-// part of the bar.
+// parent draws over its children when it has no dates of its own. Shades
+// rather than a solid block, so that the reversed cell under the cursor
+// still reads as part of the bar.
 const (
-	glyphDone      = "▓"
-	glyphRest      = "░"
-	glyphEnvelope  = "═"
-	glyphMilestone = "◆"
-	glyphToday     = "▼"
+	glyphDone     = "▓"
+	glyphRest     = "░"
+	glyphEnvelope = "═"
+	glyphToday    = "▼"
 )
 
-// milestoneTrail fades away from a milestone's diamond, toward the side its
+// milestoneTrail is a milestone, an issue with one date and not the other:
+// it starts on the date's cell and fades away from it, toward the side its
 // missing date would be: left of a stop, right of a start.
-var milestoneTrail = []string{"▓", "▒", "░"}
+var milestoneTrail = []string{"▓", "▓", "▒", "▒", "░", "░"}
 
 // groupColors are the bars' colors, one per group in the order the groups
 // first appear, cycled; yellow is left out, being the grab's.
@@ -299,18 +298,15 @@ func (p *ganttPage) rowLine(index, labelWidth, visible int, under, grabbed bool,
 }
 
 // milestoneGlyph is the character at pos cells from the start of a
-// milestone's period: the diamond on the period's first cell for a start,
-// its last for a stop, the trail fading away from it into the neighbors.
+// milestone's period: the trail starts on the period's first cell for a
+// start, its last for a stop, and fades away from it into the neighbors.
 func milestoneGlyph(pos, w int, start bool) string {
 	distance := pos
 	if !start {
 		distance = w - 1 - pos
 	}
-	switch {
-	case distance == 0:
-		return glyphMilestone
-	case distance > 0 && distance <= len(milestoneTrail):
-		return milestoneTrail[distance-1]
+	if distance >= 0 && distance < len(milestoneTrail) {
+		return milestoneTrail[distance]
 	}
 	return " "
 }
