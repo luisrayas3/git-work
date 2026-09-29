@@ -413,31 +413,6 @@ func TestEmacsSearchIsCtrlS(t *testing.T) {
 
 // TestNestingIsRefused is the one thing the table promises and the renderer
 // does not do: it is parsed, and then refused by name.
-func TestNestingIsRefused(t *testing.T) {
-	repo := testRepo(t)
-	renderer := &Renderer{}
-
-	call, err := view.Parse(view.KindList, map[string]json.RawMessage{"expand": json.RawMessage(`"parent"`)})
-	require.NoError(t, err)
-
-	_, err = renderer.Render(t.Context(), repo, call)
-	require.ErrorContains(t, err, "not nest rows yet (84dfbde)")
-	require.ErrorContains(t, err, "expand")
-}
-
-func TestGanttNamesTheRenderer(t *testing.T) {
-	repo := testRepo(t)
-	renderer := &Renderer{}
-
-	call, err := view.Parse(view.KindGantt, map[string]json.RawMessage{
-		"start": json.RawMessage(`"due"`), "stop": json.RawMessage(`"due"`),
-	})
-	require.NoError(t, err)
-
-	_, err = renderer.Render(t.Context(), repo, call)
-	require.ErrorContains(t, err, "does not draw a gantt yet (84dfbde)")
-}
-
 func indexOf(haystack, needle string) int {
 	for at := 0; at+len(needle) <= len(haystack); at++ {
 		if haystack[at:at+len(needle)] == needle {

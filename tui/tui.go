@@ -11,8 +11,10 @@
 // title edited here and a title set from the shell are the same operation
 // against the same write lock. Nothing here touches a ref.
 //
-// `list`, `show` and `board` are drawn today. A `gantt` fails naming this
-// renderer, so a view is never silently a different view than it says.
+// Every kind in the table is drawn: `list`, `show`, `board` and `gantt`, and
+// `expand` nests the list and the gantt. A kind the table grows that this
+// renderer does not draw fails naming it, so a view is never silently a
+// different view than it says.
 package tui
 
 import (
@@ -57,14 +59,6 @@ func New(out io.Writer) (*Renderer, bool) {
 // view is a question as much as a picture, and the deferred questions to the
 // user (choose, confirm, ask) will return what the user answered.
 func (r *Renderer) Render(ctx context.Context, repo *cache.RepoCache, call *view.Call) (json.RawMessage, error) {
-	// Nesting is in the argument table, and parsed, so that a script written
-	// against it fails on the renderer rather than on the spelling.
-	for _, arg := range []string{"expand", "depth"} {
-		if call.Has(arg) {
-			return nil, fmt.Errorf("the terminal renderer does not nest rows yet (84dfbde): %s", arg)
-		}
-	}
-
 	first, err := r.page(repo, call)
 	if err != nil {
 		return nil, err
@@ -117,8 +111,10 @@ func (r *Renderer) page(repo *cache.RepoCache, call *view.Call) (page, error) {
 		return newShowPage(repo, call.String("id"), call.Strings("fields"))
 	case view.KindBoard:
 		return newBoardPage(repo, call)
+	case view.KindGantt:
+		return newGanttPage(repo, call)
 	default:
-		return nil, fmt.Errorf("the terminal renderer does not draw a %s yet (84dfbde)", call.Kind)
+		return nil, fmt.Errorf("the terminal renderer does not draw a %s", call.Kind)
 	}
 }
 

@@ -83,9 +83,10 @@ func (p *listPage) statusLine() string {
 // line the cursor is on so the window can be scrolled to it.
 func (p *listPage) body() (header string, rows []string, cursorLine int) {
 	widths := p.widths()
+	indent := p.indent()
 
 	cells := make([]string, 0, len(p.fields)+1)
-	cells = append(cells, pad("id", idWidth))
+	cells = append(cells, pad("id", idWidth+indent))
 	for at, key := range p.fields {
 		cells = append(cells, pad(key, widths[at]))
 	}
@@ -94,17 +95,18 @@ func (p *listPage) body() (header string, rows []string, cursorLine int) {
 	cursorLine = 0
 	group := ""
 	for at, index := range p.order {
-		row := &p.rows[index]
+		row, node := &p.rows[index], &p.nodes[index]
 
-		if p.groupBy != "" && row.group != group {
-			group = row.group
+		// a group is the root's: its children follow it into the group
+		if p.groupBy != "" && node.level == 0 && node.group != group {
+			group = node.group
 			rows = append(rows, styleGroup.Render(fit(group, p.width)))
 		}
 
 		if at == p.cursor {
 			cursorLine = len(rows)
 		}
-		rows = append(rows, p.rowLine(row, widths, at == p.cursor, index == p.grabbed))
+		rows = append(rows, p.rowLine(row, node, widths, indent, at == p.cursor, index == p.grabbed))
 
 		for _, line := range p.detailLines(row) {
 			rows = append(rows, line)
@@ -120,8 +122,9 @@ func (p *listPage) body() (header string, rows []string, cursorLine int) {
 // says which issue; the cell under the column cursor is reversed within it,
 // which says that edit and copy act on that one. The id is a cell like the
 // others, and the one the cursor starts on. A cell that links other issues
-// is underlined, because enter follows it.
-func (p *listPage) rowLine(row *listRow, widths []int, under bool, grabbed bool) string {
+// is underlined, because enter follows it. A nested row's id sits behind
+// its level's indent and its fold marker (nestPrefix).
+func (p *listPage) rowLine(row *listRow, node *treeRow, widths []int, indent int, under bool, grabbed bool) string {
 	// every piece is styled on its own, the wash included: a style ends in
 	// a reset, and a reset inside the row would end the wash with it
 	wash := lipgloss.NewStyle()
@@ -129,8 +132,13 @@ func (p *listPage) rowLine(row *listRow, widths []int, under bool, grabbed bool)
 		wash = styleRow()
 	}
 
-	parts := make([]string, 0, 2*len(p.fields)+3)
-	id := pad(row.human, idWidth)
+	parts := make([]string, 0, 2*len(p.fields)+4)
+	prefix := ""
+	if indent > 0 {
+		prefix = nestPrefix(*node)
+		parts = append(parts, wash.Render(prefix))
+	}
+	id := pad(row.human, indent+idWidth-len([]rune(prefix)))
 	if under && p.column == 0 {
 		id = styleCell.Render(id)
 	} else {
@@ -138,7 +146,7 @@ func (p *listPage) rowLine(row *listRow, widths []int, under bool, grabbed bool)
 	}
 	parts = append(parts, id)
 
-	used := idWidth + 1
+	used := indent + idWidth + 1
 	for at, key := range p.fields {
 		parts = append(parts, wash.Render(" "))
 		text := truncate(row.cells[key], widths[at])
@@ -193,8 +201,14 @@ func (p *listPage) detailLines(row *listRow) []string {
 		return nil
 	}
 
-	indent := strings.Repeat(" ", idWidth+2)
+	indent := strings.Repeat(" ", p.indent()+idWidth+2)
 	return []string{styleDim.Render(fit(indent+strings.Join(parts, "  "), p.width))}
+}
+
+// indent is the room the tree takes before the id column, nothing when
+// `expand` is not bound.
+func (p *listPage) indent() int {
+	return indentOf(p.nodes, p.order, p.expandKey != "")
 }
 
 // widths sizes the field columns to what is in them, and then to the window.
@@ -213,7 +227,7 @@ func (p *listPage) widths() []int {
 	// space between columns. Over it, the widest column gives way first, so
 	// that a long title shrinks before a short status disappears; a column is
 	// never capped below that, so a wide window shows a whole title.
-	budget := p.width - idWidth - 2 - len(p.fields)
+	budget := p.width - p.indent() - idWidth - 2 - len(p.fields)
 	for budget > 0 && sum(widths) > budget {
 		widest := 0
 		for at := range widths {

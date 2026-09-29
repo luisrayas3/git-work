@@ -1,7 +1,6 @@
 package tui
 
 import (
-	"sort"
 	"strings"
 	"time"
 
@@ -20,19 +19,32 @@ import (
 //
 // The rows are the excerpts the query returned, verbatim, so what is drawn is
 // what `git work issue` prints and a jq program can be written against.
+// With `expand` bound they are a tree: a row's children along that relation
+// under it, to `depth` levels (nest.go).
 type listPage struct {
 	repo *cache.RepoCache
 
 	// the call as it was made, for the line that says what this view is, and
 	// unpacked once for everything else
-	call    *view.Call
-	query   string
-	fields  []string
-	details []string
-	groupBy string
-	rankKey string
+	call      *view.Call
+	query     string
+	fields    []string
+	details   []string
+	groupBy   string
+	expandKey string
+	depth     int
+	rankKey   string
+
+	// items is what the query returned last, kept so that folding a row
+	// rebuilds the tree without asking the store again
+	items []map[string]any
+	// folded is the rows folded shut, by id, across every rebuild.
+	folded map[string]bool
 
 	rows []listRow
+	// nodes is the tree the rows sit in, one per row: level, parent, group,
+	// rank, and the text the filter searches.
+	nodes []treeRow
 	// order indexes rows in the order they are drawn: filtered, grouped, and
 	// sorted within a group by (rank, id) where a rank is bound.
 	order []int
@@ -71,11 +83,6 @@ type listRow struct {
 	// holds, which enter follows
 	cells map[string]string
 	links map[string][]string
-
-	group string
-	rank  string
-	// text is everything the row draws, folded, for the filter to search.
-	text string
 }
 
 func (p *listPage) Call() (*view.Call, string, string) {
@@ -84,16 +91,19 @@ func (p *listPage) Call() (*view.Call, string, string) {
 
 func newListPage(repo *cache.RepoCache, call *view.Call) (*listPage, error) {
 	p := &listPage{
-		repo:    repo,
-		call:    call,
-		query:   call.String("query"),
-		fields:  call.Strings("fields"),
-		details: call.Strings("details"),
-		groupBy: call.String("group_by"),
-		rankKey: call.String("rank"),
-		width:   80,
-		height:  24,
-		grabbed: -1,
+		repo:      repo,
+		call:      call,
+		query:     call.String("query"),
+		fields:    call.Strings("fields"),
+		details:   call.Strings("details"),
+		groupBy:   call.String("group_by"),
+		expandKey: call.String("expand"),
+		depth:     nestDepth(call),
+		rankKey:   call.String("rank"),
+		folded:    map[string]bool{},
+		width:     80,
+		height:    24,
+		grabbed:   -1,
 	}
 	if len(p.fields) == 0 {
 		p.fields = []string{schema.TitleKey}
@@ -112,8 +122,6 @@ func newListPage(repo *cache.RepoCache, call *view.Call) (*listPage, error) {
 // whole of what the page knows, so there is nothing to reconcile: it is read
 // again, and the cursor is put back by id.
 func (p *listPage) load() error {
-	was := p.currentId()
-
 	values, err := host.IssueList(p.repo, p.query)
 	if err != nil {
 		return err
@@ -122,27 +130,39 @@ func (p *listPage) load() error {
 	// A query that returned something other than issues draws nothing: the
 	// list is a list of issues, and inventing rows out of whatever came back
 	// would be worse than an empty one.
-	items, _ := host.IssueItems(values)
+	p.items, _ = host.IssueItems(values)
+	p.rebuild()
+	return nil
+}
+
+// rebuild makes the rows out of the last query's items: the tree along
+// `expand`, then a row per node, then the drawing order.
+func (p *listPage) rebuild() {
+	was := p.currentId()
+
 	known := newKinds(p.repo)
-	p.rows = make([]listRow, 0, len(items))
-	for _, item := range items {
-		p.rows = append(p.rows, p.newRow(item, known))
+	tree := nest(p.repo, p.items, p.expandKey, p.depth, p.folded)
+	p.rows = make([]listRow, 0, len(tree))
+	p.nodes = make([]treeRow, 0, len(tree))
+	for _, n := range tree {
+		row, node := p.newRow(n, known)
+		p.rows = append(p.rows, row)
+		p.nodes = append(p.nodes, node)
 	}
 
 	p.reorder()
 	p.putCursorOn(was)
-	return nil
 }
 
-func (p *listPage) newRow(item map[string]any, known *kinds) listRow {
-	fields, _ := item["fields"].(map[string]any)
+func (p *listPage) newRow(n nested, known *kinds) (listRow, treeRow) {
+	fields, _ := n.item["fields"].(map[string]any)
 	if fields == nil {
 		fields = map[string]any{}
 	}
 
 	row := listRow{
-		id:      host.StringOr(item["id"], ""),
-		human:   host.StringOr(item["human_id"], ""),
+		id:      n.id,
+		human:   host.StringOr(n.item["human_id"], ""),
 		typeKey: host.StringOr(fields[schema.TypeKey], ""),
 		fields:  fields,
 	}
@@ -165,14 +185,22 @@ func (p *listPage) newRow(item map[string]any, known *kinds) listRow {
 		row.cells[key] = plainValue(fields[key])
 	}
 
-	row.group = noGroup
+	node := treeRow{
+		id:       n.id,
+		parent:   n.parent,
+		level:    n.level,
+		children: n.children,
+		folded:   n.folded,
+		hidden:   n.hidden,
+		group:    noGroup,
+	}
 	if p.groupBy != "" {
 		if value := row.cells[p.groupBy]; value != "" {
-			row.group = value
+			node.group = value
 		}
 	}
 	if p.rankKey != "" {
-		row.rank = plainValue(fields[p.rankKey])
+		node.rank = plainValue(fields[p.rankKey])
 	}
 
 	var text strings.Builder
@@ -181,51 +209,16 @@ func (p *listPage) newRow(item map[string]any, known *kinds) listRow {
 		text.WriteString(" ")
 		text.WriteString(row.cells[key])
 	}
-	row.text = strings.ToLower(text.String())
+	node.text = strings.ToLower(text.String())
 
-	return row
+	return row, node
 }
 
 // reorder rebuilds the drawing order: the filter, then the groups in the
-// order they first appear with the ungrouped last, then the rank.
+// order they first appear with the ungrouped last, then the rank, each
+// subtree under its root (treeOrder).
 func (p *listPage) reorder() {
-	matching := make([]int, 0, len(p.rows))
-	needle := strings.ToLower(strings.TrimSpace(p.filter))
-	for at, row := range p.rows {
-		if needle == "" || strings.Contains(row.text, needle) {
-			matching = append(matching, at)
-		}
-	}
-
-	groups := make([]string, 0, 4)
-	members := make(map[string][]int, 4)
-	for _, at := range matching {
-		group := p.rows[at].group
-		if _, seen := members[group]; !seen {
-			groups = append(groups, group)
-		}
-		members[group] = append(members[group], at)
-	}
-	// the rows with no value for the grouping field come last: they are the
-	// ones nobody has filed yet, and they are what a session works through.
-	sort.SliceStable(groups, func(i, j int) bool {
-		return groups[j] == noGroup && groups[i] != noGroup
-	})
-
-	p.order = p.order[:0]
-	for _, group := range groups {
-		rows := members[group]
-		if p.rankKey != "" {
-			// (rank, id), never rank alone: that tie-break is what makes two
-			// concurrent drags both survive (441dcbb).
-			sort.SliceStable(rows, func(i, j int) bool {
-				left, right := p.rows[rows[i]], p.rows[rows[j]]
-				return lessByRank(left.rank, left.id, right.rank, right.id)
-			})
-		}
-		p.order = append(p.order, rows...)
-	}
-
+	p.order = treeOrder(p.nodes, p.filter, p.rankKey != "")
 	p.clamp()
 }
 
@@ -256,6 +249,14 @@ func (p *listPage) current() *listRow {
 		return nil
 	}
 	return &p.rows[p.order[p.cursor]]
+}
+
+// node is the tree row under the cursor.
+func (p *listPage) node() *treeRow {
+	if p.cursor < 0 || p.cursor >= len(p.order) {
+		return nil
+	}
+	return &p.nodes[p.order[p.cursor]]
 }
 
 // putCursorOn keeps the cursor on the issue it was on across a refresh,
@@ -346,9 +347,9 @@ func (p *listPage) key(press tea.KeyPressMsg) (page, tea.Cmd) {
 		return p, tea.Quit
 
 	case keys.up.matches(press):
-		p.move(-1)
+		p.moveAtLevel(-1)
 	case keys.down.matches(press):
-		p.move(1)
+		p.moveAtLevel(1)
 	case keys.pageUp.matches(press):
 		p.move(-p.rowsPerPage())
 	case keys.pageDn.matches(press):
@@ -362,6 +363,13 @@ func (p *listPage) key(press tea.KeyPressMsg) (page, tea.Cmd) {
 		p.column = max(0, p.column-1)
 	case keys.right.matches(press):
 		p.column = min(len(p.fields), p.column+1)
+
+	case keys.next.matches(press):
+		p.intoChild()
+	case keys.previous.matches(press):
+		p.toParent()
+	case keys.fold.matches(press):
+		p.toggleFold()
 
 	case keys.act.matches(press):
 		return p.act()
@@ -397,6 +405,62 @@ func (p *listPage) key(press tea.KeyPressMsg) (page, tea.Cmd) {
 
 func (p *listPage) move(by int) {
 	p.cursor = min(max(p.cursor+by, 0), max(len(p.order)-1, 0))
+}
+
+// moveAtLevel is up and down: between the rows at the cursor's own nesting
+// depth, so that a level reads as the list it is, and tab is the way down.
+// Without `expand` every row is at the root, and this is the next row.
+func (p *listPage) moveAtLevel(by int) {
+	node := p.node()
+	if node == nil {
+		return
+	}
+	for at := p.cursor + by; at >= 0 && at < len(p.order); at += by {
+		if p.nodes[p.order[at]].level == node.level {
+			p.cursor = at
+			return
+		}
+	}
+}
+
+// intoChild is tab: onto the row's first child, unfolding it on the way.
+func (p *listPage) intoChild() {
+	node := p.node()
+	if node == nil || node.children == 0 {
+		return
+	}
+	if node.folded {
+		p.folded[node.id] = false
+		p.rebuild()
+		node = p.node()
+	}
+	if at := p.cursor + 1; at < len(p.order) && p.nodes[p.order[at]].level == node.level+1 {
+		p.cursor = at
+	}
+}
+
+// toParent is shift-tab: onto the row this one is under.
+func (p *listPage) toParent() {
+	node := p.node()
+	if node == nil || node.level == 0 {
+		return
+	}
+	for at := p.cursor - 1; at >= 0; at-- {
+		if p.nodes[p.order[at]].level < node.level {
+			p.cursor = at
+			return
+		}
+	}
+}
+
+// toggleFold is z: a parent's children shown or hidden.
+func (p *listPage) toggleFold() {
+	node := p.node()
+	if node == nil || node.children == 0 {
+		return
+	}
+	p.folded[node.id] = !node.folded
+	p.rebuild()
 }
 
 // act is enter, the one action key: on the id it opens the issue, on a cell
@@ -651,18 +715,11 @@ func (p *listPage) updateGrab(press tea.KeyPressMsg) (page, tea.Cmd) {
 	return p, nil
 }
 
-// dragBy moves the grabbed row within its group, on the screen only: the key
-// is computed once, when it is dropped, so a drag of six rows is one write.
+// dragBy moves the grabbed row among its siblings — within its group and
+// its level, its own subtree with it — on the screen only: the key is
+// computed once, when it is dropped, so a drag of six rows is one write.
 func (p *listPage) dragBy(by int) {
-	to := p.cursor + by
-	if to < 0 || to >= len(p.order) {
-		return
-	}
-	if p.rows[p.order[to]].group != p.rows[p.grabbed].group {
-		return
-	}
-	p.order[p.cursor], p.order[to] = p.order[to], p.order[p.cursor]
-	p.cursor = to
+	p.cursor = moveBlock(p.nodes, p.order, p.cursor, by)
 }
 
 // drop writes the rank of the grabbed row: one key strictly between its new
@@ -671,7 +728,7 @@ func (p *listPage) drop() tea.Cmd {
 	row := &p.rows[p.grabbed]
 	p.grabbed = -1
 
-	lo, hi := p.neighbourRanks()
+	lo, hi := siblingRanks(p.nodes, p.order, p.cursor)
 	key, err := rank.Between(lo, hi)
 	if err != nil {
 		p.status = err.Error()
@@ -682,35 +739,6 @@ func (p *listPage) drop() tea.Cmd {
 	p.write(row.id, p.rankKey, issue.StringValue(key))
 	p.putCursorOn(row.id)
 	return nil
-}
-
-// neighbourRanks reads the ranks the dropped row has to land between.
-//
-// An empty string on either side is the end of the list, which is what
-// rank.Between takes for "before everything" and "after everything".
-func (p *listPage) neighbourRanks() (string, string) {
-	group := p.rows[p.order[p.cursor]].group
-
-	var lo, hi string
-	for at := p.cursor - 1; at >= 0; at-- {
-		if p.rows[p.order[at]].group != group {
-			break
-		}
-		if r := p.rows[p.order[at]].rank; r != "" {
-			lo = r
-			break
-		}
-	}
-	for at := p.cursor + 1; at < len(p.order); at++ {
-		if p.rows[p.order[at]].group != group {
-			break
-		}
-		if r := p.rows[p.order[at]].rank; r != "" {
-			hi = r
-			break
-		}
-	}
-	return lo, hi
 }
 
 func blinkTick() tea.Cmd {

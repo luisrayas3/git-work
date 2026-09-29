@@ -92,6 +92,7 @@ the recipes below use its keys.
 | Live list | `git work view list '{"fields":["type","status","priority","title"],"group_by":"status"}'` (TTY) |
 | Overview | `git work flow run overview` (TTY): open stories, open decisions and open tasks with no parent, grouped by type; `'{"group_by":"status"}'` regroups |
 | Board | `git work flow run board` (TTY): the same issues as a kanban, a column per open status, a swimlane per type; `'{"group_by":"area"}'` relanes |
+| Due dates | `git work view gantt '{"start":"due","stop":"due","query":"map(select(.fields.due != null))"}'` (TTY): the dated work as milestones on a week chart; `"expand":"children"` nests tasks under their stories |
 | Create | `git work issue new '{"fields":{"title":"…","type":"task","status":"to-do","priority":"medium","area":["cli"],"parent":"<story id>"},"body":"…"}'` → prints the id |
 | Show | `git work issue get <id>` · `--format text` |
 | Close / reopen | `git work issue set <id> '{"status":"done"}'` · `'{"status":"to-do"}'` |
@@ -199,8 +200,7 @@ and the command is the whole input:
 one KWARGS object, the same one the Starlark call takes,
 nothing on standard input and nothing printed
 (design in `doc/design/terminal-renderer.md`).
-`list`, `show` and `board` render in the terminal (`84dfbde`);
-`gantt` errors naming the renderer until it is built,
+Every kind renders in the terminal (`84dfbde`; the gantt and nesting `565d57a`),
 and `--gui` errors until the gui process exists (`8b06191`):
 
 | Action | Command |
@@ -237,6 +237,22 @@ Columns are `values` or the field's schema order off the types on the board,
 then the values the data has that are not listed, then `(none)`;
 they keep a minimum width and scroll sideways to follow the cursor
 (2026-09-28, `doc/design/terminal-renderer.md`, Board).
+A gantt's cursor is a cell, a row and a period of `scale`
+(`day`, `week`, `month`, `quarter`; the chart is `from` to `to`, else the data's extent):
+`Enter` opens the row, `←`/`→` move a period, `↑`/`↓` a row keeping it,
+`Space` grabs the bar with no rank needed and `←`/`→` shift it a period —
+on its first cell only `start` moves, on its last only `stop`, between them both,
+and a one-cell bar grows — `↑`/`↓` reorder it only with `rank` bound,
+one drop is one commit, a row with one date is a milestone,
+and `progress` fills the bar.
+`expand` nests the list and the gantt along a relation,
+the derived side (`children`) read through the stored one (`parent`),
+`depth` levels deep (1 unless named, `0` unlimited):
+the tree indents the id behind `▾`/`▸`, `z` folds,
+`Tab` goes into the first child and `S-Tab` up to the parent,
+a list's `↑`/`↓` stay on the level, a rank moves a row among its siblings with its subtree,
+and a parent with no dates draws its children's envelope on the gantt
+(2026-09-28, `doc/design/terminal-renderer.md`, Gantt and Nesting).
 `C-Enter` and `F2` are gone, because `C-Enter` is `Enter` on most terminals (2026-09-28).
 The terminal's own copy and paste keys stay the terminal's,
 `C-c`/`y`/`M-w` copy the cell under the cursor and `M-c`/`Y` the id

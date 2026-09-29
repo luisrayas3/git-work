@@ -1,0 +1,277 @@
+package tui
+
+import (
+	"fmt"
+	"strings"
+
+	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
+)
+
+// The glyphs of the chart: a bar's done part and its rest, the envelope a
+// parent draws over its children when it has no dates of its own, and a
+// milestone, an issue with one date and not the other. Shades rather than
+// a solid block, so that the reversed cell under the cursor still reads as
+// part of the bar.
+const (
+	glyphDone      = "▓"
+	glyphRest      = "░"
+	glyphEnvelope  = "═"
+	glyphMilestone = "◆"
+	glyphToday     = "▼"
+)
+
+func (p *ganttPage) View() string {
+	if p.help != nil {
+		return p.help.View(p.width)
+	}
+
+	bottom := p.bottom()
+	labelWidth, visible := p.layout()
+	header := p.headerLines(labelWidth, visible)
+	body, cursorLine := p.body(labelWidth, visible)
+
+	// one line for the call, the header, the rest for the chart, the bottom
+	// for whatever is open and the status line
+	room := max(p.height-1-len(header)-len(bottom), 1)
+	scroll(&p.top, cursorLine, room, len(body))
+
+	lines := make([]string, 0, p.height)
+	lines = append(lines, callLine(p.call, "", "", p.width))
+	lines = append(lines, header...)
+	for at := p.top; at < min(p.top+room, len(body)); at++ {
+		lines = append(lines, body[at])
+	}
+	for len(lines) < p.height-len(bottom) {
+		lines = append(lines, "")
+	}
+
+	return strings.Join(append(lines, bottom...), "\n")
+}
+
+// indent is the room the tree takes before the id, nothing when `expand`
+// is not bound.
+func (p *ganttPage) indent() int {
+	return indentOf(p.nodes, p.order, p.expandKey != "")
+}
+
+// layout sizes the label column to the labels, up to two fifths of the
+// window, gives the chart the rest, and says how many periods fit; the
+// chart scrolls sideways by whole periods so that the cursor's is on
+// screen, colOffset moving as the board's does.
+func (p *ganttPage) layout() (labelWidth, visible int) {
+	longest := 0
+	for _, index := range p.order {
+		longest = max(longest, ansi.StringWidth(p.bars[index].label))
+	}
+	// the marker, the tree's indent, the id, a space, the label
+	labelWidth = 1 + p.indent() + idWidth + 1 + longest
+	labelWidth = min(labelWidth, max(p.width*2/5, 1+p.indent()+idWidth+1+4))
+
+	w := periodWidth(p.scale)
+	chart := max(p.width-labelWidth-1, w)
+	visible = max(chart/w, 1)
+	if p.col < p.colOffset {
+		p.colOffset = p.col
+	}
+	if p.col >= p.colOffset+visible {
+		p.colOffset = p.col - visible + 1
+	}
+	p.colOffset = min(max(p.colOffset, 0), max(len(p.periods)-visible, 0))
+	return labelWidth, min(visible, len(p.periods))
+}
+
+// headerLines are the chart's header: the coarse labels, the month over
+// days and weeks and the year over months and quarters, said where they
+// change; the periods' own labels, with the id column's header; and the
+// rule, today's period marked on it. ‹ and › say there are periods off
+// screen.
+func (p *ganttPage) headerLines(labelWidth, visible int) []string {
+	w := periodWidth(p.scale)
+	chart := p.width - labelWidth - 1
+
+	fine := make([]string, 0, visible)
+	rule := []rune(strings.Repeat("─", chart))
+	now := p.index(today())
+
+	// the coarse labels: where the label changes, and over the first period
+	type mark struct {
+		at           int
+		whole, short string
+	}
+	var marks []mark
+	last := ""
+	for i := p.colOffset; i < p.colOffset+visible; i++ {
+		label, over, short := periodLabel(p.periods[i], p.scale)
+		if i == p.colOffset || over != last {
+			marks = append(marks, mark{at: (i - p.colOffset) * w, whole: over, short: short})
+		}
+		last = over
+		fine = append(fine, fmt.Sprintf("%*s ", w-1, label))
+		if i == now {
+			rule[(i-p.colOffset)*w] = []rune(glyphToday)[0]
+		}
+	}
+	// the first period's label gives way to a change right after it, which
+	// is the one worth reading; the first one written is whole, and a
+	// change after it short unless the year changed too
+	if len(marks) > 1 && marks[1].at <= len([]rune(marks[0].whole)) {
+		marks = marks[1:]
+	}
+	coarse := make([]rune, 0, chart)
+	for n, m := range marks {
+		text := m.whole
+		if n > 0 && m.whole[len(m.whole)-4:] == marks[n-1].whole[len(marks[n-1].whole)-4:] {
+			text = m.short
+		}
+		if m.at < len(coarse)+1 && n > 0 {
+			continue
+		}
+		for len(coarse) < m.at {
+			coarse = append(coarse, ' ')
+		}
+		coarse = append(coarse, []rune(text)...)
+	}
+
+	sep := "│"
+	if p.colOffset > 0 {
+		sep = "‹"
+	}
+	more := ""
+	if p.colOffset+visible < len(p.periods) {
+		more = "›"
+	}
+
+	first := pad("", labelWidth) + styleDim.Render(sep) + styleDim.Render(fit(string(coarse), chart))
+	idHeader := styleHeader.Render(pad(strings.Repeat(" ", 1+p.indent())+"id", labelWidth))
+	second := idHeader + styleDim.Render(sep) + styleHeader.Render(pad(strings.Join(fine, ""), chart-len(more))) + more
+	third := styleDim.Render(strings.Repeat("─", labelWidth) + "┼" + string(rule))
+	return []string{fit(first, p.width), fit(second, p.width), fit(third, p.width)}
+}
+
+// body draws every row, and says which line the cursor's row is on.
+func (p *ganttPage) body(labelWidth, visible int) (lines []string, cursorLine int) {
+	group := ""
+	for at, index := range p.order {
+		node := &p.nodes[index]
+		// a group is the root's: its children follow it into the group
+		if p.groupBy != "" && node.level == 0 && node.group != group {
+			group = node.group
+			lines = append(lines, styleGroup.Render(fit(group, p.width)))
+		}
+		if at == p.cursor {
+			cursorLine = len(lines)
+		}
+		lines = append(lines, p.rowLine(index, labelWidth, visible, at == p.cursor, index == p.grabbed))
+	}
+	return lines, cursorLine
+}
+
+// rowLine draws one row: the marker, the tree's indent, the short id and
+// the label, then the chart, a cell per period.
+//
+// The row under the cursor has the light wash over its width and the cell
+// under the cursor reversed, as a list's row and cell are; the grabbed bar
+// is drawn in the grab colour with the blinking marker. Every piece is
+// styled on its own, because a style ends in a reset and a reset inside
+// the line would end the wash.
+func (p *ganttPage) rowLine(index, labelWidth, visible int, under, grabbed bool) string {
+	b, node := &p.bars[index], &p.nodes[index]
+	w := periodWidth(p.scale)
+	indent := p.indent()
+
+	wash := lipgloss.NewStyle()
+	if under {
+		wash = styleRow()
+	}
+
+	marker := " "
+	switch {
+	case grabbed && p.blink:
+		marker = styleGrab.Render("[")
+	case grabbed:
+		marker = styleGrab.Render("⟨")
+	case under:
+		marker = wash.Render("›")
+	}
+
+	parts := []string{marker}
+	prefix := ""
+	if indent > 0 {
+		prefix = nestPrefix(*node)
+		parts = append(parts, wash.Render(prefix))
+	}
+	parts = append(parts, wash.Faint(true).Render(pad(b.human, indent+idWidth-len([]rune(prefix)))))
+	room := max(labelWidth-1-indent-idWidth-1, 0)
+	parts = append(parts, wash.Render(" "+pad(b.label, room)))
+	parts = append(parts, wash.Faint(true).Render("│"))
+
+	first, last, own, ok := p.span(index)
+	milestone := own && b.hasStart != b.hasStop
+	cells := (last - first + 1) * w
+	done := cells
+	if b.hasProgress {
+		done = int(min(max(b.progress, 0), 1)*float64(cells) + 0.5)
+	}
+	barStyle := wash
+	if grabbed {
+		barStyle = wash.Foreground(lipgloss.Color("3")).Bold(true)
+	}
+	for i := p.colOffset; i < p.colOffset+visible; i++ {
+		var text strings.Builder
+		switch {
+		case !ok || i < first || i > last:
+			text.WriteString(strings.Repeat(" ", w))
+		case milestone:
+			text.WriteString(pad(glyphMilestone, w))
+		case !own:
+			text.WriteString(strings.Repeat(glyphEnvelope, w))
+		default:
+			for k := 0; k < w; k++ {
+				if (i-first)*w+k < done {
+					text.WriteString(glyphDone)
+				} else {
+					text.WriteString(glyphRest)
+				}
+			}
+		}
+		style := barStyle
+		if under && i == p.col {
+			style = styleCell
+		}
+		parts = append(parts, style.Render(text.String()))
+	}
+
+	used := labelWidth + 1 + visible*w
+	if under && p.width > used {
+		parts = append(parts, wash.Render(strings.Repeat(" ", p.width-used)))
+	}
+	return fit(strings.Join(parts, ""), p.width)
+}
+
+// bottom is the filter when one is being typed, and the status line, which
+// is always the last line of the page.
+func (p *ganttPage) bottom() []string {
+	var lines []string
+	if p.filtering != nil {
+		lines = []string{fit("/"+p.filtering.View(), p.width)}
+	}
+	return append(lines, p.statusLine())
+}
+
+func (p *ganttPage) statusLine() string {
+	n := p.count()
+	count := fmt.Sprintf("%d issues", n)
+	if n == 1 {
+		count = "1 issue"
+	}
+	if p.filter != "" {
+		count = fmt.Sprintf("%d of %d issues · /%s", n, len(p.bars), p.filter)
+	}
+
+	left := p.status
+	if left == "" {
+		left = "? keys"
+	}
+	return styleStatus.Render(fit(left+" · "+count, p.width))
+}

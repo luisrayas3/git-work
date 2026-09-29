@@ -121,6 +121,7 @@ type keymap struct {
 	copy, copyId, paste   *chord
 	filter                *chord
 	grab                  *chord
+	fold                  *chord
 	nextTab, previousTab  *chord
 	help                  *chord
 	back                  *chord
@@ -176,7 +177,10 @@ var keys = keymap{
 
 	filter: newChord("filter", one("/"), one("/"), one("ctrl+s")),
 	grab:   newChord("grab / drop (move; rank to reorder)", one("space", " "), nil, nil),
-	help:   newChord("help", one("?"), nil, nil),
+	// z folds a nested row shut and open again; tab and shift-tab, the next
+	// and previous stop, are into the first child and up to the parent there
+	fold: newChord("fold / unfold (nested)", one("z"), nil, nil),
+	help: newChord("help", one("?"), nil, nil),
 	// Back is always back: out of a filter, out of an issue, and from the
 	// first view, twice, out of the program (doc/design/terminal-renderer.md).
 	back: newChord("back (twice at top: quit)", one("esc"), one("esc", "q"), one("esc", "ctrl+g")),
@@ -194,7 +198,7 @@ func helpRows() []*chord {
 		keys.next, keys.previous,
 		keys.act,
 		keys.copy, keys.copyId, keys.paste,
-		keys.filter, keys.grab, keys.nextTab, keys.previousTab,
+		keys.filter, keys.grab, keys.fold, keys.nextTab, keys.previousTab,
 		keys.back, keys.help, keys.quit,
 	}
 }

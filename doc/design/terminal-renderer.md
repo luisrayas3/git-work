@@ -16,9 +16,10 @@ without a second query language, a second data path, or a second lock.
 `ca81145` (the chat pin, folded in here).
 
 **Status:** decided 2026-09-24 (Luis); keys and `show` revised 2026-09-27 (Luis);
-the board decided and built 2026-09-28 (Luis).
-List and show landed 2026-09-24, the board 2026-09-28;
-gantt and nesting are the gantt story's (`00a63d9`).
+the board decided and built 2026-09-28 (Luis);
+the gantt and nesting decided and built 2026-09-28 (`565d57a`, the gantt story `00a63d9`).
+List and show landed 2026-09-24, the board, the gantt and nesting 2026-09-28;
+every kind in the table is drawn.
 This document revises `config-entity.md` E9,
 which is now the short form and points here.
 
@@ -298,7 +299,7 @@ What a direction means is the kind's business:
   the cursor is a cell, and the window scrolls to keep it visible.
 
 Nesting adds `Tab` into the first child, `Shift-Tab` to the parent,
-and `z` to fold and unfold — when nesting is built.
+and `z` to fold and unfold (built 2026-09-28, Nesting below).
 
 **Grab replaces every drag binding.**
 A terminal has no drag, and a modifier-plus-arrow vocabulary
@@ -328,7 +329,7 @@ The rest is the same on every kind:
 | Key | Action |
 | --- | --- |
 | `Enter` | open `show` for the issue under the cursor, or for the one a link cell names; `Esc` returns to the view where it was |
-| edit | edit the field under the cursor in place, or ask which field on a card or a bar |
+| edit | edit the field under the cursor in place; a card and a bar have no cell, and `Enter` opens them (Board, Gantt) |
 | copy | copy the cell under the cursor to the clipboard over OSC 52 |
 | `/` `C-s` | narrow the visible rows by text, locally |
 | `?` | list the keys |
@@ -499,6 +500,101 @@ so that the lanes stay aligned across the columns.
 `card` is not spelled on the call line, as `fields` is not:
 the cards are on the screen.
 
+## Gantt
+
+`gantt` is a list with a chart beside it:
+a row per issue, a bar from its `start` to its `stop`
+over a column per period of `scale` —
+a day, a week, a month or a quarter —
+and, with `expand`, rows under rows.
+Decided with the board's calls in hand, on 2026-09-28 (Luis),
+and built the same day (`565d57a`).
+
+**The only edits a gantt makes are moves**, as on a board.
+`Enter` on a row opens the issue in `show`,
+copy in every spelling copies the id,
+and a paste has nowhere to go and says so.
+A bar has no cell inside it any more than a card has;
+what a gantt is for is moving bars.
+
+**The cursor is a cell**: a row and a period.
+`↑` and `↓` move between rows, every level of the tree,
+and keep the period, because a column is a date and the date is what
+the eye is on;
+`←` and `→` move a period, and the chart scrolls sideways
+by whole periods to keep the cursor's on screen,
+`‹` and `›` at the ends of the header saying there is more.
+It opens on the first row, on the period its bar starts in,
+which is where a grab would move its start.
+
+**Grab needs no rank.** `Space` always grabs;
+`←` and `→` shift the bar by one period:
+on its first cell only `start` moves,
+on its last cell only `stop`,
+anywhere between them both, and the bar keeps its length.
+A bar of one cell grows rather than shifts —
+`←` moves its start, `→` its stop —
+because a one-cell bar is on its first cell and its last at once,
+and growing is the move a one-period bar needs most:
+shifting it is two moves, one on each edge.
+A start never passes its stop.
+The cursor moves with what moved, so it stays on the edge it is dragging.
+Only `↑` and `↓` need `rank`, as on a board,
+and without one they ring the bell and say *no rank*.
+The drop is one `set` with up to three keys, which is one commit:
+each date that moved, and the rank when one is bound and the row moved.
+A bar dropped where it was picked up writes nothing;
+`Esc` puts it back on its stored dates;
+and a refresh while a bar is grabbed lets it go,
+because the chart under it is no longer the one it was picked up from.
+
+**A shift is from the stored date, not from its period**:
+the drag counts periods, and the drop adds that many to the date
+as it was stored, so a bar dragged and dragged back lands on the day it
+left, and a month added to the 31st normalizes once, at the write.
+A day stays a day and a time keeps its clock:
+`2026-09-08T10:00:00Z` moved a week is `2026-09-15T10:00:00Z`.
+
+**A row with one date is a milestone**, drawn as a diamond on its period,
+and a grab moves the date it has.
+A row with no dates has nothing to move, and says so.
+
+**A parent with no dates of its own draws the envelope of its children's**,
+folded or not, in a glyph of its own,
+because a parent's row with nothing on it would say the story has no
+plan when its tasks are the plan.
+A parent with dates draws them: they are its own claim.
+
+**`label` is the row's label column**, not text on the bar.
+A title inside a two-week bar is three letters and an ellipsis,
+so the label sits to the left of the chart with the id,
+in a column sized to the labels up to two fifths of the window.
+
+**The chart's extent** is `from` to `to` when given,
+else the dates on the chart — the earliest start, or stop, to the latest —
+and today's period when nothing on it has a date;
+a chart of nothing is not nothing to stand on.
+Today's period is marked on the rule under the header.
+While a bar is dragged past the edge of a chart sized to the data,
+the chart grows with it.
+A `from` or `to` that is not a date is refused when the view opens,
+the way the schema refuses one on a write.
+
+**`progress`** names a number, 0 to 1, and fills that fraction of the
+bar's cells with the done glyph and the rest with the other;
+without it the whole bar is done, which is to say it is a bar.
+
+**Periods are whole**: the chart is aligned to the period —
+a week starts on Monday, a quarter on its first month —
+and a bar covers every period it touches, its stop inclusive.
+A day is three cells wide, every other period four:
+room for a day of the month, a month's name or a quarter's.
+The header is the periods' own labels,
+and over them the coarse ones where they change —
+the month over days and weeks, the year over months and quarters —
+the first said whole and a change after it short,
+unless the year changed too.
+
 ## Show
 
 `show` is a view kind like the others,
@@ -608,26 +704,50 @@ running the comment and then its action.
 
 ## Nesting
 
-Designed now, built after the migration,
-because the relation fields it walks arrive with the new entity.
+Designed 2026-09-24, built 2026-09-28 on the list and the gantt
+(`565d57a`), after the migration brought the relation fields it walks.
 
 `expand` names a relation field, and `depth` how far to follow it —
-default 1, unlimited allowed, cycles cut at the repeat.
+default 1, `0` for no limit, cycles cut at the repeat.
 The **query selects the roots**.
 A matched issue that is another matched issue's child
 shows nested under it, once, not twice;
 a child the query did not match still shows under its parent,
 because a parent's children are the reason to expand a parent.
 
+**`expand` names the relation whose targets nest under a row**,
+and the derived side of a stored relation resolves through it
+(2026-09-28, Luis): the inverse is never stored (`schema.yaml`, D4),
+so `expand=children` reads every issue whose `parent` names the row,
+and `expand=blocks` the targets of the row's own `blocks`.
+The children come off the whole store, not the query's result,
+in the store's order, and a bound `rank` orders them by `(rank, id)`.
+A row at the depth is a leaf, whatever is under it;
+`0` is unlimited because a depth of nothing is not naming `expand` at all.
+
 Every level uses the same `fields`, `details` and `group_by`.
 Uniform levels are what makes the columns line up,
 and a per-level projection is a feature nobody has asked for.
+A group is the root's: its children follow it into its group,
+and a rank moves a row among its siblings only, its subtree with it,
+so a story dragged past another carries its tasks.
+
+The tree is drawn as an indent before the id, two cells a level,
+behind a fold marker: `▾` open, `▸` folded, nothing on a leaf.
+`z` folds and unfolds; `Tab` goes into the first child,
+unfolding on the way, and `Shift-Tab` up to the parent.
+On a list `↑` and `↓` move between the rows at the cursor's own level,
+so a level reads as the list it is and `Tab` is the way down;
+on a gantt they move between every row, because the chart reads top to
+bottom. The filter keeps a row whose descendant matches,
+because a match needs its parent on the screen to be under.
 
 Gantt nests as **rows under rows**, not blocks within a row:
 children within a parent's row overlap as soon as two of them share a week,
 and a chart that overlaps is not a chart.
-A folded parent draws its own bar,
-or, when it has no dates of its own, the envelope of its children's.
+A parent draws its own bar,
+or, when it has no dates of its own, the envelope of its children's,
+folded or not (Gantt above).
 
 ## Deferred
 
@@ -677,7 +797,7 @@ The ref watcher is started when a view opens and stopped when it closes.
    Being built now, in parallel with this document.
 2. **The migration** (`bf6f392`),
    which deletes `entities/bug`, `commands/bug`, `termui` and gocui.
-3. **Board** — landed 2026-09-28 — **then gantt, then nesting.**
+3. **Board**, then **gantt**, then **nesting** — all landed 2026-09-28.
 
 Board before gantt because workflow 3 is the in-person kanban
 and a board is a list with a second axis;
