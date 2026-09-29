@@ -214,8 +214,8 @@ func TestShowFieldsAreATable(t *testing.T) {
 	require.Contains(t, plainView(updated), "copied "+id[:7])
 }
 
-// TestShowFollowsALink: a relation row is the issue it names, and enter on
-// it opens that issue.
+// TestShowFollowsALink: a relation row is the issue it names, and enter,
+// enter on it opens that issue.
 func TestShowFollowsALink(t *testing.T) {
 	repo := testRepo(t)
 	story := newIssue(t, repo, map[string]any{"type": "story", "title": "the story"})
@@ -226,7 +226,7 @@ func TestShowFollowsALink(t *testing.T) {
 	require.Contains(t, drawn, story[:7]+" the story")
 	require.NotContains(t, drawn, story)
 
-	page = send(page, "shift+tab").(*showPage)
+	page = send(page, "shift+tab", "enter").(*showPage)
 	_, cmd := page.Update(press("enter"))
 	require.NotNil(t, cmd)
 	require.Equal(t, story, cmd().(pushMsg).page.(*showPage).id)

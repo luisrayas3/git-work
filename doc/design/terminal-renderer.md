@@ -229,7 +229,8 @@ except `C-q`.
 (revised 2026-09-28, Luis).
 `Enter` does what the thing under the cursor is for:
 on a list's id column it opens the issue,
-on a link it follows it,
+on a link it opens the relation's picker on *go to* the issue it names
+(A relation is a link, below), so `Enter`, `Enter` follows it,
 on any other cell it edits it —
 a value list for an enum or a person,
 an input line for text, a number or a date,
@@ -328,7 +329,7 @@ The rest is the same on every kind:
 
 | Key | Action |
 | --- | --- |
-| `Enter` | open `show` for the issue under the cursor, or for the one a link cell names; `Esc` returns to the view where it was |
+| `Enter` | open `show` for the issue under the cursor; on a link cell, the relation's picker on *go to*, so `Enter` `Enter` opens the one it names; `Esc` returns to the view where it was |
 | edit | edit the field under the cursor in place; a card and a bar have no cell, and `Enter` opens them (Board, Gantt) |
 | copy | copy the cell under the cursor to the clipboard over OSC 52 |
 | `/` `C-s` | narrow the visible rows by text, locally |
@@ -344,8 +345,23 @@ the wash says which issue, the cell says which field.
 A field of kind `relation` or `multi-relation` holds the other issue's whole id,
 and nobody reads a 64-character hash,
 so it is drawn as the issue it names: short id and title, underlined.
-`Enter` on it opens that issue rather than the row's;
-a cell that names several asks which.
+**`Enter` on it selects, and `Enter` again follows it**
+(2026-09-29, Luis: double `Enter` is follow, single `Enter` is select).
+A link is also a value, and a cell that only followed could never be edited,
+while `←` and `→` are taken — columns on a list, tabs on `show` —
+and a new key for it is what the `Enter` section rules out.
+So the first `Enter` opens the relation's picker (below) at once,
+and its first entry is **go to**, `→ go to 3f2a1c9 Board story`,
+drawn as a link and ruled off from the values under it;
+the cursor opens there, so `Enter`, `Enter` is the follow that `Enter` alone was,
+and `↓` then `Enter` on any other issue sets the field.
+An intermediate *open / change* menu was drawn for an hour and dropped the same day:
+it was a question in front of every edit and every follow,
+where a picker that opens on *go to* answers both with the keys a picker already has.
+An empty relation has nothing to go to, and its picker has no such entry.
+`Esc` closes it having done nothing.
+The status line on a relation cell says what `Enter` does: *enter: go to · change*, or *enter: change* on an empty one.
+Board cards and gantt bars are not cells, and `Enter` still opens them.
 Copy on it copies the id, which is what another command takes.
 A link to an issue the store does not have yet is its short id alone.
 
@@ -372,8 +388,26 @@ A comment is written on `show`, where the issue it is about is on the screen
 Edit picks its widget from the schema kind:
 a value list for an enum, a toggle for a bool,
 an input line for text, number and date,
-an identity list for an identity.
-Editing a relation waits for questions to the user (choose), below.
+an identity list for an identity,
+an issue list for a relation.
+The issue list is the same value list, under the *go to* entry:
+the issues of the field's `target_types`, or every issue where it names none,
+last edited first as a list is, each drawn as a link is, short id and title,
+the issue itself and archived issues left out, and `(none)` last, which clears it;
+the current value is marked *● current* among them,
+and a paste of an id, whole or short, lands on that issue.
+**`/` narrows any value list** as it narrows a list:
+typed text keeps the choices whose label or id it is in — never *go to*, which is not a value —
+`Enter` keeps the narrowing and goes back to choosing, `Esc` drops it,
+and a picker draws ten choices at a time around the cursor,
+because an issue list is longer than a status list.
+`Enter` writes the id through `host` like any other edit, one commit,
+and the schema check still has the last word on `target_types`.
+A `multi-relation`'s picker is a *go to* per issue it names, set apart the same way,
+then `add / remove…`, which rings the bell for now, naming `git work issue add/remove`,
+and an empty one rings it at once:
+a list of checkboxes would commit the difference as adds and removes,
+and there is no one host call that commits both as one commit yet (2026-09-29).
 
 `/` is a local narrowing of what is drawn.
 It never writes, and it never changes the query —
@@ -710,7 +744,8 @@ The fields table is two columns, the key dim and the value,
 with no header row: a key and its value need no caption.
 A relation is a link here as on a list,
 and a `multi-relation` is a line per issue it names,
-so that each is a link the cursor can stand on and `Enter` can follow.
+so that each is a link the cursor can stand on;
+`Enter` opens the field's picker with the cursor on *go to* that line's issue.
 
 The tabs are drawn **as tabs**, under the comment box:
 boxes on a rule, the one drawn open into what is under it.

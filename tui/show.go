@@ -595,20 +595,21 @@ func (p *showPage) submitComment() tea.Cmd {
 }
 
 // act is enter, the one action key: it presses the button under the cursor,
-// follows the link under it, or edits the field under it — a bool, archived
-// included, flips at once (doc/design/terminal-renderer.md, 2026-09-28).
+// or edits the field under it — a bool, archived included, flips at once,
+// and a relation's picker opens on "go to" the issue the line names, so
+// enter, enter follows the link (doc/design/terminal-renderer.md, 2026-09-29).
 func (p *showPage) act(here position) tea.Cmd {
 	switch here.stop {
 	case stopBox:
 		return p.buttons[here.button].press(p)
 	case stopTabs:
 		return nil
-	case stopFields:
-		if row := p.currentRow(); row != nil && row.link != "" {
-			return p.follow(row.link)
-		}
 	}
-	return p.startEdit(p.field(), nil)
+	cmd := p.startEdit(p.field(), nil)
+	if row := p.currentRow(); row != nil && row.link != "" && p.editor != nil {
+		p.editor.goToFirst(row.link)
+	}
+	return cmd
 }
 
 // follow opens the issue a link names, over this one.
@@ -691,7 +692,7 @@ func (p *showPage) startEdit(fieldKey string, pasted *string) tea.Cmd {
 		return nil
 	}
 
-	ed, refusal, err := editable(p.repo, typeKey, fieldKey, current)
+	ed, refusal, err := editable(p.repo, p.id, typeKey, fieldKey, current)
 	switch {
 	case err != nil:
 		p.status = err.Error()
@@ -706,7 +707,6 @@ func (p *showPage) startEdit(fieldKey string, pasted *string) tea.Cmd {
 			return bell()
 		}
 	}
-	ed.issueId = p.id
 	p.editor = ed
 	p.status = ""
 	return nil
@@ -724,6 +724,13 @@ func (p *showPage) updateEditor(msg tea.Msg) (page, tea.Cmd) {
 		return p, nil
 	}
 
+	if id := ed.goTo(); id != "" {
+		return p, p.follow(id)
+	}
+	if refusal := ed.refusal(); refusal != "" {
+		p.status = refusal
+		return p, bell()
+	}
 	value, err := ed.Value()
 	if err != nil {
 		p.status = err.Error()
@@ -1026,6 +1033,12 @@ func (p *showPage) statusLine() string {
 		left = "? keys"
 		if p.inText() {
 			left = "↓ enter: send · tab: leave box"
+		}
+		if row := p.currentRow(); row != nil && p.editor == nil {
+			typeKey, _ := issue.String(p.snapshot.Fields[schema.TypeKey])
+			if kind, _ := fieldKind(p.repo, typeKey, row.key); isRelation(kind) {
+				left = relationHint(row.link != "")
+			}
 		}
 	}
 	return styleStatus.Render(fit(left, p.width))
