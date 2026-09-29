@@ -110,8 +110,8 @@ func TestGanttDrawsBarsBetweenStartAndStop(t *testing.T) {
 	require.Contains(t, lines[0], "stop=stop")
 	require.Contains(t, lines[1], "Sep 2026")
 	require.Contains(t, lines[2], "id")
-	for _, day := range []string{" 7 ", "14 ", "21 "} {
-		require.Contains(t, lines[2], day)
+	for _, week := range []string{"37 ", "38 ", "39 "} {
+		require.Contains(t, lines[2], week)
 	}
 	require.Contains(t, lines[3], "┼")
 	require.Contains(t, lines[3], "▼", "today's period is marked on the rule")
@@ -370,6 +370,12 @@ func TestGanttScalesAndExtent(t *testing.T) {
 	require.Equal(t, "2026-12-31", shiftText("2026-01-31", "month", 11))
 	require.Equal(t, "2026-07-01", periodStart(time.Date(2026, 8, 15, 0, 0, 0, 0, time.UTC), "quarter").Format(time.DateOnly))
 	require.Equal(t, "2026-09-21", periodStart(time.Date(2026, 9, 27, 0, 0, 0, 0, time.UTC), "week").Format(time.DateOnly))
+
+	fine, coarse, _ := periodLabel(time.Date(2026, 12, 28, 0, 0, 0, 0, time.UTC), "week")
+	require.Equal(t, "53", fine, "the ISO week, which 2026 has 53 of")
+	require.Equal(t, "Dec 2026", coarse)
+	fine, _, _ = periodLabel(time.Date(2027, 1, 4, 0, 0, 0, 0, time.UTC), "week")
+	require.Equal(t, "1", fine)
 }
 
 // TestGanttGroupsEnterAndCopy: group_by starts a section, enter opens the

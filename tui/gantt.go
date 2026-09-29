@@ -371,14 +371,18 @@ func periodWidth(scale string) int {
 	return 4
 }
 
-// periodLabel is a period's own label, the fine line of the header; coarse
-// is the label over it, said where it changes — the month over days and
-// weeks, the year over months and quarters — and short is the coarse label
-// without the year, for a change within one.
+// periodLabel is a period's own label, the fine line of the header — the
+// day of the month, the ISO week number, the month, the quarter; coarse is
+// the label over it, said where it changes — the month over days and
+// weeks (a week's being its Monday's), the year over months and quarters —
+// and short is the coarse label without the year, for a change within one.
 func periodLabel(t time.Time, scale string) (fine, coarse, short string) {
 	switch scale {
-	case "day", "week":
+	case "day":
 		return fmt.Sprintf("%d", t.Day()), t.Format("Jan 2006"), t.Format("Jan")
+	case "week":
+		_, week := t.ISOWeek()
+		return fmt.Sprintf("%d", week), t.Format("Jan 2006"), t.Format("Jan")
 	case "month":
 		return t.Format("Jan"), t.Format("2006"), t.Format("2006")
 	default:
