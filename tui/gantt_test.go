@@ -433,8 +433,10 @@ func TestGanttGroupsByRelationTitleAndTint(t *testing.T) {
 
 	page := gantt(t, repo, `{"start":"start","stop":"stop","group_by":"parent","query":"map(select(.fields.type == \"task\"))"}`)
 	drawn := plainView(page)
-	require.Contains(t, drawn, "\n"+north[:idWidth]+" north\n")
-	require.Contains(t, drawn, "\n"+south[:idWidth]+" south\n")
+	lines := strings.Split(drawn, "\n")
+	cross := strings.Index(lines[2], "│") + 1 + 3
+	require.Contains(t, lines, pad(north[:idWidth]+" north", cross), "the header runs to the crosshair's period")
+	require.Contains(t, lines, pad(south[:idWidth]+" south", cross))
 
 	colors := page.groupColors()
 	require.Len(t, colors, 2)

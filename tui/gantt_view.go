@@ -171,6 +171,8 @@ func (p *ganttPage) headerLines(labelWidth, visible int) []string {
 // body draws every row, and says which line the cursor's row is on.
 func (p *ganttPage) body(labelWidth, visible int) (lines []string, cursorLine int) {
 	colors := p.groupColors()
+	w := periodWidth(p.scale)
+	cross := labelWidth + 1 + (p.col-p.colOffset)*w
 	group := ""
 	for at, index := range p.order {
 		node := &p.nodes[index]
@@ -181,7 +183,14 @@ func (p *ganttPage) body(labelWidth, visible int) (lines []string, cursorLine in
 			if tint, ok := colors[group]; ok {
 				header = header.Foreground(tint)
 			}
-			lines = append(lines, header.Render(fit(group, p.width)))
+			// the crosshair runs through the header too, unbroken
+			text := pad(group, max(ansi.StringWidth(group), cross+w))
+			line := header.Render(ansi.Cut(text, 0, cross)) +
+				header.Background(styleRow().GetBackground()).Render(ansi.Cut(text, cross, cross+w))
+			if rest := ansi.Cut(text, cross+w, p.width); rest != "" {
+				line += header.Render(rest)
+			}
+			lines = append(lines, fit(line, p.width))
 		}
 		if at == p.cursor {
 			cursorLine = len(lines)
