@@ -110,7 +110,7 @@ func TestGanttDrawsBarsBetweenStartAndStop(t *testing.T) {
 	require.Contains(t, lines[0], "stop=stop")
 	require.Contains(t, lines[1], "Sep 2026")
 	require.Contains(t, lines[2], "id")
-	for _, day := range []string{"  7 ", " 14 ", " 21 "} {
+	for _, day := range []string{" 7 ", "14 ", "21 "} {
 		require.Contains(t, lines[2], day)
 	}
 	require.Contains(t, lines[3], "┼")
@@ -118,10 +118,10 @@ func TestGanttDrawsBarsBetweenStartAndStop(t *testing.T) {
 
 	require.Equal(t, 3, len(page.periods), "the chart is the data's extent, in weeks")
 	require.Contains(t, rowOf(page, a), "write the renderer")
-	require.Contains(t, rowOf(page, a), strings.Repeat("▓", 8), "two weeks of four cells")
-	require.NotContains(t, rowOf(page, a), strings.Repeat("▓", 9))
-	require.Contains(t, rowOf(page, b), strings.Repeat("▓", 4))
-	require.NotContains(t, rowOf(page, b), strings.Repeat("▓", 5))
+	require.Contains(t, rowOf(page, a), strings.Repeat("▓", 6), "two weeks of three cells")
+	require.NotContains(t, rowOf(page, a), strings.Repeat("▓", 7))
+	require.Contains(t, rowOf(page, b), strings.Repeat("▓", 3))
+	require.NotContains(t, rowOf(page, b), strings.Repeat("▓", 4))
 	require.Contains(t, drawn, "2 issues")
 }
 
@@ -247,7 +247,7 @@ func TestGanttProgressFillsTheBar(t *testing.T) {
 	id := newIssue(t, repo, map[string]any{"title": "half", "start": "2026-09-07", "stop": "2026-09-20", "progress": 0.5})
 
 	page := gantt(t, repo, `{"start":"start","stop":"stop","progress":"progress"}`)
-	require.Contains(t, rowOf(page, id), strings.Repeat("▓", 4)+strings.Repeat("░", 4))
+	require.Contains(t, rowOf(page, id), strings.Repeat("▓", 3)+strings.Repeat("░", 3))
 }
 
 // TestGanttGrabUpAndDownNeedsARank: reordering rows is a rank, so without
@@ -295,9 +295,9 @@ func TestGanttNestsRowsUnderRows(t *testing.T) {
 	drawn := plainView(page)
 	require.Contains(t, drawn, "3 issues")
 	require.Contains(t, rowOf(page, story), "▾")
-	require.Contains(t, rowOf(page, story), strings.Repeat("═", 12), "the envelope spans the three weeks")
+	require.Contains(t, rowOf(page, story), strings.Repeat("═", 9), "the envelope spans the three weeks")
 	require.Contains(t, rowOf(page, one), "  "+one[:idWidth], "a child is indented")
-	require.Contains(t, rowOf(page, one), "▓▓▓▓")
+	require.Contains(t, rowOf(page, one), "▓▓▓")
 	require.Equal(t, story, page.current().id)
 	require.Equal(t, 0, page.col, "the envelope starts the chart")
 
@@ -305,7 +305,7 @@ func TestGanttNestsRowsUnderRows(t *testing.T) {
 	drawn = plainView(page)
 	require.Contains(t, drawn, "1 issue")
 	require.Contains(t, rowOf(page, story), "▸")
-	require.Contains(t, rowOf(page, story), strings.Repeat("═", 12), "folded, the envelope stays")
+	require.Contains(t, rowOf(page, story), strings.Repeat("═", 9), "folded, the envelope stays")
 	require.Equal(t, "", rowOf(page, two))
 
 	send(page, "tab")

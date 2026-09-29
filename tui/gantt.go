@@ -365,7 +365,7 @@ func periodStart(t time.Time, scale string) time.Time {
 // periodWidth is how many cells one period is: room for a day of the
 // month, or a month's or a quarter's name.
 func periodWidth(scale string) int {
-	if scale == "day" {
+	if scale == "day" || scale == "week" {
 		return 3
 	}
 	return 4
