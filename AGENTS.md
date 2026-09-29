@@ -91,6 +91,7 @@ the recipes below use its keys.
 | One type | `git work issue 'map(select(.fields.type == "decision"))'` · by area: `select(.fields.area // [] \| index("cli"))` |
 | Live list | `git work view list '{"fields":["type","status","priority","title"],"group_by":"status"}'` (TTY) |
 | Overview | `git work flow run overview` (TTY): open stories, open decisions and open tasks with no parent, grouped by type; `'{"group_by":"status"}'` regroups |
+| Board | `git work flow run board` (TTY): the same issues as a kanban, a column per open status, a swimlane per type; `'{"group_by":"area"}'` relanes |
 | Create | `git work issue new '{"fields":{"title":"…","type":"task","status":"to-do","priority":"medium","area":["cli"],"parent":"<story id>"},"body":"…"}'` → prints the id |
 | Show | `git work issue get <id>` · `--format text` |
 | Close / reopen | `git work issue set <id> '{"status":"done"}'` · `'{"status":"to-do"}'` |
@@ -455,6 +456,8 @@ The first is `overview` (`b322a8e`):
 open stories, open decisions and open tasks with no parent,
 where open is the status category read from the schema at run time,
 never a status name.
+`board` is the same issues on a kanban,
+a column per open status and a swimlane per type.
 
 ## Working conventions
 
