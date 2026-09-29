@@ -611,6 +611,13 @@ func (p *showPage) act(here position) tea.Cmd {
 	case stopTabs:
 		return nil
 	}
+	if row := p.currentRow(); here.stop == stopFields && row != nil && row.derived {
+		// a child row has no field to change, so there is no picker to go through
+		if row.link == "" {
+			return bell()
+		}
+		return p.follow(row.link)
+	}
 	cmd := p.startEdit(p.field(), nil)
 	if row := p.currentRow(); row != nil && row.link != "" && p.editor != nil {
 		p.editor.goToFirst(row.link)
