@@ -22,6 +22,10 @@ const (
 	glyphToday     = "▼"
 )
 
+// milestoneTrail fades away from a milestone's diamond, toward the side its
+// missing date would be: left of a stop, right of a start.
+var milestoneTrail = []string{"▓", "▒", "░"}
+
 // groupColors are the bars' colors, one per group in the order the groups
 // first appear, cycled; yellow is left out, being the grab's.
 var groupColors = []string{"4", "2", "5", "6", "1", "12", "10", "13", "14", "9"}
@@ -250,10 +254,12 @@ func (p *ganttPage) rowLine(index, labelWidth, visible int, under, grabbed bool,
 	for i := p.colOffset; i < p.colOffset+visible; i++ {
 		var text strings.Builder
 		switch {
+		case ok && milestone:
+			for k := 0; k < w; k++ {
+				text.WriteString(milestoneGlyph((i-first)*w+k, w, b.hasStart))
+			}
 		case !ok || i < first || i > last:
 			text.WriteString(strings.Repeat(" ", w))
-		case milestone:
-			text.WriteString(pad(glyphMilestone, w))
 		case !own:
 			text.WriteString(strings.Repeat(glyphEnvelope, w))
 		default:
@@ -277,6 +283,23 @@ func (p *ganttPage) rowLine(index, labelWidth, visible int, under, grabbed bool,
 		parts = append(parts, wash.Render(strings.Repeat(" ", p.width-used)))
 	}
 	return fit(strings.Join(parts, ""), p.width)
+}
+
+// milestoneGlyph is the character at pos cells from the start of a
+// milestone's period: the diamond on the period's first cell for a start,
+// its last for a stop, the trail fading away from it into the neighbors.
+func milestoneGlyph(pos, w int, start bool) string {
+	distance := pos
+	if !start {
+		distance = w - 1 - pos
+	}
+	switch {
+	case distance == 0:
+		return glyphMilestone
+	case distance > 0 && distance <= len(milestoneTrail):
+		return milestoneTrail[distance-1]
+	}
+	return " "
 }
 
 // bottom is the filter when one is being typed, and the status line, which

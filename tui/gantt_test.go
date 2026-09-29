@@ -401,6 +401,20 @@ func TestGanttGroupsEnterAndCopy(t *testing.T) {
 	require.Equal(t, "nothing to paste into", page.status)
 }
 
+// TestGanttMilestonesTrailAwayFromTheirDate: a start's diamond fades to its
+// right, a stop's to its left, into the neighboring periods.
+func TestGanttMilestonesTrailAwayFromTheirDate(t *testing.T) {
+	repo := testRepo(t)
+	withDates(t, repo)
+	newIssue(t, repo, map[string]any{"title": "the span", "start": "2026-09-07", "stop": "2026-09-27"})
+	begins := newIssue(t, repo, map[string]any{"title": "begins", "start": "2026-09-14"})
+	ends := newIssue(t, repo, map[string]any{"title": "ends", "stop": "2026-09-14"})
+
+	page := gantt(t, repo, `{"start":"start","stop":"stop"}`)
+	require.Contains(t, rowOf(page, begins), "│   ◆▓▒░  ")
+	require.Contains(t, rowOf(page, ends), "│  ░▒▓◆   ")
+}
+
 // TestGanttGroupsByRelationTitleAndTint: a relation's group is headed by the
 // issue it names, and each group's bars get their own color.
 func TestGanttGroupsByRelationTitleAndTint(t *testing.T) {
