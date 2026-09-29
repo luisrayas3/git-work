@@ -603,7 +603,7 @@ without it the whole bar is done, which is to say it is a bar.
 **Periods are whole**: the chart is aligned to the period —
 a week starts on Monday, a quarter on its first month —
 and a bar covers every period it touches, its stop inclusive.
-A day is three cells wide, every other period four:
+A day or a week is three cells wide, a month or a quarter four:
 room for a day of the month, a month's name or a quarter's.
 The header is the periods' own labels,
 and over them the coarse ones where they change —
