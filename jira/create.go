@@ -280,7 +280,9 @@ func (e *engine) importIssue(jiraId string) error {
 		e.report(line)
 		return nil
 	}
-	line.Pending = append(line.Pending, e.admit(&plan, remote.Type, &Base{})...)
+	pending, off := e.admit(&plan, remote.Type, &Base{})
+	line.Pending = append(line.Pending, pending...)
+	line.OffSchema = append(line.OffSchema, off...)
 
 	fields, sets := map[string]issue.Value{}, map[string]itemSet{}
 	var head []localChange
@@ -311,7 +313,7 @@ func (e *engine) importIssue(jiraId string) error {
 	}
 	title, _ := issue.String(remote.Fields[issue.TitleKey])
 	body, _ := issue.String(remote.Fields[BodyKey])
-	ic, _, err := e.repo.Issues().NewRaw(e.author(remote.Reporter), created.Unix(), title, body, nil, fields,
+	ic, _, err := e.repo.Issues().NewRawShape(e.author(remote.Reporter), created.Unix(), title, body, nil, fields,
 		map[string]string{MetaId: ri.ID, MetaAlias: ri.Key, MetaSync: plan.Base.marshal()})
 	if err != nil {
 		return e.fail(line, err)

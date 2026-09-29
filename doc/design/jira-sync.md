@@ -552,8 +552,10 @@ comments are keyed `comment:<Jira id>`, or `comment:<op>` before one exists.
    `L′`, with the comments step 4 created paired from their `201`s,
    `plan₂ = merge(confirm(B′, R′), L′, fromIssue(R′), export=false)`; the
    ops are `plan₂`'s local changes, each pre-checked per key with the run's
-   checker (`admit`: a refused key keeps its old base and moves to `Retry`,
-   so `Update`'s own check never refuses the batch), the conflict note, the
+   checker (`admit`: a key the shape check refuses keeps its old base and
+   moves to `Retry`, so `UpdateShape`'s own check never refuses the batch; a
+   key only the policy check refuses is written and reported `off_schema`,
+   `doc/design/pull-schema-check.md`), the conflict note, the
    `SetMetadata`s for new pairings, and a marker when `plan₂`'s base differs
    from the current (JS8). Keys `plan₂` still wants to export are reported
    pending, not written.
@@ -598,7 +600,8 @@ key.
 | `POST` `201`, the `GET` after it fails | the id and key in hand | committed at once: `jira-id`, `alias:jira` and a `Fresh` marker; a linked issue, never in doubt; a 404 within `Settle` is pending, not gone (JS15) |
 | 4, refused (400) | Jira refused a key | pending every run until fixed on either side |
 | 4, no transition | status diverged | pending with the reason; a later Jira status change imports, with a conflict |
-| 6, schema check | a value the schema lacks | that key `Retry`, the rest commits |
+| 6, shape check | a value that does not fit its field's kind, or names nothing | that key `Retry`, the rest commits |
+| 6, policy check | an enum value or a relation's target the schema does not allow | written, reported `off_schema`; converged |
 | 6, lock timeout | nothing local | as "part of 4" |
 
 A local edit made after a crash on a key whose `PUT` landed becomes a double
@@ -678,8 +681,8 @@ the write lock's. `--dry-run` takes no lock.
 
 **Jira to local.** A search hit with no link and no property is imported:
 `merge(nil, empty, R)` decides it like any issue, the same pre-check as step 6
-(`admit`) drops what the schema refuses into `Retry`, and the admitted fields
-and body go to `Issues().NewRaw(reporter identity, created, summary,
+(`admit`) drops what the shape check refuses into `Retry`, and the admitted fields
+and body go to `Issues().NewRawShape(reporter identity, created, summary,
 description text, fields, {jira-id, alias:jira, jira-sync})` — the create op
 is the first marker. An empty set or a null is not stored. Comments follow in
 the ordinary step 6. A hit of an unmapped type is skipped silently, before any
@@ -845,7 +848,7 @@ run touched, left pending, skipped or failed on, then a summary.
 ```json
 {"schema":[{"action":"update","shape":"field","key":"task/status","id":"…","set":{"alias_jira/wont-do":"10005","values/wont-do":{…}}}]}
 {"issue":"0a4390dd…","jira":"PROJ-12","action":"updated","imported":{"status":"done","body":"First line of the new descrip…"},"exported":{"priority":"high"},"comments":{"imported":1,"exported":0,"edited":0,"tombstoned":0},"conflicts":[{"key":"assignee","local":"a3a2829…","jira":"5b10ac8d…"}],"pending":[{"key":"status","reason":"no transition from In Progress to In Review"}]}
-{"summary":{"imported":3,"created":1,"updated":7,"linked":0,"gone":0,"conflicts":1,"pending":1,"failed":0,"skipped":0,"unchanged":212,"cursor":"2026-09-28T21:02:00Z"}}
+{"summary":{"imported":3,"created":1,"updated":7,"linked":0,"gone":0,"conflicts":1,"pending":1,"off_schema":0,"failed":0,"skipped":0,"unchanged":212,"cursor":"2026-09-28T21:02:00Z"}}
 ```
 
 `action` is `imported` (new locally), `created` (new in Jira), `updated`,
@@ -863,6 +866,9 @@ the identities it did not write show as pending. `--format text` is one line
 per issue. Exit status is 0 when every issue synced or is only pending, 1
 when any failed, the run stopped early, deletes were held, or another run
 holds the lock (JS15). A pending key of `*` is the whole issue.
+`off_schema` lists the keys written that the schema's policy would refuse
+(`{"key","reason"}`, the reason the local check gives): they converge, and
+the next run is quiet (`doc/design/pull-schema-check.md`).
 
 ### JS23 — Failure classes
 

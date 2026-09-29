@@ -32,6 +32,7 @@ type Line struct {
 	Comments  *CommentCounts             `json:"comments,omitempty"`
 	Conflicts []Conflict                 `json:"conflicts,omitempty"`
 	Pending   []Skip                     `json:"pending,omitempty"`
+	OffSchema []Skip                     `json:"off_schema,omitempty"` // written; the schema's policy would refuse it
 	Error     string                     `json:"error,omitempty"`
 	DryRun    bool                       `json:"dry_run,omitempty"`
 	Summary   *Summary                   `json:"summary,omitempty"`
@@ -56,6 +57,7 @@ type Summary struct {
 	Gone      int       `json:"gone"`
 	Conflicts int       `json:"conflicts"`
 	Pending   int       `json:"pending"`
+	OffSchema int       `json:"off_schema"` // keys written that the schema's policy would refuse
 	Failed    int       `json:"failed"`
 	Skipped   int       `json:"skipped"`   // reported lines of action skipped
 	Unchanged int       `json:"unchanged"` // candidates with nothing to do, not reported
@@ -82,6 +84,7 @@ func (s *Summary) count(l Line) {
 	}
 	s.Conflicts += len(l.Conflicts)
 	s.Pending += len(l.Pending)
+	s.OffSchema += len(l.OffSchema)
 }
 
 // moved reports whether the line changed anything, on either side.

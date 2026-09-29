@@ -12,6 +12,7 @@ import (
 	"github.com/git-bug/git-bug/entities/issue"
 	"github.com/git-bug/git-bug/entity"
 	"github.com/git-bug/git-bug/jira/jiraapi"
+	"github.com/git-bug/git-bug/schema"
 )
 
 // ---- one issue (JS13) ----
@@ -201,7 +202,7 @@ func (e *engine) commit(ic *cache.IssueCache, b2 *Base, ri *jiraapi.Issue, cs []
 	}
 	decided := line
 	var retry bool
-	err := ic.Update(func(snap *issue.Snapshot) ([]issue.Operation, error) {
+	err := ic.UpdateShape(func(snap *issue.Snapshot) ([]issue.Operation, error) {
 		r := e.m.fromIssue(ri, cs, e.ix)
 		local := e.m.Local(snap, r.Type)
 		var paired []localChange
@@ -219,7 +220,9 @@ func (e *engine) commit(ic *cache.IssueCache, b2 *Base, ri *jiraapi.Issue, cs []
 		plan := merge(b, local, r, e.multi(r.Type), false)
 		plan.Local = append(plan.Local, paired...)
 		typ, _ := issue.String(snap.Fields[typeKey])
-		decided.Pending = append(decided.Pending, e.admit(&plan, typ, b)...)
+		pending, off := e.admit(&plan, typ, b)
+		decided.Pending = append(decided.Pending, pending...)
+		decided.OffSchema = append(decided.OffSchema, off...)
 		ops := e.ops(snap, plan, &decided, r)
 		if len(meta) > 0 {
 			ops = append(ops, issue.NewSetMetadataOp(e.me, e.now().Unix(), snap.Operations[0].Id(), meta))
@@ -260,42 +263,67 @@ func (e *engine) commit(ic *cache.IssueCache, b2 *Base, ri *jiraapi.Issue, cs []
 	return nil
 }
 
-// admit drops from plan.Local each field change the schema refuses, against
-// the type the plan leaves the issue with: the key keeps its prior base and
-// is retried (JS13 step 6), so Update's own check never refuses the batch.
-func (e *engine) admit(plan *mergePlan, typ string, prior *Base) []Skip {
+// admit drops from plan.Local each field change the shape check refuses,
+// against the type the plan leaves the issue with: the key keeps its prior
+// base and is retried (JS13 step 6), so UpdateShape's own check never refuses
+// the batch. A change only the policy check refuses — an enum value or a
+// relation's target the schema does not allow — is kept and returned as
+// off-schema: Jira is the authority on what Jira holds, and the derived
+// schema only approximates it (pull-schema-check.md).
+func (e *engine) admit(plan *mergePlan, typ string, prior *Base) (pending, offSchema []Skip) {
 	for _, lc := range plan.Local {
 		if lc.Kind == localSet && lc.Key == typeKey {
 			typ, _ = issue.String(lc.Value)
 		}
 	}
-	var skips []Skip
-	refused := map[string]bool{}
-	for _, lc := range plan.Local {
-		var err error
+	check := func(c *schema.Checker, lc localChange) error {
 		switch {
 		case !lc.isField():
+			return nil
 		case lc.Kind == localSet:
-			err = e.checker.CheckFields(typ, map[string]json.RawMessage{lc.Key: json.RawMessage(lc.Value)})
+			return c.CheckFields(typ, map[string]json.RawMessage{lc.Key: json.RawMessage(lc.Value)})
 		default:
-			err = e.checker.CheckItems(typ, map[string][]json.RawMessage{lc.Key: {json.RawMessage(lc.Value)}})
+			return c.CheckItems(typ, map[string][]json.RawMessage{lc.Key: {json.RawMessage(lc.Value)}})
 		}
-		if err == nil || refused[lc.Key] {
+	}
+	shape := e.checker.Shape()
+	refused, off := map[string]bool{}, map[string]bool{}
+	for _, lc := range plan.Local {
+		if refused[lc.Key] {
 			continue
 		}
-		refused[lc.Key] = true
-		restore(&plan.Base, prior, lc.Key)
-		plan.Base.Retry = append(plan.Base.Retry, lc.Key)
-		skips = append(skips, Skip{Key: lc.Key, Reason: err.Error(), Retry: true})
-	}
-	kept := plan.Local[:0]
-	for _, lc := range plan.Local {
-		if !lc.isField() || !refused[lc.Key] {
-			kept = append(kept, lc)
+		if err := check(shape, lc); err != nil {
+			refused[lc.Key] = true
+			restore(&plan.Base, prior, lc.Key)
+			plan.Base.Retry = append(plan.Base.Retry, lc.Key)
+			pending = append(pending, Skip{Key: lc.Key, Reason: err.Error(), Retry: true})
+			continue
+		}
+		if off[lc.Key] {
+			continue
+		}
+		if err := check(e.checker, lc); err != nil {
+			off[lc.Key] = true
+			offSchema = append(offSchema, Skip{Key: lc.Key, Reason: err.Error()})
 		}
 	}
-	plan.Local = kept
-	return skips
+	// a key refused by shape on a later item is not written at all, so it is
+	// pending, never also off-schema
+	kept := offSchema[:0]
+	for _, s := range offSchema {
+		if !refused[s.Key] {
+			kept = append(kept, s)
+		}
+	}
+	offSchema = kept
+	local := plan.Local[:0]
+	for _, lc := range plan.Local {
+		if !lc.isField() || !refused[lc.Key] {
+			local = append(local, lc)
+		}
+	}
+	plan.Local = local
+	return pending, offSchema
 }
 
 // ops turns plan's local changes into operations and reports them.

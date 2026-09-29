@@ -28,9 +28,30 @@ type Resolver interface {
 // because an operation's Validate is frozen and must accept
 // everything ever written (config-entity.md, fact 2):
 // a schema is a statement about what may be written *now* (D6).
+//
+// A check is two checks (pull-schema-check.md).
+// The shape check asks whether a value fits its field's kind,
+// on a field the type has, and whether an identity or issue it names exists.
+// The policy check asks what the schema allows on top:
+// an enum value among the field's values, a relation's target among its
+// target types. A local write gets both; a Jira pull gets the shape check
+// only, because Jira is the authority on what Jira holds
+// and the derived schema only approximates it.
 type Checker struct {
 	Schema   *Schema
 	Resolver Resolver
+	// ShapeOnly skips the policy check.
+	ShapeOnly bool
+}
+
+// Shape returns a copy of c that checks the shape only.
+func (c *Checker) Shape() *Checker {
+	if c == nil {
+		return nil
+	}
+	shape := *c
+	shape.ShapeOnly = true
+	return &shape
 }
 
 // Problems is every reason a write was refused, as one error.
@@ -249,7 +270,7 @@ func (c *Checker) checkOne(field *Field, kind Kind, value json.RawMessage) error
 		if _, ok := field.Value(s); ok {
 			return nil
 		}
-		if field.Freeform {
+		if field.Freeform || c.ShapeOnly {
 			return nil
 		}
 		return fmt.Errorf("%q is not in the schema; valid values: %s",
@@ -280,7 +301,7 @@ func (c *Checker) checkOne(field *Field, kind Kind, value json.RawMessage) error
 		if err != nil {
 			return fmt.Errorf("%q is not an issue: %v", s, err)
 		}
-		if len(field.TargetTypes) == 0 {
+		if len(field.TargetTypes) == 0 || c.ShapeOnly {
 			return nil
 		}
 		for _, allowed := range field.TargetTypes {

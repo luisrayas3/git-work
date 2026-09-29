@@ -203,3 +203,42 @@ func TestCheckerTypeChange(t *testing.T) {
 	err := c.CheckFields("task", fields("type", `"epic"`, "status", `"done"`))
 	require.ErrorContains(t, err, "not a field of type epic")
 }
+
+func TestCheckerShapeOnly(t *testing.T) {
+	c := testChecker(t)
+	shape := c.Shape()
+	require.False(t, c.ShapeOnly, "Shape copies; the full checker stays full")
+
+	// the policy check: what the schema allows, not what the kind is
+	policy := map[string]map[string]json.RawMessage{
+		"a value not in the schema": fields("status", `"shipped"`),
+		"an item not in the schema": fields("labels", `["nope"]`),
+		"a parent of another type":  fields("parent", `"t1"`),
+	}
+	for name, f := range policy {
+		t.Run(name, func(t *testing.T) {
+			require.Error(t, c.CheckFields("task", f))
+			require.NoError(t, shape.CheckFields("task", f))
+		})
+	}
+	require.NoError(t, shape.CheckItems("task", map[string][]json.RawMessage{
+		"labels": {json.RawMessage(`"nope"`)},
+	}))
+
+	// the shape check: the value fits its field's kind, and what it names exists
+	bad := map[string]map[string]json.RawMessage{
+		"an enum that is not a string": fields("status", `3`),
+		"a number that is a string":    fields("estimate", `"3"`),
+		"a date that is not one":       fields("due", `"tuesday"`),
+		"an identity that is not one":  fields("assignee", `"bob"`),
+		"a list given as a scalar":     fields("labels", `"core"`),
+		"a relation to nothing":        fields("parent", `"zz"`),
+		"a field the type lacks":       fields("statuss", `"done"`),
+	}
+	for name, f := range bad {
+		t.Run(name, func(t *testing.T) {
+			require.Error(t, shape.CheckFields("task", f))
+		})
+	}
+	require.Error(t, shape.CheckNew(fields("type", `"story"`)), "an unknown type has no fields to check")
+}

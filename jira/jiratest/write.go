@@ -347,7 +347,7 @@ func (s *Server) setParent(st *issueState, raw json.RawMessage, null bool) strin
 		return "Could not find issue by id or key."
 	}
 	p := rec.cur
-	if p.id == st.id || p.typ.HierarchyLevel != st.typ.HierarchyLevel+1 {
+	if p.id == st.id || p.typ.HierarchyLevel != st.typ.HierarchyLevel+1 && !s.cfg.looseHierarchy {
 		return "Given parent work item does not belong to appropriate hierarchy."
 	}
 	if p.project != st.project {

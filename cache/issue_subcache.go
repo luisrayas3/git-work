@@ -62,13 +62,16 @@ func NewRepoCacheIssue(repo repository.ClockedRepo,
 // The type is the one field a create can not do without once a schema exists:
 // without it nothing can say which fields the issue has (D2).
 // With no type entity at all, nothing is checked — the bootstrap state (E4).
-func (c *RepoCacheIssue) checkNew(title string, fields map[string]issue.Value) error {
+func (c *RepoCacheIssue) checkNew(title string, fields map[string]issue.Value, shapeOnly bool) error {
 	if c.checker == nil {
 		return nil
 	}
 	checker, err := c.checker()
 	if err != nil {
 		return err
+	}
+	if shapeOnly {
+		checker = checker.Shape()
 	}
 
 	all := rawValues(fields)
@@ -197,7 +200,18 @@ func (c *RepoCacheIssue) NewWithFiles(title string, message string, files []repo
 // well as metadata for the Create operation.
 // The new issue is written in the repository (commit)
 func (c *RepoCacheIssue) NewRaw(author identity.Interface, unixTime int64, title string, message string, files []repository.Hash, fields map[string]issue.Value, metadata map[string]string) (*IssueCache, *issue.CreateOperation, error) {
-	if err := c.checkNew(title, fields); err != nil {
+	return c.newRaw(author, unixTime, title, message, files, fields, metadata, false)
+}
+
+// NewRawShape is NewRaw with the shape check only, as IssueCache.UpdateShape
+// is Update: for an issue imported from an authority the schema only
+// approximates, the Jira pull (pull-schema-check.md).
+func (c *RepoCacheIssue) NewRawShape(author identity.Interface, unixTime int64, title string, message string, files []repository.Hash, fields map[string]issue.Value, metadata map[string]string) (*IssueCache, *issue.CreateOperation, error) {
+	return c.newRaw(author, unixTime, title, message, files, fields, metadata, true)
+}
+
+func (c *RepoCacheIssue) newRaw(author identity.Interface, unixTime int64, title string, message string, files []repository.Hash, fields map[string]issue.Value, metadata map[string]string, shapeOnly bool) (*IssueCache, *issue.CreateOperation, error) {
+	if err := c.checkNew(title, fields, shapeOnly); err != nil {
 		return nil, nil, err
 	}
 
