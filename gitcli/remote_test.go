@@ -1,7 +1,9 @@
 package gitcli
 
 import (
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -85,6 +87,24 @@ func TestPushFetchRefs(t *testing.T) {
 	out, err = b.FetchRefs("origin", "foo")
 	require.NoError(t, err)
 	require.Equal(t, upToDate, out)
+}
+
+func TestPushSkipsPrePushHook(t *testing.T) {
+	rawA, _, remote, a, _ := setupRemote(t)
+
+	hooks := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(hooks, "pre-push"),
+		[]byte("#!/bin/sh\necho refused >&2\nexit 1\n"), 0o700))
+	gitConfig(t, rawA.GetLocalRemote(), "core.hooksPath", hooks)
+
+	commit := commitRef(t, rawA, "refs/foo/1", "one")
+
+	_, err := a.PushRefs("origin", "foo")
+	require.NoError(t, err)
+
+	got, err := remote.ResolveRef("refs/foo/1")
+	require.NoError(t, err)
+	require.Equal(t, commit, got)
 }
 
 func TestPushFetchSeveralPrefixes(t *testing.T) {

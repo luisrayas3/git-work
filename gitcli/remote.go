@@ -35,6 +35,10 @@ func (r *repo) FetchRefs(remote string, prefixes ...string) (string, error) {
 //
 // Additionally, PushRefs will update the local references in refs/remotes/<remote>/foo to match
 // the remote state.
+//
+// The push skips the pre-push hook. go-git runs no hooks, and the namespaces
+// pushed here hold entity metadata, not code, so a hook that lints or tests
+// the working tree has nothing to say about them.
 func (r *repo) PushRefs(remote string, prefixes ...string) (string, error) {
 	// git only updates a remote-tracking ref on push when a fetch refspec
 	// maps the ref it pushed, and these namespaces are not part of a remote's
@@ -44,7 +48,7 @@ func (r *repo) PushRefs(remote string, prefixes ...string) (string, error) {
 	// the CLI equivalent of the in-memory remote-config edit
 	// repository.GoGitRepo performs for the same reason.
 	opts := make([]string, 0, len(prefixes))
-	args := []string{"push", remote}
+	args := []string{"push", "--no-verify", remote}
 	for _, prefix := range prefixes {
 		opts = append(opts, fmt.Sprintf("remote.%s.fetch=refs/%s/*:refs/remotes/%s/%s/*",
 			remote, prefix, remote, prefix))
