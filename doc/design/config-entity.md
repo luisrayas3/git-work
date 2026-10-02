@@ -256,13 +256,16 @@ which is what lets a Jira rename change one attribute and no history.
 
 ### E4 — Built-in fields are code; entities override their configurable parts
 
-`title` (text), `type` (a type id) and `archived` (bool)
+`title` (text), `type` (a type id), `archived` (bool) and `rank` (rank)
 exist on every type,
 because tooling cannot function without them
-(`configurable-schema.md` D2):
+(`configurable-schema.md` D2 and D8):
 `title` to show anything, `type` to find the rest of the schema,
-`archived` to know what the default listing hides.
+`archived` to know what the default listing hides,
+and `rank` to hold the manual order every board and backlog is dragged into.
 They are defined in code, in `schema.Builtins`.
+`rank` alone is nullable and starts null:
+`new` writes none, and the first drop on a view writes one.
 Status is **not** built in (`d56e6f1`):
 it is a preset field of kind `enum` on every work type,
 and behaviour keyed on categories applies where a type has one.
@@ -720,7 +723,7 @@ Recorded on the tasks as well, per the working conventions:
   a flow is an entity of that shape holding one Starlark function,
   applied from any `.star` file by import, run by `git work flow run <name>`,
   and a saved view is a flow whose function calls `work.view.*` (`0740bf3`, revised 2026-09-24).
-- `bb9e89e`: three built-ins in code with configurable overrides;
+- `bb9e89e`: the built-ins in code with configurable overrides;
   kinds, categories, `freeform`, `target_types`; no roles, no `on_open`/`on_close`.
 - `87a48c1`: iteration fields are the `iteration` type's field entities, and membership a target-typed relation field.
 - `c090f9b`: relations are fields of kind `relation`/`multi-relation`, not a config kind.

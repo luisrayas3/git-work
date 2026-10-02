@@ -25,7 +25,8 @@ func TestParseAppliesTheDefaults(t *testing.T) {
 	require.Equal(t, []string{"type", "title"}, call.Strings("fields"))
 	// a feature nobody asked for is simply absent
 	require.False(t, call.Has("group_by"))
-	require.False(t, call.Has("rank"))
+	// the manual order is the built-in rank until another field is named
+	require.Equal(t, "rank", call.String("rank"))
 	require.Equal(t, 0, call.Int("depth"))
 }
 

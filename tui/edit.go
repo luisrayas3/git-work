@@ -118,7 +118,7 @@ func editable(repo *cache.RepoCache, issueId, typeKey, fieldKey string, current 
 
 // fieldKind reads a field's kind off the live schema.
 //
-// The three built-ins answer even where no type is defined, so a title is
+// The four built-ins answer even where no type is defined, so a title is
 // editable in a store that has no schema yet, which is the bootstrap state.
 func fieldKind(repo *cache.RepoCache, typeKey, fieldKey string) (schema.Kind, bool) {
 	s, err := repo.LoadSchema()

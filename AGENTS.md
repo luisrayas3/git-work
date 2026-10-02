@@ -176,9 +176,10 @@ The schema itself, types and fields under `refs/work-schema`
 | Archive / remove | `git work schema archive <key>` (an operation, replicated) · `git work schema rm <key>` (the local ref only) |
 
 A field's KEY is `<type>/<field>`: every field belongs to exactly one type, so
-`task/status` and `epic/status` are two entities (`e7e58f2`). `title`, `type`
-and `archived` are built in on every type and appear in the file only when an
-entity overrides a name or a description. List position is the order — the file
+`task/status` and `epic/status` are two entities (`e7e58f2`). `title`, `type`,
+`archived` and `rank` are built in on every type and appear in the file only
+when an entity overrides a name or a description; a file that still lists one
+of them as a field is read as that override, never as a second field. List position is the order — the file
 carries no ordinals — and `shared:` is YAML anchors the parser expands, never
 written back. Keys defined twice by two clones (`E7`) are reported on stderr by
 every schema command.
@@ -260,7 +261,10 @@ and `Enter` opens while `Space` edits (2026-10-02):
 and on a relation, drawn as the issue it names, opens that issue at once
 (a `multi-relation` cell on a list, the first);
 `Space` on a cell edits it, a column that is not a field of the row's type ringing the bell,
-and on a list's id grabs the row to move it (only when `rank` is bound).
+and on a list's id grabs the row to move it
+(`rank` is built in on every type and is the argument's default, so a drag
+always has somewhere to go, and `(rank, id)` orders every view, the issues
+with no rank keeping the query's order at the end).
 A relation's edit is its picker: the issues the field's `target_types` allow,
 the cursor on the current one, marked, `/` narrowing them and `(none)` last
 (changing a `multi-relation`'s set rings the bell for now: `issue add`/`remove`);
@@ -271,9 +275,9 @@ a value list ends with `(none)` and an emptied box clears the field
 (`title` excepted, it cannot be cleared), `Enter` in the editor writes and `Esc` cancels,
 and a bool flips at once.
 A board's card has no cells: `Enter` opens it, copy copies its id,
-and its only edits are moves — `Space` grabs with no rank needed,
+and its only edits are moves — `Space` grabs,
 `←`/`→` carry the card into the next column (a drop sets the `columns`
-field, `null` in `(none)`), `↑`/`↓` reorder it only with `rank` bound,
+field, `null` in `(none)`), `↑`/`↓` reorder it,
 and one drop is one commit.
 Columns are `values` or the field's schema order off the types on the board,
 then the values the data has that are not listed, then `(none)`;
@@ -282,9 +286,9 @@ they keep a minimum width and scroll sideways to follow the cursor
 A gantt's cursor is a cell, a row and a period of `scale`
 (`day`, `week`, `month`, `quarter`; the chart is `from` to `to`, else the data's extent and today, opening with today's period left-most and filling the window):
 `Enter` opens the row, `←`/`→` move a period, `↑`/`↓` a row keeping it, the period washed down the chart, group headers included, as the row is across it,
-`Space` grabs the bar with no rank needed and `←`/`→` shift it a period —
+`Space` grabs the bar and `←`/`→` shift it a period —
 on its first cell only `start` moves, on its last only `stop`, between them both,
-and a one-cell bar grows — `↑`/`↓` reorder it only with `rank` bound,
+and a one-cell bar grows — `↑`/`↓` reorder it,
 one drop is one commit, a row with one date is a milestone fading away from its date (a start to the right, a stop to the left) and running on as the dull band a row with none draws, `group_by` gives each group a color and heads it as a cell draws the value,
 and `progress` fills the bar.
 A matrix is a row per value of `rows` and a column per value of `columns`,
@@ -459,9 +463,9 @@ Settled calls (details live in the referenced issues):
   Linear's native models: fixed field kinds, configurable values;
   parent is a cardinality-1 relation (`bb9e89e`, `c090f9b`, `59fed1c`).
   An issue is a structural core (id, author, comments, timeline,
-  participants) plus a fields map; three fields are built in and
-  unremovable — `title`, `type`, `archived` — and everything else, status
-  and labels included, is preset config. There are **no field roles**: a
+  participants) plus a fields map; four fields are built in and
+  unremovable — `title`, `type`, `archived`, `rank` — and everything else,
+  status and labels included, is preset config. There are **no field roles**: a
   flow's script names the fields it needs when it calls the host API (`f4bac00`,
   `d56e6f1`).
   Iterations are issues of type `iteration`; capacity is a field, not first
@@ -472,7 +476,10 @@ Settled calls (details live in the referenced issues):
   The entity is named `issue` for good, because Jira, Linear and GitHub call
   it that and Jira's types already include Initiative and Epic (`e7e58f2`).
   Manual rank is a LexoRank-style fractional index ordered by `(rank, id)`,
-  so concurrent drags both survive (`441dcbb`).
+  so concurrent drags both survive (`441dcbb`); `rank` is the fourth built-in
+  since 2026-10-02 (`e524644`), because Jira's Rank and Linear's `sortOrder`
+  put an order on every issue. It is null until a drag writes one, and a null
+  rank sorts after every set rank, the unranked keeping the query's order.
 - Schema and flows are **config entities** of three shapes, `type`, `field`
   and `flow`, under `refs/work-schema` (types and fields) and
   `refs/work-flows`, so the entity boundary is the merge unit. A config entity

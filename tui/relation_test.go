@@ -168,8 +168,7 @@ func TestAMultiRelationGoesToEachAndSaysWhereToChangeIt(t *testing.T) {
 }
 
 // TestSpaceOnAViewOnlyColumnRings: a list column that is not a field of the
-// row's type is drawn and never written, so space there rings the bell; on
-// the id, with no rank bound, there is nothing to grab either.
+// row's type is drawn and never written, so space there rings the bell.
 func TestSpaceOnAViewOnlyColumnRings(t *testing.T) {
 	repo := testRepo(t)
 	newIssue(t, repo, map[string]any{"title": "one"})
@@ -180,10 +179,4 @@ func TestSpaceOnAViewOnlyColumnRings(t *testing.T) {
 	require.NotNil(t, cmd, "the bell")
 	require.Nil(t, updated.(*listPage).editor)
 	require.Contains(t, plainView(updated), "not a field")
-
-	page = send(page, "h", "h").(*listPage)
-	updated, cmd = page.Update(press("space"))
-	require.NotNil(t, cmd, "the bell")
-	require.Equal(t, -1, updated.(*listPage).grabbed)
-	require.Contains(t, plainView(updated), "no rank")
 }

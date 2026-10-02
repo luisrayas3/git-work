@@ -90,12 +90,9 @@ func (p *listPage) hintLine() string {
 		return hints(pairs...)
 	}
 
-	// the id column: enter opens the row, space grabs it where a rank says
-	// where the move would be written, and the tree's keys where there is one
-	pairs := []hint{{"enter", "open"}}
-	if p.rankKey != "" {
-		pairs = append(pairs, hint{"space", "grab"})
-	}
+	// the id column: enter opens the row, space grabs it to move it, and the
+	// tree's keys where there is a tree
+	pairs := []hint{{"enter", "open"}, {"space", "grab"}}
 	return hints(append(pairs, foldHints(p.node())...)...)
 }
 

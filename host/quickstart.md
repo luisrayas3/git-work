@@ -161,8 +161,9 @@ A field's kind says what its value has to be:
   of a type the field's target types allow.
 - `rank` — a fractional index for manual order; leave it to a view to write.
 
-`title` (text), `type` (enum), and `archived` (bool)
+`title` (text), `type` (enum), `archived` (bool) and `rank` (rank)
 are built in fields on every type and cannot be removed.
+A `rank` starts null and stays null until a view's drag writes one.
 
 ## Examples
 

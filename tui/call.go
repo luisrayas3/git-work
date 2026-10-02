@@ -51,6 +51,12 @@ func callParts(call *view.Call, lead, leadArg string) (head []string, query stri
 			continue
 		}
 		defaulted := arg.Default != "" && bytes.Equal(compactJSON(raw), compactJSON(json.RawMessage(arg.Default)))
+		if arg.Name == "rank" && defaulted {
+			// the built-in rank is every view's order (D8), and the order
+			// of the rows on the screen already says it; a rank somebody
+			// named is a choice, and shows like any other
+			continue
+		}
 		if arg.Name == "query" {
 			query, dim = argText(raw), defaulted
 			continue

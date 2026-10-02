@@ -183,7 +183,7 @@ var keys = keymap{
 		show(standard, "terminal paste (cmd+v, ctrl+shift+v)"),
 
 	filter: newChord("filter", one("/"), one("/"), one("ctrl+s")),
-	grab:   newChord("on id, card, bar: grab / drop (rank to reorder)", one("space", " "), nil, nil),
+	grab:   newChord("on id, card, bar: grab / drop (move it)", one("space", " "), nil, nil),
 	// z folds a nested row shut and open again; tab and shift-tab, the next
 	// and previous stop, are into the first child and up to the parent there
 	fold: newChord("fold / unfold (nested)", one("z"), nil, nil),

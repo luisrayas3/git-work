@@ -183,9 +183,7 @@ func (p *boardPage) newCard(item map[string]any, known *kinds) card {
 			c.group = value
 		}
 	}
-	if p.rankKey != "" {
-		c.rank = plainValue(fields[p.rankKey])
-	}
+	c.rank = plainValue(fields[p.rankKey])
 
 	var text strings.Builder
 	text.WriteString(c.human)
@@ -314,11 +312,9 @@ func (p *boardPage) arrange() {
 		p.lanes = append(p.lanes, last)
 	}
 
-	if p.rankKey != "" {
-		for _, l := range p.lanes {
-			for _, stack := range l.stacks {
-				sortStack(p.cards, stack)
-			}
+	for _, l := range p.lanes {
+		for _, stack := range l.stacks {
+			sortStack(p.cards, stack)
 		}
 	}
 
@@ -618,9 +614,9 @@ func (p *boardPage) updateFilter(msg tea.Msg) (page, tea.Cmd) {
 	return p, cmd
 }
 
-// startGrab picks the card under the cursor up. It needs no rank: moving a
-// card to another column is the board's reason to exist, and only moving it
-// up or down within one needs an order to write.
+// startGrab picks the card under the cursor up. It needs no binding at all:
+// moving a card to another column is the board's reason to exist, and the
+// order up and down writes is the built-in rank every type has (D8).
 func (p *boardPage) startGrab() (page, tea.Cmd) {
 	c := p.current()
 	if c == nil {
@@ -649,10 +645,6 @@ func (p *boardPage) updateGrab(press tea.KeyPressMsg) (page, tea.Cmd) {
 		p.dragAcross(1)
 
 	case keys.up.matches(press), keys.down.matches(press):
-		if p.rankKey == "" {
-			p.status = "no rank: cannot reorder"
-			return p, bell()
-		}
 		if keys.up.matches(press) {
 			p.dragBy(-1)
 		} else {
@@ -694,9 +686,9 @@ func (p *boardPage) dragBy(by int) {
 }
 
 // drop writes where the card landed: the columns field when the column
-// changed, and the rank when one is bound and the card moved at all — a card
-// in a new column has new neighbours — both keys in one call, which is one
-// commit. A card dropped where it was picked up writes nothing.
+// changed, and the rank when the card moved at all — a card in a new column
+// has new neighbours — both keys in one call, which is one commit. A card
+// dropped where it was picked up writes nothing.
 func (p *boardPage) drop() tea.Cmd {
 	c := &p.cards[p.grabbed]
 	p.grabbed = -1
@@ -716,24 +708,15 @@ func (p *boardPage) drop() tea.Cmd {
 		}
 		said = "moved to " + target.label
 	}
-	if p.rankKey != "" {
-		lo, hi := p.neighbourRanks()
-		key, err := rank.Between(lo, hi)
-		if err != nil {
-			p.status = err.Error()
-			p.arrange()
-			p.putCursorOn(c.id)
-			return bell()
-		}
-		fields[p.rankKey] = issue.StringValue(key)
-	}
-	if len(fields) == 0 {
-		// no rank and the same column: the card was dragged up or down
-		// nowhere, and there is nothing to write
+	lo, hi := p.neighbourRanks()
+	key, err := rank.Between(lo, hi)
+	if err != nil {
+		p.status = err.Error()
 		p.arrange()
 		p.putCursorOn(c.id)
-		return nil
+		return bell()
 	}
+	fields[p.rankKey] = issue.StringValue(key)
 
 	id := c.id
 	if _, err := host.IssueSet(p.repo, id, fields, false); err != nil {
