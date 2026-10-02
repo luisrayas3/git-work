@@ -229,10 +229,12 @@ func TestGanttMilestonesAndDatelessRows(t *testing.T) {
 	stone := newIssue(t, repo, map[string]any{"title": "the release", "start": "2026-09-14"})
 	bare := newIssue(t, repo, map[string]any{"title": "someday"})
 
-	page := gantt(t, repo, `{"start":"start","stop":"stop","from":"2026-09-07","query":"sort_by(.fields.title)"}`)
-	require.Contains(t, rowOf(page, stone), "│   ▓▓▒", "the trail ends with the chart")
+	page := gantt(t, repo, `{"start":"start","stop":"stop","from":"2026-09-07","to":"2026-10-05","query":"sort_by(.fields.title)"}`)
+	require.Equal(t, 3, page.nowCol(), "today is the chart's fourth week")
+	require.Contains(t, rowOf(page, stone), "│   ▓▓▒▒░░", "a start fades to the right")
 	require.NotContains(t, rowOf(page, bare), "▓")
-	require.Contains(t, rowOf(page, bare), "│"+strings.Repeat("░", 3*len(page.periods)), "the band spans the chart")
+	require.Contains(t, rowOf(page, bare), "│"+strings.Repeat(" ", 9)+strings.Repeat("░", 6),
+		"no dates: the band begins at today and runs to the chart's end")
 
 	require.Equal(t, bare, page.current().id)
 	send(page, "space", "right")
@@ -240,6 +242,45 @@ func TestGanttMilestonesAndDatelessRows(t *testing.T) {
 	send(page, "esc", "down", "space", "right", "enter")
 	require.Equal(t, `"2026-09-21"`, field(t, repo, stone, "start"))
 	require.Equal(t, "", field(t, repo, stone, "stop"))
+}
+
+// TestGanttARowWithNoStartBandsFromToday: a row that has not started could
+// start at any point from now on, so its band begins at today's period and
+// runs to its stop; a stop already past draws its marker and a short band
+// back from the stop to today, in the overdue tint (`04248c5`).
+func TestGanttARowWithNoStartBandsFromToday(t *testing.T) {
+	repo := testRepo(t)
+	withDates(t, repo)
+	soon := newIssue(t, repo, map[string]any{"title": "not started", "stop": "2026-10-26"})
+	late := newIssue(t, repo, map[string]any{"title": "overdue", "stop": "2026-09-14"})
+
+	page := gantt(t, repo, `{"start":"start","stop":"stop","from":"2026-09-07","to":"2026-11-02","query":"sort_by(.fields.title)"}`)
+	require.Equal(t, 3, page.nowCol())
+
+	// nothing before today, then the band, then the trail into the stop
+	require.Contains(t, rowOf(page, soon),
+		"│"+strings.Repeat(" ", 9)+strings.Repeat("░", 9)+"░░▒"+"▒▓▓"+"   ")
+	// the stop that has gone by keeps its marker, and the band runs back
+	// from it to today rather than from the chart's edge
+	require.Contains(t, rowOf(page, late), "│░░▒▒▓▓"+strings.Repeat("░", 6)+"   ")
+
+	// the cells between a stop that has gone by and today are the overdue
+	// ones; the rest of the row is the band and the trail
+	_, kind := milestoneGlyph(2, 0, 3, 1, 3, false)
+	require.Equal(t, cellOverdue, kind, "a week after the stop, before today")
+	_, kind = milestoneGlyph(3, 2, 3, 1, 3, false)
+	require.Equal(t, cellOverdue, kind, "today's own period")
+	_, kind = milestoneGlyph(4, 0, 3, 1, 3, false)
+	require.Equal(t, cellBlank, kind, "past today: a stop is a stop")
+	_, kind = milestoneGlyph(1, 2, 3, 1, 3, false)
+	require.Equal(t, cellBar, kind, "the stop's own marker")
+
+	// the chart's own extent counts a missing start as today
+	first, last, _, ok := page.extent(page.order[1])
+	require.True(t, ok)
+	require.Equal(t, late, page.bars[page.order[1]].id)
+	require.Equal(t, "2026-09-14", first.Format(time.DateOnly), "the stop that has gone by")
+	require.Equal(t, "2026-09-28", last.Format(time.DateOnly), "today")
 }
 
 // TestGanttProgressFillsTheBar: with `progress` bound the bar is done for
@@ -419,7 +460,9 @@ func TestGanttMilestonesTrailAwayFromTheirDate(t *testing.T) {
 
 	page := gantt(t, repo, `{"start":"start","stop":"stop","from":"2026-09-07"}`)
 	require.True(t, strings.HasSuffix(rowOf(page, begins), "│   ▓▓▒▒░░"+strings.Repeat("░", 12)), rowOf(page, begins))
-	require.True(t, strings.HasSuffix(strings.TrimRight(rowOf(page, ends), " "), "│"+strings.Repeat("░", 6)+"░░▒▒▓▓"), rowOf(page, ends))
+	// the stop is today's own period, so there is no band before the trail:
+	// a row with no start has not started, and today is where it could
+	require.True(t, strings.HasSuffix(strings.TrimRight(rowOf(page, ends), " "), "│"+strings.Repeat(" ", 6)+"░░▒▒▓▓"), rowOf(page, ends))
 }
 
 // TestGanttGroupsByRelationTitleAndTint: a relation's group is headed by the

@@ -298,7 +298,10 @@ A gantt's cursor is a cell, a row and a period of `scale`
 `Space` grabs the bar and `←`/`→` shift it a period —
 on its first cell only `start` moves, on its last only `stop`, between them both,
 and a one-cell bar grows — `↑`/`↓` reorder it,
-one drop is one commit, a row with one date is a milestone fading away from its date (a start to the right, a stop to the left) and running on as the dull band a row with none draws, `group_by` gives each group a color and heads it as a cell draws the value,
+one drop is one commit,
+a row with one date is a milestone fading away from its date (a start to the right, a stop to the left) and running on as a dull band,
+and **a band begins at today** (2026-10-02): a row that has not started could start at any point from now on, so a stop with no start bands from today to that stop (a stop already past keeps its marker and bands back to today in red, overdue) and a row with no dates at all bands from today to the chart's end, while a start with no stop still runs to the chart's edge;
+`group_by` gives each group a color and heads it as a cell draws the value,
 and `progress` fills the bar.
 A matrix is a row per value of `rows` and a column per value of `columns`,
 each cell the sum of the number `value` names or a count of its issues when none is named,

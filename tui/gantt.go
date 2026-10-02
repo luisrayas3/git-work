@@ -449,6 +449,12 @@ func (p *ganttPage) dates(b *bar) (start, stop time.Time) {
 // extent is the first and last day a bar covers: its own dates, or, for a
 // parent with none of its own, the envelope of everything under it; and
 // whether it has any.
+//
+// **A missing start is today** (2026-10-02, `04248c5`): a row with a stop
+// and no start has not started and could start at any point from now on, so
+// what it covers is today to its stop — or, for a stop already past, the
+// stop to today — and the chart is sized to that rather than to the point
+// its stop is.
 func (p *ganttPage) extent(index int) (first, last time.Time, own, ok bool) {
 	b := &p.bars[index]
 	if b.hasStart || b.hasStop {
@@ -457,7 +463,8 @@ func (p *ganttPage) extent(index int) (first, last time.Time, own, ok bool) {
 		case !b.hasStop:
 			return start, start, true, true
 		case !b.hasStart:
-			return stop, stop, true, true
+			now := today()
+			return minTime(now, stop), maxTime(now, stop), true, true
 		}
 		return start, stop, true, true
 	}
@@ -563,6 +570,38 @@ func (p *ganttPage) span(index int) (first, last int, own, ok bool) {
 		first, last = last, first
 	}
 	return first, last, own, true
+}
+
+// nowCol is today's period on the chart: -1 before its first period,
+// len(periods) after its last.
+//
+// index() answers a cursor, so it clamps a date past the chart to the last
+// period; a band that begins at today needs to know that today is off the
+// chart, and would otherwise be drawn on its last period rather than not at
+// all.
+func (p *ganttPage) nowCol() int {
+	if len(p.periods) == 0 {
+		return 0
+	}
+	now := periodStart(today(), p.scale)
+	switch {
+	case now.Before(p.periods[0]):
+		return -1
+	case now.After(p.periods[len(p.periods)-1]):
+		return len(p.periods)
+	}
+	return p.index(now)
+}
+
+// milestoneCol is the period a one-date row's own date sits in, which is
+// not its extent's first: a row with only a stop covers today to that stop,
+// and the trail is drawn around the stop.
+func (p *ganttPage) milestoneCol(b *bar) int {
+	start, stop := p.dates(b)
+	if b.hasStart {
+		return p.index(start)
+	}
+	return p.index(stop)
 }
 
 func (p *ganttPage) count() int {
