@@ -721,7 +721,8 @@ func (p *ganttPage) copyId() tea.Cmd {
 	if b == nil {
 		return bell()
 	}
-	p.status = "copied " + b.id
+	// the clipboard gets the whole id, the message the short one (copyId)
+	p.status = "copied " + b.human
 	return setClipboard(b.id)
 }
 

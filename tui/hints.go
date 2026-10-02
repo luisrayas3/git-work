@@ -3,6 +3,8 @@ package tui
 import (
 	"strings"
 
+	"github.com/charmbracelet/x/ansi"
+
 	"github.com/git-bug/git-bug/schema"
 )
 
@@ -47,6 +49,51 @@ func hints(pairs ...hint) string {
 		return helpHint
 	}
 	return text + " · " + helpHint
+}
+
+// bottomLine is the page's last line: two places, one line
+// (doc/design/terminal-renderer.md, Navigation and editing, 2026-10-02).
+//
+// The hints are on the left, always, because what the keys do here is the one
+// thing that is true of every press. The last action's message — with the
+// issue count beside it where the kind has one — is right-aligned, and it
+// stays there until the next action replaces it. The message had the whole
+// line until then, so an edit took the hints over until the next key cleared
+// it, which is the opposite of what a hint is for.
+//
+// Where the window cannot hold both, the hints win and the right side is cut
+// from its left: a count, and the end of a refusal, are what is read there,
+// and the opening words of a long one are the part worth losing.
+func bottomLine(hints, right string, width int) string {
+	if right == "" {
+		return fit(hints, width)
+	}
+	if width <= 0 {
+		return hints + "  " + right
+	}
+
+	left := fit(hints, width)
+	// one space at least between the two, so they never read as one
+	room := width - ansi.StringWidth(left) - 1
+	if room <= 0 {
+		return left
+	}
+	right = fitRight(right, room)
+	gap := width - ansi.StringWidth(left) - ansi.StringWidth(right)
+	return left + strings.Repeat(" ", gap) + right
+}
+
+// lastAction is the bottom line's right side: what the page just did, and the
+// count beside it where the kind has one, either alone where the other is
+// empty.
+func lastAction(status, count string) string {
+	switch {
+	case status == "":
+		return count
+	case count == "":
+		return status
+	}
+	return status + " · " + count
 }
 
 // filterHints is the line while `/` is open, on every kind: the narrowing is

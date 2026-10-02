@@ -157,6 +157,25 @@ func fit(line string, width int) string {
 	return truncate(line, width)
 }
 
+// fitRight cuts a line to a width from its left, keeping its end.
+//
+// What is right-aligned is read from the right edge inward, so the end is
+// what has to survive: the count on the bottom line, and the last words of
+// a refusal that ran long.
+func fitRight(line string, width int) string {
+	if width <= 0 {
+		return ""
+	}
+	over := ansi.StringWidth(line) - width
+	if over <= 0 {
+		return line
+	}
+	if width == 1 {
+		return "…"
+	}
+	return ansi.TruncateLeft(line, over+1, "…")
+}
+
 // decodeValue reads a stored value as the Go value JSON decodes it into,
 // which is what the widgets take: they are given a value, not its bytes.
 func decodeValue(raw json.RawMessage) (any, error) {

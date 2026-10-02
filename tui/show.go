@@ -433,7 +433,8 @@ func (p *showPage) key(press tea.KeyPressMsg) (page, tea.Cmd) {
 		return p, p.edit(here)
 
 	case keys.copyId.matches(press):
-		p.status = "copied " + p.id
+		// the clipboard gets the whole id, the message the short one
+		p.status = "copied " + p.snapshot.Id().Human()
 		return p, setClipboard(p.id)
 	case keys.copy.matches(press):
 		return p, p.copyHere(here)
@@ -1011,12 +1012,10 @@ func (p *showPage) logLines() []string {
 	return lines
 }
 
+// statusLine is the hints on the left and the last message on the right
+// (bottomLine); show counts nothing, so the right side is the message alone.
 func (p *showPage) statusLine() string {
-	left := p.status
-	if left == "" {
-		left = p.hintLine()
-	}
-	return styleStatus.Render(fit(left, p.width))
+	return styleStatus.Render(bottomLine(p.hintLine(), p.status, p.width))
 }
 
 // hintLine is what the keys do where the cursor is (hints.go).

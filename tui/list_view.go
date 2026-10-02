@@ -47,8 +47,9 @@ func (p *listPage) bottom() []string {
 	return append(lines, p.statusLine())
 }
 
-// statusLine is the last message and the count, the answer to "did that
-// write land?"; what am I looking at is the call, on the first line.
+// statusLine is the hints on the left and, on the right, the last message
+// and the count — the answer to "did that write land?" (bottomLine); what am
+// I looking at is the call, on the first line.
 func (p *listPage) statusLine() string {
 	count := fmt.Sprintf("%d issues", len(p.order))
 	if len(p.order) == 1 {
@@ -58,13 +59,7 @@ func (p *listPage) statusLine() string {
 		count = fmt.Sprintf("%d of %d issues · /%s", len(p.order), len(p.rows), p.filter)
 	}
 
-	left := p.status
-	if left == "" {
-		left = p.hintLine()
-	}
-
-	line := fmt.Sprintf("%s · %s", left, count)
-	return styleStatus.Render(fit(line, p.width))
+	return styleStatus.Render(bottomLine(p.hintLine(), lastAction(p.status, count), p.width))
 }
 
 // hintLine is what the keys do where the cursor is (hints.go).

@@ -529,12 +529,15 @@ func (p *listPage) copyCell() tea.Cmd {
 }
 
 // copyId copies the issue's whole id, whatever column the cursor is on.
+//
+// The clipboard gets the whole id; the message names the short one, which is
+// the id the screen shows and the only part that fits the line.
 func (p *listPage) copyId() tea.Cmd {
 	row := p.current()
 	if row == nil {
 		return bell()
 	}
-	p.status = "copied " + row.id
+	p.status = "copied " + row.human
 	return setClipboard(row.id)
 }
 
