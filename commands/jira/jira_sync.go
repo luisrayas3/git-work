@@ -3,7 +3,6 @@ package jiracmd
 import (
 	"encoding/json"
 	"fmt"
-	"strconv"
 	"strings"
 	"time"
 
@@ -170,18 +169,12 @@ func textLine(l jira.Line) string {
 	return strings.Join(parts, "  ")
 }
 
-// parseDuration is Go's, with days: the natural unit of --adopt.
+// parseDuration is host's, the one the report window uses too, named here
+// only to say which flag refused.
 func parseDuration(s string) (time.Duration, error) {
-	if n, ok := strings.CutSuffix(s, "d"); ok {
-		days, err := strconv.Atoi(n)
-		if err != nil || days < 0 {
-			return 0, fmt.Errorf("--adopt: %q is not a duration (7d, 12h, 0)", s)
-		}
-		return time.Duration(days) * 24 * time.Hour, nil
-	}
-	d, err := time.ParseDuration(s)
-	if err != nil || d < 0 {
-		return 0, fmt.Errorf("--adopt: %q is not a duration (7d, 12h, 0)", s)
+	d, err := host.ParseDuration(s)
+	if err != nil {
+		return 0, fmt.Errorf("--adopt: %w", err)
 	}
 	return d, nil
 }

@@ -815,3 +815,53 @@ func TestSchemaArchiveAndRmFromAScript(t *testing.T) {
 	_, ok = s.Field("task", "due")
 	require.False(t, ok)
 }
+
+// TestIssueHistoryKwargs: the history arguments are the flags, one for one —
+// `at` on get and list, `from_`/`to` on log, `from_` because `from` is a
+// reserved word in Starlark (doc/design/report.md).
+func TestIssueHistoryKwargs(t *testing.T) {
+	repo := testRepo(t)
+
+	value, _, err := run(t, repo, `def history():
+    """Read the past."""
+    id = work.issue.new({"fields": {"title": "a title", "status": "to-do"}})
+    work.issue.set(id, status="done")
+    return {
+        "now": work.issue.get(id)["fields"]["status"],
+        "before": work.issue.list(at="1d"),
+        "none_is_now": work.issue.get(id, at=None)["fields"]["status"],
+        "window": len(work.issue.log(id, from_="1d", to=None)),
+        "empty_window": len(work.issue.log(id, from_="1d", to="1d")),
+        "all": len(work.issue.log()),
+    }
+`, nil)
+	require.NoError(t, err)
+
+	out := value.(map[string]any)
+	require.Equal(t, "done", out["now"])
+	require.Equal(t, "done", out["none_is_now"], "None is an absent argument")
+	require.Empty(t, out["before"], "the issue did not exist a day ago")
+	require.EqualValues(t, 2, out["window"])
+	require.EqualValues(t, 0, out["empty_window"], "[from, to) is half-open")
+	require.EqualValues(t, 2, out["all"], "no argument is every unarchived issue")
+}
+
+// TestIssueHistoryKwargsRefusals: a bad time names the keyword that took it,
+// and `from` itself is a Starlark keyword, which is why the keyword is `from_`.
+func TestIssueHistoryKwargsRefusals(t *testing.T) {
+	repo := testRepo(t)
+
+	_, _, err := run(t, repo, `def bad():
+    """A time that is not one."""
+    return work.issue.list(at="last tuesday")
+`, nil)
+	require.ErrorContains(t, err, "at:")
+	require.ErrorContains(t, err, "is not a time")
+
+	// `from` is a reserved word, so a call that spells it does not even parse.
+	_, err = flow.Parse(`def worse():
+    """The wrong keyword."""
+    return work.issue.log(from="1d")
+`)
+	require.ErrorContains(t, err, "want primary expression")
+}

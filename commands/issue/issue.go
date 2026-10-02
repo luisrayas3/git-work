@@ -22,6 +22,7 @@ import (
 )
 
 type issueListOptions struct {
+	at     string
 	format string
 }
 
@@ -39,7 +40,12 @@ With no program, the list is every unarchived issue, last edited first.
 
 Each emitted value is printed as JSON, one per line when there are several.
 --format text prints one line per issue when the program returned issues, and
-falls back to JSON when it returned anything else.`,
+falls back to JSON when it returned anything else.
+
+--at TIME runs the program over the issues as they stood at that moment,
+replayed from their operations: ` + TimeFormsHelp + `.
+An issue created after TIME is absent, and archived is the value that stood
+then, so the default program hides what was archived at the time.`,
 		Example: `Every issue, in the input's own order:
 git work issue .
 
@@ -48,6 +54,9 @@ git work issue 'map(select(.fields.parent == "6a1b2c3")) | map(.fields.title)'
 
 A kanban of what is not done:
 git work view board '{"query":"map(select(.fields.status != \"done\"))","columns":"status"}'
+
+What was open a week ago:
+git work issue 'map(select(.fields.status != "done"))' --at 7d
 `,
 		Args:    cobra.MaximumNArgs(1),
 		PreRunE: execenv.LoadBackend(env),
@@ -58,6 +67,7 @@ git work view board '{"query":"map(select(.fields.status != \"done\"))","columns
 
 	flags := cmd.Flags()
 	flags.SortFlags = false
+	flags.StringVar(&options.at, "at", "", "the issues as they stood at TIME")
 
 	execenv.AddFormatFlag(cmd, &options.format, "json", "text")
 
@@ -80,7 +90,12 @@ func runIssueList(env *execenv.Env, opts issueListOptions, args []string) error 
 		program = args[0]
 	}
 
-	values, err := host.IssueList(env.Backend, program)
+	at, err := parseTimeFlag("--at", opts.at)
+	if err != nil {
+		return err
+	}
+
+	values, err := host.IssueListAt(env.Backend, program, at)
 	if err != nil {
 		return err
 	}

@@ -2,10 +2,13 @@ package cmdjson
 
 import (
 	"encoding/json"
+	"time"
 
 	"github.com/git-bug/git-bug/cache"
 	"github.com/git-bug/git-bug/entities/issue"
+	"github.com/git-bug/git-bug/entity"
 	"github.com/git-bug/git-bug/entity/dag"
+	"github.com/git-bug/git-bug/util/lamport"
 )
 
 // fieldsJSON passes the stored values through verbatim.
@@ -74,29 +77,39 @@ func NewIssueComment(comment issue.Comment) IssueComment {
 }
 
 // IssueOperation is one entry of `git work issue log`:
-// what the operation is, who wrote it and when,
+// which issue it belongs to, what the operation is, who wrote it and when,
 // plus the operation itself in the shape the store holds it.
+//
+// Issue is carried whether the log was asked for one issue or for many
+// (doc/design/report.md): a shape that changed with the argument
+// would be a shape every caller has to branch on.
+// Time is the same moment as UnixTime, written out, so that a reader — a
+// report flow among them — can print a date without owning a calendar.
 type IssueOperation struct {
+	Issue    string          `json:"issue"`
 	Id       string          `json:"id"`
 	HumanId  string          `json:"human_id"`
 	Type     string          `json:"type"`
 	Author   Identity        `json:"author"`
 	UnixTime int64           `json:"unix_time"`
+	Time     time.Time       `json:"time"`
 	Op       json.RawMessage `json:"op"`
 }
 
-func NewIssueOperation(op dag.Operation) (IssueOperation, error) {
+func NewIssueOperation(issueId entity.Id, op dag.Operation) (IssueOperation, error) {
 	raw, err := json.Marshal(op)
 	if err != nil {
 		return IssueOperation{}, err
 	}
 
 	return IssueOperation{
+		Issue:    issueId.String(),
 		Id:       op.Id().String(),
 		HumanId:  op.Id().Human(),
 		Type:     issue.OperationTypeName(op.Type()),
 		Author:   NewIdentity(op.Author()),
 		UnixTime: op.Time().Unix(),
+		Time:     op.Time(),
 		Op:       raw,
 	}, nil
 }
@@ -152,4 +165,39 @@ func NewIssueExcerpt(backend *cache.RepoCache, excerpt *cache.IssueExcerpt) (Iss
 	}
 
 	return out, nil
+}
+
+// NewIssueExcerptAt builds the same excerpt from a snapshot replayed at a past
+// time, so that a jq program written for `git work issue` reads `--at` unchanged.
+//
+// It is built here rather than from a cache.IssueExcerpt because the cache
+// holds the present only (doc/design/report.md). createLamport is the create
+// operation's, which the live excerpt knows and which no replay changes.
+//
+// edit_time.lamport is left at zero, and so omitted: a lamport time belongs to
+// the entity, not to an operation, so there is no honest last-edit lamport for
+// a moment in the past. edit_time.timestamp is exact.
+func NewIssueExcerptAt(snap *issue.Snapshot, createLamport lamport.Time) IssueExcerpt {
+	out := IssueExcerpt{
+		Id:         snap.Id().String(),
+		HumanId:    snap.Id().Human(),
+		CreateTime: NewTime(snap.CreateTime, createLamport),
+		EditTime:   NewTime(snap.EditTime(), 0),
+		Fields:     fieldsJSON(snap.Fields),
+		Author:     NewIdentity(snap.Author),
+		Comments:   len(snap.Comments),
+		Metadata:   snap.Operations[0].AllMetadata(),
+	}
+
+	out.Actors = make([]Identity, len(snap.Actors))
+	for i, element := range snap.Actors {
+		out.Actors[i] = NewIdentity(element)
+	}
+
+	out.Participants = make([]Identity, len(snap.Participants))
+	for i, element := range snap.Participants {
+		out.Participants[i] = NewIdentity(element)
+	}
+
+	return out
 }
