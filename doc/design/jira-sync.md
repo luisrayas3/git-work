@@ -843,7 +843,13 @@ git work jira sync [ID...] [--dry-run] [--full] [--accept-deletes] [--adopt DURA
 `jira schema` is a reader: `Derive` over the live schema, the document on
 stdout, warnings and errors on stderr, and the info notes with `-v`.
 `jira sync` is a writer in the remote group beside `push`/`pull`; it never
-pushes. Its notes reach stderr only in a run that changed the schema, since
+pushes. `git work sync [REMOTE] [--jira]` is the convenience that does:
+a pull, then — with `--jira` only — this sync, then a push. A pull that
+fails stops it, since pushing over an unpulled tracker is rejected anyway;
+a Jira step that fails does not, because what the pull brought in belongs on
+the remote either way, and the command exits 1 to report the failure. Its
+`--dry-run` is this command's and so needs `--jira`; neither a pull nor a
+push is dry-runnable. Its notes reach stderr only in a run that changed the schema, since
 they say the same thing every run and cron mails output. Output is one JSON
 object per line, like `log`: an optional schema line, one line per issue the
 run touched, left pending, skipped or failed on, then a summary.

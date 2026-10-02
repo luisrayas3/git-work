@@ -70,6 +70,12 @@ git work jira sync --full --adopt 7d`,
 	return cmd
 }
 
+// RunSync runs what `git work jira sync` runs, with no IDs and no --full:
+// the step `git work sync --jira` puts between the pull and the push.
+func RunSync(env *execenv.Env, dryRun bool, format string) error {
+	return runJiraSync(env, syncOptions{dryRun: dryRun, format: format}, nil)
+}
+
 func runJiraSync(env *execenv.Env, opts syncOptions, args []string) error {
 	o := jira.Options{DryRun: opts.dryRun, Full: opts.full, AcceptDeletes: opts.acceptDeletes}
 	if opts.adopt != "" {
