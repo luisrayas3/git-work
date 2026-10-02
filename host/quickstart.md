@@ -1,13 +1,13 @@
-# git work, for an agent
+# git-work
 
-Enough to read, create and update issues here,
-and where to find everything this leaves out.
+This document explains
+how to read, create and update issues,
+and where to find everything else.
 
 ## What this is
 
-git-work is a project tracker stored in the git repository itself:
-no server, no database, nothing to log into.
-It is a fork of git-bug, grown into project management
+git-work is a project tracker stored in the git repository itself.
+It is a fork of `git-bug`, grown into project management
 with Jira as a sync backend.
 It installs as a git subcommand,
 so every command below starts `git work`.
@@ -77,18 +77,19 @@ an enum value naming the values the field accepts,
 a relation naming the types it may point at.
 
 The listing is a jq program.
-`git work issue 'PROGRAM'` runs PROGRAM over the array of every issue as an
-excerpt — `id`, `human_id`, `create_time`, `edit_time`, `fields`, `author`,
-`actors`, `participants`, `comments` (a count) and `metadata` —
+`git work issue 'PROGRAM'` runs PROGRAM
+over the array of every issue as an excerpt
+(`id`, `human_id`, `create_time`, `edit_time`, `fields`, `author`,
+`actors`, `participants`, `comments` (a count) and `metadata`)
 and prints what it emits.
 With no program the default is every unarchived issue, last edited first.
 
 ## Where everything else is
 
-- The schema is the authority on what a type's fields are
-  and what each one accepts:
+- The schema is the authority
+  on what a type's fields and available values are:
   `git work schema` prints it as YAML, `--format json` as JSON.
-  The live section below summarises it.
+  The live section below summarizes it.
 - Any command explains itself: `git work issue set --help`, and so on down the tree.
 - Flows are the porcelain, one Starlark function each:
   `git work flow` lists them with their arguments and
@@ -111,7 +112,7 @@ With no program the default is every unarchived issue, last edited first.
   It is settled from git's `user.name` and `user.email` on the first write,
   so there is nothing to set up.
 
-## What a value may be
+## Basic types
 
 A field's kind says what its value has to be:
 
@@ -126,8 +127,8 @@ A field's kind says what its value has to be:
   of a type the field's target types allow.
 - `rank` — a fractional index for manual order; leave it to a view to write.
 
-`title`, `type` and `archived` are built in on every type —
-text, enum and bool — and cannot be removed.
+`title` (text), `type` (enum), and `archived` (bool)
+are built in fields on every type and cannot be removed.
 
 ## Examples
 
