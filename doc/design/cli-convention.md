@@ -194,7 +194,21 @@ A root command is a verb on the module itself:
 `work.quickstart()` is `git work quickstart`, the same markdown as a string.
 Every function returns what the command would print, as a Starlark value.
 
-One exception to the one-to-one rule:
+`work.stderr(*values)` sits beside it and is no command at all:
+it writes one line to the runtime's standard error,
+the values joined by a space the way `print` joins them,
+and returns `None`.
+`print()` is a flow's standard output (config-entity.md),
+Starlark's `print` takes no file argument,
+and `work` is the only predeclared name,
+so a diagnostic needs a verb;
+the shell's mirror of it is `>&2`, a redirection rather than a command,
+which is the one place the one-to-one rule bends.
+It is named for the stream and not for an action,
+because `work.log` beside `work.issue.log` and `work.flow.log`
+would read as a history.
+
+The other exception to the one-to-one rule:
 `git work user new` and `git work user adopt` are interactive identity setup,
 a thing a human does once to a checkout, and are not bound in Starlark.
 

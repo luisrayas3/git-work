@@ -441,6 +441,25 @@ func TestPrintGoesToStdoutAndWarningsToStderr(t *testing.T) {
 	require.Contains(t, stderr.String(), "archived type bug")
 }
 
+func TestStderrGoesToStderr(t *testing.T) {
+	repo := testRepo(t)
+
+	script := `def noisy():
+    """Print a page, say on stderr what is wrong with it."""
+    print("the page")
+    work.stderr("careful:", 2, "fields missing")
+    return None
+`
+	def, err := flow.Parse(script)
+	require.NoError(t, err)
+	stdout, stderr := &bytes.Buffer{}, &bytes.Buffer{}
+	raw, err := Run(context.Background(), repo, Options{Stdout: stdout, Stderr: stderr}, def, script, nil)
+	require.NoError(t, err)
+	require.Nil(t, raw)
+	require.Equal(t, "the page\n", stdout.String())
+	require.Equal(t, "careful: 2 fields missing\n", stderr.String())
+}
+
 func TestNoneReturnsNothing(t *testing.T) {
 	repo := testRepo(t)
 

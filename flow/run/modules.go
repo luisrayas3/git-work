@@ -3,6 +3,7 @@ package run
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"go.starlark.net/starlark"
 	"go.starlark.net/starlarkstruct"
@@ -80,6 +81,11 @@ func (r *runtime) work() *starlarkstruct.Module {
 		// A root command is a verb on the module itself, the way it is a verb
 		// on the binary: `git work quickstart` is `work.quickstart()`.
 		verb("quickstart", r.quickstart),
+		// The one name on the module that is no command at all:
+		// a flow's way to stderr, now that `print()` is its standard output.
+		// It is named for the stream and not for an action,
+		// because `log` beside `work.issue.log` reads as a history.
+		verb("stderr", r.writeStderr),
 	)
 }
 
@@ -605,6 +611,44 @@ func (r *runtime) quickstart(thread *starlark.Thread, b *starlark.Builtin, args 
 		return nil, err
 	}
 	return starlark.String(text), nil
+}
+
+// work.stderr(*values) — one line on the runtime's stderr.
+//
+// This is the one name in the SDK that is not a command,
+// because the shell's mirror of it is `>&2` and not a verb
+// (cli-convention.md, Starlark).
+// `print()` is a flow's standard output since `94ff887`,
+// Starlark's `print` takes no file argument
+// and `work` is the only predeclared name,
+// so a diagnostic needs a verb of its own.
+// It is named for the stream it writes to rather than for an action,
+// because `work.log` beside `work.issue.log` and `work.flow.log`
+// reads as a history and not as a line of output.
+//
+// It is `print` in every other respect:
+// any number of values joined by a space,
+// a string written as itself and anything else as Starlark writes it,
+// and a newline at the end.
+func (r *runtime) writeStderr(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+	if len(kwargs) != 0 {
+		return nil, fmt.Errorf("%s: takes its message as values, like print, not by keyword", b.Name())
+	}
+
+	var line strings.Builder
+	for i, value := range args {
+		if i > 0 {
+			line.WriteString(" ")
+		}
+		if text, ok := starlark.AsString(value); ok {
+			line.WriteString(text)
+			continue
+		}
+		line.WriteString(value.String())
+	}
+
+	fmt.Fprintln(r.stderr, line.String())
+	return starlark.None, nil
 }
 
 // viewMembers is one builtin per view kind, from the same table the renderers

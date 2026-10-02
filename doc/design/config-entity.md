@@ -531,6 +531,13 @@ Until that day `print()` went to stderr to keep stdout JSON for `jq`;
 that protected a composition nobody had used,
 and it left a text-rendering flow with no way out at all.
 The runtime's own diagnostics, a schema warning, are what stderr is for.
+A flow reaches that stream with `work.stderr(*values)`, which is `print` to
+stderr — the values joined by a space, a newline at the end, `None` back
+(`6bbfc3b`) — because Starlark's `print` takes no file argument and `work` is
+the only predeclared name.
+It is named for the stream rather than for an action, since `work.log` beside
+`work.issue.log` would read as a history, and it is the one place the one-to-one
+rule bends: the shell's mirror of it is `>&2`, a redirection, not a command.
 That mirroring is a **mechanism, not a discipline** (`52a2797`):
 package `host` is one plain Go function per command,
 over the repository cache and JSON-shaped values,
@@ -598,7 +605,8 @@ nesting, rank and the sequencing are `terminal-renderer.md` (`84dfbde`).
 `work.user.me()` is the current identity,
 and the command line spells it `git work user me`,
 the explicit form of the bare `git work user`,
-so there is no script-only name left.
+so the only script-only name left is `work.stderr`,
+whose shell form is a redirection rather than a command.
 
 What changed on 2026-09-24:
 the model this replaced was that a view function built a spec,
