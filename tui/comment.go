@@ -10,10 +10,11 @@ import (
 
 // commentBox is where a comment is written, on `show`, under the title.
 //
-// Enter is a newline here and not a submit: a comment is prose, and the one
-// thing worse than a second key to send it is sending half of it. The box
-// holds the text and nothing else; which keys leave it and which send it are
-// the page's, because the page owns the buttons they press.
+// The box is typed in only once space has put the cursor in it; then enter
+// sends, as every chat box does, and a newline is alt+enter, or shift+enter
+// where the terminal tells it apart (keys.newline; 2026-10-02). The box holds
+// the text and nothing else; which keys enter, leave and send it are the
+// page's.
 type commentBox struct {
 	area textarea.Model
 }
@@ -35,9 +36,9 @@ func newCommentBox(width int) *commentBox {
 	area.MaxHeight = commentMaxHeight
 	area.SetHeight(commentMinHeight)
 	area.SetWidth(max(width-2, 20))
+	area.KeyMap.InsertNewline = keys.newline.binding
 	c := &commentBox{area: area}
 	c.restyle()
-	c.area.Focus()
 	return c
 }
 
@@ -58,16 +59,6 @@ func (c *commentBox) Update(msg tea.Msg) tea.Cmd {
 	updated, cmd := c.area.Update(msg)
 	c.area = updated
 	return cmd
-}
-
-// onFirstLine and onLastLine say the text cursor is at an edge of the text,
-// where up and down leave the text rather than move within it.
-func (c *commentBox) onFirstLine() bool {
-	return c.area.Line() == 0
-}
-
-func (c *commentBox) onLastLine() bool {
-	return c.area.Line() >= c.area.LineCount()-1
 }
 
 // draft is what has been typed, as it would be sent.

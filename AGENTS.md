@@ -225,20 +225,21 @@ so a kanban with no flow at all is one command:
 KWARGS is read from standard input when it is `-`, like every document argument.
 Standard, vim and emacs keys are all read at once, and `?` shows them as three tabs;
 the cursor starts on the id column and the row under it is washed,
-`Space` grabs an item to move it (on a list only when `rank` is bound),
-and `Enter` is the one action key, doing what the cell under the cursor is for:
-on the id it opens the issue as show,
-on a relation, drawn as the issue it names, it opens the relation's picker:
-first `→ go to` that issue, where the cursor opens, so `Enter`, `Enter` opens it,
-then the issues the field's `target_types` allow, the current one marked,
-`/` narrowing them and `(none)` last (a `multi-relation` has a `go to` per issue,
-and changing its set rings the bell for now: `issue add`/`remove`),
-on any other cell it edits it
-(a person, an `identity` field such as `assignee`, is drawn by name
-and its list shows names and writes the id;
-`issue get --format text` names it too, and JSON keeps the id),
-where a value list ends with `(none)` and an emptied box clears the field
-(`title` excepted, it cannot be cleared) and a bool flips at once.
+and `Enter` opens while `Space` edits (2026-10-02):
+`Enter` on the id or any plain cell opens the row's issue as show,
+and on a relation, drawn as the issue it names, opens that issue at once
+(a `multi-relation` cell on a list, the first);
+`Space` on a cell edits it, a column that is not a field of the row's type ringing the bell,
+and on a list's id grabs the row to move it (only when `rank` is bound).
+A relation's edit is its picker: the issues the field's `target_types` allow,
+the cursor on the current one, marked, `/` narrowing them and `(none)` last
+(changing a `multi-relation`'s set rings the bell for now: `issue add`/`remove`);
+a person, an `identity` field such as `assignee`, is drawn by name
+and its list shows names and writes the id
+(`issue get --format text` names it too, and JSON keeps the id);
+a value list ends with `(none)` and an emptied box clears the field
+(`title` excepted, it cannot be cleared), `Enter` in the editor writes and `Esc` cancels,
+and a bool flips at once.
 A board's card has no cells: `Enter` opens it, copy copies its id,
 and its only edits are moves — `Space` grabs with no rank needed,
 `←`/`→` carry the card into the next column (a drop sets the `columns`
@@ -269,12 +270,13 @@ The terminal's own copy and paste keys stay the terminal's,
 `C-c`/`y`/`M-w` copy the cell under the cursor and `M-c`/`Y` the id
 (over OSC 52 and, where the machine has `wl-copy`/`xclip`/`xsel`/`pbcopy`, through that too),
 a paste opens the editor with the text in it, `/` or `C-s` filters.
-Show is a header — type, title, `[ ] archived`, each a cell `Enter` edits or flips —
+Show is a header — type, title, `[ ] archived`, each a cell `Space` edits or flips —
 then the fields table, the comment box, and description/comments/log tabs switched with ←/→;
-it opens in the comment box, and `↓` then `Enter` sends the comment
-(`Tab` skips the box whole; its buttons are reached from its text).
+it opens on the comment box, not typing: `Enter` there does nothing,
+`Space` puts the cursor in the text, where `Enter` sends, `M-Enter` (or `S-Enter` where the terminal reports it) is a newline
+and `Esc` leaves the text keeping the draft (`Tab` skips the box whole).
 Show's `children` lists the issues pointing at it, a section of table rows per entry,
-each child a link `Enter` follows:
+each child a link `Enter` follows and `Space` rings on:
 `git work view show '{"id":"<story>","children":[{"type":"task","relation":"parent","fields":["status"]}]}'`,
 where `relation` is the field on the child holding this issue's id, or its inverse name
 (`{"relation":"children"}` alone is every type's `parent`), `type` and `fields` optional;

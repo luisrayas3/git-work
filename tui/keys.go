@@ -117,7 +117,7 @@ type keymap struct {
 	pageUp, pageDn        *chord
 	top, bottom           *chord
 	next, previous        *chord
-	act                   *chord
+	act, edit, newline    *chord
 	copy, copyId, paste   *chord
 	filter                *chord
 	grab                  *chord
@@ -153,12 +153,19 @@ var keys = keymap{
 	previousTab: newChord("previous tab", one("ctrl+pgup"), nil, nil).
 		show(vim, "gT ctrl+pgup"),
 
-	// Enter is the one action key: it does what the thing under the cursor
-	// is for. ctrl+enter and f2 are gone, because ctrl+enter is enter on
-	// every terminal without the kitty keyboard protocol, and a key that is
-	// one key here and another there is not a key the renderer reads
-	// (doc/design/terminal-renderer.md, 2026-09-28).
-	act: newChord("act: open id, edit cell (a link: go to or change), press", one("enter"), nil, nil),
+	// Enter opens and space edits (doc/design/terminal-renderer.md,
+	// 2026-10-02): enter opens the issue under the cursor, or the one a link
+	// names, and sends a comment being typed; space edits the cell under the
+	// cursor, starts typing in the comment box, and on what has no cell — an
+	// id, a card, a bar — grabs. ctrl+enter and f2 are gone, because
+	// ctrl+enter is enter on every terminal without the kitty keyboard
+	// protocol, and a key that is one key here and another there is not a key
+	// the renderer reads (2026-09-28).
+	act:  newChord("open issue, follow link; typing: send comment", one("enter"), nil, nil),
+	edit: newChord("edit cell (a link: change it); on the box: write", one("space", " "), nil, nil),
+	// A newline in a comment: alt+enter is escape, enter, which every
+	// terminal sends; shift+enter only where the terminal tells it from enter.
+	newline: newChord("typing: newline in comment", one("alt+enter", "shift+enter"), nil, nil),
 
 	// Copy and paste are the terminal's first: cmd+c and ctrl+shift+c copy
 	// what the mouse selected, and cmd+v and ctrl+shift+v paste, arriving as
@@ -176,7 +183,7 @@ var keys = keymap{
 		show(standard, "terminal paste (cmd+v, ctrl+shift+v)"),
 
 	filter: newChord("filter", one("/"), one("/"), one("ctrl+s")),
-	grab:   newChord("grab / drop (move; rank to reorder)", one("space", " "), nil, nil),
+	grab:   newChord("on id, card, bar: grab / drop (rank to reorder)", one("space", " "), nil, nil),
 	// z folds a nested row shut and open again; tab and shift-tab, the next
 	// and previous stop, are into the first child and up to the parent there
 	fold: newChord("fold / unfold (nested)", one("z"), nil, nil),
@@ -196,9 +203,9 @@ func helpRows() []*chord {
 		keys.up, keys.down, keys.left, keys.right,
 		keys.pageUp, keys.pageDn, keys.top, keys.bottom,
 		keys.next, keys.previous,
-		keys.act,
+		keys.act, keys.edit, keys.grab, keys.newline,
 		keys.copy, keys.copyId, keys.paste,
-		keys.filter, keys.grab, keys.fold, keys.nextTab, keys.previousTab,
+		keys.filter, keys.fold, keys.nextTab, keys.previousTab,
 		keys.back, keys.help, keys.quit,
 	}
 }

@@ -379,8 +379,8 @@ func (p *listPage) key(press tea.KeyPressMsg) (page, tea.Cmd) {
 		return p, tea.ReadClipboard
 	case keys.filter.matches(press):
 		p.startFilter()
-	case keys.grab.matches(press):
-		return p.startGrab()
+	case keys.edit.matches(press):
+		return p.edit()
 	case keys.help.matches(press):
 		p.help = &help{}
 
@@ -459,17 +459,27 @@ func (p *listPage) toggleFold() {
 	p.rebuild()
 }
 
-// act is enter, the one action key: on the id it opens the issue, and on
-// any other cell it edits it — a relation's picker opening on "go to" the
-// issue it names, so enter, enter follows the link
-// (doc/design/terminal-renderer.md, 2026-09-29).
+// act is enter, which opens and never edits: on a relation cell the issue it
+// names, the first of several, and on any other cell the row's own issue
+// (doc/design/terminal-renderer.md, 2026-10-02).
 func (p *listPage) act() (page, tea.Cmd) {
 	row := p.current()
 	if row == nil {
 		return p, nil
 	}
+	if links := row.links[p.fieldKey()]; len(links) > 0 {
+		return p, p.push(links[0])
+	}
+	return p, p.push(row.id)
+}
+
+// edit is space: on a field it edits it — the widget its kind takes, a
+// relation's picker on the current value — and on the id, which is not
+// editable, it grabs the row to move it. A column that is not a field of the
+// row's type is drawn, never written, and rings the bell (startEdit).
+func (p *listPage) edit() (page, tea.Cmd) {
 	if p.column == 0 {
-		return p, p.push(row.id)
+		return p.startGrab()
 	}
 	return p, p.startEdit(nil)
 }
@@ -620,13 +630,6 @@ func (p *listPage) updateEditor(msg tea.Msg) (page, tea.Cmd) {
 		return p, nil
 	}
 
-	if id := ed.goTo(); id != "" {
-		return p, p.push(id)
-	}
-	if refusal := ed.refusal(); refusal != "" {
-		p.status = refusal
-		return p, bell()
-	}
 	value, err := ed.Value()
 	if err != nil {
 		p.status = err.Error()
@@ -659,7 +662,7 @@ func (p *listPage) write(id, key string, value issue.Value) {
 func (p *listPage) startGrab() (page, tea.Cmd) {
 	if p.rankKey == "" {
 		p.status = "no rank: cannot reorder"
-		return p, nil
+		return p, bell()
 	}
 	if p.current() == nil {
 		return p, nil

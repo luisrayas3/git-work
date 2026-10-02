@@ -64,13 +64,18 @@ func TestShowChildrenByTypeAndRelation(t *testing.T) {
 		}
 	}
 	page.row = at
-	page.focusStop(stopFields, -1)
+	page.focusStop(stopFields)
 	require.Equal(t, "", page.field(), "a child row is not a field")
 	_, cmd := page.Update(press("enter"))
 	require.NotNil(t, cmd)
 	pushed, ok := cmd().(pushMsg)
 	require.True(t, ok)
 	require.Equal(t, one, pushed.page.(*showPage).id)
+
+	// and space rings: there is nothing on it to edit
+	_, cmd = page.Update(press("space"))
+	require.NotNil(t, cmd, "the bell")
+	require.Nil(t, page.editor)
 
 	// live: a new child shows on the next load, as the watcher's refresh
 	three := newTyped(t, repo, "task", map[string]any{"title": "task three", "parent": story})
@@ -100,14 +105,18 @@ func TestShowChildrenByInverse(t *testing.T) {
 	require.Contains(t, drawn, "blocked_by")
 	require.Contains(t, drawn, "(none)", "an empty section says so")
 
-	// enter on the empty section rings: it is not a field to edit
+	// enter on the empty section rings, and so does space: it is not a
+	// field to edit
 	for at := range page.rows {
 		if page.rows[at].label == "(none)" {
 			page.row = at
 		}
 	}
-	page.focusStop(stopFields, -1)
-	page.Update(press("enter"))
+	page.focusStop(stopFields)
+	_, cmd := page.Update(press("enter"))
+	require.NotNil(t, cmd, "the bell")
+	_, cmd = page.Update(press("space"))
+	require.NotNil(t, cmd, "the bell")
 	require.Nil(t, page.editor)
 }
 

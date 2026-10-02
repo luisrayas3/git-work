@@ -17,8 +17,8 @@ import (
 // other side of a relation is drawn the way a relation is, a line per issue,
 // each a link, so the cursor stands on it and enter follows it through the
 // table's own handling, and copy copies its id. The rows are derived, never
-// stored, so they are not a field: enter on an empty section rings, and
-// nothing edits them.
+// stored, so they are not a field: enter on an empty section rings, and so
+// does space, because nothing edits them.
 
 // newShowView is the show page a call describes, `children` included: the
 // entry point from the command and from a flow, where the list's enter opens

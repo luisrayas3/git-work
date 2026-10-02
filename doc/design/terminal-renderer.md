@@ -177,7 +177,7 @@ put three spellings in every cell, which read as noise to all three).
 | quit, at once | `C-q` | | |
 
 A blank cell is the standard key, which every family also reads.
-`Enter` acts on what is under the cursor, `Space` grabs and `?` is the help in every family.
+`Enter` opens, `Space` edits — or grabs, where there is no cell — and `?` is the help in every family.
 
 **`C-c` copies; it no longer quits.**
 It is the key a standard user copies with,
@@ -225,18 +225,31 @@ is a place worth standing on.
 `q` is therefore not a quit key any more, and there is no single-key quit
 except `C-q`.
 
-**`Enter` is the one action key; `C-Enter` and `F2` are gone**
-(revised 2026-09-28, Luis).
-`Enter` does what the thing under the cursor is for:
-on a list's id column it opens the issue,
-on a link it opens the relation's picker on *go to* the issue it names
-(A relation is a link, below), so `Enter`, `Enter` follows it,
-on any other cell it edits it —
+**`Space` edits, `Enter` opens** (revised 2026-10-02, Luis).
+`Enter` goes somewhere and never changes anything:
+on a list's id, or any cell that is not a link, it opens the row's issue,
+on a link it opens the issue the link names, at once
+(A relation is a link, below),
+on a board's card and a gantt's bar it opens the issue,
+and in the comment box's text, once typing, it sends.
+`Space` changes what is under the cursor:
+on a cell it edits it —
 a value list for an enum or a person,
+an issue list for a relation,
 an input line for text, a number or a date,
 and a bool flips at once —
-on a button it presses it,
-and in the comment box's text it is a newline.
+on the comment box it puts the cursor in the text,
+and on what has no cell to edit — a list's id, a card, a bar — it grabs (below).
+A cell that is drawn and never written —
+a list column that is not a field of the row's type, a show's child row —
+rings the bell under `Space`.
+For four days `Enter` was the one action key,
+opening on an id, editing on a cell, and on a link a picker headed by *go to*,
+so that `Enter`, `Enter` followed;
+it read as one key meaning three things,
+and a link took two presses to follow, which is the thing a link is for.
+Two keys, one to go and one to change, is the split every file manager has,
+and `Space` was already the key that changed a card's place on a board.
 `C-Enter` was the edit key and the send key for a week, and it is banned:
 it exists only on a terminal that speaks the kitty keyboard protocol
 (kitty, Ghostty, WezTerm, foot, iTerm2 with CSI u),
@@ -248,8 +261,8 @@ and one key did two things on two machines.
 A key that is one key here and another there is not a key the renderer reads.
 `F2` was the fallback every terminal sends, and it goes too:
 a function key is not where a hand is,
-and with `Enter` acting nothing needs it.
-Every action is direction keys and `Enter`,
+and with `Space` editing nothing needs it.
+Every action is direction keys, `Enter` and `Space`,
 which every terminal has had since the VT100.
 `e` stays gone: a letter that edits is a letter that cannot be typed,
 and the comment box on `show` is where a user types.
@@ -284,7 +297,7 @@ until it was pointed out that it is every Linux terminal's copy.
 Paste arrives as a bracketed paste,
 and it **opens the editor** on the field under the cursor with the text in it —
 an input line holding it, or a value list on the value it names —
-so `Enter` writes it and nothing is written by a paste alone.
+so `Enter` in the editor writes it and nothing is written by a paste alone.
 `p` and `C-y` ask the terminal for its clipboard over OSC 52 instead,
 which a terminal may refuse; then nothing happens.
 `C-v` stays emacs's page down:
@@ -305,7 +318,8 @@ and `z` to fold and unfold (built 2026-09-28, Nesting below).
 **Grab replaces every drag binding.**
 A terminal has no drag, and a modifier-plus-arrow vocabulary
 collides with everything the three key families already claim.
-So: `Space` grabs the item under the cursor, whose border blinks;
+So: `Space` grabs the item under the cursor, whose border blinks —
+on a list from the id column only, because on a field `Space` edits it;
 the direction keys move it;
 `Space` or `Enter` drops it;
 `Esc` puts it back where it was.
@@ -329,8 +343,8 @@ The rest is the same on every kind:
 
 | Key | Action |
 | --- | --- |
-| `Enter` | open `show` for the issue under the cursor; on a link cell, the relation's picker on *go to*, so `Enter` `Enter` opens the one it names; `Esc` returns to the view where it was |
-| edit | edit the field under the cursor in place; a card and a bar have no cell, and `Enter` opens them (Board, Gantt) |
+| `Enter` | open `show` for the issue under the cursor; on a link cell, the issue it names; `Esc` returns to the view where it was |
+| `Space` | edit the field under the cursor in place; a card and a bar have no cell, and `Space` grabs them (Board, Gantt) |
 | copy | copy the cell under the cursor to the clipboard over OSC 52 |
 | `/` `C-s` | narrow the visible rows by text, locally |
 | `?` | list the keys |
@@ -345,23 +359,20 @@ the wash says which issue, the cell says which field.
 A field of kind `relation` or `multi-relation` holds the other issue's whole id,
 and nobody reads a 64-character hash,
 so it is drawn as the issue it names: short id and title, underlined.
-**`Enter` on it selects, and `Enter` again follows it**
-(2026-09-29, Luis: double `Enter` is follow, single `Enter` is select).
-A link is also a value, and a cell that only followed could never be edited,
-while `←` and `→` are taken — columns on a list, tabs on `show` —
-and a new key for it is what the `Enter` section rules out.
-So the first `Enter` opens the relation's picker (below) at once,
-and its first entry is **go to**, `→ go to 3f2a1c9 Board story`,
-drawn as a link and ruled off from the values under it;
-the cursor opens there, so `Enter`, `Enter` is the follow that `Enter` alone was,
-and `↓` then `Enter` on any other issue sets the field.
-An intermediate *open / change* menu was drawn for an hour and dropped the same day:
-it was a question in front of every edit and every follow,
-where a picker that opens on *go to* answers both with the keys a picker already has.
-An empty relation has nothing to go to, and its picker has no such entry.
-`Esc` closes it having done nothing.
-The status line on a relation cell says what `Enter` does: *enter: go to · change*, or *enter: change* on an empty one.
-Board cards and gantt bars are not cells, and `Enter` still opens them.
+**`Enter` on it follows it, and `Space` changes it** (revised 2026-10-02, Luis).
+A link is also a value, and a cell that only followed could never be edited;
+with `Space` the edit key, the two are two keys and neither waits on the other.
+`Enter` opens the issue it names at once, with no picker;
+on a list cell of a `multi-relation`, which holds several, the first,
+and on `show`, where each is a line of its own, the line's.
+`Space` opens the relation's picker (below) on the current value.
+From 2026-09-29 to 2026-10-02 the first `Enter` opened the picker
+headed by a **go to** entry, the cursor on it, so `Enter`, `Enter` followed;
+with `Enter` no longer an edit key, the entry has nothing left to do, and it is gone.
+An empty relation has nothing to go to: `Enter` on it opens the row's issue on a list,
+and on `show`, where the row is the page already, rings the bell.
+The status line on a relation cell says what the keys do: *enter: go to · space: change*, or *space: change* on an empty one.
+Board cards and gantt bars are not cells, and `Enter` opens them.
 Copy on it copies the id, which is what another command takes.
 A link to an issue the store does not have yet is its short id alone.
 
@@ -376,7 +387,7 @@ Everywhere a value is drawn it is the name:
 a cell, a card, a gantt label, a group or swimlane header, a board column's header,
 and `/` filters on it.
 It is not a link, because a person has no page:
-`Enter` edits it, the identity list shows the same names and writes the id,
+`Space` edits it, the identity list shows the same names and writes the id,
 a board drop into a person's column writes the id,
 and copy copies the id.
 JSON and the `query` a view runs keep the id, because the id is the value.
@@ -390,22 +401,21 @@ a value list for an enum, a toggle for a bool,
 an input line for text, number and date,
 an identity list for an identity,
 an issue list for a relation.
-The issue list is the same value list, under the *go to* entry:
+The issue list is the same value list:
 the issues of the field's `target_types`, or every issue where it names none,
 last edited first as a list is, each drawn as a link is, short id and title,
 the issue itself and archived issues left out, and `(none)` last, which clears it;
-the current value is marked *● current* among them,
+the cursor opens on the current value, marked *● current* among them,
 and a paste of an id, whole or short, lands on that issue.
 **`/` narrows any value list** as it narrows a list:
-typed text keeps the choices whose label or id it is in — never *go to*, which is not a value —
+typed text keeps the choices whose label or id it is in,
 `Enter` keeps the narrowing and goes back to choosing, `Esc` drops it,
 and a picker draws ten choices at a time around the cursor,
 because an issue list is longer than a status list.
-`Enter` writes the id through `host` like any other edit, one commit,
+`Enter` in it writes the id through `host` like any other edit, one commit,
 and the schema check still has the last word on `target_types`.
-A `multi-relation`'s picker is a *go to* per issue it names, set apart the same way,
-then `add / remove…`, which rings the bell for now, naming `git work issue add/remove`,
-and an empty one rings it at once:
+A `multi-relation` has no picker yet: `Space` on it rings the bell, naming `git work issue add/remove`,
+and `Enter` goes to the issue under the cursor as on any link:
 a list of checkboxes would commit the difference as adds and removes,
 and there is no one host call that commits both as one commit yet (2026-09-29).
 
@@ -684,7 +694,7 @@ yellow left to the grab and the ungrouped left plain.
 `show` is a view kind like the others,
 not a mode of the list,
 because `git work view show '{"id":"abc1234"}'` is a thing to want on its own
-and because `Enter` from any kind opens it.
+and because `Enter` from any kind opens it, and the edits a board and a gantt do not make are made here.
 It takes `id`, and `fields` to narrow and order what it prints;
 by default it prints the type's fields in schema order.
 `children` adds the issues that point at it (Children, below).
@@ -693,7 +703,7 @@ The page is **four stops**, top to bottom (revised again 2026-09-28, Luis):
 
 1. the **header**: the type, the title, and whether the issue is archived;
 2. the **fields table**;
-3. the **comment box**, with its buttons inside it;
+3. the **comment box**;
 4. the **tabs**: description, comments and log.
 
 The header is the three built-in fields,
@@ -705,38 +715,44 @@ by being bold, over a rule as long as it is,
 with a blank line on either side —
 and archived as a checkbox, `[x] archived` in the warning colour when the issue is
 and `[ ] archived` dim when it is not,
-always drawn, because the toggle `Enter` flips has to be in sight
+always drawn, because the toggle `Space` flips has to be in sight
 (it was invisible until true for an hour, and that read as missing).
 Left and right walk the three cells as they walk a list row,
-and `Enter` on the type opens the schema's types,
+and `Space` on the type opens the schema's types,
 on the title an input line,
 and on archived flips it, both ways, in one press:
 an archive is an operation like any other, and the same press undoes it.
 
-The cursor opens **in the comment box**,
+The cursor opens **on the comment box**,
 though the box is drawn under the fields,
 because opening an issue to say something about it is the common case,
-and the box is where the typing goes.
+and the box is where the typing goes —
+but not typing in it (revised 2026-10-02, Luis):
+a page whose every letter is text on arrival has no keys of its own,
+and `Space`, the edit key, is what starts it, as it starts every other edit.
 It opens two lines tall and grows with what is typed, up to a paragraph.
 The textarea's highlighted cursor line is turned off:
 its shade is the colour of the text on the wrong kind of terminal,
 and what was typed disappeared into it.
-The box is **one stop with an inside**:
-its text, and under the text a footer line holding its buttons.
-`Down` on the text's last line moves onto the footer,
-left and right pick a button there, `Enter` presses it,
-and `Up` goes back into the text;
-`Up` on the text's first line leaves for the fields table above.
-`Tab` and `S-Tab` move between stops and skip the block whole,
-because the buttons are the box's own and not places on the page
-(they were tab stops for a day, and a page whose tab order
-stopped on a button read as a form).
-So sending a comment is `Down`, `Enter`, on every terminal there is,
-and the status line says so while the cursor is in the text.
+The box is **one stop, typed in once entered**:
+on it, the directions leave it as from any stop, `Enter` does nothing,
+and `Space` puts the cursor in the text;
+in the text every key is text, `Space` a space, the directions the text's own,
+`Enter` sends, and `Esc` leaves the text with the draft kept,
+the cursor back on the box.
+A newline is `M-Enter`, which every terminal sends as escape, enter,
+and `S-Enter` where the terminal tells it from `Enter`.
+`Tab` and `S-Tab` move between stops, out of the text too,
+and land on the box, never in it.
+A footer line under the text says which keys work it:
+*space: write* on the box, *enter: send · alt+enter: newline · esc: done* in it.
+It held a **Submit comment** button until 2026-10-02,
+reached by `Down` from the text's last line and pressed with `Enter`;
+with `Enter` sending from the text, the button was a second way to do one thing.
 Outside the box's text the directions work within a stop first
 and move to the next stop at its edge:
 in the table, up and down walk the rows,
-past the last row is the box, and past the box's footer is the tab strip;
+past the last row is the box, and past the box is the tab strip;
 on the tabs, up and down scroll.
 Copy works on each header cell and on each row as on a list cell;
 copy on the description copies the description.
@@ -746,7 +762,7 @@ with no header row: a key and its value need no caption.
 A relation is a link here as on a list,
 and a `multi-relation` is a line per issue it names,
 so that each is a link the cursor can stand on;
-`Enter` opens the field's picker with the cursor on *go to* that line's issue.
+`Enter` goes to that line's issue.
 
 The tabs are drawn **as tabs**, under the comment box:
 boxes on a rule, the one drawn open into what is under it.
@@ -775,18 +791,18 @@ Comments and the log were one timeline for a day;
 they are two tabs again because reading a discussion
 and reading what changed are two different reasons to open an issue.
 
-`Enter` in the box is a newline:
-a comment is prose, and sending half of one is worse than a second key.
-`Esc` in an empty box goes back to the view that opened the issue;
-with a draft in it, `Esc` leaves the text for the footer and keeps the draft,
+`Enter` in the text was a newline until 2026-10-02,
+because sending half a comment is worse than a second key;
+once typing is a mode `Space` enters, `Enter` sending is what every chat box does,
+and the newline is the second key instead.
+`Esc` in the text only leaves it;
+`Esc` on the box goes back to the view that opened the issue,
 and going back with a draft asks for a second `Esc`,
 because a draft is the one thing on the page the store does not have.
 
-The buttons are **Submit comment** alone, today.
-They are where actions injected into views (deferred, below) land on `show`:
+Actions injected into views (deferred, below) lost their place on `show` with the button:
 a view invocation that names, say, *Comment and close*
-gets a second button beside the first in the footer,
-running the comment and then its action.
+needs a key or a row of its own, decided with them.
 
 ### Children
 
@@ -848,7 +864,7 @@ and links in it would need a second cursor.
 It is also where Jira puts *Child issues*: in the issue's body, with its fields,
 not behind a tab.
 The rows are derived, never stored, so they are **not a field**:
-nothing edits them, and `Enter` on an empty section rings the bell.
+nothing edits them: `Space` on them rings the bell, and so does `Enter` on an empty section.
 To reparent a task, open it and edit its `parent`.
 
 A section is named by the relation from the shown issue's side:
@@ -928,8 +944,9 @@ Not decided, and grouped here because they are one conversation:
   a callback is an action the view invents a name for,
   and an action is the same thing the flow names.
   This is the first client of the worker goroutine.
-  On `show` they join *Submit comment* in the button row under the comment box,
-  which is where *Comment and close* comes from (2026-09-27).
+  On `show` they were to join *Submit comment* in a button row under the comment box,
+  which is where *Comment and close* came from (2026-09-27);
+  the button went on 2026-10-02, and where they land there is open again.
 - **`work.view.split`**, two panes as one composite view.
 - **Questions to the user** — choose, confirm, ask, form —
   which is how a flow asks something without a view.
