@@ -25,8 +25,30 @@ const (
 // milestoneTrail is a milestone, an issue with one date and not the other:
 // it starts on the date's cell and fades away from it, toward the side its
 // missing date would be: left of a stop, right of a start. Past the trail
-// that side is the dateless band, as far as the chart goes.
+// that side is the dateless band, from today on.
 var milestoneTrail = []string{"▓", "▓", "▒", "▒", "░", "░"}
+
+// overdueTint is the band between a stop that has gone by and today, which
+// is the one thing on a chart worth a color of its own: red, outranking the
+// group's tint, because a date already missed is what the eye is looking
+// for and the group is readable from the row's neighbours (2026-10-02).
+var overdueTint = lipgloss.Color("1")
+
+// cellStyle says which of a row's four ways to draw one cell is meant.
+type cellStyle int
+
+const (
+	// cellBlank is the chart showing through: before a row can start, after
+	// its stop, outside what it covers.
+	cellBlank cellStyle = iota
+	// cellBar is the bar itself, or a milestone's trail.
+	cellBar
+	// cellBand is the dull band of what is not planned: a row with no
+	// dates, or a milestone's open side.
+	cellBand
+	// cellOverdue is the band from a stop already past to today.
+	cellOverdue
+)
 
 // groupColors are the bars' colors, one per group in the order the groups
 // first appear, cycled; yellow is left out, being the grab's.
@@ -299,6 +321,19 @@ func (p *ganttPage) rowLine(index, labelWidth, visible int, under, grabbed bool,
 	if tint != nil && !grabbed {
 		bandStyle = barStyle.Foreground(dull(tint))
 	}
+	overdueStyle := bandStyle
+	if !grabbed {
+		overdueStyle = barStyle.Foreground(overdueTint)
+	}
+	styleOf := func(kind cellStyle) lipgloss.Style {
+		switch kind {
+		case cellBand:
+			return bandStyle
+		case cellOverdue:
+			return overdueStyle
+		}
+		return barStyle
+	}
 	// on the cursor's period the cell is marked on the cursor's row and
 	// washed on every other; the mark drops the tint, the grab's colour and
 	// the faint, so what it covers is the terminal's foreground on the mark
@@ -311,22 +346,29 @@ func (p *ganttPage) rowLine(index, labelWidth, visible int, under, grabbed bool,
 		}
 		return style
 	}
+	now := p.nowCol()
+	at := first
+	if milestone {
+		at = p.milestoneCol(b)
+	}
 	for i := p.colOffset; i < p.colOffset+visible; i++ {
 		var text strings.Builder
 		style := barStyle
 		switch {
 		case !ok:
+			// a row with no dates at all could start at any point from now
+			// on: its band begins at today and runs to the chart's end
+			if i < now {
+				text.WriteString(strings.Repeat(" ", w))
+				break
+			}
 			text.WriteString(strings.Repeat(glyphDateless, w))
 			style = bandStyle
 		case milestone:
 			// a cell at a time: the trail is the bar's, the rest the band's
 			for k := 0; k < w; k++ {
-				glyph, band := milestoneGlyph((i-first)*w+k, w, b.hasStart)
-				cell := barStyle
-				if band {
-					cell = bandStyle
-				}
-				parts = append(parts, cursor(i, cell).Render(glyph))
+				glyph, kind := milestoneGlyph(i, k, w, at, now, b.hasStart)
+				parts = append(parts, cursor(i, styleOf(kind)).Render(glyph))
 			}
 			continue
 		case i < first || i > last:
@@ -352,23 +394,37 @@ func (p *ganttPage) rowLine(index, labelWidth, visible int, under, grabbed bool,
 	return fit(strings.Join(parts, ""), p.width)
 }
 
-// milestoneGlyph is the character at pos cells from the start of a
-// milestone's period: the trail starts on the period's first cell for a
-// start, its last for a stop, and fades away from it into the neighbors,
-// then runs on as the band to the chart's edge, the side its missing date
-// leaves open.
-func milestoneGlyph(pos, w int, start bool) (glyph string, band bool) {
-	distance := pos
+// milestoneGlyph is cell k of period i on a row with one date: the trail
+// starts on the date's period — its first cell for a start, its last for a
+// stop — and fades away from it into the neighboring periods, the side its
+// missing date leaves open, and past the trail that side is the band.
+//
+// The band of a missing start begins at today (`04248c5`): a row with no
+// start has not started, so the chart says it could start from now on
+// rather than painting the weeks it has already been possible in. A stop
+// that has gone by draws its marker all the same, and the band from it to
+// today in the overdue tint, which is the row saying it is late. A missing
+// stop is open-ended as it always was: the band runs from the start to the
+// chart's edge, because work with no end date has not been given one.
+func milestoneGlyph(i, k, w, at, now int, start bool) (glyph string, kind cellStyle) {
+	distance := (i-at)*w + k
 	if !start {
-		distance = w - 1 - pos
+		distance = (at-i)*w + (w - 1 - k)
 	}
 	switch {
 	case distance < 0:
-		return " ", false
+		// the far side of the date: nothing, unless a stop has gone by and
+		// the band from it to today says so
+		if !start && i <= now {
+			return glyphDateless, cellOverdue
+		}
+		return " ", cellBlank
 	case distance < len(milestoneTrail):
-		return milestoneTrail[distance], false
+		return milestoneTrail[distance], cellBar
+	case start || i >= now:
+		return glyphDateless, cellBand
 	}
-	return glyphDateless, true
+	return " ", cellBlank
 }
 
 // dull is a group's tint toward the background, for the band of a row

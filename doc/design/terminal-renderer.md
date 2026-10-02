@@ -752,15 +752,35 @@ The trail says which date it is:
 a start begins on its period's first cell and fades to the right, `▓▓▒▒░░`,
 a stop ends on its last and fades to the left, `░░▒▒▓▓`,
 the fade running into the neighboring periods,
-and past it the side the missing date leaves open is the dateless band
-to the chart's edge, because a start with no stop is open-ended, not a point.
+and past it the side the missing date leaves open is the dateless band.
 It had a diamond on the date too, dropped on 2026-09-29:
 the trail's dense end already marks it.
-**A row with no dates is a dull band** across the whole chart, in its
-group's tint blended a third of the way to the background —
-the terminal's faint washed the hue out, so a group could not be told —
-so the row reads as unplanned rather than as missing;
-it has nothing to move, and says so.
+
+**A band begins at today** (2026-10-02, `04248c5`).
+A row with no start has not started,
+and it could start at any point from now on,
+so what the chart has to say about it is *from today*:
+the band of a row with a stop and no start runs from today's period to that
+stop, and the band of a row with no dates at all from today to the chart's
+end. Before this both ran from the chart's left edge,
+which drew weeks that have already gone by as weeks the work might be done
+in — the one thing about an unplanned row that is certainly false.
+A row with a start and no stop is unchanged:
+it fades from its start to the right and runs on as the band to the chart's
+edge, because work with no end date has not been given one.
+**A stop that has gone by** keeps its marker, and the band runs back from it
+to today in an **overdue tint**, red: a date already missed is what the eye
+is looking for on a chart, and red outranks the group's tint there, the
+group being readable from the row's neighbours anyway.
+Nothing is drawn past such a stop: a stop is a stop.
+The chart's own extent counts a missing start as today for the same reason,
+so a row that is only a stop sizes the chart to today-to-stop
+rather than to the point its stop is.
+
+A band is drawn in its group's tint blended a third of the way to the
+background — the terminal's faint washed the hue out, so a group could not
+be told — so the row reads as unplanned rather than as missing;
+a row with no dates has nothing to move, and says so.
 
 **A parent with no dates of its own draws the envelope of its children's**,
 folded or not, in a glyph of its own,
