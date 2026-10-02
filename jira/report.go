@@ -19,7 +19,7 @@ const (
 	ActionSkipped  = "skipped" // refused or waiting, reported: a person may look
 	ActionFailed   = "failed"
 	// ActionConsolidated is a second local copy of one Jira issue,
-	// archived into the copy that reached Jira first (JS27).
+	// archived into the copy that reached Jira first.
 	ActionConsolidated = "consolidated"
 )
 
@@ -30,7 +30,7 @@ type Line struct {
 	Issue     entity.Id                  `json:"issue,omitempty"`
 	Jira      string                     `json:"jira,omitempty"`
 	Action    string                     `json:"action,omitempty"`
-	Adopted   entity.Id                  `json:"adopted,omitempty"` // the absent entity the property named (JS27)
+	Adopted   entity.Id                  `json:"adopted,omitempty"` // the absent entity the property named
 	Imported  map[string]json.RawMessage `json:"imported,omitempty"`
 	Exported  map[string]json.RawMessage `json:"exported,omitempty"`
 	Comments  *CommentCounts             `json:"comments,omitempty"`
@@ -59,9 +59,9 @@ type Summary struct {
 	Updated      int       `json:"updated"`
 	Linked       int       `json:"linked"`
 	Gone         int       `json:"gone"`
-	Adopted      int       `json:"adopted"`      // imports past the --adopt bound (JS27)
-	Consolidated int       `json:"consolidated"` // second copies archived (JS27)
-	Orphans      int       `json:"orphans"`      // hits still skipped for an absent entity (JS27)
+	Adopted      int       `json:"adopted"`      // imports past the --adopt bound
+	Consolidated int       `json:"consolidated"` // second copies archived
+	Orphans      int       `json:"orphans"`      // hits still skipped for an absent entity
 	Conflicts    int       `json:"conflicts"`
 	Pending      int       `json:"pending"`
 	OffSchema    int       `json:"off_schema"` // keys written that the schema's policy would refuse

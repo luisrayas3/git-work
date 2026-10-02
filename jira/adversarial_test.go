@@ -1814,7 +1814,7 @@ func twoClones(t *testing.T, opts ...jiratest.Option) (*world, *world) {
 // Both clones import the same new Jira issue before exchanging:
 // two local issues for one Jira issue, a documented cost of two bound clones (JS25).
 // Both read the same Jira state, so the lower id reached Jira first;
-// the other is consolidated into it (JS27).
+// the other is consolidated into it.
 func TestAdvTwoClonesImportSameIssue(t *testing.T) {
 	a, b := twoClones(t)
 	key := a.srv.CreateIssue(jiratest.IssueSpec{Project: "PROJ", Type: "Task", Summary: "Seen twice"})
@@ -2008,7 +2008,7 @@ func TestAdvTwoClonesTagTheAccount(t *testing.T) {
 		}
 	}
 	t.Logf("identities tagged with the token's account: %d", tagged)
-	b.mustSync(jira.Options{}) // consolidates the issue both clones imported (JS27)
+	b.mustSync(jira.Options{}) // consolidates the issue both clones imported
 	before := b.refs()
 	b.mustSync(jira.Options{})
 	b.mustSync(jira.Options{})

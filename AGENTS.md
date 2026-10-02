@@ -311,7 +311,7 @@ other than the one written, unless it is the normal form Jira answered the
 write with; a write Jira's `GET` does not show yet is pending, never written
 again, until Jira's `updated` reaches it or 15 minutes of Jira's clock pass. It **never pushes**; bind one
 clone only: two bound clones syncing before they exchange duplicate issues,
-which the sync consolidates once they have (JS25, JS27). One run at a time: a
+which the sync consolidates once they have (JS25). One run at a time: a
 second exits 1 with `a jira sync is already running`, having done nothing.
 Run state is `.git/git-work/jira/state.json` (cursor, failed hits, refused
 creates); it is disposable: deleting it costs a slower run, never a wrong one,
@@ -326,8 +326,7 @@ Two local copies of one Jira issue, an adoption whose original later arrives
 or two clones importing one issue, are consolidated into the copy that
 reached Jira first, whatever either has archived:
 the other is synced once more, archived, its local-only values carried over,
-and every relation naming it pointed at the survivor
-(`doc/design/jira-sync.md`, JS27).
+and every relation naming it pointed at the survivor.
 There is no `work.jira.*` in Starlark yet (v2), a known gap in the 1:1 rule.
 
 Gotchas, hardened from use:

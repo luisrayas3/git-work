@@ -16,7 +16,7 @@ import (
 	"github.com/git-bug/git-bug/jira/jiratest"
 )
 
-// ---- orphaned exports (JS27) ----
+// ---- orphaned exports ----
 
 func days(n int) *time.Duration {
 	d := time.Duration(n) * 24 * time.Hour

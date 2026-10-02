@@ -18,7 +18,6 @@ comes from the vetted API reference, and every behaviour the vetting could
 not settle is a switch on the fake server (JS26), with the design choosing
 what works either way. This document describes the code; godoc is the
 authority for signatures.
-JS27, orphaned exports and consolidation, was added on 2026-10-02.
 
 ## What decides the shape
 
@@ -63,8 +62,6 @@ are editable; `customfield_NNNNN` differs per site; a key changes on a move.
 - Comments both ways, edits both ways, a Jira comment delete as a tombstone.
 - Creates both ways, crash-safe; linking a local issue created with
   `aliases: {jira: KEY}` to that Jira issue.
-- Orphaned exports: `--adopt DURATION`,
-  and the consolidation of two local copies of one Jira issue (JS27).
 - Identities by `jira-account-id`, created on demand.
 - A Jira delete or a move out of the project: `Gone`, under `--full` only.
 - Conflict notes on the issue; one JSON line per issue and a summary.
@@ -673,7 +670,7 @@ A crash between `POST` and step 6 is also repaired by the ordinary search:
 every hit whose `git-work.id` names a local entity without `jira-id` is
 linked, not imported; one whose entity this clone has not pulled is skipped
 ("pull first"), never imported, which would make a second entity,
-unless `--adopt` takes it (JS27). The search's
+unless `--adopt DURATION` says an issue that old is lost for good. The search's
 lower bound needs no attempt term: a created issue is always later than the
 cursor, which only moves to hits seen before any `POST`. Two Jira issues
 naming one entity: the lower id links, the other is skipped and reported as a
@@ -696,7 +693,7 @@ the ordinary step 6. A hit of an unmapped type is skipped silently, before any
 **Link requests.** A local issue with `alias:jira` and no `jira-id` is linked,
 never created: `GET` by key, with the property; its `git-work` property
 naming another local entity is a skip,
-and naming an absent one is a skip unless `--adopt` takes it (JS27);
+and naming an absent one is a skip unless `--adopt` takes it;
 a 404 is a skip ("alias PROJ-9 names no Jira issue") — creating would
 give a different key that the immutable alias could never follow. Otherwise
 step 6 adds `jira-id` and the merge runs with no base: scalars take Jira's
@@ -740,8 +737,7 @@ true}` on the remote side: the key is left alone and recorded in the
 marker's `Retry`, which makes the issue a candidate every run until it
 converts. At the end of a run that imported or created an issue, the issues
 that came back with `Retry` keys are re-run once, which resolves a child
-imported before its parent;
-a target the state remembers as an orphan is named with its cause (JS27). A local
+imported before its parent. A local
 value Jira cannot hold — a local-only status or target, a target not in Jira
 yet, a dead alias, a label with a space, a summary over 255 runes, an identity
 without an account — is a `Skip` from `toWrites`, never `Retry`: pending, and a
@@ -860,11 +856,9 @@ run touched, left pending, skipped or failed on, then a summary.
 
 `action` is `imported` (new locally), `created` (new in Jira), `updated`,
 `pending` (nothing moved; what waits is in `pending`), `linked`, `gone`,
-`consolidated` (archived into the copy that reached Jira first, JS27),
+`consolidated` (a second local copy, archived into the one that reached Jira first),
 `skipped` (refused or waiting, reported: a person may look) or `failed` (with
-`"error"`). An `imported` line carries `adopted`,
-the absent entity its property named, when `--adopt` took it.
-An issue with nothing to do is not a line but counted in
+`"error"`). An issue with nothing to do is not a line but counted in
 `unchanged`. The body appears in `imported`/`exported` as its first line, at
 most 60 characters; a conflict on a text repeats no text; `retry` appears
 only when true; empty members are omitted, the cursor too when there is
@@ -924,7 +918,7 @@ local can prevent it, because each has yet to see the other's work:
 
 | race | result | what the sync does |
 | --- | --- | --- |
-| both import one new Jira issue | two local issues with one `jira-id` | the copy that reached Jira first, then the lower entity id, is the `Index`'s; the other is consolidated into it (JS27) |
+| both import one new Jira issue | two local issues with one `jira-id` | the copy that reached Jira first, then the lower entity id, is the `Index`'s; the other is consolidated into it, whatever either has archived |
 | both create one pulled local issue | two Jira issues with one property | after the exchange one `jira-id` wins on the create op (`SetMetadata`, first writer); the other Jira issue is reported as a second issue naming it (E24) |
 | both create an identity for one account | two identities with one `jira-account-id` | the lower id is the account's; both export as it; the runner is never re-tagged |
 
@@ -952,184 +946,6 @@ from search, and a JQL `id`/`key` naming one refused; 410 on `/search`; the
 token omitted on the last page; 429 with `Retry-After`; no `Authorization`
 header is 200-with-nothing on search and 401 on `/myself`.
 
-### JS27 — Orphaned exports: adoption by a stated bound, consolidation by first sync
-
-**The problem.**
-An issue created in Jira by an export carries the property
-`git-work={"id":<entity>}`, the idempotency key of its create (JS15).
-A hit whose property names an entity this clone does not have
-is skipped ("pull first"), not imported,
-because an import would make a second local issue
-for one Jira issue the moment the entity arrives.
-The skip cannot tell an export in flight from an orphan.
-The entity is in flight while the exporting clone has yet to push.
-It is gone for good when that clone's store was wiped or re-cloned,
-when the issue was `rm`'d there,
-or when the binding was handed over without a push.
-No observable separates the two:
-not the age of the Jira issue, since a push can come a week later;
-not the remote-tracking refs, since a push can follow any fetch;
-and the entity cannot be rebuilt from Jira,
-because its id is the hash of its history.
-An orphan costs three things.
-Its skip is reported once, the cursor moves past it,
-and only `--full` shows it again.
-Every local issue whose relation names it keeps a `Retry` key,
-is re-read every run at one `GET`,
-and is reported "not imported yet" with no reference to the cause.
-And nothing adopts it:
-`ID...` resolves against the store, and `--full` skips it the same way.
-Seen in practice: 47 orphans blocking 66 children, every run.
-
-Rejected:
-dropping the skip, which turns every export of a sibling clone
-into a local duplicate within one cron minute;
-a built-in age, because `Settle` bounds index lag, which is bounded,
-and a push is not;
-a Jira key in `ID...` adopting what it names,
-a surprising import in the in-flight case;
-and resolving relation targets on demand, depth first,
-which would retire the repass but adopts nothing
-and doubles the `GET`s an orphan costs,
-worth its own task.
-
-**Adoption is a bound the person states.**
-`jira sync --adopt DURATION`:
-a hit whose property names an absent entity
-and whose Jira `created` is at least DURATION before Jira's now
-(the `Date` of its last response, the clock `Settle` and the cursor use,
-so client skew never adopts early)
-is imported like any unlinked hit;
-a younger one keeps the skip.
-The value is required and has no default,
-so a run never adopts under a policy nobody stated;
-`0` adopts everything the run meets, the deliberate case;
-and the parser takes `d` beside Go's units, because the natural unit is a week.
-The search asks for `created` beside `updated`, which costs nothing.
-The same bound lifts the link-request guard (JS15):
-an alias naming a Jira issue whose property names an absent entity
-links once the issue is old enough.
-The nightly line becomes `jira sync --full --adopt 7d`,
-so orphans never accumulate,
-and the bulk fix for the case seen is that one command:
-its children resolve in the same run through the repass (JS17),
-because an import sets `grew`.
-The property is left as it is.
-Once the create op carries `jira-id` no reader needs it:
-the hit path consults the `Index` first,
-and the property search serves creates in doubt only;
-I3 holds and Jira is not written.
-The line is `imported` with `"adopted": "<the absent entity>"`,
-and the summary counts `adopted`.
-`Settle` is the tool's bound,
-how long an unanswered create stays in doubt;
-this one is the person's,
-how long an unarrived entity stays in doubt,
-because only they know how their clones exchange.
-Adopting early is not a loss:
-the original's arrival is consolidated, below,
-so the bound only trades how long orphans block their children
-against the churn of a late arrival.
-
-**The orphans a run skips are remembered.**
-`State` gains `Orphans`, Jira id → `{key, from, created}`,
-written at the skip and dropped at the end of a run
-whose `Index` knows the id.
-The `Index` exposes the table as `Absent(jiraId)`,
-so the `Retry` on a relation target (JS17) names the cause:
-"PROJ-12 is not imported yet:
-created in Jira 9 days ago from issue 1a2b3c4, which this clone has not pulled;
-pull first, or `--adopt 9d` takes it".
-The skip line says the same, with the age.
-The summary carries `orphans`, the table's size after the run,
-one number per run rather than a line per orphan in cron's mail.
-The state stays disposable:
-lost, the reason is the plain one until the next `--full` sees the skips again.
-
-**Consolidation: the copy that reached Jira first is the issue.**
-Two local issues for one Jira issue arise from the import race (JS25)
-and from an adoption followed by the original's push;
-in the bound clone both copies are, at some point, in one store.
-The winner is the copy whose first contact with Jira is earliest,
-on Jira's clock, to the second:
-the earliest of its `jira-create` attempts and its markers' `Updated`;
-at one second an export's attempt before an import's read,
-since the `POST` is what the read then saw,
-and an attempt is truncated to the second
-while the copy that read it in that second holds the same stamp;
-then the lower entity id.
-Every input is an immutable fact of the copy's own history,
-I3's footing,
-identical in every clone that holds the copy at all,
-so two clones holding both copies agree with no window,
-and the rule is stable under the consolidation itself.
-It names the original by construction:
-the attempt precedes Jira's `created`,
-which precedes or shares the second of the `Updated` any import reads.
-The archived flag is not an input.
-It is the one replicated-but-mutable signal,
-and reading it opens a window in which two clones disagree;
-archived keeps its one meaning, "not exported".
-The `Index` uses the same rule, dropping "unarchived first",
-so the entity that syncs and the entity that survives are one;
-an excerpt lacks the ops the rule reads,
-so it resolves the snapshots of the two or more issues naming one Jira id,
-and nothing else.
-
-The consolidation runs in the scan, once per pair,
-`--dry-run` honoured,
-and its line is `consolidated` on the loser, naming the winner:
-
-1. The loser is synced one last time, as the linked issue it is,
-   so what it holds for Jira reaches Jira —
-   edits, comments, link items —
-   Jira winning where they collide, as always.
-2. The loser is archived,
-   and a note on the winner (`jira-note = consolidated`) says why:
-   "Jira sync, 2026-10-01 09:12 UTC:
-   PROJ-12 was also tracked as 9f8e7d6, which reached Jira later;
-   it is archived and its history kept."
-   followed by what step 3 could not carry.
-3. The winner takes what Jira cannot carry.
-   For each local-only field of the type,
-   the missing-base rule with the winner in Jira's seat:
-   a scalar the winner lacks takes the loser's,
-   a set is the union (JS10), which cannot conflict.
-   Not copied: the loser's notes, which are its own history,
-   and its pending items, which the note lists.
-   This is gap filling under the one rule the design has,
-   not a second merge:
-   a merge between two local copies would be a 3-way with no base.
-4. Every relation naming the loser, on any local issue,
-   is pointed at the winner, one commit per issue.
-   A child's next merge then finds `l == r`,
-   because the `Index` resolves the Jira id to the winner,
-   and moves its base.
-   Waiting for Jira to bump the child instead was considered and rejected:
-   a child nothing touches is never read again,
-   and would name an archived copy for good.
-5. The winner syncs as usual
-   and imports Jira's state, the loser's last exports included.
-
-The original that arrives unlinked —
-a `jira-create` attempt and no `jira-id`,
-pushed after a crash before step 6 —
-is the same case:
-its property search finds the Jira issue the adopted copy is linked to,
-it wins by the rule,
-the adopted copy is consolidated as above,
-and the original links through `linkCreated` and resumes as a create.
-Today it is skipped every run.
-Two Jira issues naming one entity, the export race, is unchanged (JS25).
-
-A person's archive of the winner is neither undone nor a choice of copy:
-the loser is consolidated all the same,
-and the issue is then archived, which is what archiving it means.
-Two bound clones consolidating before an exchange agree,
-since the inputs are immutable;
-what they can still do is archive the loser twice,
-the same op with the same value.
-
 ## Packages
 
 ```
@@ -1153,13 +969,13 @@ the authority for signatures; what follows is where each decision lives.
 | `derive.go`, `slug.go` | `Derive` (JS5–JS7), `slug`, `normName` (JS6) |
 | `compile.go` | `Compile` → `Mapping` with the binding and duplicate-alias checks; `Mapped` (JS5, JS25) |
 | `mapping.go`, `value.go` | `Mapping.Local`, `fromIssue`, `toWrites`, `createBody`; canonical values (JS7) |
-| `index.go` | `Index`: Jira id ↔ entity id, the first-sync winner of two, `Absent`, accountId ↔ identity (JS17, JS25, JS27) |
+| `index.go` | `Index`: Jira id ↔ entity id, accountId ↔ identity (JS17, JS25) |
 | `merge.go`, `base.go` | `merge`, `form`, `decide`, `mergeSet`, `mergeComments`; `Base`, `CurrentBase`, `confirm`, `fresh`, `digest` (JS8–JS12, I2) |
 | `engine.go` | `Sync`, `Options`, the run/issue failure split `runFatal` (JS23), `report` |
-| `candidates.go` | the scan, the search, failed hits, `changed`, the re-pass, adoption and consolidation (JS17, JS20, JS27) |
+| `candidates.go` | the scan, the search, failed hits, `changed`, the re-pass (JS17, JS20) |
 | `issue.go`, `write.go` | JS13: `syncLinked`, `converge`, `settle`, `commit`, `admit`; the Jira writes and transitions, recorded in `Sent` |
 | `create.go` | creates, attempts, `findCreated`, `linkCreated`, link requests, imports, Gone (JS15, JS19) |
-| `report.go`, `state.go` | `Line`, `Summary`; `State`, `Orphans` (JS8, JS20, JS22, JS27) |
+| `report.go`, `state.go` | `Line`, `Summary`; `State` (JS8, JS20, JS22) |
 
 `jiraapi` has one `Client` method per endpoint the sync calls and one
 `*Error` with the status and per-field errors; `jiratest` models every
@@ -1210,18 +1026,6 @@ The tests are the plan, named after what they check:
   oracle requires every overwrite of a local value to be in a conflict note
   (a local value set back to its base is no edit to a state merge, and is not
   followed), no duplicate, and a fixpoint within 6 clean runs.
-- **Orphans and consolidation** (JS27, `orphan_test.go`, E26–E28):
-  the skip under the bound and the adoption past it, by Jira's clock;
-  the adopted line and the `orphans` count;
-  a child's `Retry` reason naming the remembered orphan;
-  the link request taken past the bound;
-  the original pushed after an adoption, linked or unlinked,
-  winning by first sync, the adopted copy's last sync reaching Jira,
-  its local-only values filled in, its children re-pointed;
-  the import race settled by the lower id;
-  two clones computing one winner from the same ops
-  whatever either has archived;
-  and `--dry-run` writing nothing.
 
 ## Earlier tasks
 

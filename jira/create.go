@@ -199,7 +199,7 @@ func (e *engine) linkCreated(ic *cache.IssueCache, jiraId string) error {
 	line := Line{Issue: id, Action: ActionCreated}
 	if other, ok := e.ix.Issue(jiraId); ok && other != id {
 		// an adopted copy of this issue's own export: this one reached
-		// Jira first, so the copy is consolidated into it and it links (JS27)
+		// Jira first, so the copy is consolidated into it and it links
 		winner, err := firstToSync(e.repo, id, other)
 		if err != nil {
 			return e.fail(line, err)
@@ -270,7 +270,7 @@ func (e *engine) linkRequest(ic *cache.IssueCache) error {
 		if _, err := e.repo.Issues().ResolveExcerpt(from); err == nil {
 			return skip(key + " was created from another issue, " + from.Human())
 		}
-		// an absent entity: the person's bound decides (JS27)
+		// an absent entity: the person's bound decides
 		if sf, _ := ri.System(); !e.adoptable(sf.Created.UTC()) {
 			return skip(key + " was created from issue " + from.Human() + ", which this clone has not pulled; pull first, or --adopt takes it")
 		}
