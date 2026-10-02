@@ -1,10 +1,12 @@
 def overview(group_by="type"):
-    """The shape of the work: open stories, open decisions, and open tasks that belong to no story.
+    """The shape of the work: open stories, open decisions and open tasks, a story's tasks folded under it.
 
     Open reads the status category, never the name (schema.yaml, D2):
     anything whose status is neither completed nor canceled.
-    A task under a story is that story's business and stays out of the way;
-    one with no parent is listed so it can be given one.
+    A task under a story is that story's business, so it nests under it
+    rather than being left out: the story's arrow says how many it has,
+    and space on the arrow opens them.
+    A task with no parent is a root, listed so it can be given one.
     """
     closed = []
     for name, spec in work.schema.export()["types"].items():
@@ -21,7 +23,7 @@ def overview(group_by="type"):
         | map(select(
             (.fields.type == "story"
              or .fields.type == "decision"
-             or (.fields.type == "task" and .fields.parent == null))
+             or .fields.type == "task")
             and (.fields.status as $status
              | $closed[.fields.type] // [] | index($status) | not)))
     """ % ",".join(closed)
@@ -30,4 +32,5 @@ def overview(group_by="type"):
         query=query,
         fields=["type", "status", "priority", "title"],
         group_by=group_by,
+        expand={"relation": "children"},
     )

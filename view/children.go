@@ -97,16 +97,20 @@ func (c *Call) ChildList() []Child {
 }
 
 // CheckSchema checks what a call names against the live schema, where the
-// table alone cannot: today `children` on show, whose types and relations
-// have to exist. It is called once, in host.View, so that every surface
-// refuses the same call with the same words before anything is drawn.
+// table alone cannot: `children` on show, whose types and relations have to
+// exist, and `expand`'s layers, whose relations and field keys do. It is
+// called once, in host.View, so that every surface refuses the same call
+// with the same words before anything is drawn.
 func CheckSchema(call *Call, s *schema.Schema) error {
-	if !call.Has("children") {
-		return nil
+	if call.Has("children") {
+		if _, err := ResolveChildren(s, call.ChildList()); err != nil {
+			return fmt.Errorf("view %s: children %w", call.Kind, err)
+		}
 	}
-	_, err := ResolveChildren(s, call.ChildList())
-	if err != nil {
-		return fmt.Errorf("view %s: children %w", call.Kind, err)
+	if layer := call.Expand(); layer != nil {
+		if err := checkExpand(s, layer); err != nil {
+			return fmt.Errorf("view %s: expand %w", call.Kind, err)
+		}
 	}
 	return nil
 }

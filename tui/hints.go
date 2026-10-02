@@ -133,9 +133,9 @@ func foldHints(node *treeRow) []hint {
 	if node == nil || node.children == 0 {
 		return nil
 	}
-	fold := hint{"z", "fold"}
+	fold := hint{"space", "fold"}
 	if node.folded {
-		fold = hint{"z", "unfold"}
+		fold = hint{"space", "unfold"}
 	}
 	// tab unfolds on its way in, so it is true of a folded row too
 	return []hint{fold, {"tab", "into children"}}

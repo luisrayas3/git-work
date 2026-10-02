@@ -41,24 +41,31 @@ type ganttPage struct {
 	from, to    string
 	progressKey string
 	groupBy     string
-	expandKey   string
-	depth       int
 	rankKey     string
+	// nest is `expand` resolved: the layer per level, level 0 being the
+	// call's own group_by and rank (nest.go).
+	nest *nesting
 
-	items  []map[string]any
-	folded map[string]bool
+	items []map[string]any
+	// open is the parents folded open, by id: a tree opens folded, so what
+	// is remembered is what was opened.
+	open map[string]bool
 
 	bars  []bar
 	nodes []treeRow
 	order []int
 
 	// periods is the chart, the first day of each period in order; the
-	// cursor is the row at order[cursor] and the period at col.
+	// cursor is the row at order[cursor] and the period at col, or the tree
+	// cell at -1, which is the arrow `←` reaches from the first period.
 	periods []time.Time
 	cursor  int
 	col     int
 	// colOffset is the first period drawn, top the first body line drawn.
 	colOffset, top int
+	// placed says the cursor has been put on a cell, so that a rebuild
+	// keeps where it is rather than opening the chart again.
+	placed bool
 
 	width, height int
 
@@ -123,15 +130,18 @@ func newGanttPage(repo *cache.RepoCache, call *view.Call) (*ganttPage, error) {
 		to:          call.String("to"),
 		progressKey: call.String("progress"),
 		groupBy:     call.String("group_by"),
-		expandKey:   call.String("expand"),
-		depth:       nestDepth(call),
 		rankKey:     call.String("rank"),
-		folded:      map[string]bool{},
+		open:        map[string]bool{},
 		width:       80,
 		height:      24,
 		col:         -1,
 		grabbed:     -1,
 	}
+	n, err := newNesting(nestLayer{groupBy: p.groupBy, rankKey: p.rankKey}, call.Expand())
+	if err != nil {
+		return nil, err
+	}
+	p.nest = n
 	if p.labelKey == "" {
 		p.labelKey = schema.TitleKey
 	}
@@ -168,19 +178,31 @@ func (p *ganttPage) rebuild() {
 	at, hadCol := p.colDate()
 
 	known := newKinds(p.repo)
-	tree := nest(p.repo, p.items, p.expandKey, p.depth, p.folded)
-	p.bars = make([]bar, 0, len(tree))
-	p.nodes = make([]treeRow, 0, len(tree))
-	for _, n := range tree {
-		b, node := p.newBar(n, known)
-		p.bars = append(p.bars, b)
-		p.nodes = append(p.nodes, node)
+	build := func() {
+		tree, err := nest(p.repo, p.items, p.nest, p.open)
+		if err != nil {
+			p.status = err.Error()
+		}
+		p.bars = make([]bar, 0, len(tree))
+		p.nodes = make([]treeRow, 0, len(tree))
+		for _, n := range tree {
+			b, node := p.newBar(n, known)
+			p.bars = append(p.bars, b)
+			p.nodes = append(p.nodes, node)
+		}
+	}
+	build()
+	if reveal(p.nodes, p.open, was) {
+		build()
 	}
 
 	p.reorder()
 	p.putCursorOn(was)
 	p.layoutPeriods()
 	switch {
+	case p.placed && p.col < 0:
+		// the cursor is on the arrow cell, which is no date: a fold leaves
+		// it where it is
 	case hadCol:
 		p.col = p.index(at)
 	case p.from == "" && p.to == "" && p.index(today()) >= 0 && p.index(today()) < len(p.periods):
@@ -196,6 +218,7 @@ func (p *ganttPage) rebuild() {
 		}
 	}
 	p.clampCol()
+	p.placed = true
 }
 
 func (p *ganttPage) newBar(n nested, known *kinds) (bar, treeRow) {
@@ -226,6 +249,7 @@ func (p *ganttPage) newBar(n nested, known *kinds) (bar, treeRow) {
 		b.progress, b.hasProgress = fields[p.progressKey].(float64)
 	}
 
+	layer := p.layer(n.level)
 	node := treeRow{
 		id:       n.id,
 		parent:   n.parent,
@@ -234,17 +258,18 @@ func (p *ganttPage) newBar(n nested, known *kinds) (bar, treeRow) {
 		folded:   n.folded,
 		hidden:   n.hidden,
 		group:    noGroup,
+		grouped:  layer.groupBy != "",
 	}
-	if p.groupBy != "" {
-		value := known.cellText(b.typeKey, p.groupBy, fields[p.groupBy])
-		if isRelation(known.of(b.typeKey, p.groupBy)) {
-			value = linkText(p.repo, linkIds(fields[p.groupBy]))
+	if layer.groupBy != "" {
+		value := known.cellText(b.typeKey, layer.groupBy, fields[layer.groupBy])
+		if isRelation(known.of(b.typeKey, layer.groupBy)) {
+			value = linkText(p.repo, linkIds(fields[layer.groupBy]))
 		}
 		if value != "" {
 			node.group = value
 		}
 	}
-	node.rank = plainValue(fields[p.rankKey])
+	node.rank = plainValue(fields[layer.rankKey])
 	node.text = strings.ToLower(b.human + " " + b.label)
 
 	return b, node
@@ -259,8 +284,27 @@ func (p *ganttPage) clamp() {
 	p.cursor = min(max(p.cursor, 0), max(len(p.order)-1, 0))
 }
 
+// clampCol keeps the cursor on a cell: a period, or, where the rows are a
+// tree, the arrow cell at -1 that `←` reaches from the first period.
 func (p *ganttPage) clampCol() {
-	p.col = min(max(p.col, 0), max(len(p.periods)-1, 0))
+	p.col = min(max(p.col, p.minCol()), max(len(p.periods)-1, 0))
+}
+
+// minCol is the left-most cell: the tree's arrow where anything nests, and
+// the first period where nothing does.
+func (p *ganttPage) minCol() int {
+	if p.nest.expanded() {
+		return -1
+	}
+	return 0
+}
+
+// layer is the layer a row at this level draws by (nest.go).
+func (p *ganttPage) layer(level int) *nestLayer {
+	if layer := p.nest.at(level); layer != nil {
+		return layer
+	}
+	return &p.nest.layers[0]
 }
 
 func (p *ganttPage) current() *bar {
@@ -619,8 +663,8 @@ func (p *ganttPage) key(press tea.KeyPressMsg) (page, tea.Cmd) {
 		p.intoChild()
 	case keys.previous.matches(press):
 		p.toParent()
-	case keys.fold.matches(press):
-		p.toggleFold()
+	case keys.foldAll.matches(press):
+		p.toggleAll()
 
 	case keys.act.matches(press):
 		if b := p.current(); b != nil {
@@ -636,6 +680,11 @@ func (p *ganttPage) key(press tea.KeyPressMsg) (page, tea.Cmd) {
 	case keys.filter.matches(press):
 		p.startFilter()
 	case keys.grab.matches(press):
+		// on the arrow cell space folds, as it does on a list; a bar is
+		// grabbed from the chart
+		if p.col < 0 {
+			return p, p.toggleFold()
+		}
 		return p.startGrab()
 	case keys.help.matches(press):
 		p.help = &help{}
@@ -673,7 +722,7 @@ func (p *ganttPage) intoChild() {
 		return
 	}
 	if node.folded {
-		p.folded[node.id] = false
+		p.open[node.id] = true
 		p.rebuild()
 		node = p.node()
 	}
@@ -696,13 +745,23 @@ func (p *ganttPage) toParent() {
 	}
 }
 
-// toggleFold is z: a parent's children shown or hidden.
-func (p *ganttPage) toggleFold() {
+// toggleFold is space on the arrow cell: a parent's children shown or
+// hidden. A leaf has nothing to fold and rings.
+func (p *ganttPage) toggleFold() tea.Cmd {
 	node := p.node()
 	if node == nil || node.children == 0 {
-		return
+		p.status = "nothing to fold"
+		return bell()
 	}
-	p.folded[node.id] = !node.folded
+	p.open[node.id] = node.folded
+	p.rebuild()
+	return nil
+}
+
+// toggleAll is Z: every parent folded, or, where none is open, every one of
+// them opened (foldAll).
+func (p *ganttPage) toggleAll() {
+	p.open = foldAll(p.nodes, p.open)
 	p.rebuild()
 }
 
@@ -916,7 +975,7 @@ func (p *ganttPage) drop() tea.Cmd {
 			p.putBack(b)
 			return bell()
 		}
-		fields[p.rankKey] = issue.StringValue(key)
+		fields[p.layer(p.nodes[p.order[p.cursor]].level).rankKey] = issue.StringValue(key)
 		if len(fields) == 1 {
 			said = "rank set"
 		}

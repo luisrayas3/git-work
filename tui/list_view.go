@@ -85,47 +85,59 @@ func (p *listPage) hintLine() string {
 		return hints(pairs...)
 	}
 
-	// the id column: enter opens the row, space grabs it to move it, and the
-	// tree's keys where there is a tree
-	pairs := []hint{{"enter", "open"}, {"space", "grab"}}
-	return hints(append(pairs, foldHints(p.node())...)...)
+	// the tree cell: enter opens the row as the id does, space folds it
+	if p.column == p.treeCol() {
+		return hints(append([]hint{{"enter", "open"}}, foldHints(p.node())...)...)
+	}
+	// the id column: enter opens the row, space grabs it to move it
+	return hints(hint{"enter", "open"}, hint{"space", "grab"})
 }
 
 // body draws the header and every row in the drawing order, says which line
 // the cursor is on so the window can be scrolled to it, and which group
 // header each line sits under so that header can be kept on screen.
+//
+// The header describes the layer the cursor's row is on, not the roots': a
+// layer draws its own columns in its own widths under its parent, so the
+// only header that can be right is the one for the row being read, and it
+// changes as tab and shift-tab change level.
 func (p *listPage) body() (header string, rows []string, groups []int, cursorLine int) {
 	widths := p.widths()
-	indent := p.indent()
+	tree := p.treeRoom()
+	heads := groupHeads(p.nodes, p.order)
 
-	cells := make([]string, 0, len(p.fields)+1)
-	cells = append(cells, pad("id", idWidth+indent))
-	for at, key := range p.fields {
-		cells = append(cells, pad(key, widths[at]))
+	cells := []string{pad("id", idWidth)}
+	if tree > 0 {
+		cells = append(cells, pad("", tree))
+	}
+	for at, key := range p.columns() {
+		cells = append(cells, pad(key, widths[p.cursorLayer()][at]))
 	}
 	header = styleHeader.Render(fit(strings.Join(cells, " "), p.width))
 
 	cursorLine = 0
-	group := ""
 	headerAt := -1
 	for at, index := range p.order {
 		row, node := &p.rows[index], &p.nodes[index]
 
-		// a group is the root's: its children follow it into the group
-		if p.groupBy != "" && node.level == 0 && node.group != group {
-			group = node.group
-			headerAt = len(rows)
-			rows = append(rows, styleGroup.Render(fit(group, p.width)))
+		// a group is its own level's: the roots section the whole list, and
+		// a layer with a `group_by` sections the children under one parent
+		if heads[at] {
+			line := styleGroup.Render(fit(p.groupLine(node), p.width))
+			if node.level == 0 {
+				headerAt = len(rows)
+			}
+			rows = append(rows, line)
 			groups = append(groups, headerAt)
 		}
 
 		if at == p.cursor {
 			cursorLine = len(rows)
 		}
-		rows = append(rows, p.rowLine(row, node, widths, indent, at == p.cursor, index == p.grabbed))
+		rows = append(rows, p.rowLine(row, node, widths, tree, at == p.cursor, index == p.grabbed))
 		groups = append(groups, headerAt)
 
-		for _, line := range p.detailLines(row) {
+		for _, line := range p.detailLines(row, node, tree) {
 			rows = append(rows, line)
 			groups = append(groups, headerAt)
 		}
@@ -134,15 +146,27 @@ func (p *listPage) body() (header string, rows []string, groups []int, cursorLin
 	return header, rows, groups, cursorLine
 }
 
-// rowLine draws one issue: the short id, then the fields as columns.
+// groupLine is a group header: the value, under the id column and at the
+// level's own indent, so that a nested section reads as the parent's and the
+// roots' sections still head the whole list.
+func (p *listPage) groupLine(node *treeRow) string {
+	if node.level == 0 {
+		return node.group
+	}
+	return strings.Repeat(" ", 1+idWidth+1+2*node.level) + node.group
+}
+
+// rowLine draws one issue: the short id, the tree cell, then the fields of
+// the row's own layer as columns.
 //
 // The row under the cursor has a light wash across the whole window, which
 // says which issue; the cell under the column cursor is reversed within it,
 // which says that edit and copy act on that one. The id is a cell like the
 // others, and the one the cursor starts on. A cell that links other issues
-// is underlined, because enter follows it. A nested row's id sits behind
-// its level's indent and its fold marker (nestPrefix).
-func (p *listPage) rowLine(row *listRow, node *treeRow, widths []int, indent int, under bool, grabbed bool) string {
+// is underlined, because enter follows it. The tree cell is the one after
+// the id: the level's indent, the fold arrow, and the count of what a fold
+// is hiding (treeCell).
+func (p *listPage) rowLine(row *listRow, node *treeRow, widths [][]int, tree int, under bool, grabbed bool) string {
 	// every piece is styled on its own, the wash included: a style ends in
 	// a reset, and a reset inside the row would end the wash with it
 	wash := lipgloss.NewStyle()
@@ -150,37 +174,45 @@ func (p *listPage) rowLine(row *listRow, node *treeRow, widths []int, indent int
 		wash = styleRow()
 	}
 
-	parts := make([]string, 0, 2*len(p.fields)+4)
-	prefix := ""
-	if indent > 0 {
-		prefix = nestPrefix(*node)
-		parts = append(parts, wash.Render(prefix))
-	}
-	id := pad(row.human, indent+idWidth-len([]rune(prefix)))
+	layer := p.nest.index(node.level)
+	fields, sizes := p.nest.layers[layer].fields, widths[layer]
+
+	parts := make([]string, 0, 2*len(fields)+6)
+	id := pad(row.human, idWidth)
 	if under && p.column == 0 {
 		id = styleCell.Render(id)
 	} else {
 		id = wash.Faint(true).Render(id)
 	}
 	parts = append(parts, id)
+	used := idWidth
 
-	used := indent + idWidth + 1
-	for at, key := range p.fields {
+	if tree > 0 {
+		cell := pad(treeCell(*node), tree)
+		style := wash
+		if under && p.column == p.treeCol() {
+			style = styleCell
+		}
+		parts = append(parts, wash.Render(" "), style.Render(cell))
+		used += 1 + tree
+	}
+
+	for at, key := range fields {
 		parts = append(parts, wash.Render(" "))
-		text := truncate(row.cells[key], widths[at])
-		gap := strings.Repeat(" ", max(widths[at]-ansi.StringWidth(text), 0))
+		text := truncate(row.cells[key], sizes[at])
+		gap := strings.Repeat(" ", max(sizes[at]-ansi.StringWidth(text), 0))
 		// the cursor cell is reversed over its whole width, padding
 		// included, so an empty cell still shows where the cursor is;
 		// the underline stays on the text alone
 		style, fill := wash, wash
-		if under && at+1 == p.column {
+		if under && at+p.firstFieldCol() == p.column {
 			style, fill = styleCell, styleCell
 		}
 		if len(row.links[key]) > 0 {
 			style = style.Underline(true)
 		}
 		parts = append(parts, style.Render(text)+fill.Render(gap))
-		used += 1 + widths[at]
+		used += 1 + sizes[at]
 	}
 	if under && p.width > used {
 		parts = append(parts, wash.Render(strings.Repeat(" ", p.width-used)))
@@ -200,15 +232,17 @@ func (p *listPage) rowLine(row *listRow, node *treeRow, widths []int, indent int
 	return fit(line, p.width)
 }
 
-// detailLines are the dim second line under a row, one per detail field, so
-// that what a row is about can be read without opening it.
-func (p *listPage) detailLines(row *listRow) []string {
-	if len(p.details) == 0 {
+// detailLines are the dim second line under a row, one per detail field of
+// the row's own layer, so that what a row is about can be read without
+// opening it.
+func (p *listPage) detailLines(row *listRow, node *treeRow, tree int) []string {
+	details := p.layer(node.level).details
+	if len(details) == 0 {
 		return nil
 	}
 
-	parts := make([]string, 0, len(p.details))
-	for _, key := range p.details {
+	parts := make([]string, 0, len(details))
+	for _, key := range details {
 		value := row.cells[key]
 		if value == "" {
 			continue
@@ -219,33 +253,60 @@ func (p *listPage) detailLines(row *listRow) []string {
 		return nil
 	}
 
-	indent := strings.Repeat(" ", p.indent()+idWidth+2)
+	indent := strings.Repeat(" ", tree+idWidth+2)
 	return []string{styleDim.Render(fit(indent+strings.Join(parts, "  "), p.width))}
 }
 
-// indent is the room the tree takes before the id column, nothing when
+// treeRoom is the width of the tree cell after the id, nothing where
 // `expand` is not bound.
-func (p *listPage) indent() int {
-	return indentOf(p.nodes, p.order, p.expandKey != "")
+func (p *listPage) treeRoom() int {
+	return treeWidth(p.nodes, p.order, p.nest.expanded())
 }
 
-// widths sizes the field columns to what is in them, and then to the window.
-func (p *listPage) widths() []int {
-	widths := make([]int, len(p.fields))
-	for at, key := range p.fields {
+// cursorLayer is the layer the header is drawn for: the cursor's row's.
+func (p *listPage) cursorLayer() int {
+	node := p.node()
+	if node == nil {
+		return 0
+	}
+	return p.nest.index(node.level)
+}
+
+// widths sizes every layer's columns, one set per layer: a layer's rows are
+// measured against each other, so a child's columns are as wide as the
+// children need and not as wide as their parents do.
+func (p *listPage) widths() [][]int {
+	tree := p.treeRoom()
+	out := make([][]int, len(p.nest.layers))
+	for at := range out {
+		out[at] = p.widthsOf(at, tree)
+	}
+	return out
+}
+
+// widthsOf sizes one layer's columns to what is in them, and then to the
+// window.
+func (p *listPage) widthsOf(layer, tree int) []int {
+	fields := p.nest.layers[layer].fields
+	widths := make([]int, len(fields))
+	for at, key := range fields {
 		widths[at] = len([]rune(key))
 		for _, index := range p.order {
+			if p.nest.index(p.nodes[index].level) != layer {
+				continue
+			}
 			if n := ansi.StringWidth(p.rows[index].cells[key]); n > widths[at] {
 				widths[at] = n
 			}
 		}
 	}
 
-	// The budget is the window less the id column, the cursor marker and one
-	// space between columns. Over it, the widest column gives way first, so
-	// that a long title shrinks before a short status disappears; a column is
-	// never capped below that, so a wide window shows a whole title.
-	budget := p.width - p.indent() - idWidth - 2 - len(p.fields)
+	// The budget is the window less the id column, the tree cell, the cursor
+	// marker and one space between columns. Over it, the widest column gives
+	// way first, so that a long title shrinks before a short status
+	// disappears; a column is never capped below that, so a wide window
+	// shows a whole title.
+	budget := p.width - tree - idWidth - 2 - len(fields)
 	for budget > 0 && sum(widths) > budget {
 		widest := 0
 		for at := range widths {

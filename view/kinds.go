@@ -61,6 +61,9 @@ const (
 	// {"type","relation","fields"} objects, each naming the relation on a
 	// child that holds the shown issue's id (children.go).
 	ChildRelations ValueKind = "child relations"
+	// ExpandSpec is `expand`: a relation name, or a layer of one carrying
+	// the list's own arguments and an `expand` of its own (expand.go).
+	ExpandSpec ValueKind = "relation or layer"
 )
 
 // Arg is one keyword argument of one view kind.
@@ -101,10 +104,7 @@ var Kinds = map[string][]Arg{
 			Doc: "the fields shown on a dim second line under each row"},
 		{Name: "group_by", Tier: Feature, Kind: FieldKey,
 			Doc: "the field whose value starts a new section"},
-		{Name: "expand", Tier: Feature, Kind: FieldKey,
-			Doc: "the relation whose targets are nested under a row"},
-		{Name: "depth", Tier: Feature, Kind: Int,
-			Doc: "how many levels of nesting to expand"},
+		{Name: "expand", Tier: Feature, Kind: ExpandSpec, Doc: expandDoc},
 		rankArg,
 	},
 	KindBoard: {
@@ -138,10 +138,7 @@ var Kinds = map[string][]Arg{
 			Doc: "the number field, 0 to 1, a bar is filled to"},
 		{Name: "group_by", Tier: Feature, Kind: FieldKey,
 			Doc: "the field whose value starts a new row group"},
-		{Name: "expand", Tier: Feature, Kind: FieldKey,
-			Doc: "the relation whose targets are nested under a bar"},
-		{Name: "depth", Tier: Feature, Kind: Int,
-			Doc: "how many levels of nesting to expand"},
+		{Name: "expand", Tier: Feature, Kind: ExpandSpec, Doc: expandDoc},
 		rankArg,
 	},
 	// matrix is the two-axis summary: rows of one field by columns of
@@ -173,6 +170,18 @@ var Kinds = map[string][]Arg{
 			Doc: `the issues pointing at this one, a section each, as [{"type":"task","relation":"parent","fields":["status"]}]; relation may be the inverse name instead, and type and fields may be left out`},
 	},
 }
+
+// expandDoc is `expand` on the list and the gantt, which take one spec.
+//
+// It says the three things a reader cannot guess and has had to go and read
+// the renderer for (f9c991e): either side of a relation is a name it takes,
+// a layer's query is over that row's own children and not over the store,
+// and a layer carries the level below it.
+const expandDoc = `the relation nested under a row: "children", or a layer ` +
+	`{"relation":…,"query":…,"fields":…,"details":…,"group_by":…,"rank":…,"expand":…}; ` +
+	`a relation is a stored one (parent) or the inverse name of one (children), a layer's query runs over ` +
+	`that row's own unarchived children, the keys it leaves out are the layer above's, and its expand is ` +
+	`the level below ("self" repeats the layer)`
 
 // rankArg is the manual order every kind that draws a row of issues takes.
 //

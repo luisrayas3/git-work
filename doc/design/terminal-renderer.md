@@ -131,9 +131,9 @@ a jq program, defaulting to the list's default program
 
 | Kind | Required | Defaulted | Feature |
 | --- | --- | --- | --- |
-| `list` | — | `fields` (`["type","title"]`), `rank` (`rank`) | `details`, `group_by`, `expand`, `depth` |
+| `list` | — | `fields` (`["type","title"]`), `rank` (`rank`) | `details`, `group_by`, `expand` |
 | `board` | `columns` | `values` (the field's schema order), `card` (`["title"]`), `rank` (`rank`) | `group_by` |
-| `gantt` | `start`, `stop` | `label` (title), `scale` (`week`), `from`, `to` (the data's extent), `rank` (`rank`) | `progress`, `group_by`, `expand`, `depth` |
+| `gantt` | `start`, `stop` | `label` (title), `scale` (`week`), `from`, `to` (the data's extent), `rank` (`rank`) | `progress`, `group_by`, `expand` |
 | `matrix` | `rows`, `columns` | `row_values`, `column_values` (each axis's own order) | `value`, `group_by` |
 | `show` | `id` | `fields` (the type's fields, schema order) | `children` |
 
@@ -361,7 +361,8 @@ a standard user's `C-v` is the terminal's paste, and never reaches the program.
 What a direction means is the kind's business:
 
 - **list** — up and down move between items *at the current nesting depth*,
-  left and right between the columns: the id, then the `fields`.
+  left and right between the columns: the id, the tree's arrow cell where
+  anything nests, then the `fields` of the cursor's own layer.
 - **board** — up and down within a column, left and right between columns.
 - **gantt** — up and down between rows,
   left and right between time periods:
@@ -705,6 +706,10 @@ because a plan is read from now on and the past is a scroll to the left
 (2026-09-29).
 With `from` or `to` bound it opens instead on the period the first row's
 bar starts in, which is where a grab would move its start.
+With `expand` bound, `←` from the first period is the **arrow cell**,
+the one a list draws after the id (Nesting):
+`Space` there folds the row and `Enter` opens it,
+and `→` is back into the chart.
 
 **Grab needs no binding.** `Space` always grabs;
 `←` and `→` shift the bar by one period:
@@ -1047,39 +1052,107 @@ the options are the call's, and a page reached by a link was not called with any
 ## Nesting
 
 Designed 2026-09-24, built 2026-09-28 on the list and the gantt
-(`565d57a`), after the migration brought the relation fields it walks.
+(`565d57a`), after the migration brought the relation fields it walks,
+and made a **layer spec** on 2026-10-02 (Luis, `f4426ff`).
 
-`expand` names a relation field, and `depth` how far to follow it —
-default 1, `0` for no limit, cycles cut at the repeat.
-The **query selects the roots**.
+**`expand` is a layer, or a relation name as the shorthand for one.**
+A layer is an object:
+
+```json
+{"relation": "children",
+ "query": "map(select(.fields.status != \"done\"))",
+ "fields": ["status", "title"], "details": [], "group_by": "", "rank": "rank",
+ "expand": {"relation": "blocks"}}
+```
+
+`relation` is the only required key,
+and the rest are the list's own arguments *for that layer's rows*:
+the level below is its own `expand`,
+and a layer with none is leaves.
+`"expand": "children"` is one layer with every default,
+and `"expand": "self"` on a layer repeats that layer
+as far down as the relation goes.
+
+**`depth` is gone.** A number said how far to walk and nothing about what
+was down there, so every level drew the columns of the first one
+and a second level nobody could describe was all it could give:
+`depth: 2` on a tracker meant "tasks and whatever is under them",
+with the tasks' columns and the roots' query.
+A layer is the description, and it costs nothing to leave out:
+the shorthand is the old behaviour, one level deep.
+`"self"` is the old `depth: 0`, and the only reason to write a number was that.
+
+**The query selects the roots; a layer's query selects that row's children.**
+The root `query` runs over the array of every issue, as it always has.
+A layer's runs over the array of *that row's own candidate children* —
+every unarchived issue the relation reaches from it —
+so it is written exactly like a view's query and reads as one:
+`map(select(…))` over a smaller array.
+Without one, every unarchived child shows,
+which is what "do the children obey the query?" had to be answered with
+before the spec (it was no, and nothing said so: `f9c991e`).
 A matched issue that is another matched issue's child
 shows nested under it, once, not twice;
-a child the query did not match still shows under its parent,
+a child shows under its parent whether or not the root query matched it,
 because a parent's children are the reason to expand a parent.
+Cycles are cut at the repeat.
 
-**`expand` names the relation whose targets nest under a row**,
+**Either side of a relation is a name `expand` takes**,
 and the derived side of a stored relation resolves through it
 (2026-09-28, Luis): the inverse is never stored (`schema.yaml`, D4),
 so `expand=children` reads every issue whose `parent` names the row,
+off the whole store and in the store's order,
 and `expand=blocks` the targets of the row's own `blocks`.
-The children come off the whole store, not the query's result,
-in the store's order, and the rank orders them by `(rank, id)`.
-A row at the depth is a leaf, whatever is under it;
-`0` is unlimited because a depth of nothing is not naming `expand` at all.
+A rank orders a layer's rows by `(rank, id)`.
+A layer's relation, and every field key it names, are checked against the
+schema before anything draws, the way show's `children` are.
 
-Every level uses the same `fields`, `details` and `group_by`.
-Uniform levels are what makes the columns line up,
-and a per-level projection is a feature nobody has asked for.
-A group is the root's: its children follow it into its group,
-and a rank moves a row among its siblings only, its subtree with it,
-so a story dragged past another carries its tasks.
+**A layer draws its own columns.**
+`fields` and `details` a layer leaves out are the layer above's,
+so the shorthand is still the uniform tree,
+and a layer that names them draws them in its own widths under its parent:
+a story's tasks can show `status` and `assignee`
+where the stories show `type` and `priority`.
+**The header describes the layer of the row the cursor is on**,
+and changes as `Tab`, `Shift-Tab` and any move change its level.
+One header for a tree of unlike rows can only be wrong somewhere;
+the row being read is the one the header can be right about.
+A `group_by` is the layer's own: the roots' sections head the list,
+and a layer that names one sections the children under each parent.
+A group is where a row is drawn, so a rank moves a row among its siblings
+in its group only, its subtree with it,
+and a story dragged past another carries its tasks.
 Only a root crosses into another group (Rank):
 a child's place is under its parent, wherever the parent goes.
 
-The tree is drawn as an indent before the id, two cells a level,
-behind a fold marker: `▾` open, `▸` folded, nothing on a leaf.
-`z` folds and unfolds; `Tab` goes into the first child,
-unfolding on the way, and `Shift-Tab` up to the parent.
+**The fold arrow is a cell, and it comes after the id** (2026-10-02).
+The id column stays first and flush, so a list reads and sorts by id
+whether or not anything nests — before this the indent pushed the id
+sideways by level, and the first column of a tree was ragged.
+The tree cell carries the level's indent, two cells a level,
+the arrow — `▾` open, `▸` folded, nothing on a leaf —
+and, folded, the count of the rows hidden under it: `▸ 3`.
+The count is the row's own children, which is what unfolding reveals.
+It is a cursor stop like any other cell:
+the cursor still starts on the id, `→` reaches the arrow,
+`Space` there folds and unfolds, `Enter` opens the row as it does on the id,
+and `Space` on a leaf's tree cell rings.
+On a gantt the arrow cell is the one `←` reaches from the first period,
+the cursor's other way out of the chart.
+`z` is gone with it: a key for what a cell already does is a key to remember.
+**`Z` folds or unfolds every parent** — fold where any is open, unfold where
+none is — because a tree opened all over has no other way back.
+
+**A nested view opens folded.** Every parent starts shut, so the first screen
+is the roots and their counts, which is a summary;
+`Space`, `Tab` or `Z` opens what the eye wants.
+Fold state is kept by id across a refresh,
+and a refresh that would leave the cursor's row hidden opens its ancestors,
+the way the filter keeps a match's ancestors on the screen:
+a cursor is never moved by somebody else's write.
+
+`Tab` goes into the first child, unfolding on the way,
+and `Shift-Tab` up to the parent.
 On a list `↑` and `↓` move between the rows at the cursor's own level,
 so a level reads as the list it is and `Tab` is the way down;
 on a gantt they move between every row, because the chart reads top to
@@ -1092,6 +1165,15 @@ and a chart that overlaps is not a chart.
 A parent draws its own bar,
 or, when it has no dates of its own, the envelope of its children's,
 folded or not (Gantt above).
+The chart's own arguments — `start`, `stop`, `label`, `progress` — are the
+chart's, not a layer's: one chart has one time axis,
+and a level that measured something else would not be the same chart.
+A layer's `query`, `rank` and `group_by` apply there as they do on a list.
+
+Not now, and listed so the next reader does not take them for oversights:
+reparenting a row by dragging it out of its parent,
+numbers rolled up from children onto a folded parent,
+and creating a child from the tree (`111e8e9`, with create in general).
 
 ## Deferred
 

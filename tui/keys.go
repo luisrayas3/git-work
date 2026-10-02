@@ -94,6 +94,7 @@ var doubles = map[string]struct{}{
 	"alt+shift+.": {},
 	"shift+g":     {},
 	"shift+y":     {},
+	"shift+z":     {},
 	" ":           {},
 	// the ctrl+shift and cmd+shift copies are the same copy, for a terminal
 	// that hands them over rather than keeping them for itself
@@ -121,7 +122,7 @@ type keymap struct {
 	copy, copyId, paste   *chord
 	filter                *chord
 	grab                  *chord
-	fold                  *chord
+	foldAll               *chord
 	nextTab, previousTab  *chord
 	help                  *chord
 	back                  *chord
@@ -184,10 +185,12 @@ var keys = keymap{
 
 	filter: newChord("filter", one("/"), one("/"), one("ctrl+s")),
 	grab:   newChord("on id, card, bar: grab / drop (move it)", one("space", " "), nil, nil),
-	// z folds a nested row shut and open again; tab and shift-tab, the next
-	// and previous stop, are into the first child and up to the parent there
-	fold: newChord("fold / unfold (nested)", one("z"), nil, nil),
-	help: newChord("help", one("?"), nil, nil),
+	// One nested row is folded with space on its arrow, the cell after its
+	// id, so `z` is gone (2026-10-02); `Z` is the whole tree at once, and
+	// tab and shift-tab, the next and previous stop, are into the first
+	// child and up to the parent.
+	foldAll: newChord("fold / unfold every row (nested)", one("Z", "shift+z"), nil, nil),
+	help:    newChord("help", one("?"), nil, nil),
 	// Back is always back: out of a filter, out of an issue, and from the
 	// first view, twice, out of the program (doc/design/terminal-renderer.md).
 	back: newChord("back (twice at top: quit)", one("esc"), one("esc", "q"), one("esc", "ctrl+g")),
@@ -205,7 +208,7 @@ func helpRows() []*chord {
 		keys.next, keys.previous,
 		keys.act, keys.edit, keys.grab, keys.newline,
 		keys.copy, keys.copyId, keys.paste,
-		keys.filter, keys.fold, keys.nextTab, keys.previousTab,
+		keys.filter, keys.foldAll, keys.nextTab, keys.previousTab,
 		keys.back, keys.help, keys.quit,
 	}
 }
