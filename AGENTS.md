@@ -265,6 +265,11 @@ and on a list's id grabs the row to move it
 (`rank` is built in on every type and is the argument's default, so a drag
 always has somewhere to go, and `(rank, id)` orders every view, the issues
 with no rank keeping the query's order at the end).
+A grabbed row carried past the edge of its group enters the next one —
+on a list, on a gantt, and across a board's swimlanes — and the drop writes
+the `group_by` field to that group's value with the rank, one commit
+(`(none)` writes null; `type` and a set-valued `group_by` ring the bell,
+and a nested child stays among its siblings).
 A relation's edit is its picker: the issues the field's `target_types` allow,
 the cursor on the current one, marked, `/` narrowing them and `(none)` last
 (changing a `multi-relation`'s set rings the bell for now: `issue add`/`remove`);

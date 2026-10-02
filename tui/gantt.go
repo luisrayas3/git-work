@@ -67,10 +67,13 @@ type ganttPage struct {
 	help      *help
 
 	// grabbed is the bar being moved, by index into bars, or -1; grabFrom
-	// is where it was picked up, so that a drop back there writes nothing.
-	grabbed  int
-	grabFrom struct{ cursor, col int }
-	blink    bool
+	// is where it was picked up, so that a drop back there writes nothing,
+	// and crossed the group it has been carried into since (group.go).
+	grabbed   int
+	grabFrom  struct{ cursor, col int }
+	grabGroup string
+	crossed   *crossing
+	blink     bool
 
 	status string
 }
@@ -761,6 +764,8 @@ func (p *ganttPage) startGrab() (page, tea.Cmd) {
 	}
 	p.grabbed = p.order[p.cursor]
 	p.grabFrom.cursor, p.grabFrom.col = p.cursor, p.col
+	p.grabGroup = p.nodes[p.grabbed].group
+	p.crossed = nil
 	p.blink = true
 	return p, blinkTick()
 }
@@ -769,8 +774,11 @@ func (p *ganttPage) updateGrab(press tea.KeyPressMsg) (page, tea.Cmd) {
 	switch {
 	case keys.cancel.matches(press):
 		// the bar goes back where it was: its dates are the stored ones
-		// again, and the order is rebuilt from the store, which never changed
+		// again, its group the stored one, and the order is rebuilt from the
+		// store, which never changed
 		b := &p.bars[p.grabbed]
+		p.nodes[p.grabbed].group = p.grabGroup
+		p.crossed = nil
 		p.grabbed = -1
 		p.putBack(b)
 		return p, nil
@@ -780,17 +788,44 @@ func (p *ganttPage) updateGrab(press tea.KeyPressMsg) (page, tea.Cmd) {
 	case keys.right.matches(press):
 		return p, p.dragAlong(1)
 
-	case keys.up.matches(press), keys.down.matches(press):
-		if keys.up.matches(press) {
-			p.cursor = moveBlock(p.nodes, p.order, p.cursor, -1)
-		} else {
-			p.cursor = moveBlock(p.nodes, p.order, p.cursor, 1)
-		}
+	case keys.up.matches(press):
+		return p, p.dragBy(-1)
+	case keys.down.matches(press):
+		return p, p.dragBy(1)
 
 	case keys.grab.matches(press), keys.act.matches(press):
 		return p, p.drop()
 	}
 	return p, nil
+}
+
+// dragBy moves the grabbed row among its siblings, its subtree with it, and
+// past the last of them carries a root into the neighbouring group, which
+// is the same move a list makes (group.go).
+func (p *ganttPage) dragBy(by int) tea.Cmd {
+	if to := moveBlock(p.nodes, p.order, p.cursor, by); to != p.cursor {
+		p.cursor = to
+		return nil
+	}
+	if p.groupBy == "" {
+		return nil
+	}
+	neighbour, ok := crossGroup(p.nodes, p.order, p.cursor, by)
+	if !ok {
+		return nil
+	}
+
+	b := &p.bars[p.grabbed]
+	if refusal := crossRefusal(p.repo, b.typeKey, p.groupBy); refusal != "" {
+		p.status = refusal
+		return bell()
+	}
+
+	group := p.nodes[neighbour].group
+	p.nodes[p.grabbed].group = group
+	p.crossed = &crossing{group: group, value: groupValue(p.bars[neighbour].fields[p.groupBy], group)}
+	p.status = ""
+	return nil
 }
 
 // dragAlong shifts the grabbed bar by one period, on the screen only: on
@@ -849,11 +884,17 @@ func (p *ganttPage) dragAlong(by int) tea.Cmd {
 	return nil
 }
 
-// drop writes where the bar landed: each date that moved, and the rank
-// when one is bound and the row moved, in one call, which is one commit. A
-// bar dropped where it was picked up writes nothing.
+// drop writes where the bar landed: each date that moved, the rank when the
+// row moved, and the `group_by` field when it crossed into another group,
+// in one call, which is one commit. A bar dropped where it was picked up
+// writes nothing.
 func (p *ganttPage) drop() tea.Cmd {
 	b := &p.bars[p.grabbed]
+	into := p.crossed
+	if into != nil && p.nodes[p.grabbed].group == p.grabGroup {
+		into = nil // carried out of its group and back into it
+	}
+	p.crossed = nil
 	p.grabbed = -1
 
 	fields := map[string]issue.Value{}
@@ -864,7 +905,9 @@ func (p *ganttPage) drop() tea.Cmd {
 		fields[p.stopKey] = issue.StringValue(shiftText(b.stopText, p.scale, b.dStop))
 	}
 	said := "moved"
-	if p.cursor != p.grabFrom.cursor {
+	// a row in another group has new neighbours, so a crossing is a reorder
+	// even where the cursor did not move
+	if p.cursor != p.grabFrom.cursor || into != nil {
 		lo, hi := siblingRanks(p.nodes, p.order, p.cursor)
 		key, err := rank.Between(lo, hi)
 		if err != nil {
@@ -876,6 +919,10 @@ func (p *ganttPage) drop() tea.Cmd {
 		if len(fields) == 1 {
 			said = "rank set"
 		}
+	}
+	if into != nil {
+		fields[p.groupBy] = into.value
+		said = "moved to " + into.group
 	}
 	if len(fields) == 0 {
 		p.putBack(b)

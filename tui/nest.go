@@ -371,6 +371,40 @@ func moveBlock(rows []treeRow, order []int, at, by int) int {
 	return at + nextEnd - next
 }
 
+// crossGroup is the move past the edge of a group: a grabbed root with no
+// sibling that way enters the neighbouring group instead — the one the
+// nearest root above or below it is in, at that group's end going up and
+// its start going down.
+//
+// The row keeps its place in the order, because the boundary between two
+// groups is one point: the row drawn last under one header is the row drawn
+// first under the next, and which group it is in is which header it is
+// under. So the caller relabels the row and nothing moves.
+//
+// It returns the index into rows of the neighbour, whose group and whose
+// stored value the row takes on at the drop, and false where there is no
+// group that way — and for a nested child, which stays among its siblings
+// (doc/design/terminal-renderer.md, Rank).
+func crossGroup(rows []treeRow, order []int, at, by int) (int, bool) {
+	if rows[order[at]].level != 0 {
+		return 0, false
+	}
+	if by < 0 {
+		for i := at - 1; i >= 0; i-- {
+			if rows[order[i]].level == 0 {
+				return order[i], true
+			}
+		}
+		return 0, false
+	}
+	for i := blockEnd(rows, order, at); i < len(order); i++ {
+		if rows[order[i]].level == 0 {
+			return order[i], true
+		}
+	}
+	return 0, false
+}
+
 // siblingRanks reads the ranks the row at order[at] has to land between:
 // its nearest siblings either way that have one; an empty string is the end.
 func siblingRanks(rows []treeRow, order []int, at int) (lo, hi string) {
