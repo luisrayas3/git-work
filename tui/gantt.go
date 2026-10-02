@@ -12,7 +12,6 @@ import (
 	"github.com/git-bug/git-bug/cache"
 	"github.com/git-bug/git-bug/entities/issue"
 	"github.com/git-bug/git-bug/host"
-	"github.com/git-bug/git-bug/rank"
 	"github.com/git-bug/git-bug/schema"
 	"github.com/git-bug/git-bug/view"
 )
@@ -987,6 +986,9 @@ func (p *ganttPage) dragAlong(by int) tea.Cmd {
 // row moved, and the `group_by` field when it crossed into another group,
 // in one call, which is one commit. A bar dropped where it was picked up
 // writes nothing.
+//
+// The siblings drawn above it that have no rank are given one first, each
+// its own commit, so that the drop reads as it was drawn (rank.go).
 func (p *ganttPage) drop() tea.Cmd {
 	b := &p.bars[p.grabbed]
 	into := p.crossed
@@ -1004,17 +1006,19 @@ func (p *ganttPage) drop() tea.Cmd {
 		fields[p.stopKey] = issue.StringValue(shiftText(b.stopText, p.scale, b.dStop))
 	}
 	said := "moved"
+	var above []rankFill
+	rankKey := p.layer(p.nodes[p.order[p.cursor]].level).rankKey
 	// a row in another group has new neighbours, so a crossing is a reorder
 	// even where the cursor did not move
 	if p.cursor != p.grabFrom.cursor || into != nil {
-		lo, hi := siblingRanks(p.nodes, p.order, p.cursor)
-		key, err := rank.Between(lo, hi)
+		fills, key, err := scopeFills(p.nodes, p.order, p.cursor)
 		if err != nil {
 			p.status = err.Error()
 			p.putBack(b)
 			return bell()
 		}
-		fields[p.layer(p.nodes[p.order[p.cursor]].level).rankKey] = issue.StringValue(key)
+		above = fills
+		fields[rankKey] = issue.StringValue(key)
 		if len(fields) == 1 {
 			said = "rank set"
 		}
@@ -1030,12 +1034,17 @@ func (p *ganttPage) drop() tea.Cmd {
 	}
 
 	id := b.id
+	if err := writeFills(p.repo, above, rankKey); err != nil {
+		p.status = err.Error()
+		p.putBack(b)
+		return bell()
+	}
 	if _, err := host.IssueSet(p.repo, id, fields, false); err != nil {
 		p.status = err.Error()
 		p.putBack(b)
 		return bell()
 	}
-	p.status = said
+	p.status = saidAnd(said, above)
 	if err := p.load(); err != nil {
 		p.status = err.Error()
 	}

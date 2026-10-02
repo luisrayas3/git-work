@@ -624,24 +624,6 @@ func crossGroup(rows []treeRow, order []int, at, by int) (int, bool) {
 	return 0, false
 }
 
-// siblingRanks reads the ranks the row at order[at] has to land between:
-// its nearest siblings either way that have one; an empty string is the end.
-func siblingRanks(rows []treeRow, order []int, at int) (lo, hi string) {
-	for i := siblingAt(rows, order, at, -1); i >= 0; i = siblingAt(rows, order, i, -1) {
-		if r := rows[order[i]].rank; r != "" {
-			lo = r
-			break
-		}
-	}
-	for i := siblingAt(rows, order, at, 1); i >= 0; i = siblingAt(rows, order, i, 1) {
-		if r := rows[order[i]].rank; r != "" {
-			hi = r
-			break
-		}
-	}
-	return lo, hi
-}
-
 // The tree column is the cell after the id (Luis, 2026-10-02).
 //
 // The id column stays first and flush, so a list reads and sorts by id

@@ -427,11 +427,29 @@ not a duplicate and not an error — it is that override, exactly as
 a file listing `title` is — and `schema export` leaves it out
 unless an entity overrides it.
 
-Consequence, accepted: on a store where nothing has a rank,
-the first drop puts its issue at the top of its group,
-because it is then the only issue with a rank and null sorts last.
-The answer, if it ever annoys anybody, is the order-preserving renumber
-the `rank` package already describes, not a different sort rule.
+Consequence, and what is done about it (2026-10-02):
+on a store where nothing has a rank — which is every store
+until somebody drags something — the issue dropped first
+would be the only issue with a rank in its scope,
+and null sorting last would carry it to the top of that scope
+whatever position it was dropped at.
+A drop has to read as it was drawn,
+so **a drop that writes a rank first gives one to every issue
+drawn above the drop point in the same ordering scope that has none**,
+in the order they are drawn,
+and only then computes the dropped issue's own key between its neighbours.
+Each of those is its own commit — there is no multi-entity commit —
+and the status line says how many were written besides the move.
+The issues *below* the drop point are left alone:
+they already sort after everything ranked, in the query's own order,
+which is exactly where they are drawn,
+so ranking them would be writes that change nothing.
+
+The alternative, ranking the whole scope on its first drop,
+was rejected: a drag of one issue should not rewrite a backlog of three
+hundred, and the rows below the drop point need no key to stay put.
+The order-preserving renumber the `rank` package describes
+remains the answer to keys that have grown long, which is another problem.
 
 ## Order of work
 

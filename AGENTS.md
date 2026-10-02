@@ -268,7 +268,10 @@ and on a relation, drawn as the issue it names, opens that issue at once
 and on a list's id grabs the row to move it
 (`rank` is built in on every type and is the argument's default, so a drag
 always has somewhere to go, and `(rank, id)` orders every view, the issues
-with no rank keeping the query's order at the end).
+with no rank keeping the query's order at the end);
+a drop that writes a rank first gives one to every unranked row drawn above
+it in the same scope — the same group, parent or board stack — one commit
+each, so that the drop reads as it was drawn (`rank set · 2 ranked`).
 A grabbed row carried past the edge of its group enters the next one —
 on a list, on a gantt, and across a board's swimlanes — and the drop writes
 the `group_by` field to that group's value with the rank, one commit

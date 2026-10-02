@@ -9,7 +9,6 @@ import (
 	"github.com/git-bug/git-bug/cache"
 	"github.com/git-bug/git-bug/entities/issue"
 	"github.com/git-bug/git-bug/host"
-	"github.com/git-bug/git-bug/rank"
 	"github.com/git-bug/git-bug/schema"
 	"github.com/git-bug/git-bug/view"
 )
@@ -752,6 +751,10 @@ func (p *boardPage) laneValue(lane int) (crossing, bool) {
 // and the rank whenever it moved at all — a card in a new column or a new
 // lane has new neighbours — every key in one call, which is one commit. A
 // card dropped where it was picked up writes nothing.
+//
+// The cards drawn above it in the stack it landed in that have no rank are
+// given one first, each its own commit, so that the drop reads as it was
+// drawn (rank.go).
 func (p *boardPage) drop() tea.Cmd {
 	c := &p.cards[p.grabbed]
 	into := p.crossed
@@ -780,8 +783,7 @@ func (p *boardPage) drop() tea.Cmd {
 		fields[p.groupBy] = into.value
 		said = "moved to " + into.group
 	}
-	lo, hi := p.neighbourRanks()
-	key, err := rank.Between(lo, hi)
+	above, key, err := p.stackFills()
 	if err != nil {
 		p.status = err.Error()
 		p.arrange()
@@ -791,13 +793,19 @@ func (p *boardPage) drop() tea.Cmd {
 	fields[p.rankKey] = issue.StringValue(key)
 
 	id := c.id
+	if err := writeFills(p.repo, above, p.rankKey); err != nil {
+		p.status = err.Error()
+		p.arrange()
+		p.putCursorOn(id)
+		return bell()
+	}
 	if _, err := host.IssueSet(p.repo, id, fields, false); err != nil {
 		p.status = err.Error()
 		p.arrange()
 		p.putCursorOn(id)
 		return bell()
 	}
-	p.status = said
+	p.status = saidAnd(said, above)
 	if err := p.load(); err != nil {
 		p.status = err.Error()
 	}
@@ -805,22 +813,15 @@ func (p *boardPage) drop() tea.Cmd {
 	return nil
 }
 
-// neighbourRanks reads the ranks the dropped card has to land between, in
-// its column; an empty string on either side is the end of the stack.
-func (p *boardPage) neighbourRanks() (string, string) {
+// stackFills is fillRanks over the stack the dropped card landed in, which
+// is one lane's one column, and is the card's whole ordering scope.
+func (p *boardPage) stackFills() (above []rankFill, key string, err error) {
 	stack := p.stack()
-	var lo, hi string
-	for at := p.row - 1; at >= 0; at-- {
-		if r := p.cards[stack[at]].rank; r != "" {
-			lo = r
-			break
-		}
+	ids := make([]string, len(stack))
+	ranks := make([]string, len(stack))
+	for at, index := range stack {
+		ids[at] = p.cards[index].id
+		ranks[at] = p.cards[index].rank
 	}
-	for at := p.row + 1; at < len(stack); at++ {
-		if r := p.cards[stack[at]].rank; r != "" {
-			hi = r
-			break
-		}
-	}
-	return lo, hi
+	return fillRanks(ids, ranks, p.row)
 }
