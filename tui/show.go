@@ -875,10 +875,7 @@ func (p *showPage) tabBarLine() int {
 // footerLine is under the box's text: the keys that work it, marked while the
 // cursor is on the box, the ones for typing while it is in the text.
 func (p *showPage) footerLine(here position) string {
-	hint := "space: write"
-	if here.typing {
-		hint = "enter: send · alt+enter: newline · esc: done"
-	}
+	text := hintText(boxHints(here.typing)...)
 	marker, style := " ", styleDim
 	if here.stop == stopBox {
 		marker = "›"
@@ -886,7 +883,7 @@ func (p *showPage) footerLine(here position) string {
 			style = styleCell
 		}
 	}
-	return fit(marker+" "+style.Render(hint), p.width)
+	return fit(marker+" "+style.Render(text), p.width)
 }
 
 // fieldLines is the fields table: the key, then the value, a link
@@ -1017,15 +1014,57 @@ func (p *showPage) logLines() []string {
 func (p *showPage) statusLine() string {
 	left := p.status
 	if left == "" {
-		left = "? keys"
-		if row := p.currentRow(); row != nil && p.editor == nil {
-			typeKey, _ := issue.String(p.snapshot.Fields[schema.TypeKey])
-			if kind, _ := fieldKind(p.repo, typeKey, row.key); isRelation(kind) {
-				left = relationHint(row.link != "")
-			}
-		}
+		left = p.hintLine()
 	}
 	return styleStatus.Render(fit(left, p.width))
+}
+
+// hintLine is what the keys do where the cursor is (hints.go).
+//
+// Enter opens and never edits here, so it is named only where there is
+// something to go to: a link, or the comment the text is sending.
+func (p *showPage) hintLine() string {
+	if p.editor != nil {
+		return p.editor.hints()
+	}
+
+	here := p.current()
+	switch here.stop {
+	case stopBox:
+		return hints(boxHints(here.typing)...)
+	case stopTabs:
+		return hints(hint{"←→", "tab"})
+	case stopHeader:
+		typeKey, _ := issue.String(p.snapshot.Fields[schema.TypeKey])
+		if edit, ok := editHint(fieldKind(p.repo, typeKey, p.field())); ok {
+			return hints(edit)
+		}
+		return hints()
+	}
+
+	row := p.currentRow()
+	if row == nil {
+		return hints()
+	}
+	// a child's row is the other side of a relation: a link, and never a
+	// field, so it is followed and never edited
+	if row.derived {
+		if row.link == "" {
+			return hints()
+		}
+		return hints(hint{"enter", "follow"})
+	}
+
+	var pairs []hint
+	typeKey, _ := issue.String(p.snapshot.Fields[schema.TypeKey])
+	kind, known := fieldKind(p.repo, typeKey, row.key)
+	if row.link != "" {
+		pairs = append(pairs, hint{"enter", "go to"})
+	}
+	if edit, ok := editHint(kind, known); ok {
+		pairs = append(pairs, edit)
+	}
+	return hints(pairs...)
 }
 
 // opSummary is one operation in one line, the way a person would say it.

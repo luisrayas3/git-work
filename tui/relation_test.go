@@ -25,7 +25,7 @@ func TestSpaceOnARelationOpensItsPicker(t *testing.T) {
 
 	page := list(t, repo, `{"fields":["title","parent"],"query":"map(select(.fields.type == \"task\"))"}`)
 	page = send(page, "l", "l").(*listPage)
-	require.Contains(t, plainView(page), relationHint(true), "the status line says what enter and space do")
+	require.Contains(t, plainView(page), "enter: go to · space: change", "the status line says what enter and space do")
 
 	page = send(page, "space").(*listPage)
 	require.NotNil(t, page.editor)
@@ -55,7 +55,7 @@ func TestChangeARelationPicksFromItsTargetTypes(t *testing.T) {
 
 	page := show(t, repo, id, []string{"parent"})
 	page = send(page, "shift+tab").(*showPage)
-	require.Contains(t, plainView(page), relationHint(true))
+	require.Contains(t, plainView(page), "enter: go to · space: change")
 
 	page = send(page, "space").(*showPage)
 	require.NotNil(t, page.editor)
@@ -124,7 +124,7 @@ func TestChangeARelationToNoneClearsIt(t *testing.T) {
 	require.Equal(t, "", fieldOf(t, repo, id, "parent"))
 
 	page.status = ""
-	require.Contains(t, plainView(page), relationHint(false))
+	require.Contains(t, plainView(page), "enter: open · space: change")
 	page = send(page, "space").(*listPage)
 	require.NotNil(t, page.editor)
 	require.Equal(t, []string{story, ""}, pickerValues(page.editor.picker))

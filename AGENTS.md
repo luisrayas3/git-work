@@ -233,7 +233,10 @@ so a kanban with no flow at all is one command:
 `git work view board '{"query":"map(select(.fields.status != \"done\"))","columns":"status"}'`.
 KWARGS is read from standard input when it is `-`, like every document argument.
 Standard, vim and emacs keys are all read at once, and `?` shows them as three tabs;
-the cursor starts on the id column and the row under it is washed,
+the bottom line names the keys that act under the cursor —
+`enter` and `space` first, in the standard spelling, then `? keys` and the count —
+and never a key that rings the bell there (2026-10-02).
+The cursor starts on the id column and the row under it is washed,
 and `Enter` opens while `Space` edits (2026-10-02):
 `Enter` on the id or any plain cell opens the row's issue as show,
 and on a relation, drawn as the issue it names, opens that issue at once

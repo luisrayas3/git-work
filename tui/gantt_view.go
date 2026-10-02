@@ -390,7 +390,42 @@ func (p *ganttPage) statusLine() string {
 
 	left := p.status
 	if left == "" {
-		left = "? keys"
+		left = p.hintLine()
 	}
 	return styleStatus.Render(fit(left+" · "+count, p.width))
+}
+
+// hintLine is what the keys do where the cursor is (hints.go).
+//
+// A bar with no dates has nothing to shift — dragAlong refuses it — so space
+// is named there only where a bound rank still gives the grab something to
+// do, and the grabbed line drops the shift for the same reason.
+func (p *ganttPage) hintLine() string {
+	switch {
+	case p.filtering != nil:
+		return filterHints()
+	case p.grabbed >= 0:
+		b := &p.bars[p.grabbed]
+		var moves []hint
+		if b.hasStart || b.hasStop {
+			moves = append(moves, hint{"←→", "shift"})
+		}
+		if p.rankKey != "" {
+			moves = append(moves, hint{"↑↓", "reorder"})
+		}
+		return grabHints(moves...)
+	}
+
+	b := p.current()
+	if b == nil {
+		return hints()
+	}
+	pairs := []hint{{"enter", "open"}}
+	switch {
+	case b.hasStart || b.hasStop:
+		pairs = append(pairs, hint{"space", "grab bar"})
+	case p.rankKey != "":
+		pairs = append(pairs, hint{"space", "grab"})
+	}
+	return hints(append(pairs, foldHints(p.node())...)...)
 }

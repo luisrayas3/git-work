@@ -60,16 +60,43 @@ func (p *listPage) statusLine() string {
 
 	left := p.status
 	if left == "" {
-		left = "? keys"
-		if row := p.current(); row != nil && p.editor == nil {
-			if links, relation := row.links[p.fieldKey()]; relation {
-				left = relationHint(len(links) > 0)
-			}
-		}
+		left = p.hintLine()
 	}
 
 	line := fmt.Sprintf("%s · %s", left, count)
 	return styleStatus.Render(fit(line, p.width))
+}
+
+// hintLine is what the keys do where the cursor is (hints.go).
+func (p *listPage) hintLine() string {
+	switch {
+	case p.editor != nil:
+		return p.editor.hints()
+	case p.filtering != nil:
+		return filterHints()
+	case p.grabbed >= 0:
+		return grabHints(hint{"↑↓", "move"})
+	}
+
+	row := p.current()
+	if row == nil {
+		return hints()
+	}
+	if key := p.fieldKey(); key != "" {
+		pairs := []hint{openHint(len(row.links[key]) > 0)}
+		if edit, ok := editHint(fieldKind(p.repo, row.typeKey, key)); ok {
+			pairs = append(pairs, edit)
+		}
+		return hints(pairs...)
+	}
+
+	// the id column: enter opens the row, space grabs it where a rank says
+	// where the move would be written, and the tree's keys where there is one
+	pairs := []hint{{"enter", "open"}}
+	if p.rankKey != "" {
+		pairs = append(pairs, hint{"space", "grab"})
+	}
+	return hints(append(pairs, foldHints(p.node())...)...)
 }
 
 // body draws the header and every row in the drawing order, says which line

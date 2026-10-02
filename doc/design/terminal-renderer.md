@@ -278,6 +278,35 @@ A cell that cannot be edited — a set-valued field,
 a field the schema does not know — **rings the bell**,
 the terminal's own blink, and says why in the status line.
 
+**The status line names the keys that act under the cursor**
+(2026-10-02, Luis).
+Two keys do everything, and what each of them does changes with the cell:
+`Space` edits a status, flips a bool, opens a picker, grabs a card, or rings;
+`Enter` opens the row, follows a link, or sends a comment.
+A user who has to open the help to learn which is which, each time the cursor
+moves, is paying for the generality with the thing it was meant to buy.
+So the line the status line draws when it has no message to carry is a hint:
+`enter` and `space` first, in that order where both act, then at most two or
+three more that matter in that exact state — the tree's `z` and `tab`,
+a grab's directions, a filter's `esc` — and `? keys` last, which is the only
+pair on every line. It replaces the one-off hints that preceded it:
+the relation cell's, and the matrix's *enter: the cell's issues*.
+A status message set by an action still wins the line until the next one,
+as before, and the count stays on the right where a kind has one.
+Every kind builds its line from one helper over `(key, action)` pairs
+(`hints` in `tui/hints.go`), so the wording cannot drift between kinds,
+and the comment box's footer draws its pairs from the same list.
+The keys are spelled the way the **standard family** spells them, lower case:
+the help is where the vim and the emacs spellings live, and three spellings in
+a one-line hint read as noise to all three.
+**A hint never promises a key the page does not answer there.**
+Where a key rings the bell its pair is left out rather than listed, so the line
+is shorter exactly where there is less to do: `space` is missing on a column
+that is not a field of the row's type, on a set-valued field, on a matrix's
+sum, and on a gantt row with no dates and no rank bound, because none of those
+has anything for it to grab or edit. One helper mirrors `editable`
+(`editHint`), which keeps that promise true as the widgets grow.
+
 **Copy and paste are the terminal's first** (revised again 2026-09-27, Luis).
 `⌘-c` and `⌘-v` on a Mac, `C-S-c` and `C-S-v` in a Linux terminal,
 are the terminal's own copy and paste, and they stay its own:
@@ -401,7 +430,7 @@ headed by a **go to** entry, the cursor on it, so `Enter`, `Enter` followed;
 with `Enter` no longer an edit key, the entry has nothing left to do, and it is gone.
 An empty relation has nothing to go to: `Enter` on it opens the row's issue on a list,
 and on `show`, where the row is the page already, rings the bell.
-The status line on a relation cell says what the keys do: *enter: go to · space: change*, or *space: change* on an empty one.
+The status line on a relation cell says what the keys do: *enter: go to · space: change*, or *space: change* on an empty one, which is the general rule below.
 Board cards and gantt bars are not cells, and `Enter` opens them.
 Copy on it copies the id, which is what another command takes.
 A link to an issue the store does not have yet is its short id alone.
@@ -799,7 +828,9 @@ and `S-Enter` where the terminal tells it from `Enter`.
 `Tab` and `S-Tab` move between stops, out of the text too,
 and land on the box, never in it.
 A footer line under the text says which keys work it:
-*space: write* on the box, *enter: send · alt+enter: newline · esc: done* in it.
+*space: type · tab: skip* on the box,
+*enter: send · alt+enter: newline · esc: leave* in it,
+the same pairs the status line carries there.
 It held a **Submit comment** button until 2026-10-02,
 reached by `Down` from the text's last line and pressed with `Enter`;
 with `Enter` sending from the text, the button was a second way to do one thing.
