@@ -37,9 +37,10 @@ func TestShowDrawsTheIssue(t *testing.T) {
 	require.Contains(t, drawn, "estimate")
 	// the built-ins are the header, not rows; archived is a checkbox there
 	require.Contains(t, drawn, "task  write the renderer  [ ] archived")
-	require.NotContains(t, drawn, " type ")
-	require.Less(t, indexOf(drawn, "estimate"), indexOf(drawn, "space: write"), "the box is under the fields")
-	require.Less(t, indexOf(drawn, "space: write"), indexOf(drawn, "comments"), "and the tabs under the box")
+	// a field row opens its line with the key, which is where type would be
+	require.NotContains(t, drawn, "\n type ")
+	require.Less(t, indexOf(drawn, "estimate"), indexOf(drawn, "space: type"), "the box is under the fields")
+	require.Less(t, indexOf(drawn, "space: type"), indexOf(drawn, "comments"), "and the tabs under the box")
 
 	// the body is the first comment, which an issue always has, and the
 	// description tab is where it is read
@@ -309,7 +310,7 @@ func TestShowOpensOnTheCommentBox(t *testing.T) {
 	page := show(t, repo, id, nil)
 	require.Equal(t, stopBox, page.current().stop)
 	require.False(t, page.inText())
-	require.Contains(t, plainView(page), "space: write")
+	require.Contains(t, plainView(page), "space: type")
 
 	page = send(page, "x", "enter").(*showPage)
 	require.Empty(t, page.box.draft(), "a letter on the box is not text, and enter does nothing")

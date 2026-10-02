@@ -111,12 +111,3 @@ func (k *kinds) of(typeKey, fieldKey string) schema.Kind {
 	k.known[pair] = kind
 	return kind
 }
-
-// relationHint is the status line on a relation cell: what enter and space do
-// there, which on an empty one is change alone.
-func relationHint(linked bool) string {
-	if linked {
-		return "enter: go to · space: change"
-	}
-	return "space: change"
-}

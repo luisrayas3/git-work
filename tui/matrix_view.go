@@ -195,9 +195,35 @@ func (p *matrixPage) statusLine() string {
 
 	left := p.status
 	if left == "" {
-		left = "enter: the cell's issues · ? keys"
+		left = p.hintLine()
 	}
 	return styleStatus.Render(fit(left+" · "+count, p.width))
+}
+
+// hintLine is what the keys do where the cursor is (hints.go).
+//
+// Space is never named: a sum is not a value, and it rings. What enter opens
+// is the cell's issues, and on a total the cell with the clause it dropped
+// dropped too — the row, the column, or the lot.
+func (p *matrixPage) hintLine() string {
+	if p.filtering != nil {
+		return filterHints()
+	}
+	if p.row >= len(p.drawn) {
+		return hints()
+	}
+
+	data, whole := p.drawn[p.row].kind == rowData, p.col >= len(p.cols)
+	what := "open issues"
+	switch {
+	case data && whole:
+		what = "open row"
+	case !data && !whole:
+		what = "open column"
+	case !data && whole:
+		what = "open all"
+	}
+	return hints(hint{"enter", what}, hint{"/", "narrow axes"})
 }
 
 // padLeft fits a string to a width, right-aligned, because a column of

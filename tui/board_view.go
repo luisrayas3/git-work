@@ -228,7 +228,25 @@ func (p *boardPage) statusLine() string {
 
 	left := p.status
 	if left == "" {
-		left = "? keys"
+		left = p.hintLine()
 	}
 	return styleStatus.Render(fit(left+" · "+count, p.width))
+}
+
+// hintLine is what the keys do where the cursor is (hints.go). A card has no
+// cell: it is opened, grabbed and moved, and its fields are edited on show.
+func (p *boardPage) hintLine() string {
+	switch {
+	case p.filtering != nil:
+		return filterHints()
+	case p.grabbed >= 0:
+		moves := []hint{{"←→", "column"}}
+		if p.rankKey != "" {
+			moves = append(moves, hint{"↑↓", "reorder"})
+		}
+		return grabHints(moves...)
+	case p.current() == nil:
+		return hints()
+	}
+	return hints(hint{"enter", "open"}, hint{"space", "grab"})
 }
