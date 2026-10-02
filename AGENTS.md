@@ -85,8 +85,15 @@ The schema is `schema.yaml` at the root of this repository,
 applied with `git work schema import schema.yaml`;
 the recipes below use its keys.
 
+`git work quickstart` is the short version of all this, for an agent:
+the model, the issue commands, and this repository's types read from the store.
+Its static half is `host/quickstart.md`,
+documentation like this file and kept accurate the same way —
+in the change that makes it wrong.
+
 | Action | Command |
 | --- | --- |
+| Quickstart | `git work quickstart`: the model and this repo's types, for an agent |
 | Open work | `git work issue 'map(select(.fields.status != "done"))'` · `--format text` |
 | One type | `git work issue 'map(select(.fields.type == "decision"))'` · by area: `select(.fields.area // [] \| index("cli"))` |
 | Live list | `git work view list '{"fields":["type","status","priority","title"],"group_by":"status"}'` (TTY) |

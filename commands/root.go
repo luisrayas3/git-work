@@ -79,6 +79,7 @@ git remote you are already using to collaborate with other people.
 	addCmdWithGroup(jiracmd.NewJiraCommand(env), remoteGroup)
 	addCmdWithGroup(bridgecmd.NewBridgeCommand(env), remoteGroup)
 
+	cmd.AddCommand(newQuickstartCommand(env))
 	cmd.AddCommand(newVersionCommand(env))
 	cmd.AddCommand(newWipeCommand(env))
 	cmd.AddCommand(newMigrateCommand(env))

@@ -1,0 +1,165 @@
+# git work, for an agent
+
+Enough to read, create and update issues here,
+and where to find everything this leaves out.
+
+## What this is
+
+git-work is a project tracker stored in the git repository itself:
+no server, no database, nothing to log into.
+It is a fork of git-bug, grown into project management
+with Jira as a sync backend.
+It installs as a git subcommand,
+so every command below starts `git work`.
+
+## How it is stored
+
+Every issue is an entity:
+a DAG of operations under its own ref, `refs/work-issues/<id>`.
+The operations are a CRDT and the refs are ordinary refs,
+so `git fetch` and `git push` merge two clones' edits of one issue
+without a conflict and without losing either.
+An id is a hash.
+Wherever a command takes one it also takes an unambiguous prefix,
+or an alias — an external key such as a Jira issue key,
+recorded on the create operation, which is the one part that never changes.
+
+Four namespaces, one kind of thing each:
+
+- `refs/work-issues/*` — the issues.
+- `refs/work-schema/*` — the types and their fields.
+- `refs/work-flows/*` — the flows, one Starlark function each.
+- `refs/work-users/*` — the identities.
+
+`schema.yaml` and the `.star` files in the working tree are authoring copies,
+merged by git and applied by `git work schema import` and `git work flow import`.
+Nothing reads them at run time: the refs are the truth.
+
+There is no multi-entity commit.
+A relationship between issues — a parent, a dependency —
+is a field holding the other issue's id,
+so it is eventually consistent, not transactional.
+
+## The command model
+
+`git work issue` is plumbing, written for an agent.
+JSON goes in and JSON comes out;
+`--format text` on a reader prints it for a human instead.
+A document argument is read from standard input when it is `-`.
+A writer prints an id or nothing at all, and diagnostics go to stderr.
+
+- `git work issue new DOC` takes one JSON document,
+  `{"fields": {…}, "body": "the first comment", "aliases": {"jira": "PROJ-12"}}`,
+  and prints the new id.
+  `fields.title` and `fields.type` are required;
+  every other key of `fields` is a field of that type.
+- `git work issue get ID` prints one issue whole:
+  id, fields, author, participants, comments.
+- `git work issue set ID '{"key": value, …}'` replaces fields,
+  one operation per key and one commit however many keys there are.
+  `null` clears a field.
+- `git work issue add ID '{"key": [item, …]}'`
+  and `git work issue remove ID '{"key": [item, …]}'`
+  are for the list-valued fields, with set semantics.
+- `git work issue comment new ID BODY` prints the new comment's id,
+  and `git work issue comment edit COMMENT_ID BODY` rewrites one.
+- `git work issue log ID` is the issue's history,
+  one JSON object per operation: what changed, by whom, when.
+- `git work issue archive ID` is the replicated removal.
+  `git work issue rm ID` drops the local ref only, and a pull brings it back.
+- `--dry-run` on `set`, `add`, `remove` and `archive`
+  prints the operations the call would commit, and writes nothing.
+
+Every write is checked against the schema before anything is committed,
+and every problem is reported at once rather than the first one:
+an unknown key is refused naming the fields the type does have,
+an enum value naming the values the field accepts,
+a relation naming the types it may point at.
+
+The listing is a jq program.
+`git work issue 'PROGRAM'` runs PROGRAM over the array of every issue as an
+excerpt — `id`, `human_id`, `create_time`, `edit_time`, `fields`, `author`,
+`actors`, `participants`, `comments` (a count) and `metadata` —
+and prints what it emits.
+With no program the default is every unarchived issue, last edited first.
+
+## Where everything else is
+
+- The schema is the authority on what a type's fields are
+  and what each one accepts:
+  `git work schema` prints it as YAML, `--format json` as JSON.
+  The live section below summarises it.
+- Any command explains itself: `git work issue set --help`, and so on down the tree.
+- Flows are the porcelain, one Starlark function each:
+  `git work flow` lists them with their arguments and
+  `git work flow run NAME` runs one,
+  taking its arguments as one JSON object.
+- Views are interactive and need a terminal.
+  An agent reads the data with `git work issue 'PROGRAM'` instead.
+- Starlark mirrors this command line one to one,
+  because both go through the same code.
+  `work` is the only predeclared name:
+  `git work issue get ID` is `work.issue.get(id)`,
+  `git work schema import` is `work.schema.import_(doc)`
+  because `import` is a Starlark keyword,
+  and this page is `work.quickstart()`.
+- Sync: `git work pull` and `git work push` carry every namespace
+  over the git remote, `git work sync` does both in one run,
+  and `git work jira sync` (or `git work sync --jira`) syncs a bound clone
+  with a Jira project, where Jira is canonical.
+- `git work user me` is the identity you write as.
+  It is settled from git's `user.name` and `user.email` on the first write,
+  so there is nothing to set up.
+
+## What a value may be
+
+A field's kind says what its value has to be:
+
+- `text` — a string.
+- `enum`, `ordinal-enum` — one value id out of the field's list.
+- `multi-enum` — an array of those ids.
+- `bool` — `true` or `false`.
+- `number` — a number.
+- `date` — an RFC 3339 string, `"2026-10-02"` or a full timestamp.
+- `identity`, `multi-identity` — the id of an identity, as `git work user` lists them.
+- `relation`, `multi-relation` — the id of another issue,
+  of a type the field's target types allow.
+- `rank` — a fractional index for manual order; leave it to a view to write.
+
+`title`, `type` and `archived` are built in on every type —
+text, enum and bool — and cannot be removed.
+
+## Examples
+
+Create a task under a story, and print its id:
+
+```sh
+git work issue new '{"fields":{"title":"Rebuild the index on pull","type":"task","status":"to-do","parent":"<story id>"},"body":"Why this is worth doing."}'
+```
+
+Close it, then reopen it:
+
+```sh
+git work issue set <id> '{"status":"done"}'
+git work issue set <id> '{"status":"to-do"}'
+```
+
+Comment on it, with the body on standard input:
+
+```sh
+git work issue comment new <id> - <<'EOF'
+Landed; the index is rebuilt from the ref diff now.
+EOF
+```
+
+Everything still open, grouped by type:
+
+```sh
+git work issue 'map(select(.fields.status != "done")) | group_by(.fields.type)'
+```
+
+One story's tasks:
+
+```sh
+git work issue 'map(select(.fields.parent == "<story id>"))' --format text
+```

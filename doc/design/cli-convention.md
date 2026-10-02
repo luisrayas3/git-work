@@ -152,6 +152,7 @@ git work user
 git work user me                                # the identity this repository writes as
 git work user new | adopt ID
 git work gui [--port N] [--no-browser]          # every flow as a page, every view as a renderer
+git work quickstart                             # the model and this repository's types, markdown, for an agent
 git work version
 git work completion SHELL
 ```
@@ -189,6 +190,8 @@ so that one verb is spelled with a trailing underscore;
 `work.flow.log(name="")`, `work.flow.archive(name)`, `work.flow.rm(name)`;
 `work.view.list(...)`, `work.view.board(...)`, `work.view.gantt(...)`, `work.view.show(id, ...)`;
 `work.user.me()`, which is `git work user me`.
+A root command is a verb on the module itself:
+`work.quickstart()` is `git work quickstart`, the same markdown as a string.
 Every function returns what the command would print, as a Starlark value.
 
 One exception to the one-to-one rule:

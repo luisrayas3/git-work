@@ -403,6 +403,23 @@ func TestUserMeIsWhatTheCommandPrints(t *testing.T) {
 	require.Equal(t, printed, value)
 }
 
+// TestQuickstartIsWhatTheCommandPrints pins the other half of the mirror:
+// a root command is a verb on the module itself,
+// so `git work quickstart` is `work.quickstart()`, the same text.
+func TestQuickstartIsWhatTheCommandPrints(t *testing.T) {
+	repo := testRepo(t)
+
+	value, _, err := run(t, repo, `def guide():
+    """The quickstart."""
+    return work.quickstart()
+`, nil)
+	require.NoError(t, err)
+
+	printed, err := host.Quickstart(repo)
+	require.NoError(t, err)
+	require.Equal(t, printed, value)
+}
+
 func TestPrintGoesToStderr(t *testing.T) {
 	repo := testRepo(t)
 
