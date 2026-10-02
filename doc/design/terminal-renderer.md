@@ -557,14 +557,30 @@ then the issues that have none, in the query's own order.
 A rank is null until a drop writes one, so a store nobody has dragged
 anything in reads exactly as its query asked for,
 and the query only selects once ranks exist.
-The first drop on such a view does move its issue to the top of its group,
-it being the only issue with a rank;
-the answer to that, if it ever annoys anybody,
-is the order-preserving renumber `rank` describes, not another sort rule.
+**A drop reads as it was drawn** (2026-10-02).
+On a view where nothing is ranked the first drop would otherwise
+carry its issue to the top of its scope, it being the only issue with a key,
+whatever position it was dropped at.
+So a drop that writes a rank first gives one to every row
+**drawn above the drop point in the same ordering scope** —
+the same group, the same nesting level under the same parent, and on a
+board the same stack, which is one lane's one column —
+that has none, in the order they are drawn,
+and only then computes the dropped row's own key between its neighbours.
+The rows below the drop point are left unranked:
+they already sort after everything ranked, in the query's own order,
+which is where they are drawn.
 
-A drop writes **one** midpoint key to **one** issue,
-which is the whole point of a fractional index:
-two people dragging at once both keep their drag.
+A drop therefore writes **one** midpoint key to the issue that moved —
+that key, and the `group_by` or `columns` field where the row crossed,
+in one `set`, which is one commit, which is the whole point of a
+fractional index: two people dragging at once both keep their drag.
+The keys it fills in above are one `set` each, one issue each,
+because there is no multi-entity commit (`AGENTS.md`);
+the status line names them, `rank set · 2 ranked`,
+so that a drop that wrote three issues does not read like a drop that
+wrote one. A drop on a view already ranked fills nothing in and is the
+single write it has always been.
 
 **A grabbed row carried past the edge of its group enters the next one**
 (2026-10-02): the group above when it is moved up, at that group's end,

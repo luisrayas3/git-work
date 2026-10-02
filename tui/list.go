@@ -10,7 +10,6 @@ import (
 	"github.com/git-bug/git-bug/cache"
 	"github.com/git-bug/git-bug/entities/issue"
 	"github.com/git-bug/git-bug/host"
-	"github.com/git-bug/git-bug/rank"
 	"github.com/git-bug/git-bug/schema"
 	"github.com/git-bug/git-bug/view"
 )
@@ -828,13 +827,15 @@ func (p *listPage) dragBy(by int) tea.Cmd {
 // drop writes where the grabbed row landed: the rank, one key strictly
 // between its new neighbours', and the `group_by` field when the row
 // crossed into another group — both keys in one call, which is one commit.
+//
+// The siblings drawn above it that have no rank are given one first, each
+// its own commit, so that the drop reads as it was drawn (rank.go).
 func (p *listPage) drop() tea.Cmd {
 	row := &p.rows[p.grabbed]
 	group := p.nodes[p.grabbed].group
 	p.grabbed = -1
 
-	lo, hi := siblingRanks(p.nodes, p.order, p.cursor)
-	key, err := rank.Between(lo, hi)
+	above, key, err := scopeFills(p.nodes, p.order, p.cursor)
 	if err != nil {
 		p.status = err.Error()
 		p.reorder()
@@ -850,7 +851,12 @@ func (p *listPage) drop() tea.Cmd {
 	}
 	p.crossed = nil
 
-	p.writeFields(row.id, fields, said)
+	if err := writeFills(p.repo, above, rankKey); err != nil {
+		p.status = err.Error()
+		p.reorder()
+		return bell()
+	}
+	p.writeFields(row.id, fields, saidAnd(said, above))
 	p.putCursorOn(row.id)
 	return nil
 }
