@@ -87,6 +87,8 @@ type Arg struct {
 	Kind ValueKind
 	// Allowed are the values an Enum accepts.
 	Allowed []string
+	// Min is the smallest value an Int takes; zero is no floor at all.
+	Min int
 	// Default is the JSON a Defaulted argument takes when it is absent.
 	// The empty string and "null" both mean there is no value to apply,
 	// which is what a default the renderer computes looks like here.
@@ -120,6 +122,8 @@ var Kinds = map[string][]Arg{
 			Doc: "the column values, in order; the field's schema order by default, which is resolved at render time"},
 		{Name: "card", Tier: Defaulted, Kind: FieldKeys, Default: `["title"]`,
 			Doc: "the fields shown on a card"},
+		{Name: "column_width", Tier: Defaulted, Kind: Int, Default: `32`, Min: minColumnWidth,
+			Doc: "the narrowest a column goes before the board scrolls sideways; when every column fits they share the width"},
 		{Name: "group_by", Tier: Optional, Kind: FieldKey,
 			Doc: "the field whose value starts a new swimlane; the cards with no value at all are the last swimlane, (none)"},
 		rankArg,
@@ -176,6 +180,12 @@ var Kinds = map[string][]Arg{
 	},
 }
 
+// minColumnWidth is the floor under the board's `column_width`:
+// a column narrower than this cannot draw a card's id line,
+// so the board would scroll sideways past something unreadable
+// (doc/design/terminal-renderer.md, Board).
+const minColumnWidth = 10
+
 // expandDoc is `expand` on the list and the gantt, which take one spec.
 //
 // It says the three things a reader cannot guess and has had to go and read
@@ -226,8 +236,11 @@ func Help(kind string) string {
 	var b strings.Builder
 	for _, arg := range Kinds[kind] {
 		shape := string(arg.Kind)
-		if arg.Kind == Enum {
+		switch {
+		case arg.Kind == Enum:
 			shape += " " + strings.Join(arg.Allowed, ", ")
+		case arg.Kind == Int && arg.Min != 0:
+			shape += fmt.Sprintf(", at least %d", arg.Min)
 		}
 
 		tier := string(arg.Tier)

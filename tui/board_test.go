@@ -28,7 +28,9 @@ func board(t *testing.T, repo *cache.RepoCache, kwargs string) *boardPage {
 	page, err := newBoardPage(repo, call)
 	require.NoError(t, err)
 
-	page.Update(tea.WindowSizeMsg{Width: 140, Height: 30})
+	// wide enough for the six statuses at the default column width, so that
+	// a board the helper draws is the whole board (column_width, kinds.go)
+	page.Update(tea.WindowSizeMsg{Width: 210, Height: 30})
 	return page
 }
 
@@ -269,14 +271,16 @@ func TestBoardSwimlanes(t *testing.T) {
 	require.Equal(t, high, page.currentId())
 }
 
-// TestBoardScrollsSideways: columns keep a minimum width, and the board
-// scrolls by whole columns to keep the cursor's column on screen.
+// TestBoardScrollsSideways: columns keep `column_width`, and the board
+// scrolls by whole columns to keep the cursor's column on screen. Twenty
+// cells in a fifty-wide window is two columns of the six, which is a scroll
+// with something on either side of it.
 func TestBoardScrollsSideways(t *testing.T) {
 	repo := testRepo(t)
 	newIssue(t, repo, map[string]any{"title": "early", "status": "backlog"})
 	newIssue(t, repo, map[string]any{"title": "late", "status": "canceled"})
 
-	page := board(t, repo, `{"columns":"status"}`)
+	page := board(t, repo, `{"columns":"status","column_width":20}`)
 	page.Update(tea.WindowSizeMsg{Width: 50, Height: 20})
 
 	head := header(page)
@@ -429,4 +433,35 @@ func stackIds(p *boardPage, lane, col int) []string {
 		ids = append(ids, p.cards[index].id)
 	}
 	return ids
+}
+
+// TestBoardColumnWidthIsAnArgument: a column is 32 cells by default, wide
+// enough that a title reads as a title, so six statuses no longer fit the
+// 140-wide window that fit them at the old 20-cell minimum and the board
+// scrolls instead; `column_width` is how the narrower column is asked for,
+// and only a width somebody chose reaches the call line (10f676e).
+func TestBoardColumnWidthIsAnArgument(t *testing.T) {
+	repo := testRepo(t)
+	newIssue(t, repo, map[string]any{"title": "early", "status": "backlog"})
+
+	page := board(t, repo, `{"columns":"status"}`)
+	page.Update(tea.WindowSizeMsg{Width: 140, Height: 20})
+	require.Len(t, page.columns, 6)
+
+	width, visible := page.layout()
+	require.Equal(t, 32, width)
+	require.Equal(t, 4, visible)
+	head := header(page)
+	require.True(t, strings.HasSuffix(strings.TrimRight(head, " "), "›"), head)
+	require.NotContains(t, plainView(page), "column_width", "the default stays off the call line")
+
+	page = board(t, repo, `{"columns":"status","column_width":20}`)
+	page.Update(tea.WindowSizeMsg{Width: 140, Height: 20})
+	_, visible = page.layout()
+	require.Equal(t, 6, visible, "six 20-cell columns and their gaps fit 140")
+	head = header(page)
+	require.Contains(t, head, "Backlog")
+	require.Contains(t, head, "Canceled")
+	require.False(t, strings.HasSuffix(strings.TrimRight(head, " "), "›"), head)
+	require.Contains(t, plainView(page), "column_width=20")
 }

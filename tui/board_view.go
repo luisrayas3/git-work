@@ -40,8 +40,8 @@ func (p *boardPage) View() string {
 
 // layout sizes the columns to the window, and says how many are drawn.
 //
-// When every column fits at its minimum width they share the window; when
-// they do not, they keep the minimum and the board scrolls sideways by whole
+// When every column fits at `column_width` they share the window; when they
+// do not, they keep that width and the board scrolls sideways by whole
 // columns, colOffset moving so that the cursor's column is on screen — the
 // sideways twin of the vertical scroll.
 func (p *boardPage) layout() (width, visible int) {
@@ -49,12 +49,12 @@ func (p *boardPage) layout() (width, visible int) {
 	if n == 0 {
 		return p.width, 0
 	}
-	if n*minColumnWidth+columnGap*(n-1) <= p.width {
+	if n*p.colWidth+columnGap*(n-1) <= p.width {
 		p.colOffset = 0
 		return (p.width - columnGap*(n-1)) / n, n
 	}
 
-	width = minColumnWidth
+	width = p.colWidth
 	visible = max((p.width+columnGap)/(width+columnGap), 1)
 	if p.col < p.colOffset {
 		p.colOffset = p.col

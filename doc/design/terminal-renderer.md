@@ -682,7 +682,7 @@ because an empty column is nothing to stand on —
 unless a card is grabbed, when it is exactly where the card goes.
 The page keys move within the column; `Home` and `End` are its ends.
 
-**Columns keep a minimum width** of twenty cells,
+**Columns keep `column_width`**, thirty-two cells by default,
 and when they do not all fit
 the board scrolls sideways by whole columns
 to keep the cursor's column on screen,
@@ -694,8 +694,28 @@ and a column four characters wide is not a column.
 The board scrolls vertically as one canvas,
 so that the lanes stay aligned across the columns.
 
+The width was a constant of twenty until 2026-10-02 (`10f676e`),
+and twenty is where a title is shredded into one word a line:
+six statuses in a 140-wide terminal were twenty cells each,
+and the board read as a column of fragments rather than a column of work.
+Thirty-two is a title line that is a line.
+It is an argument rather than a new constant
+because how wide a column should be
+is a question about the board somebody is drawing —
+two columns of long titles, or eight of short ones —
+and the terminal renderer cannot answer it from the data.
+Below ten it is refused at parse time, where every other argument is checked,
+because a column narrower than a card's id line
+is something the board would scroll sideways past rather than read;
+the floor is `Min` on the argument's row of the table,
+so the help prints it and `Parse` enforces it from the one place.
+
 `card` is not spelled on the call line, as `fields` is not:
 the cards are on the screen.
+A `column_width` left at its default is not spelled there either,
+for the same reason the built-in `rank` is not —
+the board as drawn already says it —
+and one somebody chose shows like any other argument.
 
 ## Gantt
 

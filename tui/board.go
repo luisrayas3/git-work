@@ -32,6 +32,10 @@ type boardPage struct {
 	cardKeys   []string
 	groupBy    string
 	rankKey    string
+	// colWidth is the narrowest a column goes before the board scrolls
+	// sideways instead (`column_width`, view/kinds.go, which is the
+	// authority on its default).
+	colWidth int
 
 	// cards is every issue the query returned, in the query's order.
 	cards []card
@@ -97,10 +101,6 @@ type lane struct {
 	stacks [][]int
 }
 
-// minColumnWidth is the narrowest a column goes before the board scrolls
-// sideways instead: enough for a short id and a few words of a title.
-const minColumnWidth = 20
-
 func (p *boardPage) Call() (*view.Call, string, string) {
 	return p.call, "", ""
 }
@@ -115,6 +115,7 @@ func newBoardPage(repo *cache.RepoCache, call *view.Call) (*boardPage, error) {
 		cardKeys:   call.Strings("card"),
 		groupBy:    call.String("group_by"),
 		rankKey:    call.String("rank"),
+		colWidth:   call.Int("column_width"),
 		width:      80,
 		height:     24,
 		grabbed:    -1,
