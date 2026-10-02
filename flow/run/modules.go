@@ -77,6 +77,9 @@ func (r *runtime) work() *starlarkstruct.Module {
 		sub("user",
 			verb("me", r.userMe),
 		),
+		// A root command is a verb on the module itself, the way it is a verb
+		// on the binary: `git work quickstart` is `work.quickstart()`.
+		verb("quickstart", r.quickstart),
 	)
 }
 
@@ -588,6 +591,20 @@ func (r *runtime) userMe(thread *starlark.Thread, b *starlark.Builtin, args star
 		return nil, err
 	}
 	return reencode(b, identity)
+}
+
+// work.quickstart() — `git work quickstart`, the guide and this repository's
+// types, as the markdown string the command prints.
+func (r *runtime) quickstart(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+	if err := starlark.UnpackArgs(b.Name(), args, kwargs); err != nil {
+		return nil, err
+	}
+
+	text, err := host.Quickstart(r.repo)
+	if err != nil {
+		return nil, err
+	}
+	return starlark.String(text), nil
 }
 
 // viewMembers is one builtin per view kind, from the same table the renderers
