@@ -198,10 +198,28 @@ func (e *engine) linkCreated(ic *cache.IssueCache, jiraId string) error {
 	e.done[id] = true
 	line := Line{Issue: id, Action: ActionCreated}
 	if other, ok := e.ix.Issue(jiraId); ok && other != id {
-		line.Action = ActionSkipped
-		line.Pending = append(line.Pending, Skip{Key: "*", Reason: "the Jira issue created from it is linked to " + other.Human()})
-		e.report(line)
-		return nil
+		// an adopted copy of this issue's own export: this one reached
+		// Jira first, so the copy is consolidated into it and it links (JS27)
+		winner, err := firstToSync(e.repo, id, other)
+		if err != nil {
+			return e.fail(line, err)
+		}
+		if winner != id {
+			line.Action = ActionSkipped
+			line.Pending = append(line.Pending, Skip{Key: "*", Reason: "the Jira issue created from it is linked to " + other.Human()})
+			e.report(line)
+			return nil
+		}
+		oc, err := e.repo.Issues().Resolve(other)
+		if err != nil {
+			return e.fail(line, err)
+		}
+		if err := e.consolidate(oc, id); err != nil {
+			return err
+		}
+		if e.opts.DryRun {
+			return nil
+		}
 	}
 	// I4: the search's copy of the property found it; the database decides
 	ri, cs, err := e.read(jiraId)
@@ -249,7 +267,13 @@ func (e *engine) linkRequest(ic *cache.IssueCache) error {
 		return skip(key + " is already linked to " + other.Human())
 	}
 	if from := propertyOf(ri.Properties[PropertyKey]).Id; from != "" && from != id {
-		return skip(key + " was created from another issue, " + from.Human())
+		if _, err := e.repo.Issues().ResolveExcerpt(from); err == nil {
+			return skip(key + " was created from another issue, " + from.Human())
+		}
+		// an absent entity: the person's bound decides (JS27)
+		if sf, _ := ri.System(); !e.adoptable(sf.Created.UTC()) {
+			return skip(key + " was created from issue " + from.Human() + ", which this clone has not pulled; pull first, or --adopt takes it")
+		}
 	}
 	e.ix.addIssue(ri.ID, id)
 	b := &Base{V: baseVersion, Id: ri.ID, Key: ri.Key, Fields: map[string]issue.Value{}}
@@ -260,8 +284,8 @@ func (e *engine) linkRequest(ic *cache.IssueCache) error {
 // and an empty local side, whose admitted fields and body are NewRaw's, by
 // the reporter at its created, the create op the first marker; comments
 // follow in the ordinary step 6.
-func (e *engine) importIssue(jiraId string) error {
-	line := Line{Action: ActionImported}
+func (e *engine) importIssue(jiraId string, adopted entity.Id) error {
+	line := Line{Action: ActionImported, Adopted: adopted}
 	ri, cs, err := e.read(jiraId)
 	if err != nil {
 		return e.fail(line, err)

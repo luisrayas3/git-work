@@ -1811,9 +1811,10 @@ func twoClones(t *testing.T, opts ...jiratest.Option) (*world, *world) {
 	return a, b
 }
 
-// Both clones import the same new Jira issue before exchanging: two local
-// issues for one Jira issue, a documented cost of two bound clones (JS25).
-// The loser is reported every run and never syncs; archiving it silences it.
+// Both clones import the same new Jira issue before exchanging:
+// two local issues for one Jira issue, a documented cost of two bound clones (JS25).
+// Both read the same Jira state, so the lower id reached Jira first;
+// the other is consolidated into it (JS27).
 func TestAdvTwoClonesImportSameIssue(t *testing.T) {
 	a, b := twoClones(t)
 	key := a.srv.CreateIssue(jiratest.IssueSpec{Project: "PROJ", Type: "Task", Summary: "Seen twice"})
@@ -1834,17 +1835,15 @@ func TestAdvTwoClonesImportSameIssue(t *testing.T) {
 	winner, loser := both[0], both[1]
 
 	b.srv.Edit(key, map[string]any{"summary": "edited in Jira"})
-	lines, _ := b.mustSync(jira.Options{})
-	reported := false
+	lines, sum := b.mustSync(jira.Options{})
+	require.Equal(t, 1, sum.Consolidated, "%+v", lines)
 	for _, l := range lines {
-		reported = reported || l.Issue == loser && l.Action == jira.ActionSkipped
-		require.False(t, l.Issue == loser && l.Action != jira.ActionSkipped, "the loser never syncs: %+v", l)
+		require.False(t, l.Issue == loser && l.Action != jira.ActionConsolidated && l.Action != jira.ActionUpdated,
+			"the loser is consolidated after its last sync: %+v", l)
 	}
-	require.True(t, reported, "the duplicate is reported: %+v", lines)
 	require.Equal(t, `"edited in Jira"`, field(t, mustIssue(t, b.c, winner), "title"))
-	require.Equal(t, `"Seen twice"`, field(t, mustIssue(t, b.c, loser), "title"))
-
-	b.set(loser, "archived", issue.Value("true"))
+	require.Equal(t, `true`, field(t, mustIssue(t, b.c, loser), "archived"))
+	require.Len(t, notes(mustIssue(t, b.c, winner), jira.NoteConsolidated), 1)
 	b.still()
 }
 
@@ -2009,6 +2008,7 @@ func TestAdvTwoClonesTagTheAccount(t *testing.T) {
 		}
 	}
 	t.Logf("identities tagged with the token's account: %d", tagged)
+	b.mustSync(jira.Options{}) // consolidates the issue both clones imported (JS27)
 	before := b.refs()
 	b.mustSync(jira.Options{})
 	b.mustSync(jira.Options{})

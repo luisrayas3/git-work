@@ -26,6 +26,10 @@ type Options struct {
 	Overlap                     time.Duration // default 5m
 	Settle                      time.Duration // default 15m: how long an unanswered create stays in doubt (JS15)
 	MaxDeletes                  int           // default 10
+	// Adopt is how long an entity a Jira issue's property names
+	// may stay unarrived before the issue is imported anyway (JS27);
+	// nil never adopts, and 0 adopts whatever the run meets.
+	Adopt *time.Duration
 }
 
 // ErrDeletesHeld stops a --full run that found more missing issues than
@@ -64,6 +68,13 @@ func Sync(ctx context.Context, repo *cache.RepoCache, c *jiraapi.Client, p *Proj
 	if len(opts.Ids) == 0 && !opts.DryRun {
 		st.Cursor = e.cursor.UTC()
 	}
+	// an orphan is forgotten once the Index knows its Jira id (JS27)
+	for jid := range st.Orphans {
+		if _, ok := e.ix.Issue(jid); ok {
+			delete(st.Orphans, jid)
+		}
+	}
+	e.sum.Orphans = len(st.Orphans)
 	e.sum.Cursor = st.Cursor
 	emit(Line{Summary: &e.sum})
 	return e.sum, err
@@ -81,6 +92,7 @@ type engine struct {
 
 	ix      *Index
 	me      *cache.IdentityCache
+	schema  *schema.Schema
 	checker *schema.Checker
 	authors map[string]identity.Interface // accountId -> identity, this run
 	done    map[entity.Id]bool
@@ -150,6 +162,10 @@ func (e *engine) setup() error {
 	}
 	e.me = me
 	if e.ix, err = NewIndex(e.repo); err != nil {
+		return err
+	}
+	e.ix.absent = e.st.Orphans
+	if e.schema, err = e.repo.LoadSchema(); err != nil {
 		return err
 	}
 	// JS16: the token's account is the runner's, unless an identity has it

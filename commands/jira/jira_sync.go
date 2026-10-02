@@ -3,7 +3,9 @@ package jiracmd
 import (
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 
@@ -16,6 +18,7 @@ import (
 
 type syncOptions struct {
 	dryRun, full, acceptDeletes bool
+	adopt                       string
 	format                      string
 }
 
@@ -38,13 +41,18 @@ git work jira schema prints them all. With IDs (id
 prefixes or aliases, a Jira key included) only those issues are synced, with no
 search. --full searches the whole project and marks issues deleted in Jira or
 moved out of it as gone; more than 10 at once are held unless --accept-deletes.
+A Jira issue created by an export names its local issue; one whose issue this
+clone has not pulled is skipped, until --adopt DURATION says an issue that old
+is lost for good and imports it (7d for a week; 0 for all). Two local copies of
+one Jira issue are consolidated into the one that reached Jira first.
 
 The exit status is 1 when an issue failed, the run stopped, or deletes were held.
 sync never pushes: run git work push to publish.`,
 		Example: `git work jira sync --dry-run
 git work jira sync
 git work jira sync PROJ-12
-git work jira sync --full`,
+git work jira sync --full
+git work jira sync --full --adopt 7d`,
 		PreRunE: execenv.LoadBackendEnsureUser(env),
 		RunE: execenv.CloseBackend(env, func(cmd *cobra.Command, args []string) error {
 			return runJiraSync(env, options, args)
@@ -56,6 +64,7 @@ git work jira sync --full`,
 	flags.BoolVar(&options.dryRun, "dry-run", false, "Read both sides and write neither; print the plan")
 	flags.BoolVar(&options.full, "full", false, "Search the whole project, and mark deleted or moved issues gone")
 	flags.BoolVar(&options.acceptDeletes, "accept-deletes", false, "With --full, mark gone however many issues are missing")
+	flags.StringVar(&options.adopt, "adopt", "", "Import a Jira issue created from an issue this clone lacks, once it is this old (7d, 12h, 0)")
 	execenv.AddFormatFlag(cmd, &options.format, "json", "text")
 
 	return cmd
@@ -63,6 +72,13 @@ git work jira sync --full`,
 
 func runJiraSync(env *execenv.Env, opts syncOptions, args []string) error {
 	o := jira.Options{DryRun: opts.dryRun, Full: opts.full, AcceptDeletes: opts.acceptDeletes}
+	if opts.adopt != "" {
+		d, err := parseDuration(opts.adopt)
+		if err != nil {
+			return err
+		}
+		o.Adopt = &d
+	}
 	for _, arg := range args {
 		ic, err := env.Backend.Issues().ResolvePrefixOrAlias(arg)
 		if err != nil {
@@ -111,8 +127,8 @@ func textLine(l jira.Line) string {
 		if !s.Cursor.IsZero() {
 			cursor = s.Cursor.Format("2006-01-02T15:04:05Z07:00")
 		}
-		return fmt.Sprintf("summary: %d imported, %d created, %d updated, %d linked, %d gone, %d conflicts, %d pending, %d off-schema, %d failed, %d skipped, %d unchanged; cursor %s",
-			s.Imported, s.Created, s.Updated, s.Linked, s.Gone, s.Conflicts, s.Pending, s.OffSchema, s.Failed, s.Skipped, s.Unchanged, cursor)
+		return fmt.Sprintf("summary: %d imported, %d created, %d updated, %d linked, %d gone, %d adopted, %d consolidated, %d orphans, %d conflicts, %d pending, %d off-schema, %d failed, %d skipped, %d unchanged; cursor %s",
+			s.Imported, s.Created, s.Updated, s.Linked, s.Gone, s.Adopted, s.Consolidated, s.Orphans, s.Conflicts, s.Pending, s.OffSchema, s.Failed, s.Skipped, s.Unchanged, cursor)
 	case l.Schema != nil:
 		keys := make([]string, len(l.Schema))
 		for i, c := range l.Schema {
@@ -121,6 +137,9 @@ func textLine(l jira.Line) string {
 		return "schema: " + strings.Join(keys, ", ")
 	}
 	parts := []string{human(l.Issue), orDash(l.Jira), l.Action}
+	if l.Adopted != "" {
+		parts = append(parts, "adopted from "+l.Adopted.Human())
+	}
 	if l.DryRun {
 		parts = append(parts, "(dry run)")
 	}
@@ -143,6 +162,22 @@ func textLine(l jira.Line) string {
 		parts = append(parts, "error: "+l.Error)
 	}
 	return strings.Join(parts, "  ")
+}
+
+// parseDuration is Go's, with days: the natural unit of --adopt.
+func parseDuration(s string) (time.Duration, error) {
+	if n, ok := strings.CutSuffix(s, "d"); ok {
+		days, err := strconv.Atoi(n)
+		if err != nil || days < 0 {
+			return 0, fmt.Errorf("--adopt: %q is not a duration (7d, 12h, 0)", s)
+		}
+		return time.Duration(days) * 24 * time.Hour, nil
+	}
+	d, err := time.ParseDuration(s)
+	if err != nil || d < 0 {
+		return 0, fmt.Errorf("--adopt: %q is not a duration (7d, 12h, 0)", s)
+	}
+	return d, nil
 }
 
 func human(id entity.Id) string {

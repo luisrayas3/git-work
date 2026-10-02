@@ -288,7 +288,7 @@ func (m *Mapping) fromJira(ri *jiraapi.Issue, fm *fieldMap, ix *Index) (v issue.
 			}
 			id, ok := ix.Issue(l.OutwardIssue.ID)
 			if !ok {
-				return retry("%s is not imported yet", l.OutwardIssue.Key)
+				return retry("%s", ix.waiting(l.OutwardIssue.ID, l.OutwardIssue.Key))
 			}
 			items = append(items, issue.StringValue(id.String()))
 		}
@@ -358,7 +358,7 @@ func (m *Mapping) fromJira(ri *jiraapi.Issue, fm *fieldMap, ix *Index) (v issue.
 		if id, ok := ix.Issue(ref.ID); ok {
 			return issue.StringValue(id.String()), nil, false
 		}
-		return retry("%s is not imported yet", ref.Key)
+		return retry("%s", ix.waiting(ref.ID, ref.Key))
 	case schema.KindNumber:
 		var f float64
 		if err := decode(&f); err != nil {
