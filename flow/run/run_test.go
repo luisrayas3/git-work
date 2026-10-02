@@ -68,18 +68,19 @@ func runWith(t *testing.T, repo *cache.RepoCache, renderer view.Renderer, script
 	def, err := flow.Parse(script)
 	require.NoError(t, err)
 
-	stderr := &bytes.Buffer{}
-	raw, err := Run(context.Background(), repo, Options{Stderr: stderr, Renderer: renderer}, def, script, kwargs)
+	stdout, stderr := &bytes.Buffer{}, &bytes.Buffer{}
+	raw, err := Run(context.Background(), repo, Options{Stdout: stdout, Stderr: stderr, Renderer: renderer}, def, script, kwargs)
+	printed := stdout.String() + stderr.String()
 	if err != nil {
-		return nil, stderr.String(), err
+		return nil, printed, err
 	}
 	if raw == nil {
-		return nil, stderr.String(), nil
+		return nil, printed, nil
 	}
 
 	var value any
 	require.NoError(t, json.Unmarshal(raw, &value))
-	return value, stderr.String(), nil
+	return value, printed, nil
 }
 
 // importFlow puts a script in the store, as `git work flow import` would.
@@ -420,17 +421,24 @@ func TestQuickstartIsWhatTheCommandPrints(t *testing.T) {
 	require.Equal(t, printed, value)
 }
 
-func TestPrintGoesToStderr(t *testing.T) {
+func TestPrintGoesToStdoutAndWarningsToStderr(t *testing.T) {
 	repo := testRepo(t)
 
-	value, stderr, err := run(t, repo, `def noisy():
-    """Say something."""
+	script := `def noisy():
+    """Say something, then leave a field live on an archived type."""
     print("hello")
+    work.schema.init()
+    work.schema.archive("bug")
     return 1
-`, nil)
+`
+	def, err := flow.Parse(script)
 	require.NoError(t, err)
-	require.EqualValues(t, 1, value)
-	require.Equal(t, "hello\n", stderr)
+	stdout, stderr := &bytes.Buffer{}, &bytes.Buffer{}
+	raw, err := Run(context.Background(), repo, Options{Stdout: stdout, Stderr: stderr}, def, script, nil)
+	require.NoError(t, err)
+	require.JSONEq(t, "1", string(raw))
+	require.Equal(t, "hello\n", stdout.String())
+	require.Contains(t, stderr.String(), "archived type bug")
 }
 
 func TestNoneReturnsNothing(t *testing.T) {

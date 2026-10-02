@@ -70,7 +70,12 @@ var fileOptions = &syntax.FileOptions{
 // where nothing can draw — a pipe, an agent, a run with no terminal. A flow
 // that never calls a view does not notice; one that does fails saying so,
 // from `host.View`, which is where the command line fails too.
+//
+// Stdout is where print() goes: a flow's output is the flow's own
+// (decided 2026-10-02), so a report flow prints its page and returns None.
+// Stderr is where the runtime's own diagnostics go, such as a schema warning.
 type Options struct {
+	Stdout   io.Writer
 	Stderr   io.Writer
 	Renderer view.Renderer
 }
@@ -92,22 +97,26 @@ func Flow(ctx context.Context, repo *cache.RepoCache, opts Options, name string,
 type runtime struct {
 	ctx      context.Context
 	repo     *cache.RepoCache
+	stdout   io.Writer
 	stderr   io.Writer
 	renderer view.Renderer
 	depth    int
 }
 
 func newRuntime(ctx context.Context, repo *cache.RepoCache, opts Options, depth int) *runtime {
-	stderr := opts.Stderr
+	stdout, stderr := opts.Stdout, opts.Stderr
+	if stdout == nil {
+		stdout = io.Discard
+	}
 	if stderr == nil {
 		stderr = io.Discard
 	}
-	return &runtime{ctx: ctx, repo: repo, stderr: stderr, renderer: opts.Renderer, depth: depth}
+	return &runtime{ctx: ctx, repo: repo, stdout: stdout, stderr: stderr, renderer: opts.Renderer, depth: depth}
 }
 
 // options rebuilds what this runtime was given, for a nested flow.
 func (r *runtime) options() Options {
-	return Options{Stderr: r.stderr, Renderer: r.renderer}
+	return Options{Stdout: r.stdout, Stderr: r.stderr, Renderer: r.renderer}
 }
 
 // flow resolves a name to its script and runs it.
@@ -143,10 +152,12 @@ func (r *runtime) run(def *flow.Def, script string, kwargs map[string]json.RawMe
 
 	thread := &starlark.Thread{
 		Name: def.Name,
-		// print() is a diagnostic, and diagnostics go to stderr, so that a
-		// flow that prints still pipes its JSON somewhere useful.
+		// print() is the flow's output and goes to stdout, like every
+		// language's print: a flow that renders text prints it and returns
+		// None, and one that returns a value prints that as JSON. The
+		// runtime's own diagnostics are what stderr is for.
 		Print: func(_ *starlark.Thread, msg string) {
-			fmt.Fprintln(r.stderr, msg)
+			fmt.Fprintln(r.stdout, msg)
 		},
 	}
 	thread.SetMaxExecutionSteps(MaxSteps)
