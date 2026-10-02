@@ -200,6 +200,10 @@ A flow's script reaches one predeclared name, `work`, and through it
 the same verbs, the same arguments, the same output as the commands,
 because both go through package `host` —
 and writes through the cache, schema check included, like any command does.
+`work.stderr(*values)` is the one name that is no command:
+one line on standard error, the values joined by a space as `print` joins them,
+because `print()` is the flow's standard output
+and the shell's mirror of `work.stderr` is `>&2` (`6bbfc3b`).
 Nothing else is predeclared, so `issue`, `flow`, `schema`, `view` and `user`
 are a script's to use as locals.
 `import` is a reserved word in Starlark,
