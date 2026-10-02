@@ -84,6 +84,40 @@ over the array of every issue as an excerpt
 and prints what it emits.
 With no program the default is every unarchived issue, last edited first.
 
+## What changed since
+
+The store is an operation log, so the past is readable.
+
+- `git work issue get ID --at TIME` prints the issue as it stood then,
+  replayed from its operations.
+  `git work issue 'PROGRAM' --at TIME` runs the program over the issues
+  as they stood then;
+  an issue created after TIME is absent,
+  and `archived` is the value it had at the time.
+- `git work issue log ID --from TIME --to TIME`
+  prints the operations written in the window, which is half-open,
+  `[from, to)`.
+  The log also takes the list's program in place of an id,
+  and then every selected issue's operations come back,
+  each entry naming the issue it belongs to.
+- TIME is a date (`2026-09-21`),
+  an RFC 3339 time,
+  or a duration back from now (`7d`, `2w`, `12h`).
+
+The report is a flow over those three:
+
+```sh
+git work flow run report '{"from_":"7d"}'
+```
+
+It prints markdown — a summary line, then what was created, closed, changed
+and commented on, grouped by parent —
+meant for a human to scan or for an AI to summarize.
+`'{"iteration":"<id>"}'` takes the window from an iteration's dates instead,
+and `'{"query":"PROGRAM"}'` chooses the issues.
+`from_` carries a trailing underscore because `from` is a reserved word
+in Starlark, the same reason `work.schema.import_` does.
+
 ## Where everything else is
 
 - The schema is the authority

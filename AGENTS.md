@@ -101,6 +101,7 @@ in the change that makes it wrong.
 | Board | `git work flow run board` (TTY): the same issues as a kanban, a column per open status, a swimlane per type; `'{"group_by":"area"}'` relanes |
 | Due dates | `git work view gantt '{"start":"due","stop":"due","query":"map(select(.fields.due != null))"}'` (TTY): the dated work as milestones on a week chart; `"expand":"children"` nests tasks under their stories |
 | Allocations | `git work view matrix '{"rows":"work","columns":"iteration","value":"points","query":"map(select(.fields.type == \"allocation\"))"}'` (TTY): the points allocated, work down, iterations across, totals both ways |
+| What changed | `git work flow run report '{"from_":"7d"}'` · `'{"iteration":"<id>"}'`: created, closed, changed, commented, grouped by parent, as markdown |
 | Create | `git work issue new '{"fields":{"title":"…","type":"task","status":"to-do","priority":"medium","area":["cli"],"parent":"<story id>"},"body":"…"}'` → prints the id |
 | Show | `git work issue get <id>` · `--format text` |
 | Close / reopen | `git work issue set <id> '{"status":"done"}'` · `'{"status":"to-do"}'` |
@@ -561,6 +562,12 @@ where open is the status category read from the schema at run time,
 never a status name.
 `board` is the same issues on a kanban,
 a column per open status and a swimlane per type.
+`report` is "what changed since" as markdown (`2c0c256`, `doc/design/report.md`):
+it reads two snapshots and the log window over the plumbing's
+`--at` and `--from`/`--to`, and prints what was created, closed, changed and
+commented on, grouped by parent.
+It names `status` and `parent` itself, in the open, because what to report is
+policy and Go has no field roles.
 
 ## Working conventions
 
