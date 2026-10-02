@@ -11,10 +11,10 @@
 // title edited here and a title set from the shell are the same operation
 // against the same write lock. Nothing here touches a ref.
 //
-// Every kind in the table is drawn: `list`, `show`, `board` and `gantt`, and
-// `expand` nests the list and the gantt. A kind the table grows that this
-// renderer does not draw fails naming it, so a view is never silently a
-// different view than it says.
+// Every kind in the table is drawn: `list`, `show`, `board`, `gantt` and
+// `matrix`, and `expand` nests the list and the gantt. A kind the table grows
+// that this renderer does not draw fails naming it, so a view is never
+// silently a different view than it says.
 package tui
 
 import (
@@ -113,6 +113,8 @@ func (r *Renderer) page(repo *cache.RepoCache, call *view.Call) (page, error) {
 		return newBoardPage(repo, call)
 	case view.KindGantt:
 		return newGanttPage(repo, call)
+	case view.KindMatrix:
+		return newMatrixPage(repo, call)
 	default:
 		return nil, fmt.Errorf("the terminal renderer does not draw a %s", call.Kind)
 	}

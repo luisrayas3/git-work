@@ -9,10 +9,11 @@ import (
 // The view kinds, which are the `work.view.*` functions
 // and the `git work view` subcommands.
 const (
-	KindList  = "list"
-	KindBoard = "board"
-	KindGantt = "gantt"
-	KindShow  = "show"
+	KindList   = "list"
+	KindBoard  = "board"
+	KindGantt  = "gantt"
+	KindMatrix = "matrix"
+	KindShow   = "show"
 )
 
 // Tier says how much of a view's behaviour an argument is responsible for.
@@ -146,6 +147,24 @@ var Kinds = map[string][]Arg{
 		{Name: "rank", Tier: Feature, Kind: FieldKey,
 			Doc: "the rank field rows are ordered and dragged by"},
 	},
+	// matrix is the two-axis summary: rows of one field by columns of
+	// another, a sum in each cell (doc/design/allocations.md). It reads any
+	// issue set, so allocations and story points are the same call.
+	KindMatrix: {
+		queryArg,
+		{Name: "rows", Tier: Required, Kind: FieldKey,
+			Doc: "the field whose values are the rows"},
+		{Name: "columns", Tier: Required, Kind: FieldKey,
+			Doc: "the field whose values are the columns"},
+		{Name: "value", Tier: Feature, Kind: FieldKey,
+			Doc: "the number field summed in a cell; with none, a cell counts its issues"},
+		{Name: "row_values", Tier: Defaulted, Kind: StringList,
+			Doc: "the row values, in order; the axis's own order by default, which is resolved at render time"},
+		{Name: "column_values", Tier: Defaulted, Kind: StringList,
+			Doc: "the column values, in order; the axis's own order by default"},
+		{Name: "group_by", Tier: Feature, Kind: FieldKey,
+			Doc: "the field whose value starts a new block of rows"},
+	},
 	// show is the one kind that is about a single issue,
 	// so it takes an id where every other kind takes a query.
 	KindShow: {
@@ -193,7 +212,7 @@ func Help(kind string) string {
 			tier += " " + arg.Default
 		}
 
-		fmt.Fprintf(&b, "  %-10s %-32s %-18s %s\n", arg.Name, shape, tier, arg.Doc)
+		fmt.Fprintf(&b, "  %-14s %-32s %-18s %s\n", arg.Name, shape, tier, arg.Doc)
 	}
 	return b.String()
 }
