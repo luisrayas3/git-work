@@ -62,9 +62,14 @@ type listPage struct {
 	editor    *editor
 	help      *help
 
-	// grabbed is the row being dragged, by index into rows, or -1.
-	grabbed int
-	blink   bool
+	// grabbed is the row being dragged, by index into rows, or -1;
+	// grabGroup is the group it was picked up in, and crossed the group it
+	// has been carried into, so that a drop writes the grouping field only
+	// where the row really changed group.
+	grabbed   int
+	grabGroup string
+	crossed   *crossing
+	blink     bool
 
 	status string
 }
@@ -643,11 +648,18 @@ func (p *listPage) updateEditor(msg tea.Msg) (page, tea.Cmd) {
 // A refusal — the schema's, or the entity's — is a status line and nothing
 // else changes, because the store did not change either.
 func (p *listPage) write(id, key string, value issue.Value) {
-	if _, err := host.IssueSet(p.repo, id, map[string]issue.Value{key: value}, false); err != nil {
+	p.writeFields(id, map[string]issue.Value{key: value}, key+" set")
+}
+
+// writeFields is a write of several keys at once, which is still one
+// operation per key in one commit: what a drop that both reorders a row and
+// moves it into another group makes.
+func (p *listPage) writeFields(id string, fields map[string]issue.Value, said string) {
+	if _, err := host.IssueSet(p.repo, id, fields, false); err != nil {
 		p.status = err.Error()
 		return
 	}
-	p.status = key + " set"
+	p.status = said
 	if err := p.load(); err != nil {
 		p.status = err.Error()
 	}
@@ -662,6 +674,8 @@ func (p *listPage) startGrab() (page, tea.Cmd) {
 		return p, nil
 	}
 	p.grabbed = p.order[p.cursor]
+	p.grabGroup = p.nodes[p.grabbed].group
+	p.crossed = nil
 	p.blink = true
 	return p, blinkTick()
 }
@@ -669,17 +683,19 @@ func (p *listPage) startGrab() (page, tea.Cmd) {
 func (p *listPage) updateGrab(press tea.KeyPressMsg) (page, tea.Cmd) {
 	switch {
 	case keys.cancel.matches(press):
-		// the row goes back where it was: the order is rebuilt from the
-		// store, which never changed.
+		// the row goes back where it was, its group included: the order is
+		// rebuilt from the store, which never changed.
+		p.nodes[p.grabbed].group = p.grabGroup
 		p.grabbed = -1
+		p.crossed = nil
 		p.reorder()
 		p.putCursorOn(p.currentId())
 		return p, nil
 
 	case keys.up.matches(press):
-		p.dragBy(-1)
+		return p, p.dragBy(-1)
 	case keys.down.matches(press):
-		p.dragBy(1)
+		return p, p.dragBy(1)
 
 	case keys.grab.matches(press), keys.act.matches(press):
 		return p, p.drop()
@@ -690,14 +706,42 @@ func (p *listPage) updateGrab(press tea.KeyPressMsg) (page, tea.Cmd) {
 // dragBy moves the grabbed row among its siblings — within its group and
 // its level, its own subtree with it — on the screen only: the key is
 // computed once, when it is dropped, so a drag of six rows is one write.
-func (p *listPage) dragBy(by int) {
-	p.cursor = moveBlock(p.nodes, p.order, p.cursor, by)
+//
+// Past the last sibling, a root enters the neighbouring group (group.go):
+// what changes there is which header the row is drawn under, which is the
+// row's own group, so nothing in the order moves.
+func (p *listPage) dragBy(by int) tea.Cmd {
+	if to := moveBlock(p.nodes, p.order, p.cursor, by); to != p.cursor {
+		p.cursor = to
+		return nil
+	}
+	if p.groupBy == "" {
+		return nil
+	}
+	neighbour, ok := crossGroup(p.nodes, p.order, p.cursor, by)
+	if !ok {
+		return nil
+	}
+
+	row := &p.rows[p.grabbed]
+	if refusal := crossRefusal(p.repo, row.typeKey, p.groupBy); refusal != "" {
+		p.status = refusal
+		return bell()
+	}
+
+	group := p.nodes[neighbour].group
+	p.nodes[p.grabbed].group = group
+	p.crossed = &crossing{group: group, value: groupValue(p.rows[neighbour].fields[p.groupBy], group)}
+	p.status = ""
+	return nil
 }
 
-// drop writes the rank of the grabbed row: one key strictly between its new
-// neighbours', which is one operation on one issue.
+// drop writes where the grabbed row landed: the rank, one key strictly
+// between its new neighbours', and the `group_by` field when the row
+// crossed into another group — both keys in one call, which is one commit.
 func (p *listPage) drop() tea.Cmd {
 	row := &p.rows[p.grabbed]
+	group := p.nodes[p.grabbed].group
 	p.grabbed = -1
 
 	lo, hi := siblingRanks(p.nodes, p.order, p.cursor)
@@ -708,7 +752,15 @@ func (p *listPage) drop() tea.Cmd {
 		return nil
 	}
 
-	p.write(row.id, p.rankKey, issue.StringValue(key))
+	fields := map[string]issue.Value{p.rankKey: issue.StringValue(key)}
+	said := p.rankKey + " set"
+	if p.crossed != nil && group != p.grabGroup {
+		fields[p.groupBy] = p.crossed.value
+		said = "moved to " + p.crossed.group
+	}
+	p.crossed = nil
+
+	p.writeFields(row.id, fields, said)
 	p.putCursorOn(row.id)
 	return nil
 }

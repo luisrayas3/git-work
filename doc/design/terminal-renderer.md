@@ -538,6 +538,34 @@ A drop writes **one** midpoint key to **one** issue,
 which is the whole point of a fractional index:
 two people dragging at once both keep their drag.
 
+**A grabbed row carried past the edge of its group enters the next one**
+(2026-10-02): the group above when it is moved up, at that group's end,
+and the group below when it is moved down, at its start.
+The drop then writes the `group_by` field to that group's value
+*and* the rank, in one `set`, which is one commit —
+exactly what a board has always done when a card is carried into
+another column, and a group is a column drawn the other way.
+It holds on a list, on a gantt, and across a board's swimlanes.
+
+What a group is on the screen is the cell its rows draw,
+so what the drop writes is the value a row already in that group holds:
+an enum's value id, a relation's or an identity's id, a bool.
+`(none)` is the group of the rows with no value at all, and writes null.
+Nothing moves in the drawing order when a row crosses:
+the boundary between two groups is one point,
+and which group a row is in is which header it is drawn under.
+
+Two crossings are refused, with the bell and a status line,
+the row staying at its group's edge.
+**`group_by` of `type`** — the type decides which fields an issue has,
+so a move does not get to change it.
+**A set-valued `group_by`** (`multi-enum`, `multi-identity`,
+`multi-relation`) — a row is grouped by its whole set, so a drag cannot
+say which item it meant; that is `issue add`/`remove`,
+the same answer `Space` gives on such a cell.
+A nested child stays among its siblings:
+only a root crosses, because a child's place is under its parent.
+
 ## Board
 
 `board` is a list with a second axis:
@@ -564,7 +592,9 @@ so `Space` always grabs;
 `←` and `→` carry the card into the neighbouring column, empty or not,
 and the drop writes the `columns` field — `null` when dropped in `(none)`.
 `↑` and `↓` need an order to write and always have one,
-the built-in `rank` being the argument's default (Rank, above).
+the built-in `rank` being the argument's default (Rank, above);
+past the end of a stack they carry the card into the swimlane above or
+below, in the column it is in, and the drop writes `group_by` too.
 The drop is one `set` with up to two keys, which is one commit:
 the field when the column changed,
 and the rank whenever the card moved at all,
@@ -1004,6 +1034,8 @@ and a per-level projection is a feature nobody has asked for.
 A group is the root's: its children follow it into its group,
 and a rank moves a row among its siblings only, its subtree with it,
 so a story dragged past another carries its tasks.
+Only a root crosses into another group (Rank):
+a child's place is under its parent, wherever the parent goes.
 
 The tree is drawn as an indent before the id, two cells a level,
 behind a fold marker: `▾` open, `▸` folded, nothing on a leaf.

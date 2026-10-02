@@ -54,10 +54,14 @@ type boardPage struct {
 	help      *help
 
 	// grabbed is the card being moved, by index into cards, or -1; grabFrom
-	// is where it was picked up, so that a drop back there writes nothing.
-	grabbed  int
-	grabFrom [3]int
-	blink    bool
+	// is where it was picked up, so that a drop back there writes nothing,
+	// grabGroup the swimlane it came from and crossed the one it has been
+	// carried into since (group.go).
+	grabbed   int
+	grabFrom  [3]int
+	grabGroup string
+	crossed   *crossing
+	blink     bool
 
 	status string
 }
@@ -624,6 +628,8 @@ func (p *boardPage) startGrab() (page, tea.Cmd) {
 	}
 	p.grabbed = p.stack()[p.row]
 	p.grabFrom = [3]int{p.lane, p.col, p.row}
+	p.grabGroup = p.lanes[p.lane].group
+	p.crossed = nil
 	p.blink = true
 	return p, blinkTick()
 }
@@ -631,10 +637,11 @@ func (p *boardPage) startGrab() (page, tea.Cmd) {
 func (p *boardPage) updateGrab(press tea.KeyPressMsg) (page, tea.Cmd) {
 	switch {
 	case keys.cancel.matches(press):
-		// the card goes back where it was: the board is rebuilt from the
-		// store, which never changed
+		// the card goes back where it was, its lane included: the board is
+		// rebuilt from the store, which never changed
 		id := p.cards[p.grabbed].id
 		p.grabbed = -1
+		p.crossed = nil
 		p.arrange()
 		p.putCursorOn(id)
 		return p, nil
@@ -644,12 +651,10 @@ func (p *boardPage) updateGrab(press tea.KeyPressMsg) (page, tea.Cmd) {
 	case keys.right.matches(press):
 		p.dragAcross(1)
 
-	case keys.up.matches(press), keys.down.matches(press):
-		if keys.up.matches(press) {
-			p.dragBy(-1)
-		} else {
-			p.dragBy(1)
-		}
+	case keys.up.matches(press):
+		return p, p.dragBy(-1)
+	case keys.down.matches(press):
+		return p, p.dragBy(1)
 
 	case keys.grab.matches(press), keys.act.matches(press):
 		return p, p.drop()
@@ -674,23 +679,85 @@ func (p *boardPage) dragAcross(by int) {
 	p.col, p.row = to, row
 }
 
-// dragBy moves the grabbed card within its column, on the screen only.
-func (p *boardPage) dragBy(by int) {
+// dragBy moves the grabbed card within its column, on the screen only; past
+// the end of the stack it carries the card into the neighbouring swimlane,
+// at that lane's end going up and its start going down, and the drop writes
+// the `group_by` field the way a column drop writes `columns` (group.go).
+func (p *boardPage) dragBy(by int) tea.Cmd {
 	stack := p.stack()
-	to := p.row + by
-	if to < 0 || to >= len(stack) {
-		return
+	if to := p.row + by; to >= 0 && to < len(stack) {
+		stack[p.row], stack[to] = stack[to], stack[p.row]
+		p.row = to
+		return nil
 	}
-	stack[p.row], stack[to] = stack[to], stack[p.row]
-	p.row = to
+	return p.crossLane(by)
+}
+
+// crossLane carries the grabbed card into the lane above or below, in the
+// column it is in.
+func (p *boardPage) crossLane(by int) tea.Cmd {
+	lane := p.lane + by
+	if p.groupBy == "" || lane < 0 || lane >= len(p.lanes) {
+		return nil
+	}
+	c := &p.cards[p.grabbed]
+	if refusal := crossRefusal(p.repo, c.typeKey, p.groupBy); refusal != "" {
+		p.status = refusal
+		return bell()
+	}
+	into, ok := p.laneValue(lane)
+	if !ok {
+		return nil
+	}
+
+	from := p.lanes[p.lane].stacks
+	from[p.col] = append(from[p.col][:p.row], from[p.col][p.row+1:]...)
+
+	stacks := p.lanes[lane].stacks
+	row := 0
+	if by < 0 {
+		row = len(stacks[p.col])
+	}
+	stacks[p.col] = append(stacks[p.col], 0)
+	copy(stacks[p.col][row+1:], stacks[p.col][row:])
+	stacks[p.col][row] = p.grabbed
+
+	p.lane, p.row = lane, row
+	p.crossed = &into
+	p.status = ""
+	return nil
+}
+
+// laneValue is what a drop into a lane writes: the value another card in it
+// holds, whatever column that card is in. A lane the grabbed card emptied on
+// its way out is its own, so the card's stored value is the answer there.
+func (p *boardPage) laneValue(lane int) (crossing, bool) {
+	group := p.lanes[lane].group
+	for _, stack := range p.lanes[lane].stacks {
+		for _, index := range stack {
+			if index != p.grabbed {
+				return crossing{group: group, value: groupValue(p.cards[index].fields[p.groupBy], group)}, true
+			}
+		}
+	}
+	if c := &p.cards[p.grabbed]; group == c.group {
+		return crossing{group: group, value: groupValue(c.fields[p.groupBy], group)}, true
+	}
+	return crossing{}, false
 }
 
 // drop writes where the card landed: the columns field when the column
-// changed, and the rank when the card moved at all — a card in a new column
-// has new neighbours — both keys in one call, which is one commit. A card
-// dropped where it was picked up writes nothing.
+// changed, the `group_by` field when the card crossed into another swimlane,
+// and the rank whenever it moved at all — a card in a new column or a new
+// lane has new neighbours — every key in one call, which is one commit. A
+// card dropped where it was picked up writes nothing.
 func (p *boardPage) drop() tea.Cmd {
 	c := &p.cards[p.grabbed]
+	into := p.crossed
+	if into != nil && p.lanes[p.lane].group == p.grabGroup {
+		into = nil // carried out of its lane and back into it
+	}
+	p.crossed = nil
 	p.grabbed = -1
 
 	if [3]int{p.lane, p.col, p.row} == p.grabFrom {
@@ -707,6 +774,10 @@ func (p *boardPage) drop() tea.Cmd {
 			fields[p.columnsKey] = issue.StringValue(target.value)
 		}
 		said = "moved to " + target.label
+	}
+	if into != nil {
+		fields[p.groupBy] = into.value
+		said = "moved to " + into.group
 	}
 	lo, hi := p.neighbourRanks()
 	key, err := rank.Between(lo, hi)
