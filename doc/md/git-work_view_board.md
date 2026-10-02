@@ -12,10 +12,11 @@ input when it is "-":
   columns        field key                        required           the field whose values are the columns
   values         strings                          defaulted          the column values, in order; the field's schema order by default, which is resolved at render time
   card           field keys                       defaulted ["title"] the fields shown on a card
-  group_by       field key                        feature            the field whose value starts a new swimlane
+  group_by       field key                        optional           the field whose value starts a new swimlane; the cards with no value at all are the last swimlane, (none)
   rank           field key                        defaulted "rank"   the rank field rows are ordered and dragged by
 
-A `feature` argument is in the table and not drawn yet.
+An `optional` argument has no default: name it and the view does that
+thing, leave it out and it does not.
 
 
 ```

@@ -131,6 +131,19 @@ in Starlark, the same reason `work.schema.import_` does.
   taking its arguments as one JSON object.
 - Views are interactive and need a terminal.
   An agent reads the data with `git work issue 'PROGRAM'` instead.
+  There are five kinds — `list`, `show`, `board`, `gantt` and `matrix` —
+  each a `git work view KIND KWARGS` command
+  taking one JSON object of keyword arguments.
+  `git work view list --help` is the argument table,
+  and it is the reference for `work.view.list(**kwargs)` too,
+  because both parse against the same table.
+  A `required` argument has to be named,
+  a `defaulted` one has a value already,
+  and an `optional` one is off until it is named.
+  Most kinds take a `query`, the same jq program the listing takes;
+  `group_by` sections the rows by a field, the ones with no value last;
+  and `expand` nests the issues one relation reaches under each row,
+  as `"children"` or as a layer that says what that level draws.
 - Starlark mirrors this command line one to one,
   because both go through the same code.
   `work` is the only predeclared name:

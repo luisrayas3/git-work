@@ -82,22 +82,24 @@ func newViewKindCommand(env *execenv.Env, kind string) *cobra.Command {
 // kindLong documents a kind from its argument table, so that the help and the
 // validation can never drift apart.
 //
-// The note about undrawn arguments is printed only where there is one, so
-// that a kind whose whole table is drawn does not warn about nothing.
+// The note about the optional tier is printed only where the kind has one.
+// It said "in the table and not drawn yet" until 2026-10-02, from before any
+// kind was drawn, and went on saying it after they all were, so a reader took
+// `group_by` and `expand` for sketches (f9c991e).
 func kindLong(kind string) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "Draw a %s.\n\n", kind)
 	b.WriteString("KWARGS is a JSON object of this view's arguments, read from standard\ninput when it is \"-\":\n")
 	b.WriteString(view.Help(kind))
-	if hasFeatureArg(kind) {
-		b.WriteString("\nA `feature` argument is in the table and not drawn yet.\n")
+	if hasOptionalArg(kind) {
+		b.WriteString("\nAn `optional` argument has no default: name it and the view does that\nthing, leave it out and it does not.\n")
 	}
 	return b.String()
 }
 
-func hasFeatureArg(kind string) bool {
+func hasOptionalArg(kind string) bool {
 	for _, arg := range view.Kinds[kind] {
-		if arg.Tier == view.Feature {
+		if arg.Tier == view.Optional {
 			return true
 		}
 	}
