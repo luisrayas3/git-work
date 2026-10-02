@@ -26,6 +26,16 @@ type State struct {
 	// FailedAfter is the last failed id re-read: the next run starts after it
 	FailedAfter string                `json:"failed_after,omitempty"`
 	Refused     map[entity.Id]refusal `json:"refused,omitempty"` // creates Jira answered and did not make (JS15)
+	// Orphans are the hits skipped because their property names an entity
+	// this clone does not have, by Jira id, until the Index knows the id (JS27).
+	Orphans map[string]Orphan `json:"orphans,omitempty"`
+}
+
+// Orphan is a Jira issue created from an entity this clone does not have.
+type Orphan struct {
+	Key     string    `json:"key"`
+	From    entity.Id `json:"from"`
+	Created time.Time `json:"created"`
 }
 
 // refusal is a create attempt Jira refused: not in doubt, and not tried
@@ -63,6 +73,9 @@ func (s *State) init() *State {
 	}
 	if s.Failed == nil {
 		s.Failed = map[string]time.Time{}
+	}
+	if s.Orphans == nil {
+		s.Orphans = map[string]Orphan{}
 	}
 	return s
 }

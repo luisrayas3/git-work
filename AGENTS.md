@@ -295,8 +295,8 @@ The Jira sync, one bound clone against one Jira Cloud project
 | --- | --- |
 | Bind | `git config git-work.jira.url https://<site>.atlassian.net` · `.project KEY` · `.email ME`; the token is `JIRA_API_TOKEN`, else `git credential approve` |
 | Review the first mapping | `git work jira schema > jira.yaml` (warnings on stderr; `-v` adds the info notes) · edit · `git work schema import jira.yaml [--dry-run]` |
-| Sync | `git work jira sync [ID...] [--dry-run] [--full] [--accept-deletes]` · `--format text` |
-| Cron | `git work jira sync` every minute, `git work jira sync --full` nightly |
+| Sync | `git work jira sync [ID...] [--dry-run] [--full] [--accept-deletes] [--adopt DURATION]` · `--format text` |
+| Cron | `git work jira sync` every minute, `git work jira sync --full --adopt 7d` nightly |
 
 `sync` refuses until one type carries a Jira alias, derives and imports the
 schema itself after that, prints one JSON object per line (schema changes,
@@ -311,12 +311,23 @@ other than the one written, unless it is the normal form Jira answered the
 write with; a write Jira's `GET` does not show yet is pending, never written
 again, until Jira's `updated` reaches it or 15 minutes of Jira's clock pass. It **never pushes**; bind one
 clone only: two bound clones syncing before they exchange duplicate issues,
-which the sync then reports but cannot undo (JS25). One run at a time: a
+which the sync consolidates once they have (JS25, JS27). One run at a time: a
 second exits 1 with `a jira sync is already running`, having done nothing.
 Run state is `.git/git-work/jira/state.json` (cursor, failed hits, refused
 creates); it is disposable: deleting it costs a slower run, never a wrong one,
 because a create's attempt is a `jira-create` marker committed on the issue
 before its `POST`.
+A Jira issue created by an export names its local issue in a property;
+one whose issue this clone has not pulled is skipped, remembered,
+and named as the cause on every issue waiting on it,
+until `--adopt DURATION` says an issue that old is lost for good
+and imports it (`7d`; `0` takes every one).
+Two local copies of one Jira issue, an adoption whose original later arrives
+or two clones importing one issue, are consolidated into the copy that
+reached Jira first, whatever either has archived:
+the other is synced once more, archived, its local-only values carried over,
+and every relation naming it pointed at the survivor
+(`doc/design/jira-sync.md`, JS27).
 There is no `work.jira.*` in Starlark yet (v2), a known gap in the 1:1 rule.
 
 Gotchas, hardened from use:

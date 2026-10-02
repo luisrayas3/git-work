@@ -17,8 +17,9 @@ import (
 
 // Values of MetaNote and of Base.Gone.
 const (
-	NoteConflict = "conflict"
-	NoteDeleted  = "deleted"
+	NoteConflict     = "conflict"
+	NoteDeleted      = "deleted"
+	NoteConsolidated = "consolidated"
 
 	GoneDeleted = "deleted"
 	GoneMoved   = "moved"

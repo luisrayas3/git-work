@@ -18,6 +18,9 @@ const (
 	ActionGone     = "gone"
 	ActionSkipped  = "skipped" // refused or waiting, reported: a person may look
 	ActionFailed   = "failed"
+	// ActionConsolidated is a second local copy of one Jira issue,
+	// archived into the copy that reached Jira first (JS27).
+	ActionConsolidated = "consolidated"
 )
 
 // Line is one JSON line of the report: exactly one of Schema, Issue and
@@ -27,6 +30,7 @@ type Line struct {
 	Issue     entity.Id                  `json:"issue,omitempty"`
 	Jira      string                     `json:"jira,omitempty"`
 	Action    string                     `json:"action,omitempty"`
+	Adopted   entity.Id                  `json:"adopted,omitempty"` // the absent entity the property named (JS27)
 	Imported  map[string]json.RawMessage `json:"imported,omitempty"`
 	Exported  map[string]json.RawMessage `json:"exported,omitempty"`
 	Comments  *CommentCounts             `json:"comments,omitempty"`
@@ -50,18 +54,21 @@ func (c *CommentCounts) empty() bool { return c == nil || *c == CommentCounts{} 
 
 // Summary closes the report.
 type Summary struct {
-	Imported  int       `json:"imported"`
-	Created   int       `json:"created"`
-	Updated   int       `json:"updated"`
-	Linked    int       `json:"linked"`
-	Gone      int       `json:"gone"`
-	Conflicts int       `json:"conflicts"`
-	Pending   int       `json:"pending"`
-	OffSchema int       `json:"off_schema"` // keys written that the schema's policy would refuse
-	Failed    int       `json:"failed"`
-	Skipped   int       `json:"skipped"`   // reported lines of action skipped
-	Unchanged int       `json:"unchanged"` // candidates with nothing to do, not reported
-	Cursor    time.Time `json:"cursor,omitzero"`
+	Imported     int       `json:"imported"`
+	Created      int       `json:"created"`
+	Updated      int       `json:"updated"`
+	Linked       int       `json:"linked"`
+	Gone         int       `json:"gone"`
+	Adopted      int       `json:"adopted"`      // imports past the --adopt bound (JS27)
+	Consolidated int       `json:"consolidated"` // second copies archived (JS27)
+	Orphans      int       `json:"orphans"`      // hits still skipped for an absent entity (JS27)
+	Conflicts    int       `json:"conflicts"`
+	Pending      int       `json:"pending"`
+	OffSchema    int       `json:"off_schema"` // keys written that the schema's policy would refuse
+	Failed       int       `json:"failed"`
+	Skipped      int       `json:"skipped"`   // reported lines of action skipped
+	Unchanged    int       `json:"unchanged"` // candidates with nothing to do, not reported
+	Cursor       time.Time `json:"cursor,omitzero"`
 }
 
 // count adds one issue's line to the summary.
@@ -69,6 +76,11 @@ func (s *Summary) count(l Line) {
 	switch l.Action {
 	case ActionImported:
 		s.Imported++
+		if l.Adopted != "" {
+			s.Adopted++
+		}
+	case ActionConsolidated:
+		s.Consolidated++
 	case ActionCreated:
 		s.Created++
 	case ActionUpdated:

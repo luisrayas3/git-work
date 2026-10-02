@@ -2,6 +2,7 @@ package jira
 
 import (
 	"encoding/json"
+	"fmt"
 	"slices"
 	"sort"
 	"time"
@@ -10,6 +11,7 @@ import (
 	"github.com/git-bug/git-bug/entities/issue"
 	"github.com/git-bug/git-bug/entity"
 	"github.com/git-bug/git-bug/jira/jiraapi"
+	"github.com/git-bug/git-bug/schema"
 	"github.com/git-bug/git-bug/util/sorted"
 )
 
@@ -18,6 +20,7 @@ import (
 type hit struct {
 	id, key   string
 	updated   time.Time
+	created   time.Time
 	prop      entity.Id // the git-work property
 	mapped    bool      // of an issue type the schema maps
 	refetched bool      // a failed hit of an earlier run, read by GET
@@ -26,6 +29,7 @@ type hit struct {
 // local is one scan of the excerpts.
 type local struct {
 	linked   []entity.Id // jira-id set, and the Index's winner for it
+	losers   []entity.Id // jira-id set, another issue the Index's winner for it: consolidated (JS27)
 	requests []entity.Id // alias:jira and no jira-id (JS15)
 	creates  []entity.Id // unlinked, unaliased, of a mapped type, unarchived
 	byId     map[entity.Id]*cache.IssueExcerpt
@@ -47,9 +51,9 @@ func (e *engine) scan() (*local, error) {
 			if winner, _ := e.ix.Issue(jid); winner == id {
 				l.linked = append(l.linked, id)
 			} else if !isArchived(ex.Fields) {
-				// A2: never two local issues exporting to one Jira issue
-				e.report(Line{Issue: id, Jira: ex.CreateMetadata[MetaAlias], Action: ActionSkipped,
-					Pending: []Skip{{Key: "*", Reason: "its Jira issue is also linked to " + winner.Human() + "; archive one of the two (JS25)"}}})
+				// A2: never two local issues exporting to one Jira issue;
+				// an archived one is consolidated already (JS27)
+				l.losers = append(l.losers, id)
 			}
 		case ex.CreateMetadata[MetaAlias] != "":
 			l.requests = append(l.requests, id)
@@ -83,7 +87,11 @@ func (e *engine) runIds() error {
 		md := ic.Snapshot().Operations[0].AllMetadata()
 		switch {
 		case md[MetaId] != "":
-			err = e.syncLinked(ic)
+			if winner, _ := e.ix.Issue(md[MetaId]); winner != id {
+				err = e.consolidate(ic, winner)
+			} else {
+				err = e.syncLinked(ic)
+			}
 		case md[MetaAlias] != "":
 			err = e.linkRequest(ic)
 		default:
@@ -115,6 +123,18 @@ func (e *engine) runAll() error {
 			return err
 		}
 		if err := stop(e.linkRequest(ic)); err != nil {
+			return err
+		}
+	}
+	// before the search, so the loser's last writes return its Jira issue
+	// as a hit of this run, and the winner imports them now (JS27)
+	for _, id := range l.losers {
+		ic, err := e.repo.Issues().Resolve(id)
+		if err != nil {
+			return err
+		}
+		winner, _ := e.ix.Issue(l.byId[id].CreateMetadata[MetaId])
+		if err := stop(e.consolidate(ic, winner)); err != nil {
 			return err
 		}
 	}
@@ -218,7 +238,7 @@ func (e *engine) lowerBound(l *local) (time.Time, bool) {
 
 func (e *engine) search(jql string) ([]hit, error) {
 	var hits []hit
-	err := e.c.SearchJQL(e.ctx, jiraapi.Search{JQL: jql, Fields: []string{"updated", "issuetype"}, Properties: []string{PropertyKey}, MaxResults: 100},
+	err := e.c.SearchJQL(e.ctx, jiraapi.Search{JQL: jql, Fields: []string{"updated", "created", "issuetype"}, Properties: []string{PropertyKey}, MaxResults: 100},
 		func(page jiraapi.SearchPage) error {
 			for i := range page.Issues {
 				hits = append(hits, e.hitOf(&page.Issues[i]))
@@ -236,6 +256,9 @@ func (e *engine) hitOf(ri *jiraapi.Issue) hit {
 	var u jiraapi.Time
 	if _, err := ri.Decode("updated", &u); err == nil {
 		h.updated = u.UTC()
+	}
+	if _, err := ri.Decode("created", &u); err == nil {
+		h.created = u.UTC()
 	}
 	var it jiraapi.IssueType
 	if _, err := ri.Decode("issuetype", &it); err == nil {
@@ -262,7 +285,7 @@ func (e *engine) refetch(failed []string, hits []hit) ([]hit, error) {
 	failed = append(failed[start:], failed[:start]...)
 	for _, id := range failed[:min(len(failed), maxFailed)] {
 		e.st.FailedAfter = id
-		ri, err := e.c.GetIssue(e.ctx, id, []string{"updated", "issuetype", "project"}, nil, PropertyKey)
+		ri, err := e.c.GetIssue(e.ctx, id, []string{"updated", "created", "issuetype", "project"}, nil, PropertyKey)
 		switch {
 		case jiraapi.StatusCode(err) == 404:
 			delete(e.st.Failed, id)
@@ -356,9 +379,12 @@ func (e *engine) runHit(h hit, owner map[entity.Id]string, l *local) error {
 		ex, ok := l.byId[h.prop]
 		switch {
 		case !ok:
-			// A2: another clone's export; importing it would duplicate the entity
-			e.report(Line{Jira: h.key, Action: ActionSkipped,
-				Pending: []Skip{{Key: "*", Reason: "created in Jira from issue " + h.prop.Human() + ", which this clone has not pulled; pull first"}}})
+			// A2: another clone's export; importing it would duplicate the
+			// entity, unless the person's bound says it is lost (JS27)
+			if e.adoptable(h.created) {
+				return e.importIssue(h.id, h.prop)
+			}
+			e.orphan(h)
 			return nil
 		case owner[h.prop] != h.id || ex.CreateMetadata[MetaId] != "":
 			e.report(Line{Issue: h.prop, Jira: h.key, Action: ActionSkipped,
@@ -376,7 +402,25 @@ func (e *engine) runHit(h hit, owner map[entity.Id]string, l *local) error {
 		e.sum.Unchanged++
 		return nil
 	}
-	return e.importIssue(h.id)
+	return e.importIssue(h.id, "")
+}
+
+// adoptable says an issue created from an absent entity is old enough
+// to import anyway: the person's bound, on Jira's clock (JS27).
+func (e *engine) adoptable(created time.Time) bool {
+	return e.opts.Adopt != nil && !created.IsZero() && e.now().Sub(created) >= *e.opts.Adopt
+}
+
+// orphan records and reports a hit skipped for an absent entity (JS27),
+// so a child waiting on it can name the cause this run and the next.
+func (e *engine) orphan(h hit) {
+	o := Orphan{Key: h.key, From: h.prop, Created: h.created}
+	e.st.Orphans[h.id] = o
+	e.ix.absent[h.id] = o
+	days := int(e.now().Sub(h.created).Hours() / 24)
+	e.report(Line{Jira: h.key, Action: ActionSkipped,
+		Pending: []Skip{{Key: "*", Reason: fmt.Sprintf("created in Jira %d days ago from issue %s, which this clone has not pulled; pull first, or --adopt %dd takes it",
+			days, h.prop.Human(), days)}}})
 }
 
 // changed reports whether the issue differs from its base locally.
@@ -420,6 +464,143 @@ func (e *engine) repass() error {
 			return err
 		}
 		if err := stop(e.syncLinked(ic)); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// ---- consolidation (JS27) ----
+
+// consolidate archives a second local copy of one Jira issue
+// into the copy that reached Jira first:
+// the loser is synced one last time, so what it holds for Jira reaches Jira,
+// then archived;
+// the winner takes the loser's local-only values where it has none,
+// and a note names the loser;
+// and every relation naming the loser is pointed at the winner,
+// so the next merge of each finds `l == r`.
+// A loser already archived is consolidated already.
+func (e *engine) consolidate(loser *cache.IssueCache, winner entity.Id) error {
+	id := loser.Id()
+	e.done[id] = true
+	if isArchived(loser.Snapshot().Fields) {
+		return nil
+	}
+	key, _ := loser.Snapshot().GetCreateMetadata(MetaAlias)
+	line := Line{Issue: id, Jira: key, Action: ActionConsolidated}
+	line.Pending = append(line.Pending, Skip{Key: "*", Reason: "a second copy of " + key + "; " + winner.Human() + " reached Jira first"})
+	if e.opts.DryRun {
+		line.DryRun = true
+		e.report(line)
+		return nil
+	}
+	if err := e.syncLinked(loser); err != nil {
+		return err
+	}
+	wc, err := e.repo.Issues().Resolve(winner)
+	if err != nil {
+		return e.fail(line, err)
+	}
+	now := e.now()
+	err = loser.Update(func(*issue.Snapshot) ([]issue.Operation, error) {
+		return []issue.Operation{issue.NewSetFieldOp(e.me, now.Unix(), schema.ArchivedKey, issue.MustValue(true))}, nil
+	})
+	if err != nil {
+		return e.fail(line, err)
+	}
+	ls := loser.Snapshot()
+	err = wc.Update(func(snap *issue.Snapshot) ([]issue.Operation, error) {
+		ops, kept := e.fill(snap, ls, now)
+		for _, k := range kept {
+			line.imported(k, ls.Fields[k])
+		}
+		text := fmt.Sprintf("Jira sync, %s: %s was also tracked as %s, which reached Jira later; it is archived and its history kept.",
+			now.Format("2006-01-02 15:04 MST"), key, id.Human())
+		note := issue.NewAddCommentOp(e.me, now.Unix(), text, nil)
+		note.SetMetadata(MetaNote, NoteConsolidated)
+		return append(ops, note), nil
+	})
+	if err != nil {
+		return e.fail(line, err)
+	}
+	if err := e.repoint(id, winner, now); err != nil {
+		return e.fail(line, err)
+	}
+	e.report(line)
+	return nil
+}
+
+// fill is the winner's gaps taken from the loser, local-only fields only:
+// the missing-base rule with the winner in Jira's seat,
+// a scalar it lacks, the union of a set (JS10).
+// Mapped fields reach it through Jira.
+func (e *engine) fill(winner, loser *issue.Snapshot, now time.Time) (ops []issue.Operation, kept []string) {
+	wt, _ := issue.String(winner.Fields[typeKey])
+	lt, _ := issue.String(loser.Fields[typeKey])
+	mapped := map[string]bool{issue.TitleKey: true, typeKey: true, schema.ArchivedKey: true}
+	for _, k := range e.m.keys(lt) {
+		mapped[k] = true
+	}
+	for _, k := range sorted.Keys(loser.Fields) {
+		lv := loser.Fields[k]
+		if mapped[k] || issue.IsNull(lv) {
+			continue
+		}
+		f, ok := e.schema.Field(wt, k)
+		if !ok {
+			continue
+		}
+		wv, has := winner.Fields[k]
+		switch {
+		case f.Kind.IsMulti():
+			have := setOf(wv)
+			for _, it := range sorted.Keys(setOf(lv)) {
+				if _, ok := have[it]; !ok {
+					ops = append(ops, issue.NewAddValueOp(e.me, now.Unix(), k, issue.Value(it)))
+					kept = append(kept, k)
+				}
+			}
+		case !has || issue.IsNull(wv):
+			ops = append(ops, issue.NewSetFieldOp(e.me, now.Unix(), k, lv))
+			kept = append(kept, k)
+		}
+	}
+	return ops, slices.Compact(kept)
+}
+
+// repoint sets every relation that names the loser to the winner,
+// one commit per issue.
+func (e *engine) repoint(loser, winner entity.Id, now time.Time) error {
+	from, to := issue.StringValue(loser.String()), issue.StringValue(winner.String())
+	for _, id := range e.repo.Issues().AllIds() {
+		ex, err := e.repo.Issues().ResolveExcerpt(id)
+		if err != nil {
+			return err
+		}
+		typ, _ := issue.String(ex.Fields[typeKey])
+		var ops []issue.Operation
+		for _, k := range sorted.Keys(ex.Fields) {
+			f, ok := e.schema.Field(typ, k)
+			switch {
+			case !ok || !f.Kind.IsRelation():
+			case f.Kind.IsMulti():
+				if _, has := setOf(ex.Fields[k])[string(from)]; has {
+					ops = append(ops, issue.NewRemoveValueOp(e.me, now.Unix(), k, from),
+						issue.NewAddValueOp(e.me, now.Unix(), k, to))
+				}
+			case same(ex.Fields[k], from):
+				ops = append(ops, issue.NewSetFieldOp(e.me, now.Unix(), k, to))
+			}
+		}
+		if len(ops) == 0 {
+			continue
+		}
+		ic, err := e.repo.Issues().Resolve(id)
+		if err != nil {
+			return err
+		}
+		if err := ic.Update(func(*issue.Snapshot) ([]issue.Operation, error) { return ops, nil }); err != nil {
 			return err
 		}
 	}
