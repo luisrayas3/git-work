@@ -118,6 +118,15 @@ func boxHints(typing bool) []hint {
 	return []hint{{"space", "type"}, {"tab", "skip"}}
 }
 
+// descHints are the description editor's keys on show, in the status line
+// and in the footer under it, which is one list the way the box's is.
+//
+// They are the box's keys, except that what enter does is write and not
+// send: the description is one text being rewritten, not one more comment.
+func descHints() []hint {
+	return []hint{{"enter", "write"}, {"alt+enter", "newline"}, {"esc", "leave"}}
+}
+
 // foldHints are the tree's keys on the row under the cursor, nothing on a
 // row with no children.
 func foldHints(node *treeRow) []hint {

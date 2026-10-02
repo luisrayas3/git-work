@@ -367,6 +367,81 @@ func TestTheBoxIsOneStop(t *testing.T) {
 	require.True(t, page.inText(), "and space goes back into it")
 }
 
+// TestSpaceOnTheDescriptionTabEditsIt: the description is the issue's first
+// comment, and reaching it took the comment's own id until now; space on the
+// tab opens it in the comment box's editor, where enter writes it.
+func TestSpaceOnTheDescriptionTabEditsIt(t *testing.T) {
+	repo := testRepo(t)
+	id := newIssue(t, repo, map[string]any{"title": "one"})
+
+	page := show(t, repo, id, nil)
+	page = send(page, "tab").(*showPage)
+	require.Equal(t, stopTabs, page.current().stop)
+	require.Equal(t, tabDescription, page.tab)
+	require.Contains(t, plainView(page), "space: edit", "the tab says the key")
+
+	// opened and left untouched, it leaves nothing behind
+	page = send(page, "space", "esc").(*showPage)
+	require.Nil(t, page.desc, "no draft to keep")
+	require.Contains(t, plainView(page), "the body", "the tab reads the store")
+
+	// it opens on what is there, and types like the comment box
+	page = send(page, "space").(*showPage)
+	require.True(t, page.editingDesc)
+	require.Equal(t, "the body", page.desc.draft())
+	require.Contains(t, plainView(page), "enter: write")
+	page = send(page, "space", "a", "alt+enter", "b").(*showPage)
+	require.Equal(t, "the body a\nb", page.desc.draft())
+
+	page = send(page, "enter").(*showPage)
+	require.False(t, page.editingDesc)
+	require.Nil(t, page.desc, "written, the tab reads the store again")
+
+	document, err := host.IssueGet(repo, id)
+	require.NoError(t, err)
+	require.Equal(t, "the body a\nb", document.Comments[0].Message)
+	require.Contains(t, plainView(page), "the body a", "redrawn from the store")
+}
+
+// TestTheDescriptionEditorKeepsADraft: esc leaves the editor with what was
+// typed still in it, and an emptied description is refused.
+func TestTheDescriptionEditorKeepsADraft(t *testing.T) {
+	repo := testRepo(t)
+	id := newIssue(t, repo, map[string]any{"title": "one"})
+
+	page := show(t, repo, id, nil)
+	page = send(page, "tab", "space").(*showPage)
+	page.desc.area.SetValue("half a thought")
+
+	updated, cmd := page.Update(press("esc"))
+	require.Nil(t, cmd)
+	page = updated.(*showPage)
+	require.False(t, page.editingDesc, "out of the editor")
+	require.Equal(t, "half a thought", page.desc.draft(), "the draft is kept")
+	require.Contains(t, plainView(page), "draft kept")
+
+	page = send(page, "space").(*showPage)
+	require.True(t, page.editingDesc, "and space goes back into it")
+	require.Equal(t, "half a thought", page.desc.draft())
+
+	// the store still has the body: esc wrote nothing
+	document, err := host.IssueGet(repo, id)
+	require.NoError(t, err)
+	require.Equal(t, "the body", document.Comments[0].Message)
+
+	// an issue has no description to lose: an empty body is refused
+	page.desc.area.SetValue("   ")
+	updated, cmd = page.Update(press("enter"))
+	require.NotNil(t, cmd, "the bell")
+	page = updated.(*showPage)
+	require.True(t, page.editingDesc, "still in the editor")
+	require.Contains(t, plainView(page), "a description cannot be emptied")
+
+	document, err = host.IssueGet(repo, id)
+	require.NoError(t, err)
+	require.Equal(t, "the body", document.Comments[0].Message)
+}
+
 // TestShowKeepsADraft: esc leaves the text with the draft kept rather than
 // the page, and going back asks twice.
 func TestShowKeepsADraft(t *testing.T) {

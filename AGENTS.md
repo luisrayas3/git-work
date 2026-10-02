@@ -334,6 +334,8 @@ then the fields table, the comment box, and description/comments/log tabs switch
 it opens on the comment box, not typing: `Enter` there does nothing,
 `Space` puts the cursor in the text, where `Enter` sends, `M-Enter` (or `S-Enter` where the terminal reports it) is a newline
 and `Esc` leaves the text keeping the draft (`Tab` skips the box whole).
+`Space` on the description tab edits the description — the issue's first comment —
+in that same editor, `Enter` writing it, an emptied one refused (2026-10-02).
 Show's `children` lists the issues pointing at it, a section of table rows per entry,
 each child a link `Enter` follows and `Space` rings on:
 `git work view show '{"id":"<story>","children":[{"type":"task","relation":"parent","fields":["status"]}]}'`,
