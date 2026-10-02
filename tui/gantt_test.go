@@ -572,3 +572,60 @@ func TestGanttCrosshairFollowsTheAnsweredBackground(t *testing.T) {
 		require.NotContains(t, drawn, answer.wrong, "on a %s terminal", answer.name)
 	}
 }
+
+// TestGroupedGanttKeepsTheGroupHeaderOnTop: a window too small for the chart
+// still opens on the header of the group its first row is in, whether the
+// cursor is on that group's first row or deep in it, and the header keeps
+// the crosshair it is drawn with.
+func TestGroupedGanttKeepsTheGroupHeaderOnTop(t *testing.T) {
+	repo := testRepo(t)
+	withDates(t, repo)
+	for _, status := range []string{"to-do", "in-progress", "done"} {
+		for _, title := range []string{"one", "two", "three"} {
+			newIssue(t, repo, map[string]any{
+				"title": status + " " + title, "status": status,
+				"start": "2026-09-07", "stop": "2026-09-13",
+			})
+		}
+	}
+
+	page := gantt(t, repo, `{"start":"start","stop":"stop","from":"2026-09-07","group_by":"status","query":"sort_by(.fields.status)"}`)
+	page.Update(tea.WindowSizeMsg{Width: 120, Height: 11})
+
+	// the second group, the row it starts on, and the header line as it is
+	// drawn where nothing scrolls it: the crosshair runs through it
+	second := 0
+	for at, index := range page.order {
+		if page.nodes[index].group != page.nodes[page.order[0]].group {
+			second = at
+			break
+		}
+	}
+	require.Greater(t, second, 0, "three groups of three")
+	group := page.nodes[page.order[second]].group
+	firstRow := page.bars[page.order[second]].human
+	header := ""
+	for _, line := range strings.Split(plainView(page), "\n") {
+		if strings.HasPrefix(line, group) {
+			header = line
+		}
+	}
+	require.Greater(t, len(header), len(group), "the crosshair pads the header")
+
+	// scrolled to the end, the window opens in the middle of the second
+	// group: its header is the first body line, its first row is above
+	page = send(page, "G").(*ganttPage)
+	lines := strings.Split(plainView(page), "\n")
+	require.Equal(t, header, lines[4], "the window opens on the group's header, crosshair and all")
+	require.NotContains(t, lines[5], firstRow, "and not on the group's first row")
+	require.Contains(t, plainView(page), page.bars[page.order[page.cursor]].human,
+		"the cursor's row is on screen")
+
+	// and back up onto that first row, the header is still the line above it
+	for page.cursor > second {
+		page = send(page, "k").(*ganttPage)
+	}
+	lines = strings.Split(plainView(page), "\n")
+	require.Equal(t, header, lines[4], "the group's header is the first body line")
+	require.Contains(t, lines[5], firstRow, "the cursor's row is right under it")
+}

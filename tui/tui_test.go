@@ -292,6 +292,53 @@ func TestGroupsHaveAHeaderAndTheUngroupedComeLast(t *testing.T) {
 		"the issues nobody has filed come last")
 }
 
+// TestGroupedListKeepsTheGroupHeaderOnTop: a window too small for the body
+// still opens on the header of the group its first row is in, whether the
+// cursor is on that row or deep in the group, because a header scrolled off
+// the top cannot be reached and the rows under it lose their label.
+func TestGroupedListKeepsTheGroupHeaderOnTop(t *testing.T) {
+	repo := testRepo(t)
+	for _, status := range []string{"to-do", "in-progress", "done"} {
+		// the titles say nothing of the status, so only the group's own
+		// header can put it on the screen
+		for _, title := range []string{"one", "two", "three"} {
+			newIssue(t, repo, map[string]any{"title": title, "status": status})
+		}
+	}
+
+	page := list(t, repo, `{"group_by":"status","fields":["title"]}`)
+	page.Update(tea.WindowSizeMsg{Width: 100, Height: 9})
+
+	// the second group, and the row it starts on
+	second := 0
+	for at, index := range page.order {
+		if page.nodes[index].group != page.nodes[page.order[0]].group {
+			second = at
+			break
+		}
+	}
+	require.Greater(t, second, 0, "three groups of three")
+	group := page.nodes[page.order[second]].group
+	firstRow := page.rows[page.order[second]].human
+
+	// scrolled to the end, the window opens in the middle of the second
+	// group: its header is the first body line, the rows it heads are not
+	page = send(page, "G").(*listPage)
+	lines := strings.Split(plainView(page), "\n")
+	require.Contains(t, lines[2], group, "the window opens on the group's header")
+	require.NotContains(t, lines[3], firstRow, "and not on the group's first row")
+	require.Contains(t, plainView(page), page.rows[page.order[page.cursor]].human,
+		"the cursor's row is on screen")
+
+	// and back up onto that first row, the header is still the line above it
+	for page.cursor > second {
+		page = send(page, "k").(*listPage)
+	}
+	lines = strings.Split(plainView(page), "\n")
+	require.Contains(t, lines[2], group, "the group's header is the first body line")
+	require.Contains(t, lines[3], firstRow, "the cursor's row is right under it")
+}
+
 func TestFilterHidesRows(t *testing.T) {
 	repo := testRepo(t)
 	newIssue(t, repo, map[string]any{"title": "write the renderer"})

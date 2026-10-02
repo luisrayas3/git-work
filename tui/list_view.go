@@ -18,18 +18,15 @@ func (p *listPage) View() string {
 	}
 
 	bottom := p.bottom()
-	header, rows, cursorLine := p.body()
+	header, rows, groups, cursorLine := p.body()
 
 	// one line for the call, one for the header, the rest for the rows, the
 	// bottom for whatever is open and the status line
 	room := max(p.height-2-len(bottom), 1)
-	scroll(&p.top, cursorLine, room, len(rows))
 
 	lines := make([]string, 0, p.height)
 	lines = append(lines, callLine(p.call, "", "", p.width), header)
-	for at := p.top; at < min(p.top+room, len(rows)); at++ {
-		lines = append(lines, rows[at])
-	}
+	lines = append(lines, window(&p.top, rows, groups, cursorLine, room)...)
 	for len(lines) < p.height-len(bottom) {
 		lines = append(lines, "")
 	}
@@ -75,9 +72,10 @@ func (p *listPage) statusLine() string {
 	return styleStatus.Render(fit(line, p.width))
 }
 
-// body draws the header and every row in the drawing order, and says which
-// line the cursor is on so the window can be scrolled to it.
-func (p *listPage) body() (header string, rows []string, cursorLine int) {
+// body draws the header and every row in the drawing order, says which line
+// the cursor is on so the window can be scrolled to it, and which group
+// header each line sits under so that header can be kept on screen.
+func (p *listPage) body() (header string, rows []string, groups []int, cursorLine int) {
 	widths := p.widths()
 	indent := p.indent()
 
@@ -90,26 +88,31 @@ func (p *listPage) body() (header string, rows []string, cursorLine int) {
 
 	cursorLine = 0
 	group := ""
+	headerAt := -1
 	for at, index := range p.order {
 		row, node := &p.rows[index], &p.nodes[index]
 
 		// a group is the root's: its children follow it into the group
 		if p.groupBy != "" && node.level == 0 && node.group != group {
 			group = node.group
+			headerAt = len(rows)
 			rows = append(rows, styleGroup.Render(fit(group, p.width)))
+			groups = append(groups, headerAt)
 		}
 
 		if at == p.cursor {
 			cursorLine = len(rows)
 		}
 		rows = append(rows, p.rowLine(row, node, widths, indent, at == p.cursor, index == p.grabbed))
+		groups = append(groups, headerAt)
 
 		for _, line := range p.detailLines(row) {
 			rows = append(rows, line)
+			groups = append(groups, headerAt)
 		}
 	}
 
-	return header, rows, cursorLine
+	return header, rows, groups, cursorLine
 }
 
 // rowLine draws one issue: the short id, then the fields as columns.
@@ -255,6 +258,55 @@ func scroll(top *int, cursorLine, room, total int) {
 	if *top < 0 {
 		*top = 0
 	}
+}
+
+// window is the slice of a body a page draws: scroll moves a window of room
+// lines to the cursor's line, and then, in a grouped view, the window's first
+// line is the header of the group it opens in — a sticky header, because a
+// header scrolled off the top is unreachable, and the rows under it lose the
+// only thing that says which group they are in. The sticky line is the header
+// as the page drew it, so whatever it carries — the gantt's crosshair, a
+// group's tint — comes with it.
+//
+// groups is parallel to lines: the line each line's group header is drawn on,
+// -1 where there is none. The window is room lines whatever happens, the
+// sticky header taking one of them, and the cursor's line stays within those
+// that are left.
+func window(top *int, lines []string, groups []int, cursorLine, room int) []string {
+	scroll(top, cursorLine, room, len(lines))
+
+	// a window of one line has none to spare: the cursor's row wins it
+	sticky := -1
+	if room > 1 {
+		sticky = groupHeader(groups, *top)
+	}
+	if sticky >= 0 && cursorLine <= *top {
+		// the rows start one line lower than the window does, so the cursor's
+		// row, which the scroll put on its first line, moves down with them
+		*top = max(cursorLine-1, 0)
+		sticky = groupHeader(groups, *top)
+	}
+
+	drawn := make([]string, 0, room)
+	first := *top
+	if sticky >= 0 {
+		drawn = append(drawn, lines[sticky])
+		first++
+	}
+	for at := first; at < min(*top+room, len(lines)); at++ {
+		drawn = append(drawn, lines[at])
+	}
+	return drawn
+}
+
+// groupHeader is the group header the line at top sits under, or -1 when the
+// view is not grouped, when that line has no header above it, or when it is
+// the header itself and so needs no sticky copy of itself.
+func groupHeader(groups []int, top int) int {
+	if top < 0 || top >= len(groups) || groups[top] == top {
+		return -1
+	}
+	return groups[top]
 }
 
 // rowsPerPage is what a page key moves by: the rows that fit, at least one.

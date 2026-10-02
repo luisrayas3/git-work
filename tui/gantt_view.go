@@ -40,19 +40,16 @@ func (p *ganttPage) View() string {
 	bottom := p.bottom()
 	labelWidth, visible := p.layout()
 	header := p.headerLines(labelWidth, visible)
-	body, cursorLine := p.body(labelWidth, visible)
+	body, groups, cursorLine := p.body(labelWidth, visible)
 
 	// one line for the call, the header, the rest for the chart, the bottom
 	// for whatever is open and the status line
 	room := max(p.height-1-len(header)-len(bottom), 1)
-	scroll(&p.top, cursorLine, room, len(body))
 
 	lines := make([]string, 0, p.height)
 	lines = append(lines, callLine(p.call, "", "", p.width))
 	lines = append(lines, header...)
-	for at := p.top; at < min(p.top+room, len(body)); at++ {
-		lines = append(lines, body[at])
-	}
+	lines = append(lines, window(&p.top, body, groups, cursorLine, room)...)
 	for len(lines) < p.height-len(bottom) {
 		lines = append(lines, "")
 	}
@@ -176,12 +173,14 @@ func (p *ganttPage) headerLines(labelWidth, visible int) []string {
 	return []string{fit(first, p.width), fit(second, p.width), fit(third, p.width)}
 }
 
-// body draws every row, and says which line the cursor's row is on.
-func (p *ganttPage) body(labelWidth, visible int) (lines []string, cursorLine int) {
+// body draws every row, says which line the cursor's row is on, and which
+// group header each line sits under so that header can be kept on screen.
+func (p *ganttPage) body(labelWidth, visible int) (lines []string, groups []int, cursorLine int) {
 	colors := p.groupColors()
 	w := periodWidth(p.scale)
 	cross := labelWidth + 1 + (p.col-p.colOffset)*w
 	group := ""
+	headerAt := -1
 	for at, index := range p.order {
 		node := &p.nodes[index]
 		// a group is the root's: its children follow it into the group
@@ -198,14 +197,17 @@ func (p *ganttPage) body(labelWidth, visible int) (lines []string, cursorLine in
 			if rest := ansi.Cut(text, cross+w, p.width); rest != "" {
 				line += header.Render(rest)
 			}
+			headerAt = len(lines)
 			lines = append(lines, fit(line, p.width))
+			groups = append(groups, headerAt)
 		}
 		if at == p.cursor {
 			cursorLine = len(lines)
 		}
 		lines = append(lines, p.rowLine(index, labelWidth, visible, at == p.cursor, index == p.grabbed, colors[group]))
+		groups = append(groups, headerAt)
 	}
-	return lines, cursorLine
+	return lines, groups, cursorLine
 }
 
 // groupColors gives each group but the ungrouped a color, in the order the

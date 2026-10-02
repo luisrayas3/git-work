@@ -21,19 +21,16 @@ func (p *boardPage) View() string {
 	bottom := p.bottom()
 	width, visible := p.layout()
 	header := p.headerLines(width, visible)
-	body, cursorLine := p.body(width, visible)
+	body, groups, cursorLine := p.body(width, visible)
 
 	// one line for the call, the header and its rule, the rest for the
 	// board, the bottom for whatever is open and the status line
 	room := max(p.height-1-len(header)-len(bottom), 1)
-	scroll(&p.top, cursorLine, room, len(body))
 
 	lines := make([]string, 0, p.height)
 	lines = append(lines, callLine(p.call, "", "", p.width))
 	lines = append(lines, header...)
-	for at := p.top; at < min(p.top+room, len(body)); at++ {
-		lines = append(lines, body[at])
-	}
+	lines = append(lines, window(&p.top, body, groups, cursorLine, room)...)
 	for len(lines) < p.height-len(bottom) {
 		lines = append(lines, "")
 	}
@@ -97,15 +94,19 @@ func (p *boardPage) headerLines(width, visible int) []string {
 	return []string{fit(header, p.width), styleDim.Render(fit(strings.Join(rule, "─┼─"), p.width))}
 }
 
-// body draws every lane, the visible columns side by side, and says which
-// line the cursor's card starts on so the window can be scrolled to it.
-func (p *boardPage) body(width, visible int) (lines []string, cursorLine int) {
+// body draws every lane, the visible columns side by side, says which line
+// the cursor's card starts on so the window can be scrolled to it, and which
+// lane header each line sits under so that header can be kept on screen.
+func (p *boardPage) body(width, visible int) (lines []string, groups []int, cursorLine int) {
 	gap := styleDim.Render(" │ ")
 	blank := pad("", width)
 
 	for l, la := range p.lanes {
+		headerAt := -1
 		if p.groupBy != "" {
+			headerAt = len(lines)
 			lines = append(lines, styleGroup.Render(fit(la.group, p.width)))
+			groups = append(groups, headerAt)
 		}
 
 		columns := make([][]string, 0, visible)
@@ -129,9 +130,10 @@ func (p *boardPage) body(width, visible int) (lines []string, cursorLine int) {
 				}
 			}
 			lines = append(lines, fit(strings.Join(cells, gap), p.width))
+			groups = append(groups, headerAt)
 		}
 	}
-	return lines, cursorLine
+	return lines, groups, cursorLine
 }
 
 // stackLines draws one column of one lane, a card at a time, and says which

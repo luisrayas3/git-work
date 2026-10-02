@@ -315,6 +315,28 @@ What a direction means is the kind's business:
 Nesting adds `Tab` into the first child, `Shift-Tab` to the parent,
 and `z` to fold and unfold (built 2026-09-28, Nesting below).
 
+**A grouped view keeps the current group's header on the top line**
+(2026-10-02, Luis).
+Every kind draws its body as one canvas,
+a `group_by` header before each group's rows,
+and the window scrolls over that canvas to follow the cursor.
+Moving up onto a group's first row therefore used to put that row on the top line
+and its header one line above the window:
+unreachable — nothing scrolls to it,
+since the scroll follows the cursor and the cursor cannot stand on a header —
+and the rows at the top of the screen lost the only thing
+that said which group they were in.
+So when the window opens on a line that is not itself a header,
+its first line is the header of the group that line belongs to,
+and the rows start one line lower, the cursor's among them;
+a window opening on a header is unchanged.
+The sticky line is the header as the page drew it,
+so what it carries comes with it:
+the gantt's crosshair and its group tint, the board's per-lane line.
+One helper does this for the three kinds — `window` in `tui/list_view.go` —
+each page saying, alongside its lines,
+which header line every one of them sits under.
+
 **Grab replaces every drag binding.**
 A terminal has no drag, and a modifier-plus-arrow vocabulary
 collides with everything the three key families already claim.
