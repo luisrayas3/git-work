@@ -272,6 +272,9 @@ the tree indents the id behind `▾`/`▸`, `z` folds,
 a list's `↑`/`↓` stay on the level, a rank moves a row among its siblings with its subtree,
 and a parent with no dates draws its children's envelope on the gantt
 (2026-09-28, `doc/design/terminal-renderer.md`, Gantt and Nesting).
+With `group_by` bound, every kind keeps the current group's header on the first body line,
+because a header scrolled off the top cannot be reached
+and the rows under it lose their label (2026-10-02).
 `C-Enter` and `F2` are gone, because `C-Enter` is `Enter` on most terminals (2026-09-28).
 The terminal's own copy and paste keys stay the terminal's,
 `C-c`/`y`/`M-w` copy the cell under the cursor and `M-c`/`Y` the id

@@ -371,6 +371,55 @@ func TestBoardColumnsComeFromTheTypesOnTheBoard(t *testing.T) {
 	require.Equal(t, "active", fieldOf(t, repo, iteration.String(), "status"))
 }
 
+// TestGroupedBoardKeepsTheLaneHeaderOnTop: a window too small for the board
+// still opens on the header of the lane its first line is in, whether the
+// cursor is on that lane's first card or deeper in it, because a lane header
+// scrolled off the top cannot be reached and the cards under it lose the
+// lane they are in.
+func TestGroupedBoardKeepsTheLaneHeaderOnTop(t *testing.T) {
+	repo := testRepo(t)
+	for _, priority := range []string{"low", "medium", "high"} {
+		// the titles say nothing of the priority, so only the lane's own
+		// header can put it on the screen
+		for _, title := range []string{"one", "two"} {
+			newIssue(t, repo, map[string]any{"title": title, "status": "to-do", "priority": priority})
+		}
+	}
+
+	page := board(t, repo, `{"columns":"status","group_by":"priority"}`)
+	page.Update(tea.WindowSizeMsg{Width: 140, Height: 14})
+	require.Len(t, page.lanes, 3)
+
+	// the middle lane, and the two cards in it in the order they are drawn
+	lane := page.lanes[1]
+	var stack []int
+	for _, cards := range lane.stacks {
+		if len(cards) > 0 {
+			stack = cards
+		}
+	}
+	require.Len(t, stack, 2)
+	first, second := page.cards[stack[0]].human, page.cards[stack[1]].human
+
+	// down to the last card of the last lane: the window opens in the middle
+	// of the lane above, so its header is the first body line over cards
+	// that are not the ones it starts with
+	page = send(page, "j", "j", "j", "j", "j").(*boardPage)
+	drawn := plainView(page)
+	lines := strings.Split(drawn, "\n")
+	require.Contains(t, lines[3], lane.group, "the window opens on the lane's header")
+	require.NotContains(t, drawn, first, "the lane's first card is above the window")
+	require.Contains(t, drawn, second, "its second is in it")
+	require.Contains(t, drawn, page.currentId()[:idWidth], "the cursor's card is on screen")
+
+	// and back up onto that lane's first card, the header is still above it
+	page = send(page, "k", "k", "k").(*boardPage)
+	require.Equal(t, page.cards[stack[0]].id, page.currentId())
+	lines = strings.Split(plainView(page), "\n")
+	require.Contains(t, lines[3], lane.group, "the lane's header is the first body line")
+	require.Contains(t, lines[4], first, "the cursor's card is right under it")
+}
+
 func columnLabels(p *boardPage) []string {
 	labels := make([]string, 0, len(p.columns))
 	for _, column := range p.columns {
