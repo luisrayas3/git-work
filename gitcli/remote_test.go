@@ -1,6 +1,8 @@
 package gitcli
 
 import (
+	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -167,4 +169,78 @@ func configValues(t *testing.T, dir, key string) []string {
 	require.NoError(t, err)
 
 	return strings.Split(strings.TrimSpace(string(out)), "\n")
+}
+
+// A remote that caps the refs one push may update, the way GitHub's "limit
+// how many branches and tags can be updated in a single push" rule does,
+// gets the refs it refused in pushes of that size.
+func TestPushUnderRefUpdateCap(t *testing.T) {
+	rawA, _, remote, a, _ := setupRemote(t)
+
+	hooks := t.TempDir()
+	log := filepath.Join(hooks, "log")
+	require.NoError(t, os.WriteFile(filepath.Join(hooks, "pre-receive"), []byte(
+		"#!/bin/sh\n"+
+			"n=$(wc -l | tr -d ' ')\n"+
+			"echo \"$n\" >> "+log+"\n"+
+			"if [ \"$n\" -gt 2 ]; then\n"+
+			"  echo '- Pushes can not update more than 2 branches or tags.' >&2\n"+
+			"  exit 1\n"+
+			"fi\n"), 0o700))
+	gitConfig(t, remote.GetLocalRemote(), "core.hooksPath", hooks)
+
+	want := make(map[string]repository.Hash)
+	for i := range 5 {
+		ref := fmt.Sprintf("refs/foo/%d", i)
+		want[ref] = commitRef(t, rawA, ref, ref)
+	}
+	want["refs/bar/1"] = commitRef(t, rawA, "refs/bar/1", "bar")
+
+	// A ref already on the remote is not pushed again.
+	_, err := a.PushRefs("origin", "bar")
+	require.NoError(t, err)
+
+	_, err = a.PushRefs("origin", "foo", "bar")
+	require.NoError(t, err)
+
+	for ref, hash := range want {
+		got, err := remote.ResolveRef(ref)
+		require.NoError(t, err, ref)
+		require.Equal(t, hash, got, ref)
+
+		got, err = rawA.ResolveRef("refs/remotes/origin/" + strings.TrimPrefix(ref, "refs/"))
+		require.NoError(t, err, ref)
+		require.Equal(t, hash, got, ref)
+	}
+
+	// The bar push, the refused push of the five that differed, then those five two at a time.
+	counts, err := os.ReadFile(log)
+	require.NoError(t, err)
+	require.Equal(t, "1\n5\n2\n2\n1\n", string(counts))
+
+	out, err := a.PushRefs("origin", "foo", "bar")
+	require.NoError(t, err)
+	require.NotEmpty(t, out)
+}
+
+// What GitHub answered a three-ref push on 2026-10-02, abridged.
+const gitHubCapRejection = `git push: remote: error: GH013: Repository rule violations found for refs/work-issues/d3d5.
+remote: - Pushes can not update more than 2 branches or tags.
+To github.com:chef-robotics/ChefAutonomy.git
+ ! [remote rejected]       refs/work-issues/d3d5 -> refs/work-issues/d3d5 (push declined due to repository rule violations)
+ ! [remote rejected]       refs/work-issues/21e1 -> refs/work-issues/21e1 (push declined due to repository rule violations)
+ ! [remote rejected]       refs/work-issues/c2e7 -> refs/work-issues/c2e7 (push declined due to repository rule violations)
+error: failed to push some refs to 'github.com:chef-robotics/ChefAutonomy.git'`
+
+func TestRefUpdateCap(t *testing.T) {
+	limit, refused := refUpdateCap(errors.New(gitHubCapRejection))
+	require.Equal(t, 2, limit)
+	require.Equal(t, []string{
+		"refs/work-issues/d3d5:refs/work-issues/d3d5",
+		"refs/work-issues/21e1:refs/work-issues/21e1",
+		"refs/work-issues/c2e7:refs/work-issues/c2e7",
+	}, refused)
+
+	limit, _ = refUpdateCap(errors.New("git push: ! [rejected] refs/foo/1 -> refs/foo/1 (non-fast-forward)"))
+	require.Equal(t, 0, limit)
 }

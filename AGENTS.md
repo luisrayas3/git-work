@@ -362,6 +362,12 @@ Gotchas, hardened from use:
   A flow you archived before that day may be back; archive it again.
 - Do not `git work push` without explicit intent;
   it publishes the tracker to `origin`.
+- A GitHub remote may cap the refs one push can update
+  (`GH013 … Pushes can not update more than N branches or tags`,
+  enforced on these namespaces too, and on `chef-robotics/ChefAutonomy`
+  with no ruleset in sight, 2026-10-02).
+  `PushRefs` then pushes the refs the rejection lists N at a time,
+  silently, so a first push of a large store takes minutes, not forever.
 - `termui` and `webui` need a real TTY; a human runs them, not the agent.
   Both read the frozen `refs/issues/*` copy, not the tracker.
 
