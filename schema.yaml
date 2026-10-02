@@ -245,3 +245,30 @@ types:
         name: Capacity
         description: Story points the team commits to, in the unit estimate uses.
       rank: *rank
+
+  # How much of whom goes to which work in which iteration
+  # (doc/design/allocations.md). An allocation is a plan, not a piece of work,
+  # so it has no status — it is true, or it is archived — and no rank: a
+  # matrix's order is its axes'. The two relations take two inverse names
+  # because an inverse is unique within the type that holds it.
+  allocation:
+    name: Allocation
+    description: How much of one person's iteration goes to one piece of work.
+    fields:
+      iteration:
+        kind: relation
+        name: Iteration
+        description: The iteration the effort is spent in.
+        inverse: allocations
+        target_types: [iteration]
+      work:
+        kind: relation
+        name: Work
+        description: The work the effort goes to.
+        inverse: staffing
+        target_types: [epic, story]
+      assignee: *assignee
+      points:
+        kind: number
+        name: Points
+        description: The effort allocated, in the unit estimate uses.
