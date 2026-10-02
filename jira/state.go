@@ -27,7 +27,7 @@ type State struct {
 	FailedAfter string                `json:"failed_after,omitempty"`
 	Refused     map[entity.Id]refusal `json:"refused,omitempty"` // creates Jira answered and did not make (JS15)
 	// Orphans are the hits skipped because their property names an entity
-	// this clone does not have, by Jira id, until the Index knows the id (JS27).
+	// this clone does not have, by Jira id, until the Index knows the id.
 	Orphans map[string]Orphan `json:"orphans,omitempty"`
 }
 

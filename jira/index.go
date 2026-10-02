@@ -16,13 +16,13 @@ import (
 // identities by jira-account-id.
 // It is built once per run and extended as the run imports and creates.
 // Of two issues naming one Jira id,
-// the one that reached Jira first is the Jira id's (JS27).
+// the one that reached Jira first is the Jira id's.
 type Index struct {
 	issues     map[string]entity.Id // Jira issue id -> issue
 	jiraIssues map[entity.Id]string
 	users      map[string]entity.Id // accountId -> identity
 	accounts   map[entity.Id]string
-	absent     map[string]Orphan // Jira issue id -> the orphan the state remembers (JS27)
+	absent     map[string]Orphan // Jira issue id -> the orphan the state remembers
 }
 
 // NewIndex reads every excerpt once.
@@ -36,7 +36,7 @@ func NewIndex(repo *cache.RepoCache) (*Index, error) {
 		if jid := e.CreateMetadata[MetaId]; jid != "" {
 			// two issues naming one Jira id:
 			// the one that reached Jira first wins, ties to the lower id,
-			// whatever either has archived (JS27); scan consolidates the other
+			// whatever either has archived; scan consolidates the other
 			if other, ok := issues[jid]; !ok {
 				issues[jid] = id
 			} else if winner, err := firstToSync(repo, id, other); err != nil {
@@ -120,14 +120,14 @@ func (ix *Index) addUser(accountId string, id entity.Id) {
 }
 
 // Absent is the orphan the state remembers for a Jira id:
-// an issue created from an entity this clone does not have (JS27).
+// an issue created from an entity this clone does not have.
 func (ix *Index) Absent(jiraId string) (Orphan, bool) {
 	o, ok := ix.absent[jiraId]
 	return o, ok
 }
 
 // waiting is why a relation target is not imported yet,
-// naming the orphan skip that causes it when the state remembers one (JS27).
+// naming the orphan skip that causes it when the state remembers one.
 func (ix *Index) waiting(jiraId, key string) string {
 	o, ok := ix.absent[jiraId]
 	if !ok {
@@ -141,7 +141,7 @@ func (ix *Index) waiting(jiraId, key string) string {
 // the one whose first contact with Jira is earliest, on Jira's clock;
 // at one second an export before an import,
 // since its POST is what the import read;
-// then the lower entity id (JS27).
+// then the lower entity id.
 // Every input is an immutable fact of the issue's own history,
 // so every clone holding both agrees, whatever either has archived.
 func firstToSync(repo *cache.RepoCache, a, b entity.Id) (entity.Id, error) {

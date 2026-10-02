@@ -27,7 +27,7 @@ type Options struct {
 	Settle                      time.Duration // default 15m: how long an unanswered create stays in doubt (JS15)
 	MaxDeletes                  int           // default 10
 	// Adopt is how long an entity a Jira issue's property names
-	// may stay unarrived before the issue is imported anyway (JS27);
+	// may stay unarrived before the issue is imported anyway;
 	// nil never adopts, and 0 adopts whatever the run meets.
 	Adopt *time.Duration
 }
@@ -68,7 +68,7 @@ func Sync(ctx context.Context, repo *cache.RepoCache, c *jiraapi.Client, p *Proj
 	if len(opts.Ids) == 0 && !opts.DryRun {
 		st.Cursor = e.cursor.UTC()
 	}
-	// an orphan is forgotten once the Index knows its Jira id (JS27)
+	// an orphan is forgotten once the Index knows its Jira id
 	for jid := range st.Orphans {
 		if _, ok := e.ix.Issue(jid); ok {
 			delete(st.Orphans, jid)

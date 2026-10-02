@@ -29,7 +29,7 @@ type hit struct {
 // local is one scan of the excerpts.
 type local struct {
 	linked   []entity.Id // jira-id set, and the Index's winner for it
-	losers   []entity.Id // jira-id set, another issue the Index's winner for it: consolidated (JS27)
+	losers   []entity.Id // jira-id set, another issue the Index's winner for it: consolidated
 	requests []entity.Id // alias:jira and no jira-id (JS15)
 	creates  []entity.Id // unlinked, unaliased, of a mapped type, unarchived
 	byId     map[entity.Id]*cache.IssueExcerpt
@@ -52,7 +52,7 @@ func (e *engine) scan() (*local, error) {
 				l.linked = append(l.linked, id)
 			} else if !isArchived(ex.Fields) {
 				// A2: never two local issues exporting to one Jira issue;
-				// an archived one is consolidated already (JS27)
+				// an archived one is consolidated already
 				l.losers = append(l.losers, id)
 			}
 		case ex.CreateMetadata[MetaAlias] != "":
@@ -127,7 +127,7 @@ func (e *engine) runAll() error {
 		}
 	}
 	// before the search, so the loser's last writes return its Jira issue
-	// as a hit of this run, and the winner imports them now (JS27)
+	// as a hit of this run, and the winner imports them now
 	for _, id := range l.losers {
 		ic, err := e.repo.Issues().Resolve(id)
 		if err != nil {
@@ -380,7 +380,7 @@ func (e *engine) runHit(h hit, owner map[entity.Id]string, l *local) error {
 		switch {
 		case !ok:
 			// A2: another clone's export; importing it would duplicate the
-			// entity, unless the person's bound says it is lost (JS27)
+			// entity, unless the person's bound says it is lost
 			if e.adoptable(h.created) {
 				return e.importIssue(h.id, h.prop)
 			}
@@ -406,12 +406,12 @@ func (e *engine) runHit(h hit, owner map[entity.Id]string, l *local) error {
 }
 
 // adoptable says an issue created from an absent entity is old enough
-// to import anyway: the person's bound, on Jira's clock (JS27).
+// to import anyway: the person's bound, on Jira's clock.
 func (e *engine) adoptable(created time.Time) bool {
 	return e.opts.Adopt != nil && !created.IsZero() && e.now().Sub(created) >= *e.opts.Adopt
 }
 
-// orphan records and reports a hit skipped for an absent entity (JS27),
+// orphan records and reports a hit skipped for an absent entity,
 // so a child waiting on it can name the cause this run and the next.
 func (e *engine) orphan(h hit) {
 	o := Orphan{Key: h.key, From: h.prop, Created: h.created}
@@ -470,7 +470,7 @@ func (e *engine) repass() error {
 	return nil
 }
 
-// ---- consolidation (JS27) ----
+// ---- consolidation ----
 
 // consolidate archives a second local copy of one Jira issue
 // into the copy that reached Jira first:
