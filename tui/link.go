@@ -12,9 +12,8 @@ import (
 // A relation field holds the other issue's whole id (AGENTS.md: cross-issue
 // relationships are fields whose value is an entity.Id). Nobody reads a
 // 64-character hash, so the renderer draws it as the issue it names — short
-// id and title — and enter opens its picker on "go to" that issue
-// (relationChoices), so enter, enter follows it, which is what makes it a
-// link.
+// id and title — and enter on it opens that issue, which is what makes it a
+// link, while space opens its picker (relationChoices) like any other edit.
 
 // isRelation says whether a kind's values are issue ids.
 func isRelation(kind schema.Kind) bool {
@@ -66,8 +65,8 @@ func linkText(repo *cache.RepoCache, ids []string) string {
 
 // A people field (an assignee, a reporter) holds an identity's whole id, and
 // is drawn as the person's name the same way (host.UserName). It is not a
-// link: there is no page for a person, so enter on it edits it, and the
-// picker lists names and writes the id (identityChoices).
+// link: there is no page for a person, so space on it edits it like any
+// field, and the picker lists names and writes the id (identityChoices).
 
 // isPerson says whether a kind's value is an identity id.
 func isPerson(kind schema.Kind) bool {
@@ -113,11 +112,11 @@ func (k *kinds) of(typeKey, fieldKey string) schema.Kind {
 	return kind
 }
 
-// relationHint is the status line on a relation cell: what enter does there,
-// which on an empty one is change alone.
+// relationHint is the status line on a relation cell: what enter and space do
+// there, which on an empty one is change alone.
 func relationHint(linked bool) string {
 	if linked {
-		return "enter: go to · change"
+		return "enter: go to · space: change"
 	}
-	return "enter: change"
+	return "space: change"
 }

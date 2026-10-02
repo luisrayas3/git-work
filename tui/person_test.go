@@ -66,7 +66,7 @@ func TestEditAPersonPicksANameAndWritesTheId(t *testing.T) {
 	id := newIssue(t, repo, map[string]any{"title": "one", "assignee": ada})
 
 	page := list(t, repo, `{"fields":["title","assignee"]}`)
-	page = send(page, "l", "l", "enter").(*listPage)
+	page = send(page, "l", "l", "space").(*listPage)
 	require.NotNil(t, page.editor)
 	picker := page.editor.picker
 	require.Equal(t, ada, picker.items[picker.cursor].value, "opens on the current value")

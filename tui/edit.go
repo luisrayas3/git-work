@@ -57,14 +57,8 @@ type choice struct {
 	dim   string
 	value string
 
-	// goTo is a relation's "go to" entry: enter on it opens the issue it
-	// names instead of writing anything. They head the picker, set apart.
-	goTo bool
 	// current marks the value the field holds now.
 	current bool
-	// refusal is a choice that says why it cannot be made: enter on it
-	// rings the bell and says this.
-	refusal string
 }
 
 // editable decides what editing a field means here, given the live schema.
@@ -98,25 +92,15 @@ func editable(repo *cache.RepoCache, issueId, typeKey, fieldKey string, current 
 		if err != nil {
 			return nil, "", err
 		}
-		picker := newPicker(targets, plainValue(current))
-		if plainValue(current) != "" {
-			// on "go to", so that enter, enter follows the link
-			picker.cursor = 0
-		}
-		return &editor{issueId: issueId, key: fieldKey, kind: kind, picker: picker}, "", nil
+		// the picker opens on the current value: going to it is enter on
+		// the cell, and never a choice here (2026-10-02)
+		return &editor{issueId: issueId, key: fieldKey, kind: kind, picker: newPicker(targets, plainValue(current))}, "", nil
 
 	case schema.KindMultiRelation:
-		// "go to" each issue it names; changing the set is add and remove,
-		// two host calls, so two commits, which one edit must not be
-		// (doc/design/terminal-renderer.md, 2026-09-29)
-		refusal := fmt.Sprintf("%s: use git work issue add/remove", fieldKey)
-		ids := linkIds(current)
-		if len(ids) == 0 {
-			return nil, refusal, nil
-		}
-		items := goToChoices(repo, ids)
-		items = append(items, choice{label: "add / remove…", dim: "git work issue add/remove", refusal: refusal})
-		return &editor{issueId: issueId, key: fieldKey, kind: kind, picker: &picker{items: items}}, "", nil
+		// changing the set is add and remove, two host calls, so two
+		// commits, which one edit must not be (doc/design/terminal-renderer.md,
+		// 2026-09-29); enter on a line still goes to its issue
+		return nil, fmt.Sprintf("%s: use git work issue add/remove", fieldKey), nil
 
 	case schema.KindText, schema.KindNumber, schema.KindDate:
 		input := textinput.New()
@@ -255,9 +239,6 @@ func relationChoices(repo *cache.RepoCache, issueId, typeKey, fieldKey, current 
 	})
 
 	var out []choice
-	if current != "" {
-		out = goToChoices(repo, []string{current})
-	}
 	for _, c := range found {
 		out = append(out, choice{label: linkLabel(repo, c.id), dim: c.typeKey, value: c.id, current: c.id == current})
 	}
@@ -265,20 +246,10 @@ func relationChoices(repo *cache.RepoCache, issueId, typeKey, fieldKey, current 
 	return out, nil
 }
 
-// goToChoices are the "go to" entries that head a relation's picker, one
-// per issue the field names.
-func goToChoices(repo *cache.RepoCache, ids []string) []choice {
-	out := make([]choice, 0, len(ids))
-	for _, id := range ids {
-		out = append(out, choice{label: "→ go to " + linkLabel(repo, id), value: id, goTo: true})
-	}
-	return out
-}
-
 func newPicker(items []choice, current string) *picker {
 	p := &picker{items: items}
 	for at, item := range items {
-		if item.value == current && !item.goTo {
+		if item.value == current {
 			p.cursor = at
 		}
 	}
@@ -296,9 +267,6 @@ func (e *editor) paste(text string) string {
 		return ""
 	}
 	for at, item := range e.picker.items {
-		if item.goTo || item.refusal != "" {
-			continue
-		}
 		if item.value != "" && (strings.EqualFold(item.value, text) || strings.EqualFold(item.label, text)) {
 			e.picker.cursor = at
 			return ""
@@ -307,7 +275,7 @@ func (e *editor) paste(text string) string {
 	// an issue is pasted as its id, whole or short, as every command takes it
 	if e.kind == schema.KindRelation && len(text) >= 4 {
 		for at, item := range e.picker.items {
-			if !item.goTo && item.value != "" && strings.HasPrefix(item.value, strings.ToLower(text)) {
+			if item.value != "" && strings.HasPrefix(item.value, strings.ToLower(text)) {
 				e.picker.cursor = at
 				return ""
 			}
@@ -430,63 +398,18 @@ func (e *editor) View(width int) []string {
 		switch {
 		case index == e.picker.cursor:
 			marker = "> "
-			label = styleCursor.Underline(item.goTo).Render(text) + pad("", labelWidth-ansi.StringWidth(text))
-		case item.goTo:
-			// a link, drawn as a link is
-			label = styleLink.Render(text) + pad("", labelWidth-ansi.StringWidth(text))
-		case item.refusal != "":
-			label = styleDim.Render(label)
+			label = styleCursor.Render(text) + pad("", labelWidth-ansi.StringWidth(text))
 		}
 		dim := item.dim
 		if item.current {
 			dim = "● current  " + dim
 		}
 		lines = append(lines, fit(marker+label+styleDim.Render(dim), width))
-		// the go-to entries are set apart from the values under them
-		if item.goTo && (index+1 >= len(e.picker.items) || !e.picker.items[index+1].goTo) {
-			lines = append(lines, styleDim.Render(fit("  "+strings.Repeat("─", labelWidth), width)))
-		}
 	}
-	switch {
-	case e.picker.narrowing != nil:
+	if e.picker.narrowing != nil {
 		return append(lines, styleDim.Render("enter keeps · esc clears"))
-	case e.goTo() != "":
-		return append(lines, styleDim.Render("enter goes to · esc cancels"))
 	}
 	return append(lines, styleDim.Render("enter saves · esc cancels"))
-}
-
-// goTo is the issue to open when the editor was closed on a "go to" entry.
-func (e *editor) goTo() string {
-	if e.picker == nil || !e.picker.matches(e.picker.cursor) {
-		return ""
-	}
-	if item := e.picker.items[e.picker.cursor]; item.goTo {
-		return item.value
-	}
-	return ""
-}
-
-// refusal is why the choice the editor was closed on cannot be made.
-func (e *editor) refusal() string {
-	if e.picker == nil || !e.picker.matches(e.picker.cursor) {
-		return ""
-	}
-	return e.picker.items[e.picker.cursor].refusal
-}
-
-// goToFirst puts the cursor on the "go to" entry for one issue, which is the
-// line of a multi-relation the cursor was on.
-func (e *editor) goToFirst(id string) {
-	if e.picker == nil {
-		return
-	}
-	for at, item := range e.picker.items {
-		if item.goTo && item.value == id {
-			e.picker.cursor = at
-			return
-		}
-	}
 }
 
 // pickerRows is as many choices as a picker draws at once.
@@ -502,10 +425,6 @@ func (p *picker) matches(at int) bool {
 	item := p.items[at]
 	if p.query == "" {
 		return true
-	}
-	if item.goTo || item.refusal != "" {
-		// narrowing is looking for a value; these are not values
-		return false
 	}
 	query := strings.ToLower(p.query)
 	return strings.Contains(strings.ToLower(item.label), query) ||

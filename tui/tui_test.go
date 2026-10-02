@@ -77,6 +77,10 @@ func press(spelling string) tea.KeyPressMsg {
 	switch spelling {
 	case "enter":
 		return tea.KeyPressMsg{Code: tea.KeyEnter}
+	case "alt+enter":
+		return tea.KeyPressMsg{Code: tea.KeyEnter, Mod: tea.ModAlt}
+	case "shift+enter":
+		return tea.KeyPressMsg{Code: tea.KeyEnter, Mod: tea.ModShift}
 	case "esc":
 		return tea.KeyPressMsg{Code: tea.KeyEscape}
 	case "up":
@@ -226,7 +230,7 @@ func TestTheCommandIsOneShellWord(t *testing.T) {
 }
 
 // TestALinkIsTheIssueItNames: a relation cell is the short id and title of
-// the issue it holds, and enter, enter on it opens that issue, not the row's.
+// the issue it holds, and enter on it opens that issue, not the row's.
 func TestALinkIsTheIssueItNames(t *testing.T) {
 	repo := testRepo(t)
 	story := newIssue(t, repo, map[string]any{"type": "story", "title": "the story"})
@@ -237,7 +241,7 @@ func TestALinkIsTheIssueItNames(t *testing.T) {
 	require.Contains(t, drawn, story[:7]+" the story")
 	require.NotContains(t, drawn, story)
 
-	page = send(page, "l", "l", "enter").(*listPage)
+	page = send(page, "l", "l").(*listPage)
 	_, cmd := page.Update(press("enter"))
 	require.NotNil(t, cmd)
 	pushed := cmd().(pushMsg)

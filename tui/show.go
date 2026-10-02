@@ -27,10 +27,11 @@ import (
 // reason for two.
 //
 // The page is four stops, top to bottom: the header (type, title, archived),
-// the fields table, the comment box with its buttons inside it, and the tabs
-// — description, comments, log. The cursor opens in the box, because opening
-// an issue to say something about it is the common case
-// (doc/design/terminal-renderer.md, revised 2026-09-28).
+// the fields table, the comment box, and the tabs — description, comments,
+// log. The cursor opens on the box, because opening an issue to say something
+// about it is the common case, but not typing: space is what puts it in the
+// text, as space is what edits a cell (doc/design/terminal-renderer.md,
+// revised 2026-10-02).
 type showPage struct {
 	repo *cache.RepoCache
 
@@ -46,14 +47,13 @@ type showPage struct {
 	// drawn as rows after the fields (show_children.go)
 	children []view.Children
 
-	box     *commentBox
-	buttons []button
+	box *commentBox
 
 	// focus is the stop the cursor is in; it opens on the box.
 	focus stopKind
-	// button is where the cursor is inside the box: -1 for the text, else
-	// the button it is on in the footer.
-	button int
+	// typing says the cursor is in the box's text, where keys are text;
+	// space on the box starts it, and enter (sent) or esc ends it.
+	typing bool
 	// cell is the header cell under the cursor, kept while the cursor is
 	// elsewhere, like row; it starts on the title.
 	cell int
@@ -76,16 +76,6 @@ type showPage struct {
 	offset        int
 	width, height int
 	status        string
-}
-
-// button is one action in the comment box's footer.
-//
-// There is one today. Actions injected into views (deferred) land here, so a
-// view invocation that names "comment and close" gets a second button beside
-// the first.
-type button struct {
-	label string
-	press func(p *showPage) tea.Cmd
 }
 
 // stopKind is one of the four places the cursor can be.
@@ -121,14 +111,11 @@ func (t tab) String() string {
 	return [...]string{"description", "comments", "log"}[t]
 }
 
-// position is where the cursor is: a stop, and inside the box, which part of
-// it — the text, or one of its buttons. The buttons are the box's own and not
-// stops: Tab skips the block whole, and down from the text's last line is
-// how the footer is reached, so that sending a comment is down, enter on
-// every terminal there is.
+// position is where the cursor is: a stop, and on the box, whether it is in
+// the text typing.
 type position struct {
 	stop   stopKind
-	button int // -1 for the text
+	typing bool
 }
 
 // tableRow is one line of the fields table. A field that links several
@@ -163,8 +150,7 @@ func newShowPage(repo *cache.RepoCache, id string, fields []string) (*showPage, 
 	p.call = &view.Call{Kind: view.KindShow, Args: args}
 
 	p.box = newCommentBox(p.width)
-	p.buttons = []button{{label: "Submit comment", press: (*showPage).submitComment}}
-	p.focus, p.button, p.cell = stopBox, -1, cellTitle
+	p.focus, p.cell = stopBox, cellTitle
 	return p, nil
 }
 
@@ -264,20 +250,14 @@ func (p *showPage) stops() []stopKind {
 
 func (p *showPage) current() position {
 	if p.focus == stopFields && len(p.rows) == 0 {
-		p.focus, p.button = stopBox, -1
+		p.focus = stopBox
 	}
-	button := -1
-	if p.focus == stopBox {
-		p.button = min(max(p.button, -1), len(p.buttons)-1)
-		button = p.button
-	}
-	return position{stop: p.focus, button: button}
+	return position{stop: p.focus, typing: p.focus == stopBox && p.typing}
 }
 
 // inText says the cursor is in the comment box's text, where keys are typing.
 func (p *showPage) inText() bool {
-	here := p.current()
-	return here.stop == stopBox && here.button < 0
+	return p.current().typing
 }
 
 // currentRow is the table row under the cursor, when the cursor is in the
@@ -301,28 +281,33 @@ func (p *showPage) field() string {
 	return ""
 }
 
-// moveFocus steps through the stops, into the box's text when it reaches the
-// box.
+// moveFocus steps through the stops; the box is one, and reaching it is not
+// typing in it.
 func (p *showPage) moveFocus(by int) {
 	all := p.stops()
 	at := slices.Index(all, p.current().stop)
-	p.focusStop(all[(at+by+len(all))%len(all)], -1)
+	p.focusStop(all[(at+by+len(all))%len(all)])
 }
 
-// focusStop moves to a stop; in the box, to its text or one of its buttons.
-// The box gets the keyboard only while the cursor is in its text.
-func (p *showPage) focusStop(stop stopKind, button int) {
+// focusStop moves to a stop, out of the box's text whatever it is.
+func (p *showPage) focusStop(stop stopKind) {
 	if stop == stopFields && len(p.rows) == 0 {
-		stop, button = stopBox, -1
+		stop = stopBox
 	}
-	p.focus, p.button = stop, button
-	here := p.current()
-	p.box.focus(here.stop == stopBox && here.button < 0)
+	p.focus = stop
+	p.setTyping(false)
 	p.warned = false
 	if stop == stopTabs {
 		// the strip comes to the top, so the tab under it has the room
 		p.offset = p.tabBarLine()
 	}
+}
+
+// setTyping puts the cursor in the box's text or takes it out: the box gets
+// the keyboard only while it is in.
+func (p *showPage) setTyping(on bool) {
+	p.typing = on && p.focus == stopBox
+	p.box.focus(p.typing)
 }
 
 // switchTab shows the next or the previous tab, where the cursor is.
@@ -444,6 +429,8 @@ func (p *showPage) key(press tea.KeyPressMsg) (page, tea.Cmd) {
 
 	case keys.act.matches(press):
 		return p, p.act(here)
+	case keys.edit.matches(press):
+		return p, p.edit(here)
 
 	case keys.copyId.matches(press):
 		p.status = "copied " + p.id
@@ -463,20 +450,19 @@ func (p *showPage) key(press tea.KeyPressMsg) (page, tea.Cmd) {
 
 // down is within a stop first, and to the next stop at its edge, so that the
 // directions alone walk the whole page. In the box's text it is the text's
-// own key, until its last line (textKey).
+// own key (textKey).
 func (p *showPage) down(here position) {
 	switch here.stop {
 	case stopHeader:
-		p.focusStop(stopFields, -1)
+		p.focusStop(stopFields)
 	case stopFields:
 		if p.row < len(p.rows)-1 {
 			p.row++
 			return
 		}
-		p.focusStop(stopBox, -1)
+		p.focusStop(stopBox)
 	case stopBox:
-		// from the footer, past the box, to the tabs
-		p.focusStop(stopTabs, -1)
+		p.focusStop(stopTabs)
 	case stopTabs:
 		p.offset++
 	}
@@ -489,49 +475,49 @@ func (p *showPage) up(here position) {
 			p.row--
 			return
 		}
-		p.focusStop(stopHeader, -1)
+		p.focusStop(stopHeader)
 	case stopBox:
-		// from the footer, back into the text
-		p.focusStop(stopBox, -1)
+		// to the last row of the table, or to the header when there is none
+		if len(p.rows) == 0 {
+			p.focusStop(stopHeader)
+			return
+		}
+		p.row = len(p.rows) - 1
+		p.focusStop(stopFields)
 	case stopTabs:
 		if p.offset > p.tabBarLine() {
 			p.offset--
 			return
 		}
-		p.focusStop(stopBox, 0)
+		p.focusStop(stopBox)
 	}
 }
 
-// upFromText leaves the box upward: to the last row of the table, or to the
-// header when there is no table.
-func (p *showPage) upFromText() {
-	if len(p.rows) == 0 {
-		p.focusStop(stopHeader, -1)
+// sideways walks the header's cells, and switches the tab everywhere else:
+// left and right are the tab keys of this page.
+func (p *showPage) sideways(here position, by int) {
+	if here.stop == stopHeader {
+		p.cell = min(max(p.cell+by, 0), headerCells-1)
 		return
 	}
-	p.row = len(p.rows) - 1
-	p.focusStop(stopFields, -1)
+	p.switchTab(by)
 }
 
-// sideways walks the header's cells, moves between the footer's buttons when
-// there are several, and switches the tab everywhere else: left and right
-// are the tab keys of this page.
-func (p *showPage) sideways(here position, by int) {
-	switch {
-	case here.stop == stopHeader:
-		p.cell = min(max(p.cell+by, 0), headerCells-1)
-	case here.stop == stopBox && here.button >= 0 && len(p.buttons) > 1:
-		p.button = min(max(here.button+by, 0), len(p.buttons)-1)
-	default:
-		p.switchTab(by)
-	}
-}
-
-// textKey is a key typed with the cursor in the comment box, where every
-// letter is text: only the keys no one types prose with do anything else,
-// and up and down leave the text at its edges.
+// textKey is a key typed with the cursor in the comment box's text, where
+// every letter is text, space included: enter sends, esc leaves the text with
+// the draft kept, and only the keys no one types prose with do anything else.
+// A newline is alt+enter, or shift+enter where the terminal tells it from
+// enter (keys.newline, which the box binds).
 func (p *showPage) textKey(press tea.KeyPressMsg) (page, tea.Cmd) {
 	switch {
+	case keys.act.matches(press):
+		return p, p.submitComment()
+	case keys.cancel.matches(press):
+		p.setTyping(false)
+		if p.box.draft() != "" {
+			p.status = "draft kept"
+		}
+		return p, nil
 	case keys.next.matches(press):
 		p.moveFocus(1)
 		return p, nil
@@ -544,24 +530,6 @@ func (p *showPage) textKey(press tea.KeyPressMsg) (page, tea.Cmd) {
 	case keys.previousTab.matches(press):
 		p.switchTab(-1)
 		return p, nil
-	case keys.cancel.matches(press):
-		if p.box.draft() == "" {
-			return p.leave()
-		}
-		// out of the text, onto the button that sends it, draft kept
-		p.focusStop(stopBox, 0)
-		p.status = "draft kept"
-		return p, nil
-	case press.String() == "down" || press.String() == "ctrl+n":
-		if p.box.onLastLine() {
-			p.focusStop(stopBox, 0)
-			return p, nil
-		}
-	case press.String() == "up" || press.String() == "ctrl+p":
-		if p.box.onFirstLine() {
-			p.upFromText()
-			return p, nil
-		}
 	}
 	return p, p.box.Update(press)
 }
@@ -591,6 +559,7 @@ func (p *showPage) submitComment() tea.Cmd {
 		return nil
 	}
 	p.box.area.Reset()
+	p.setTyping(false)
 	p.warned = false
 	p.tab = tabComments
 	p.status = "commented"
@@ -600,29 +569,45 @@ func (p *showPage) submitComment() tea.Cmd {
 	return nil
 }
 
-// act is enter, the one action key: it presses the button under the cursor,
-// or edits the field under it — a bool, archived included, flips at once,
-// and a relation's picker opens on "go to" the issue the line names, so
-// enter, enter follows the link (doc/design/terminal-renderer.md, 2026-09-29).
+// act is enter, which opens and never edits: on a link — a relation's line,
+// a child's row — it goes to the issue the line names, and anywhere else it
+// does nothing, the box included, until the cursor is in its text, where it
+// sends (doc/design/terminal-renderer.md, 2026-10-02).
 func (p *showPage) act(here position) tea.Cmd {
-	switch here.stop {
-	case stopBox:
-		return p.buttons[here.button].press(p)
-	case stopTabs:
+	row := p.currentRow()
+	if here.stop != stopFields || row == nil {
 		return nil
 	}
-	if row := p.currentRow(); here.stop == stopFields && row != nil && row.derived {
-		// a child row has no field to change, so there is no picker to go through
-		if row.link == "" {
-			return bell()
-		}
+	if row.link != "" {
 		return p.follow(row.link)
 	}
-	cmd := p.startEdit(p.field(), nil)
-	if row := p.currentRow(); row != nil && row.link != "" && p.editor != nil {
-		p.editor.goToFirst(row.link)
+	// an empty relation, or a section with no child, is a link to nothing
+	typeKey, _ := issue.String(p.snapshot.Fields[schema.TypeKey])
+	if kind, _ := fieldKind(p.repo, typeKey, row.key); row.derived || isRelation(kind) {
+		p.status = "no link"
+		return bell()
 	}
-	return cmd
+	return nil
+}
+
+// edit is space, the edit key: on a cell it opens the widget the field takes
+// — a value list, a relation's picker on the current value, an input line —
+// and a bool, archived included, flips at once; on the box it puts the cursor
+// in the text. A child's row is not a field, and rings the bell.
+func (p *showPage) edit(here position) tea.Cmd {
+	switch here.stop {
+	case stopBox:
+		p.setTyping(true)
+		p.status = ""
+		return nil
+	case stopTabs:
+		return bell()
+	}
+	if row := p.currentRow(); here.stop == stopFields && row != nil && row.derived {
+		p.status = "derived: edit the child"
+		return bell()
+	}
+	return p.startEdit(p.field(), nil)
 }
 
 // follow opens the issue a link names, over this one.
@@ -737,13 +722,6 @@ func (p *showPage) updateEditor(msg tea.Msg) (page, tea.Cmd) {
 		return p, nil
 	}
 
-	if id := ed.goTo(); id != "" {
-		return p, p.follow(id)
-	}
-	if refusal := ed.refusal(); refusal != "" {
-		p.status = refusal
-		return p, bell()
-	}
 	value, err := ed.Value()
 	if err != nil {
 		p.status = err.Error()
@@ -817,7 +795,7 @@ func (p *showPage) topLines(here position) []string {
 // left of the title as the list has it; the title bold over a rule as long
 // as the two of them, which is the heading a terminal's one size of text
 // allows; and archived as a checkbox, ticked in the warning colour when the
-// issue is and dim when it is not, so that the toggle enter flips is always
+// issue is and dim when it is not, so that the toggle space flips is always
 // in sight (Luis, 2026-09-28).
 func (p *showPage) headerLines(here position) []string {
 	snap := p.snapshot
@@ -894,25 +872,21 @@ func (p *showPage) tabBarLine() int {
 	return len(lines) + len(p.box.View(p.width)) + 2
 }
 
-// footerLine is the box's buttons, under its text: the one under the cursor
-// reversed, and, while the cursor is in the text, the two keys that reach
-// them.
+// footerLine is under the box's text: the keys that work it, marked while the
+// cursor is on the box, the ones for typing while it is in the text.
 func (p *showPage) footerLine(here position) string {
-	cells := make([]string, 0, len(p.buttons))
-	for at, b := range p.buttons {
-		label := "[ " + b.label + " ]"
-		if here.stop == stopBox && here.button == at {
-			label = styleCell.Render(label)
-		} else {
-			label = styleDim.Render(label)
+	hint := "space: write"
+	if here.typing {
+		hint = "enter: send · alt+enter: newline · esc: done"
+	}
+	marker, style := " ", styleDim
+	if here.stop == stopBox {
+		marker = "›"
+		if !here.typing {
+			style = styleCell
 		}
-		cells = append(cells, label)
 	}
-	line := " " + strings.Join(cells, " ")
-	if here.stop == stopBox && here.button < 0 {
-		line += "  " + styleDim.Render("↓ enter sends")
-	}
-	return fit(line, p.width)
+	return fit(marker+" "+style.Render(hint), p.width)
 }
 
 // fieldLines is the fields table: the key, then the value, a link
@@ -1044,9 +1018,6 @@ func (p *showPage) statusLine() string {
 	left := p.status
 	if left == "" {
 		left = "? keys"
-		if p.inText() {
-			left = "↓ enter: send · tab: leave box"
-		}
 		if row := p.currentRow(); row != nil && p.editor == nil {
 			typeKey, _ := issue.String(p.snapshot.Fields[schema.TypeKey])
 			if kind, _ := fieldKind(p.repo, typeKey, row.key); isRelation(kind) {
