@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
 	"go.starlark.net/starlark"
 	"go.starlark.net/starlarkstruct"
@@ -125,17 +126,23 @@ func newModule(path string, members ...member) *starlarkstruct.Module {
 	return module
 }
 
-// work.issue.list(program) — `git work issue [PROGRAM]`.
+// work.issue.list(program, at=None) — `git work issue [PROGRAM] [--at TIME]`.
 //
 // One value comes back as itself, which is the array a program usually
 // returns; several come back as a list, which is what a stream is.
 func (r *runtime) issueList(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 	var program string
-	if err := starlark.UnpackArgs(b.Name(), args, kwargs, "program?", &program); err != nil {
+	var atArg starlark.Value
+	if err := starlark.UnpackArgs(b.Name(), args, kwargs, "program?", &program, "at?", &atArg); err != nil {
 		return nil, err
 	}
 
-	values, err := host.IssueList(r.repo, program)
+	at, err := parseTime("at", atArg)
+	if err != nil {
+		return nil, err
+	}
+
+	values, err := host.IssueListAt(r.repo, program, at)
 	if err != nil {
 		return nil, err
 	}
@@ -170,32 +177,76 @@ func (r *runtime) issueNew(thread *starlark.Thread, b *starlark.Builtin, args st
 	return starlark.String(id.String()), nil
 }
 
-// work.issue.get(id) — `git work issue get ID`.
+// work.issue.get(id, at=None) — `git work issue get ID [--at TIME]`.
 func (r *runtime) issueGet(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 	var id string
-	if err := starlark.UnpackArgs(b.Name(), args, kwargs, "id", &id); err != nil {
+	var atArg starlark.Value
+	if err := starlark.UnpackArgs(b.Name(), args, kwargs, "id", &id, "at?", &atArg); err != nil {
 		return nil, err
 	}
 
-	document, err := host.IssueGet(r.repo, id)
+	at, err := parseTime("at", atArg)
+	if err != nil {
+		return nil, err
+	}
+
+	document, err := host.IssueGetAt(r.repo, id, at)
 	if err != nil {
 		return nil, err
 	}
 	return reencode(b, document)
 }
 
-// work.issue.log(id) — `git work issue log ID`.
+// work.issue.log(id, from_=None, to=None) — `git work issue log [ID|PROGRAM]`.
+//
+// `from` is a reserved word in Starlark, so the keyword is `from_`, the same
+// trailing underscore `work.schema.import_` carries (doc/design/report.md).
+// The first argument is an id prefix, an alias, or a jq program, exactly as on
+// the command line.
 func (r *runtime) issueLog(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 	var id string
-	if err := starlark.UnpackArgs(b.Name(), args, kwargs, "id", &id); err != nil {
+	var fromArg, toArg starlark.Value
+	if err := starlark.UnpackArgs(b.Name(), args, kwargs,
+		"id?", &id, "from_?", &fromArg, "to?", &toArg); err != nil {
 		return nil, err
 	}
 
-	entries, err := host.IssueLog(r.repo, id)
+	from, err := parseTime("from_", fromArg)
+	if err != nil {
+		return nil, err
+	}
+	to, err := parseTime("to", toArg)
+	if err != nil {
+		return nil, err
+	}
+
+	entries, err := host.IssueLogBetween(r.repo, id, from, to)
 	if err != nil {
 		return nil, err
 	}
 	return reencode(b, entries)
+}
+
+// parseTime reads a TIME keyword argument, naming the keyword when it refuses.
+//
+// The same grammar the flags take, because the Starlark API mirrors the
+// command line one to one. `None` and the empty string both mean "not given",
+// so that a flow can pass an argument of its own straight through whether the
+// caller filled it in or not.
+func parseTime(keyword string, value starlark.Value) (time.Time, error) {
+	if value == nil || value == starlark.None {
+		return time.Time{}, nil
+	}
+	s, ok := starlark.AsString(value)
+	if !ok {
+		return time.Time{}, fmt.Errorf("%s: a time is a string, not a %s", keyword, value.Type())
+	}
+
+	t, err := host.ParseTime(s, time.Now())
+	if err != nil {
+		return time.Time{}, fmt.Errorf("%s: %w", keyword, err)
+	}
+	return t, nil
 }
 
 // work.issue.set(id, **fields) — `git work issue set ID FIELDS`; prints nothing.

@@ -14,6 +14,7 @@ import (
 )
 
 type issueGetOptions struct {
+	at     string
 	format string
 }
 
@@ -27,7 +28,11 @@ func newIssueGetCommand(env *execenv.Env) *cobra.Command {
 
 get pairs with set at the document level, so there is no per-field getter:
 a field is ` + "`git work issue get ID | jq .fields.status`" + `.
-ID is an id prefix or an alias.`,
+ID is an id prefix or an alias.
+
+--at TIME prints the issue as it stood at that moment, replayed from its
+operations: ` + TimeFormsHelp + `.
+An issue created after TIME did not exist yet, and that is an error.`,
 		Args:    cobra.ExactArgs(1),
 		PreRunE: execenv.LoadBackend(env),
 		RunE: execenv.CloseBackend(env, func(cmd *cobra.Command, args []string) error {
@@ -38,6 +43,7 @@ ID is an id prefix or an alias.`,
 
 	flags := cmd.Flags()
 	flags.SortFlags = false
+	flags.StringVar(&options.at, "at", "", "the issue as it stood at TIME")
 
 	execenv.AddFormatFlag(cmd, &options.format, "json", "text")
 
@@ -45,9 +51,14 @@ ID is an id prefix or an alias.`,
 }
 
 func runIssueGet(env *execenv.Env, opts issueGetOptions, args []string) error {
+	at, err := parseTimeFlag("--at", opts.at)
+	if err != nil {
+		return err
+	}
+
 	switch opts.format {
 	case "json":
-		document, err := host.IssueGet(env.Backend, args[0])
+		document, err := host.IssueGetAt(env.Backend, args[0], at)
 		if err != nil {
 			return err
 		}
@@ -55,7 +66,7 @@ func runIssueGet(env *execenv.Env, opts issueGetOptions, args []string) error {
 	case "text":
 		// The text form prints what the JSON projection drops, an author's
 		// email among it, so it reads the snapshot rather than the document.
-		snap, err := host.IssueSnapshot(env.Backend, args[0])
+		snap, err := host.IssueSnapshotAt(env.Backend, args[0], at)
 		if err != nil {
 			return err
 		}

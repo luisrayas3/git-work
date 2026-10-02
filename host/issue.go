@@ -3,7 +3,7 @@ package host
 import (
 	"errors"
 	"fmt"
-	"sort"
+	"time"
 
 	"github.com/git-bug/git-bug/cache"
 	"github.com/git-bug/git-bug/commands/cmdjson"
@@ -31,35 +31,25 @@ type IssueDocument struct {
 // An empty program is the default one,
 // so that `git work issue` and `work.issue.list()` mean the same thing.
 func IssueList(repo *cache.RepoCache, program string) ([]any, error) {
-	if program == "" {
-		// The same constant a view's `query` argument defaults to:
-		// `git work issue` with no program and a view with no query have to
-		// show the same issues, and one constant is what guarantees it.
-		program = view.DefaultQuery
-	}
+	return IssueListAt(repo, program, time.Time{})
+}
 
-	input, err := IssueListInput(repo)
-	if err != nil {
-		return nil, err
-	}
-
-	return jq.Run(program, input)
+// defaultProgram is the listing you get when you name no program.
+//
+// The same constant a view's `query` argument defaults to:
+// `git work issue` with no program and a view with no query have to
+// show the same issues, and one constant is what guarantees it.
+func defaultProgram() string {
+	return view.DefaultQuery
 }
 
 // IssueListInput is the array a program runs over: every issue as an excerpt,
 // oldest first, so that a program that does not sort still reads the same twice.
 func IssueListInput(repo *cache.RepoCache) (any, error) {
-	ids := repo.Issues().AllIds()
-
-	excerpts := make([]*cache.IssueExcerpt, len(ids))
-	for i, id := range ids {
-		excerpt, err := repo.Issues().ResolveExcerpt(id)
-		if err != nil {
-			return nil, err
-		}
-		excerpts[i] = excerpt
+	excerpts, err := sortedExcerpts(repo)
+	if err != nil {
+		return nil, err
 	}
-	sort.Sort(cache.IssuesByCreationTime(excerpts))
 
 	out := make([]cmdjson.IssueExcerpt, len(excerpts))
 	for i, excerpt := range excerpts {
@@ -126,13 +116,7 @@ func StringOr(value any, fallback string) string {
 
 // IssueGet returns one issue whole, as the command prints it.
 func IssueGet(repo *cache.RepoCache, id string) (*cmdjson.IssueSnapshot, error) {
-	snap, err := IssueSnapshot(repo, id)
-	if err != nil {
-		return nil, err
-	}
-
-	out := cmdjson.NewIssueSnapshot(snap)
-	return &out, nil
+	return IssueGetAt(repo, id, time.Time{})
 }
 
 // IssueSnapshot returns one issue as the entity holds it.
@@ -141,36 +125,12 @@ func IssueGet(repo *cache.RepoCache, id string) (*cmdjson.IssueSnapshot, error) 
 // an identity's email for instance,
 // and it is the same resolution IssueGet does, by prefix or by alias.
 func IssueSnapshot(repo *cache.RepoCache, id string) (*issue.Snapshot, error) {
-	i, err := repo.Issues().ResolvePrefixOrAlias(id)
-	if err != nil {
-		return nil, err
-	}
-
-	snap := i.Snapshot()
-	if len(snap.Comments) == 0 {
-		return nil, errors.New("invalid issue: no comment")
-	}
-
-	return snap, nil
+	return IssueSnapshotAt(repo, id, time.Time{})
 }
 
 // IssueLog returns the operations an issue is made of, oldest first.
 func IssueLog(repo *cache.RepoCache, id string) ([]cmdjson.IssueOperation, error) {
-	i, err := repo.Issues().ResolvePrefixOrAlias(id)
-	if err != nil {
-		return nil, err
-	}
-
-	ops := i.Snapshot().AllOperations()
-	entries := make([]cmdjson.IssueOperation, len(ops))
-	for at, op := range ops {
-		entry, err := cmdjson.NewIssueOperation(op)
-		if err != nil {
-			return nil, err
-		}
-		entries[at] = entry
-	}
-	return entries, nil
+	return IssueLogBetween(repo, id, time.Time{}, time.Time{})
 }
 
 // IssueNew creates an issue from a document and returns its id.

@@ -55,6 +55,12 @@ is `terminal-renderer.md`; this document is the command line it is reached by.
   a config operation renders by shape and key,
   so `flow log` prints what `schema log` prints.
 - **`--dry-run`** on every writer that has one prints the operations it would commit.
+- **TIME is one grammar** wherever it appears —
+  `--at` on `issue get` and the list, `--from`/`--to` on `issue log`:
+  a date, an RFC 3339 time, or a duration back from now (`7d`, `2w`, `12h`).
+  A window is half-open, `[from, to)`,
+  and the cut is each operation's own wall clock, never its lamport time
+  (`report.md`).
 - **`new` takes the issue as a document**,
   `{"fields": {"title": "…", "type": "task"}, "body": "the first comment", "aliases": {"jira": "PROJ-12"}}`,
   as the argument or on standard input.
@@ -108,15 +114,15 @@ is `terminal-renderer.md`; this document is the command line it is reached by.
 ## Map
 
 ```
-git work issue [PROGRAM] [--format json|text]
+git work issue [PROGRAM] [--at TIME] [--format json|text]
 git work issue new DOC|-                        # prints the id
-git work issue get ID
+git work issue get ID [--at TIME]               # the issue as it stood then, replayed
 git work issue set ID FIELDS|- [--dry-run]      # {"key": value, ...}; null clears; one SetField per key, one commit
 git work issue add ID ITEMS|- [--dry-run]       # {"key": [item, ...], ...}; set semantics
 git work issue remove ID ITEMS|- [--dry-run]
 git work issue comment new ISSUE_ID BODY|-      # prints the comment id
 git work issue comment edit COMMENT_ID BODY|-
-git work issue log ID
+git work issue log [ID|PROGRAM] [--from TIME] [--to TIME]  # half-open [from, to); each entry names its issue
 git work issue archive ID                       # first class on every tree; = set ID '{"archived":true}'
 git work issue rm ID
 
@@ -176,10 +182,12 @@ git work view board '{"query":"map(select(.fields.status != \"done\"))","columns
 
 `work` is the only predeclared name, and the whole SDK hangs off it:
 
-`work.issue.list(program)`, `work.issue.new(doc)`, `work.issue.get(id)`,
+`work.issue.list(program, at=None)`, `work.issue.new(doc)`, `work.issue.get(id, at=None)`,
 `work.issue.set(id, **fields)`, `work.issue.add(id, **items)`, `work.issue.remove(id, **items)`,
 `work.issue.comment.new(id, body)`, `work.issue.comment.edit(id, body)`,
-`work.issue.log(id)`, `work.issue.archive(id)`, `work.issue.rm(id)`;
+`work.issue.log(id, from_=None, to=None)`, `work.issue.archive(id)`, `work.issue.rm(id)`;
+`from` is a reserved word in Starlark, so that keyword carries the same
+trailing underscore `work.schema.import_` does;
 `work.schema.export()`, `work.schema.import_(doc, prune=False, dry_run=False)`,
 `work.schema.init(preset="jira", dry_run=False)`,
 `work.schema.log(key="")`, `work.schema.archive(key)`, `work.schema.rm(key)`;

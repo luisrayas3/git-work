@@ -120,17 +120,30 @@ built to the map in `doc/design/cli-convention.md` (`e8d6426`):
 
 | Action | Command |
 | --- | --- |
-| List | `git work issue [PROGRAM]` · `--format text`; PROGRAM is a jq program over the array of excerpts, the default being unarchived, last edited first |
+| List | `git work issue [PROGRAM] [--at TIME]` · `--format text`; PROGRAM is a jq program over the array of excerpts, the default being unarchived, last edited first |
 | Create | `git work issue new DOC\|-` → prints the new id |
-| Show | `git work issue get <id>` · `--format text` |
+| Show | `git work issue get <id> [--at TIME]` · `--format text` |
 | Set fields | `git work issue set <id> '{"status":"done","estimate":3}'` (`null` clears; one commit whatever the number of keys) |
 | Add / remove items | `git work issue add <id> '{"labels":["area:core"]}'` · `git work issue remove <id> …` (set semantics; relations of many cardinality too) |
 | Comment | `git work issue comment new <id> BODY\|-` → prints the comment id · `comment edit <comment-id> BODY\|-` |
-| History | `git work issue log <id>` · `--format text` |
+| History | `git work issue log [<id>\|PROGRAM] [--from TIME] [--to TIME]` · `--format text`; each entry names its issue |
 | Archive / remove | `git work issue archive <id>` (an operation, replicated) · `git work issue rm <id>` (the local ref only) |
 
 Everything in is JSON, everything out is JSON unless `--format text` is asked for,
 and a document argument is read from standard input when it is `-`.
+**TIME is one grammar** everywhere it appears: a date (`2026-09-21`),
+an RFC 3339 time, or a duration back from now (`7d`, `2w`, `12h`).
+`--at` replays the issue's operations into the snapshot that stood then —
+an issue created later is absent, `archived` is the value it had then —
+and `--from`/`--to` is half-open, `[from, to)`.
+The cut is each operation's own wall clock, never its lamport time,
+so an operation pulled late still lands in the window it was written in
+(`doc/design/report.md`).
+The log takes the list's PROGRAM as well as one id;
+an id prefix or alias is tried first, and what does not resolve is a program.
+In Starlark these are `work.issue.get(id, at=…)`,
+`work.issue.list(program, at=…)` and `work.issue.log(id_or_program, from_=…, to=…)` —
+`from_` with a trailing underscore, like `import_`, because `from` is a reserved word.
 `--dry-run` on `set`, `add`, `remove` and `archive`
 prints the operations they would commit and writes nothing.
 Every id position takes an id prefix or an alias —
