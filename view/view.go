@@ -217,6 +217,9 @@ func (a Arg) check(raw json.RawMessage) (json.RawMessage, error) {
 		if err := json.Unmarshal(raw, &n); err != nil {
 			return nil, fmt.Errorf("is a whole number, not %s", jsonKind(raw))
 		}
+		if a.Min != 0 && n < a.Min {
+			return nil, fmt.Errorf("is %d, and the smallest is %d: %s", n, a.Min, a.Doc)
+		}
 
 	default:
 		return nil, fmt.Errorf("has an unknown kind %s, which is a bug in the table", a.Kind)

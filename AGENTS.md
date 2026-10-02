@@ -293,7 +293,7 @@ field, `null` in `(none)`), `↑`/`↓` reorder it,
 and one drop is one commit.
 Columns are `values` or the field's schema order off the types on the board,
 then the values the data has that are not listed, then `(none)`;
-they keep a minimum width and scroll sideways to follow the cursor
+they keep `column_width`, 32 cells, and scroll sideways to follow the cursor
 (2026-09-28, `doc/design/terminal-renderer.md`, Board).
 A gantt's cursor is a cell, a row and a period of `scale`
 (`day`, `week`, `month`, `quarter`; the chart is `from` to `to`, else the data's extent and today, opening with today's period left-most and filling the window):

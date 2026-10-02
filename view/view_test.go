@@ -276,3 +276,28 @@ func TestParseExpandIsALayerSpec(t *testing.T) {
 	_, err = Parse(KindList, kwargs(t, `{"expand":3}`))
 	require.ErrorContains(t, err, "a relation name or an object")
 }
+
+// TestParseBoardColumnWidth: the board's column width is a defaulted
+// argument with a floor, because a column too narrow for a card's id line
+// would be scrolled sideways past rather than read (10f676e).
+func TestParseBoardColumnWidth(t *testing.T) {
+	call, err := Parse(KindBoard, kwargs(t, `{"columns":"status"}`))
+	require.NoError(t, err)
+	require.Equal(t, 32, call.Int("column_width"))
+
+	call, err = Parse(KindBoard, kwargs(t, `{"columns":"status","column_width":48}`))
+	require.NoError(t, err)
+	require.Equal(t, 48, call.Int("column_width"))
+
+	// the floor is refused at parse time, so no renderer ever sees it
+	_, err = Parse(KindBoard, kwargs(t, `{"columns":"status","column_width":9}`))
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "column_width is 9, and the smallest is 10")
+
+	_, err = Parse(KindBoard, kwargs(t, `{"columns":"status","column_width":"wide"}`))
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "whole number")
+
+	// the help says the floor, from the same row of the table
+	require.Contains(t, Help(KindBoard), "at least 10")
+}
