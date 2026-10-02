@@ -292,8 +292,13 @@ func TestShowHintsNameWhatIsUnderTheCursor(t *testing.T) {
 		{what: "the comment box", line: "space: type · tab: skip · ? keys"},
 		{what: "typing in it", at: func(p page) page { return send(p, "space") },
 			line: "enter: send · alt+enter: newline · esc: leave · ? keys"},
+		// the page opens on the description, which space edits
 		{what: "the tabs", at: func(p page) page { return send(p, "tab") },
+			line: "space: edit · ←→: tab · ? keys"},
+		{what: "another tab", at: func(p page) page { return send(p, "tab", "right") },
 			line: "←→: tab · ? keys"},
+		{what: "editing the description", at: func(p page) page { return send(p, "tab", "space") },
+			line: "enter: write · alt+enter: newline · esc: leave · ? keys"},
 		{what: "the title", at: toHeader, line: "space: edit · ? keys"},
 		{what: "the type", at: func(p page) page { return send(toHeader(p), "left") },
 			line: "space: edit · ? keys"},

@@ -49,6 +49,13 @@ type showPage struct {
 
 	box *commentBox
 
+	// desc is the description's editor: the same box over the issue's first
+	// comment, opened by space on the description tab and kept — its draft
+	// with it — until the write lands or the page is left.
+	desc *commentBox
+	// editingDesc says the cursor is in that editor, where keys are text.
+	editingDesc bool
+
 	// focus is the stop the cursor is in; it opens on the box.
 	focus stopKind
 	// typing says the cursor is in the box's text, where keys are text;
@@ -260,6 +267,18 @@ func (p *showPage) inText() bool {
 	return p.current().typing
 }
 
+// typingIn is the box the keys are text in — the comment box, or the
+// description's editor — and nil where they are the page's own.
+func (p *showPage) typingIn() *commentBox {
+	switch {
+	case p.editingDesc:
+		return p.desc
+	case p.inText():
+		return p.box
+	}
+	return nil
+}
+
 // currentRow is the table row under the cursor, when the cursor is in the
 // table.
 func (p *showPage) currentRow() *tableRow {
@@ -321,10 +340,16 @@ func (p *showPage) Update(msg tea.Msg) (page, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		p.width, p.height = msg.Width, msg.Height
 		p.box.resize(p.width)
+		if p.desc != nil {
+			p.desc.resize(p.width)
+		}
 		return p, nil
 
 	case tea.BackgroundColorMsg:
 		p.box.restyle()
+		if p.desc != nil {
+			p.desc.restyle()
+		}
 		return p, nil
 
 	case statusMsg:
@@ -341,16 +366,16 @@ func (p *showPage) Update(msg tea.Msg) (page, tea.Cmd) {
 		return p.key(msg)
 
 	case tea.PasteMsg:
-		if p.editor == nil && !p.inText() {
+		if p.editor == nil && p.typingIn() == nil {
 			return p, p.paste(msg.Content)
 		}
 	case tea.ClipboardMsg:
-		switch {
+		switch box := p.typingIn(); {
 		case p.editor != nil:
 			p.editor.paste(msg.Content)
 			return p, nil
-		case p.inText():
-			p.box.area.InsertString(msg.Content)
+		case box != nil:
+			box.area.InsertString(msg.Content)
 			return p, nil
 		default:
 			return p, p.paste(msg.Content)
@@ -361,8 +386,8 @@ func (p *showPage) Update(msg tea.Msg) (page, tea.Cmd) {
 	if p.editor != nil {
 		return p.updateEditor(msg)
 	}
-	if p.inText() {
-		return p, p.box.Update(msg)
+	if box := p.typingIn(); box != nil {
+		return p, box.Update(msg)
 	}
 	return p, nil
 }
@@ -376,6 +401,8 @@ func (p *showPage) key(press tea.KeyPressMsg) (page, tea.Cmd) {
 		return p, nil
 	case p.editor != nil:
 		return p.updateEditor(press)
+	case p.editingDesc:
+		return p.descKey(press)
 	case p.inText():
 		return p.textKey(press)
 	}
@@ -535,10 +562,93 @@ func (p *showPage) textKey(press tea.KeyPressMsg) (page, tea.Cmd) {
 	return p, p.box.Update(press)
 }
 
+// descKey is a key typed in the description's editor, where every key is
+// text as it is in the comment box: enter writes, a newline is alt+enter
+// (keys.newline, which the box binds), and esc leaves the editor with the
+// draft kept. Esc is the only way out, because the editor is drawn over the
+// tab it edits and a stray tab key would leave it behind.
+func (p *showPage) descKey(press tea.KeyPressMsg) (page, tea.Cmd) {
+	switch {
+	case keys.act.matches(press):
+		return p, p.submitDescription()
+	case keys.cancel.matches(press):
+		p.editingDesc = false
+		p.desc.focus(false)
+		// an editor opened and left untouched leaves nothing behind: the tab
+		// reads the store again, and there is no draft to say was kept
+		if !p.descDirty() {
+			p.desc = nil
+			return p, nil
+		}
+		p.status = "draft kept"
+		return p, nil
+	}
+	return p, p.desc.Update(press)
+}
+
+// descDirty says the description's editor holds something the store does
+// not: an unwritten draft, which leaving the page would lose.
+func (p *showPage) descDirty() bool {
+	if p.desc == nil || len(p.snapshot.Comments) == 0 {
+		return false
+	}
+	return p.desc.draft() != strings.TrimSpace(p.snapshot.Comments[0].Message)
+}
+
+// editDescription is space on the description tab: the issue's body in a box
+// to rewrite, the comment box's keys over it (doc/design/terminal-renderer.md,
+// Show, 2026-10-02).
+//
+// Until this, the only way to the description was `git work issue comment
+// edit` with the first comment's id, which is a thing to look up to change
+// the one piece of text an issue opens with.
+func (p *showPage) editDescription() tea.Cmd {
+	if len(p.snapshot.Comments) == 0 {
+		p.status = "no description"
+		return bell()
+	}
+	if p.desc == nil {
+		p.desc = newCommentBox(p.width)
+		p.desc.area.Placeholder = "the description"
+		p.desc.area.SetValue(p.snapshot.Comments[0].Message)
+	}
+	p.editingDesc = true
+	p.desc.focus(true)
+	p.status = ""
+	return nil
+}
+
+// submitDescription writes what was typed over the issue's first comment,
+// which is its description, and reads the page back from the store.
+//
+// An empty body is refused: an issue's description is its first comment, and
+// the model has no issue without one, so there is nothing to write.
+func (p *showPage) submitDescription() tea.Cmd {
+	body := p.desc.draft()
+	if body == "" {
+		p.status = "a description cannot be emptied"
+		return bell()
+	}
+
+	id := p.snapshot.Comments[0].CombinedId().String()
+	if err := host.IssueCommentEdit(p.repo, id, body); err != nil {
+		p.status = err.Error()
+		return bell()
+	}
+	p.editingDesc = false
+	p.desc = nil
+	p.status = "description written"
+	if err := p.load(); err != nil {
+		p.status = err.Error()
+	}
+	return nil
+}
+
 // leave goes back to the view that opened the issue, once a draft has been
 // warned about: it is the one thing on the page the store does not have.
+// A description left unwritten is a draft like any other.
 func (p *showPage) leave() (page, tea.Cmd) {
-	if p.box.draft() != "" && !p.warned {
+	if (p.box.draft() != "" || p.descDirty()) && !p.warned {
 		p.warned = true
 		p.status = "esc again drops draft"
 		return p, nil
@@ -594,7 +704,8 @@ func (p *showPage) act(here position) tea.Cmd {
 // edit is space, the edit key: on a cell it opens the widget the field takes
 // — a value list, a relation's picker on the current value, an input line —
 // and a bool, archived included, flips at once; on the box it puts the cursor
-// in the text. A child's row is not a field, and rings the bell.
+// in the text, and on the description tab it opens the description's editor.
+// A child's row is not a field, and rings the bell.
 func (p *showPage) edit(here position) tea.Cmd {
 	switch here.stop {
 	case stopBox:
@@ -602,6 +713,10 @@ func (p *showPage) edit(here position) tea.Cmd {
 		p.status = ""
 		return nil
 	case stopTabs:
+		// the description is a text the page can write: the first comment
+		if p.tab == tabDescription {
+			return p.editDescription()
+		}
 		return bell()
 	}
 	if row := p.currentRow(); here.stop == stopFields && row != nil && row.derived {
@@ -887,6 +1002,17 @@ func (p *showPage) footerLine(here position) string {
 	return fit(marker+" "+style.Render(text), p.width)
 }
 
+// descFooter is under the description's editor, the keys that work it, the
+// way the comment box's footer is under its text: the editor's keys while
+// the cursor is in it, and the key that gets back in while it is not.
+func (p *showPage) descFooter() string {
+	pairs, marker := descHints(), "›"
+	if !p.editingDesc {
+		pairs, marker = []hint{{"space", "edit"}}, " "
+	}
+	return fit(marker+" "+styleDim.Render(hintText(pairs...)), p.width)
+}
+
 // fieldLines is the fields table: the key, then the value, a link
 // underlined; the row under the cursor marked while the cursor is in it.
 func (p *showPage) fieldLines(here position) ([]string, int) {
@@ -980,7 +1106,14 @@ func (p *showPage) commentLines() []string {
 
 // descriptionLines is the issue's body, the first comment, which it always
 // has, wrapped: a description is read, not scanned.
+//
+// While the editor is open — and after an esc, while it holds a draft — the
+// box stands in the tab's place, so that the text being rewritten is where
+// the text being read was, and an unwritten draft is never out of sight.
 func (p *showPage) descriptionLines() []string {
+	if p.desc != nil {
+		return append(p.desc.View(p.width), p.descFooter())
+	}
 	if len(p.snapshot.Comments) == 0 {
 		return []string{styleDim.Render(" (no description)")}
 	}
@@ -1026,12 +1159,19 @@ func (p *showPage) hintLine() string {
 	if p.editor != nil {
 		return p.editor.hints()
 	}
+	if p.editingDesc {
+		return hints(descHints()...)
+	}
 
 	here := p.current()
 	switch here.stop {
 	case stopBox:
 		return hints(boxHints(here.typing)...)
 	case stopTabs:
+		// the description is the one tab with something to edit
+		if p.tab == tabDescription {
+			return hints(hint{"space", "edit"}, hint{"←→", "tab"})
+		}
 		return hints(hint{"←→", "tab"})
 	case stopHeader:
 		typeKey, _ := issue.String(p.snapshot.Fields[schema.TypeKey])

@@ -915,6 +915,26 @@ vim's `gt` and `gT` work outside the box.
   (2026-09-28, Luis), is the issue's body, its first comment,
   as Jira's page leads with it; the text wraps to the window,
   because a description is read, not scanned, and a cut line is a sentence lost.
+  **`Space` on it edits it**
+  (2026-10-02, Luis, asked as "how do I edit the description?"):
+  the hint on that tab reads *space: edit · ←→: tab*,
+  and the editor is the comment box over the body's current text,
+  with the box's keys — `Enter` writes, `M-Enter` is a newline,
+  `Esc` leaves it with the draft kept, which is a draft of its own,
+  never the comment's — and the write is an edit of that first comment,
+  after which the tab reads the store again.
+  It was reachable only as `git work issue comment edit <comment-id>` until then,
+  which is an id to look up to change the one text an issue opens with.
+  An **empty body is refused**, with the bell:
+  the first comment is the description and the model has no issue without one,
+  so there is nothing for an emptied box to write.
+  The editor stands in the tab's place while it is open,
+  and stays there, blurred, while it holds an unwritten draft,
+  so that the text being rewritten is where the text being read was;
+  leaving the page with one asks for a second `Esc`, as a comment draft does.
+  An editor opened and left untouched keeps nothing:
+  the tab goes back to reading the store,
+  because an unchanged text is not a draft.
 - **comments** is what was said: every comment after the body, in full,
   as it reads now, newest first, wrapped the same way.
 - **log** is what was done, an operation to a line, latest first —
