@@ -98,7 +98,7 @@ the recipes below use its keys.
 | Close / reopen | `git work issue set <id> '{"status":"done"}'` · `'{"status":"to-do"}'` |
 | Comment | `git work issue comment new <id> -` with the body on standard input |
 | Tasks of a story | `git work issue 'map(select(.fields.parent == "<full story id>"))'` |
-| Sync | `git work push` · `git work pull` (every namespace) |
+| Sync | `git work sync [--jira]` (pull, then push; every namespace) · `git work pull` · `git work push` |
 
 Types in use are `story`, `task` and `decision`;
 `status` is the jira workflow (`to-do`, `in-progress`, `in-review`, `done`, …),
@@ -370,8 +370,9 @@ Gotchas, hardened from use:
   the archive reached the local cache file and nothing else,
   so it came back on the next cache rebuild.
   A flow you archived before that day may be back; archive it again.
-- Do not `git work push` without explicit intent;
-  it publishes the tracker to `origin`.
+- Do not `git work push`, or `git work sync`, without explicit intent;
+  both publish the tracker to `origin`
+  (`sync` pulls first, runs the Jira sync with `--jira`, then pushes).
 - A GitHub remote may cap the refs one push can update
   (`GH013 … Pushes can not update more than N branches or tags`,
   enforced on these namespaces too, and on `chef-robotics/ChefAutonomy`
