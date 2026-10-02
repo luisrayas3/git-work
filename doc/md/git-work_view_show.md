@@ -8,8 +8,11 @@ Draw a show.
 
 KWARGS is a JSON object of this view's arguments, read from standard
 input when it is "-":
-  id         id                               required           the issue to show, by id prefix or alias
-  fields     field keys                       defaulted          the fields shown, in order; the type's fields in schema order by default
+  id             id                               required           the issue to show, by id prefix or alias
+  fields         field keys                       defaulted          the fields shown, in order; the type's fields in schema order by default
+  children       child relations                  feature            the issues pointing at this one, a section each, as [{"type":"task","relation":"parent","fields":["status"]}]; relation may be the inverse name instead, and type and fields may be left out
+
+A `feature` argument is in the table and not drawn yet.
 
 
 ```

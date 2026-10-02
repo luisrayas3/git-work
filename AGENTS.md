@@ -97,9 +97,9 @@ in the change that makes it wrong.
 | Open work | `git work issue 'map(select(.fields.status != "done"))'` · `--format text` |
 | One type | `git work issue 'map(select(.fields.type == "decision"))'` · by area: `select(.fields.area // [] \| index("cli"))` |
 | Live list | `git work view list '{"fields":["type","status","priority","title"],"group_by":"status"}'` (TTY) |
-| Overview | `git work flow run overview` (TTY): open stories, open decisions and open tasks with no parent, grouped by type; `'{"group_by":"status"}'` regroups |
+| Overview | `git work flow run overview` (TTY): open stories, open decisions and open tasks, each story's tasks folded under it, grouped by type; `'{"group_by":"status"}'` regroups |
 | Board | `git work flow run board` (TTY): the same issues as a kanban, a column per open status, a swimlane per type; `'{"group_by":"area"}'` relanes |
-| Due dates | `git work view gantt '{"start":"due","stop":"due","query":"map(select(.fields.due != null))"}'` (TTY): the dated work as milestones on a week chart; `"expand":"children"` nests tasks under their stories |
+| Due dates | `git work view gantt '{"start":"due","stop":"due","query":"map(select(.fields.due != null))"}'` (TTY): the dated work as milestones on a week chart; `"expand":"children"` nests tasks, folded, under their stories |
 | Allocations | `git work view matrix '{"rows":"work","columns":"iteration","value":"points","query":"map(select(.fields.type == \"allocation\"))"}'` (TTY): the points allocated, work down, iterations across, totals both ways |
 | What changed | `git work flow run report '{"from_":"7d"}'` · `'{"iteration":"<id>"}'`: created, closed, changed, commented, grouped by parent, as markdown |
 | Create | `git work issue new '{"fields":{"title":"…","type":"task","status":"to-do","priority":"medium","area":["cli"],"parent":"<story id>"},"body":"…"}'` → prints the id |
@@ -314,13 +314,23 @@ the dim totals row and column are of what is drawn,
 and the row labels stay put while the columns scroll sideways
 (2026-10-02, `doc/design/allocations.md`).
 `expand` nests the list and the gantt along a relation,
-the derived side (`children`) read through the stored one (`parent`),
-`depth` levels deep (1 unless named, `0` unlimited):
-the tree indents the id behind `▾`/`▸`, `z` folds,
+either side of it a name it takes — the derived `children` is read through the stored `parent`.
+It is a **layer spec** (2026-10-02, `f4426ff`; `depth` is gone):
+`{"relation":"children","query":…,"fields":…,"details":…,"group_by":…,"rank":…,"expand":…}`,
+where a layer's `query` runs over that row's own unarchived children (every one of them without it),
+the keys it leaves out are the layer above's,
+and its `expand` is the level below — none means leaves, `"self"` repeats the layer.
+`"expand":"children"` is the shorthand for one layer with every default.
+A layer draws its own columns, and the header describes the layer of the row the cursor is on.
+The id column stays first and flush and the **fold arrow is the cell after it**:
+the level's indent, `▾`/`▸`, and, folded, the count of the rows under it (`▸ 3`);
+`→` reaches it, `Space` there folds (on the gantt it is `←` from the first period), `Enter` opens the row,
+and `Z` folds or unfolds every parent (`z` is gone).
+**A nested view opens folded**, so the roots and their counts read as a summary;
 `Tab` goes into the first child and `S-Tab` up to the parent,
 a list's `↑`/`↓` stay on the level, a rank moves a row among its siblings with its subtree,
 and a parent with no dates draws its children's envelope on the gantt
-(2026-09-28, `doc/design/terminal-renderer.md`, Gantt and Nesting).
+(2026-09-28, 2026-10-02, `doc/design/terminal-renderer.md`, Gantt and Nesting).
 With `group_by` bound, every kind keeps the current group's header on the first body line,
 because a header scrolled off the top cannot be reached
 and the rows under it lose their label (2026-10-02).
@@ -575,7 +585,8 @@ The directory is a review convention, not something the tool knows
 edit a file and `git work flow import flows/`,
 an upsert keyed on the function's name.
 The first is `overview` (`b322a8e`):
-open stories, open decisions and open tasks with no parent,
+open stories, open decisions and open tasks,
+a story's tasks nested under it along `children` and folded,
 where open is the status category read from the schema at run time,
 never a status name.
 `board` is the same issues on a kanban,

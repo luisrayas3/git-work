@@ -19,27 +19,27 @@ import (
 //
 // The rows are the excerpts the query returned, verbatim, so what is drawn is
 // what `git work issue` prints and a jq program can be written against.
-// With `expand` bound they are a tree: a row's children along that relation
-// under it, to `depth` levels (nest.go).
+// With `expand` bound they are a tree: under each row the issues its layer's
+// relation names, each layer drawing its own columns (nest.go).
 type listPage struct {
 	repo *cache.RepoCache
 
 	// the call as it was made, for the line that says what this view is, and
 	// unpacked once for everything else
-	call      *view.Call
-	query     string
-	fields    []string
-	details   []string
-	groupBy   string
-	expandKey string
-	depth     int
-	rankKey   string
+	call  *view.Call
+	query string
+	// nest is `expand` resolved: the layer per level, level 0 being the
+	// call's own fields, details, group_by and rank.
+	nest    *nesting
+	groupBy string
+	rankKey string
 
 	// items is what the query returned last, kept so that folding a row
 	// rebuilds the tree without asking the store again
 	items []map[string]any
-	// folded is the rows folded shut, by id, across every rebuild.
-	folded map[string]bool
+	// open is the parents folded open, by id, across every rebuild: a tree
+	// opens folded, so what is remembered is what was opened.
+	open map[string]bool
 
 	rows []listRow
 	// nodes is the tree the rows sit in, one per row: level, parent, group,
@@ -50,8 +50,8 @@ type listPage struct {
 	order []int
 
 	cursor int
-	// column is 0 on the id, which is where the cursor starts, and 1 + the
-	// index into fields on a field
+	// column is 0 on the id, which is where the cursor starts, then the tree
+	// cell where anything nests, then the fields of the cursor's own layer.
 	column int
 	top    int
 
@@ -94,27 +94,78 @@ func (p *listPage) Call() (*view.Call, string, string) {
 
 func newListPage(repo *cache.RepoCache, call *view.Call) (*listPage, error) {
 	p := &listPage{
-		repo:      repo,
-		call:      call,
-		query:     call.String("query"),
-		fields:    call.Strings("fields"),
-		details:   call.Strings("details"),
-		groupBy:   call.String("group_by"),
-		expandKey: call.String("expand"),
-		depth:     nestDepth(call),
-		rankKey:   call.String("rank"),
-		folded:    map[string]bool{},
-		width:     80,
-		height:    24,
-		grabbed:   -1,
+		repo:    repo,
+		call:    call,
+		query:   call.String("query"),
+		groupBy: call.String("group_by"),
+		rankKey: call.String("rank"),
+		open:    map[string]bool{},
+		width:   80,
+		height:  24,
+		grabbed: -1,
 	}
-	if len(p.fields) == 0 {
-		p.fields = []string{schema.TitleKey}
+
+	root := nestLayer{
+		fields:  call.Strings("fields"),
+		details: call.Strings("details"),
+		groupBy: p.groupBy,
+		rankKey: p.rankKey,
 	}
+	if len(root.fields) == 0 {
+		root.fields = []string{schema.TitleKey}
+	}
+	n, err := newNesting(root, call.Expand())
+	if err != nil {
+		return nil, err
+	}
+	p.nest = n
+
 	if err := p.load(); err != nil {
 		return nil, err
 	}
 	return p, nil
+}
+
+// layer is the layer a row at this level draws by, the root's where the spec
+// stops short, which cannot happen for a row that is in the tree.
+func (p *listPage) layer(level int) *nestLayer {
+	if layer := p.nest.at(level); layer != nil {
+		return layer
+	}
+	return &p.nest.layers[0]
+}
+
+// columns are the fields of the layer the cursor's row is on, which is what
+// the header describes: move between levels and the header follows, because
+// a layer draws its own columns under its parent.
+func (p *listPage) columns() []string {
+	node := p.node()
+	if node == nil {
+		return p.nest.layers[0].fields
+	}
+	return p.layer(node.level).fields
+}
+
+// treeCol is the tree cell's column, -1 where nothing nests: the id is
+// first and flush, the arrow the cell after it, the fields after that.
+func (p *listPage) treeCol() int {
+	if p.nest.expanded() {
+		return 1
+	}
+	return -1
+}
+
+// firstFieldCol is where the cursor's layer's fields start.
+func (p *listPage) firstFieldCol() int {
+	if p.nest.expanded() {
+		return 2
+	}
+	return 1
+}
+
+// lastCol is the right-most cell of the cursor's row.
+func (p *listPage) lastCol() int {
+	return max(p.firstFieldCol()+len(p.columns())-1, 0)
 }
 
 // load re-runs the query and rebuilds the rows, keeping the cursor on the
@@ -138,19 +189,34 @@ func (p *listPage) load() error {
 	return nil
 }
 
-// rebuild makes the rows out of the last query's items: the tree along
-// `expand`, then a row per node, then the drawing order.
+// rebuild makes the rows out of the last query's items: the tree the layers
+// describe, then a row per node, then the drawing order.
+//
+// A refresh that leaves the row the cursor was on hidden under a folded
+// parent opens the way to it, the way a filter keeps a match's ancestors on
+// the screen: the cursor is never put somewhere else because something
+// closed over it.
 func (p *listPage) rebuild() {
 	was := p.currentId()
 
 	known := newKinds(p.repo)
-	tree := nest(p.repo, p.items, p.expandKey, p.depth, p.folded)
-	p.rows = make([]listRow, 0, len(tree))
-	p.nodes = make([]treeRow, 0, len(tree))
-	for _, n := range tree {
-		row, node := p.newRow(n, known)
-		p.rows = append(p.rows, row)
-		p.nodes = append(p.nodes, node)
+	build := func() {
+		tree, err := nest(p.repo, p.items, p.nest, p.open)
+		if err != nil {
+			p.status = err.Error()
+		}
+		p.rows = make([]listRow, 0, len(tree))
+		p.nodes = make([]treeRow, 0, len(tree))
+		for _, n := range tree {
+			row, node := p.newRow(n, known)
+			p.rows = append(p.rows, row)
+			p.nodes = append(p.nodes, node)
+		}
+	}
+
+	build()
+	if reveal(p.nodes, p.open, was) {
+		build()
 	}
 
 	p.reorder()
@@ -173,9 +239,10 @@ func (p *listPage) newRow(n nested, known *kinds) (listRow, treeRow) {
 		row.human = row.id[:7]
 	}
 
+	layer := p.layer(n.level)
 	row.cells = map[string]string{}
 	row.links = map[string][]string{}
-	for _, key := range append(append([]string{p.groupBy}, p.fields...), p.details...) {
+	for _, key := range append(append([]string{layer.groupBy}, layer.fields...), layer.details...) {
 		if key == "" {
 			continue
 		}
@@ -196,17 +263,18 @@ func (p *listPage) newRow(n nested, known *kinds) (listRow, treeRow) {
 		folded:   n.folded,
 		hidden:   n.hidden,
 		group:    noGroup,
+		grouped:  layer.groupBy != "",
 	}
-	if p.groupBy != "" {
-		if value := row.cells[p.groupBy]; value != "" {
+	if layer.groupBy != "" {
+		if value := row.cells[layer.groupBy]; value != "" {
 			node.group = value
 		}
 	}
-	node.rank = plainValue(fields[p.rankKey])
+	node.rank = plainValue(fields[layer.rankKey])
 
 	var text strings.Builder
 	text.WriteString(row.human)
-	for _, key := range append(append([]string{}, p.fields...), p.details...) {
+	for _, key := range append(append([]string{}, layer.fields...), layer.details...) {
 		text.WriteString(" ")
 		text.WriteString(row.cells[key])
 	}
@@ -230,8 +298,8 @@ func (p *listPage) clamp() {
 	if p.cursor < 0 {
 		p.cursor = 0
 	}
-	if p.column > len(p.fields) {
-		p.column = len(p.fields)
+	if p.column > p.lastCol() {
+		p.column = p.lastCol()
 	}
 	if p.column < 0 {
 		p.column = 0
@@ -361,14 +429,14 @@ func (p *listPage) key(press tea.KeyPressMsg) (page, tea.Cmd) {
 	case keys.left.matches(press):
 		p.column = max(0, p.column-1)
 	case keys.right.matches(press):
-		p.column = min(len(p.fields), p.column+1)
+		p.column = min(p.lastCol(), p.column+1)
 
 	case keys.next.matches(press):
 		p.intoChild()
 	case keys.previous.matches(press):
 		p.toParent()
-	case keys.fold.matches(press):
-		p.toggleFold()
+	case keys.foldAll.matches(press):
+		p.toggleAll()
 
 	case keys.act.matches(press):
 		return p.act()
@@ -429,7 +497,7 @@ func (p *listPage) intoChild() {
 		return
 	}
 	if node.folded {
-		p.folded[node.id] = false
+		p.open[node.id] = true
 		p.rebuild()
 		node = p.node()
 	}
@@ -452,13 +520,24 @@ func (p *listPage) toParent() {
 	}
 }
 
-// toggleFold is z: a parent's children shown or hidden.
-func (p *listPage) toggleFold() {
+// toggleFold is space on the tree cell: a parent's children shown or
+// hidden. A leaf has nothing to fold and rings.
+func (p *listPage) toggleFold() tea.Cmd {
 	node := p.node()
 	if node == nil || node.children == 0 {
-		return
+		p.status = "nothing to fold"
+		return bell()
 	}
-	p.folded[node.id] = !node.folded
+	p.open[node.id] = node.folded
+	p.rebuild()
+	return nil
+}
+
+// toggleAll is Z: every parent folded, or, where they all are, every parent
+// open. Folding wins the tie, because the summary is the thing to get back
+// to from a tree that has been opened all over.
+func (p *listPage) toggleAll() {
+	p.open = foldAll(p.nodes, p.open)
 	p.rebuild()
 }
 
@@ -477,12 +556,16 @@ func (p *listPage) act() (page, tea.Cmd) {
 }
 
 // edit is space: on a field it edits it — the widget its kind takes, a
-// relation's picker on the current value — and on the id, which is not
-// editable, it grabs the row to move it. A column that is not a field of the
-// row's type is drawn, never written, and rings the bell (startEdit).
+// relation's picker on the current value — on the tree cell it folds, and on
+// the id, which is not editable, it grabs the row to move it. A column that
+// is not a field of the row's type is drawn, never written, and rings the
+// bell (startEdit).
 func (p *listPage) edit() (page, tea.Cmd) {
-	if p.column == 0 {
+	switch p.column {
+	case 0:
 		return p.startGrab()
+	case p.treeCol():
+		return p, p.toggleFold()
 	}
 	return p, p.startEdit(nil)
 }
@@ -497,12 +580,15 @@ func (p *listPage) push(id string) tea.Cmd {
 	return func() tea.Msg { return pushMsg{page: shown} }
 }
 
-// fieldKey is the field under the column cursor, or "" on the id.
+// fieldKey is the field under the column cursor, or "" on the id and on the
+// tree cell, neither of which is a field.
 func (p *listPage) fieldKey() string {
-	if p.column == 0 || p.column > len(p.fields) {
+	fields := p.columns()
+	at := p.column - p.firstFieldCol()
+	if at < 0 || at >= len(fields) {
 		return ""
 	}
-	return p.fields[p.column-1]
+	return fields[at]
 }
 
 // copyCell puts the cell under the cursor on the clipboard (setClipboard).
@@ -755,8 +841,9 @@ func (p *listPage) drop() tea.Cmd {
 		return nil
 	}
 
-	fields := map[string]issue.Value{p.rankKey: issue.StringValue(key)}
-	said := p.rankKey + " set"
+	rankKey := p.layer(p.nodes[p.order[p.cursor]].level).rankKey
+	fields := map[string]issue.Value{rankKey: issue.StringValue(key)}
+	said := rankKey + " set"
 	if p.crossed != nil && group != p.grabGroup {
 		fields[p.groupBy] = p.crossed.value
 		said = "moved to " + p.crossed.group

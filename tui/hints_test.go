@@ -150,13 +150,16 @@ func TestListHintsNameWhatIsUnderTheCursor(t *testing.T) {
 			line: "↑↓: move · space: drop · esc: put back · ? keys"},
 	})
 
-	// a nested row with children adds the tree's keys
+	// the tree's keys are the arrow cell's, the one after the id, and a
+	// nested list opens folded
 	runHints(t, open(`{"fields":["title"],"expand":"children","query":"map(select(.fields.type == \"story\"))"}`),
 		[]hintCase{
-			{what: "a row with children",
-				line: "enter: open · space: grab · z: fold · tab: into children · ? keys"},
-			{what: "folded", at: func(p page) page { return send(p, "z") },
-				line: "enter: open · space: grab · z: unfold · tab: into children · ? keys"},
+			{what: "a row with children, on its id",
+				line: "enter: open · space: grab · ? keys"},
+			{what: "folded, on its arrow", at: func(p page) page { return send(p, "right") },
+				line: "enter: open · space: unfold · tab: into children · ? keys"},
+			{what: "unfolded, on its arrow", at: func(p page) page { return send(p, "right", "space") },
+				line: "enter: open · space: fold · tab: into children · ? keys"},
 		})
 }
 

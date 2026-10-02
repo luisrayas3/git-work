@@ -25,9 +25,9 @@ func TestParseAppliesTheDefaults(t *testing.T) {
 	require.Equal(t, []string{"type", "title"}, call.Strings("fields"))
 	// a feature nobody asked for is simply absent
 	require.False(t, call.Has("group_by"))
+	require.Nil(t, call.Expand())
 	// the manual order is the built-in rank until another field is named
 	require.Equal(t, "rank", call.String("rank"))
-	require.Equal(t, 0, call.Int("depth"))
 }
 
 func TestParseKeepsWhatWasGiven(t *testing.T) {
@@ -36,7 +36,7 @@ func TestParseKeepsWhatWasGiven(t *testing.T) {
 		"fields": ["title", "status", "assignee"],
 		"details": ["labels"],
 		"group_by": "status",
-		"depth": 2,
+		"expand": "children",
 		"rank": "rank"
 	}`))
 	require.NoError(t, err)
@@ -45,7 +45,7 @@ func TestParseKeepsWhatWasGiven(t *testing.T) {
 	require.Equal(t, []string{"title", "status", "assignee"}, call.Strings("fields"))
 	require.Equal(t, []string{"labels"}, call.Strings("details"))
 	require.Equal(t, "status", call.String("group_by"))
-	require.Equal(t, 2, call.Int("depth"))
+	require.Equal(t, "children", call.Expand().Relation)
 	require.True(t, call.Has("rank"))
 }
 
@@ -103,9 +103,9 @@ func TestParseChecksValueTypes(t *testing.T) {
 	_, err = Parse(KindList, kwargs(t, `{"fields":["title", 3]}`))
 	require.ErrorContains(t, err, "a list of strings")
 
-	// depth is a whole number
-	_, err = Parse(KindList, kwargs(t, `{"depth":"two"}`))
-	require.ErrorContains(t, err, "whole number")
+	// an argument the table does not have is refused naming the ones it does
+	_, err = Parse(KindList, kwargs(t, `{"depth":2}`))
+	require.ErrorContains(t, err, "takes no argument depth")
 
 	// the values of a board are any strings, not necessarily field keys
 	call, err := Parse(KindBoard, kwargs(t, `{"columns":"status","values":["to-do","done"]}`))
@@ -216,4 +216,63 @@ func TestHelpIsGeneratedFromTheTable(t *testing.T) {
 		require.Contains(t, help, string(arg.Tier))
 	}
 	require.Contains(t, Help(KindList), `["type","title"]`)
+}
+
+// TestParseExpandIsALayerSpec: `expand` is a relation name or a layer of
+// one, every layer carrying the list's own arguments and, optionally, the
+// layer below it; `self` repeats a layer, and cannot be the first one
+// because there is nothing above it to repeat (f4426ff).
+func TestParseExpandIsALayerSpec(t *testing.T) {
+	call, err := Parse(KindList, kwargs(t, `{"expand":"children"}`))
+	require.NoError(t, err)
+	layer := call.Expand()
+	require.Equal(t, "children", layer.Relation)
+	require.Nil(t, layer.Expand)
+
+	call, err = Parse(KindGantt, kwargs(t, `{"start":"a","stop":"b","expand":{
+		"relation": "children",
+		"query": "map(select(.fields.status != \"done\"))",
+		"fields": ["status", "title"],
+		"details": ["labels"],
+		"group_by": "assignee",
+		"rank": "order",
+		"expand": "self"
+	}}`))
+	require.NoError(t, err)
+	layer = call.Expand()
+	require.Equal(t, "children", layer.Relation)
+	require.Equal(t, `map(select(.fields.status != "done"))`, layer.Query)
+	require.Equal(t, []string{"status", "title"}, layer.Fields)
+	require.Equal(t, []string{"labels"}, layer.Details)
+	require.Equal(t, "assignee", layer.GroupBy)
+	require.Equal(t, "order", layer.Rank)
+
+	layers, repeat := layer.Layers()
+	require.Len(t, layers, 1)
+	require.True(t, repeat, "self: this layer, as far down as the relation goes")
+
+	// three layers, each the level below the one before it
+	call, err = Parse(KindList, kwargs(t, `{"expand":{"relation":"children","expand":{"relation":"blocks","expand":"children"}}}`))
+	require.NoError(t, err)
+	layers, repeat = call.Expand().Layers()
+	require.False(t, repeat)
+	require.Equal(t, []string{"children", "blocks", "children"},
+		[]string{layers[0].Relation, layers[1].Relation, layers[2].Relation})
+
+	// a layer needs a relation, takes no key of its own invention, and
+	// `self` has nothing to repeat at the top
+	_, err = Parse(KindList, kwargs(t, `{"expand":{"query":"."}}`))
+	require.ErrorContains(t, err, "needs relation")
+
+	_, err = Parse(KindList, kwargs(t, `{"expand":{"relation":"children","depth":2}}`))
+	require.ErrorContains(t, err, "takes no key depth")
+
+	_, err = Parse(KindList, kwargs(t, `{"expand":{"relation":"children","expand":{"depth":2}}}`))
+	require.ErrorContains(t, err, "layer 2 takes no key depth")
+
+	_, err = Parse(KindList, kwargs(t, `{"expand":"self"}`))
+	require.ErrorContains(t, err, "cannot be the first one")
+
+	_, err = Parse(KindList, kwargs(t, `{"expand":3}`))
+	require.ErrorContains(t, err, "a relation name or an object")
 }

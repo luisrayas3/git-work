@@ -1,25 +1,126 @@
 package tui
 
 import (
+	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/git-bug/git-bug/cache"
 	"github.com/git-bug/git-bug/host"
+	"github.com/git-bug/git-bug/query/jq"
 	"github.com/git-bug/git-bug/schema"
 	"github.com/git-bug/git-bug/view"
 )
 
-// Nesting: rows under rows, along one relation
+// Nesting: rows under rows, a relation per level
 // (doc/design/terminal-renderer.md, Nesting).
 //
-// `expand` names a relation field and `depth` how far to follow it. The
-// query selects the roots; a matched issue that is another matched issue's
-// child shows nested under it, once, and a child the query did not match
-// still shows under its parent, because a parent's children are the reason
-// to expand a parent. The list and the gantt both nest, so what is shared
-// is here: the tree, the drawing order over it, and moving a row among its
-// siblings.
+// `expand` is a layer spec: a relation, the list's own arguments for the rows
+// that relation brings — `query`, `fields`, `details`, `group_by`, `rank` —
+// and an `expand` of its own for the level below. The call's own arguments
+// are level 0, the spec's first layer level 1, and a level the spec does not
+// describe is leaves. The query selects the roots; a matched issue that is
+// another matched issue's child shows nested under it, once, and a child the
+// layer's own query kept still shows under its parent, because a parent's
+// children are the reason to expand a parent. The list and the gantt both
+// nest, so what is shared is here: the layers, the tree, the drawing order
+// over it, and moving a row among its siblings.
+
+// nestLayer is one level as the renderer uses it: the spec's layer with its
+// query compiled and the keys it inherits filled in.
+type nestLayer struct {
+	// relation is "" on level 0, whose rows are the view's own query.
+	relation string
+	// program is the layer's `query`, run over the array of a row's candidate
+	// children; nil is every one of them.
+	program *jq.Program
+	fields  []string
+	details []string
+	groupBy string
+	rankKey string
+}
+
+// nesting is `expand` resolved: a layer per level, and whether the last of
+// them repeats (`"expand": "self"`).
+type nesting struct {
+	layers []nestLayer
+	repeat bool
+}
+
+// newNesting resolves the root's own arguments and the spec's layers.
+//
+// A layer that names no `fields`, `details` or `rank` takes the layer
+// above's, so a bare `"expand": "children"` is the uniform tree nesting was
+// before the spec, and a layer that names them draws its own columns under
+// the parent. `group_by` is not inherited: a level is sectioned because that
+// level was asked to be.
+func newNesting(root nestLayer, spec *view.Layer) (*nesting, error) {
+	n := &nesting{layers: []nestLayer{root}}
+	if spec == nil {
+		return n, nil
+	}
+
+	layers, repeat := spec.Layers()
+	n.repeat = repeat
+	for _, layer := range layers {
+		above := n.layers[len(n.layers)-1]
+		resolved := nestLayer{
+			relation: layer.Relation,
+			fields:   layer.Fields,
+			details:  layer.Details,
+			groupBy:  layer.GroupBy,
+			rankKey:  layer.Rank,
+		}
+		if resolved.fields == nil {
+			resolved.fields = above.fields
+		}
+		if resolved.details == nil {
+			resolved.details = above.details
+		}
+		if resolved.rankKey == "" {
+			resolved.rankKey = above.rankKey
+		}
+		if layer.Query != "" {
+			program, err := jq.Compile(layer.Query)
+			if err != nil {
+				return nil, fmt.Errorf("expand: %w", err)
+			}
+			resolved.program = program
+		}
+		n.layers = append(n.layers, resolved)
+	}
+	return n, nil
+}
+
+// expanded reports whether anything nests at all.
+func (n *nesting) expanded() bool {
+	return n != nil && len(n.layers) > 1
+}
+
+// at is the layer a row at this level belongs to, nil where the spec ends
+// above it, which is what makes the level above it leaves.
+func (n *nesting) at(level int) *nestLayer {
+	if n == nil {
+		return nil
+	}
+	if level < len(n.layers) {
+		return &n.layers[level]
+	}
+	if n.repeat {
+		return &n.layers[len(n.layers)-1]
+	}
+	return nil
+}
+
+// index is a level's layer by position, which every level past a repeating
+// last layer shares, so that one set of column widths serves them all.
+func (n *nesting) index(level int) int {
+	if n == nil || len(n.layers) == 0 {
+		return 0
+	}
+	return min(level, len(n.layers)-1)
+}
 
 // nested is one issue in the tree, in pre-order: a row and where it sits.
 type nested struct {
@@ -37,66 +138,103 @@ type nested struct {
 	hidden bool
 }
 
-// nestDepth reads `depth` as the table means it: 1 when it is not named,
-// and 0 or less for no limit, because a depth of nothing is not naming
-// `expand` at all.
-func nestDepth(call *view.Call) int {
-	if !call.Has("depth") {
-		return 1
-	}
-	return call.Int("depth")
-}
-
-// nest unfolds the items the query returned along the relation `expand`.
+// nest unfolds the items the query returned along the layers of `expand`.
 //
-// Without an `expand` it is the items, each a root. With one, the children
-// of a row are the targets of its own `expand` field, and the issues whose
-// stored relation has `expand` as its inverse and names the row — the
-// inverse side is derived, never stored (schema.yaml, D4), so `children`
-// is read off every `parent`. A cycle is cut at the repeat, and an issue
-// shows once: under the first matched row that reaches it. The rows under
-// a folded parent are in the tree, hidden.
-func nest(repo *cache.RepoCache, items []map[string]any, expand string, depth int, folded map[string]bool) []nested {
-	if expand == "" {
+// Without an `expand` it is the items, each a root. With one, the children of
+// a row at level n are what the layer for level n+1 names: the targets of the
+// row's own field of that name, and the issues whose stored relation has that
+// name as its inverse — the inverse side is derived, never stored
+// (schema.yaml, D4), so `children` is read off every `parent` — narrowed by
+// the layer's own query where it has one. A cycle is cut at the repeat, and
+// an issue shows once: under the first matched row that reaches it.
+//
+// Every parent is folded unless `open` says otherwise, so a tree opens as its
+// roots and their counts, which is a summary (Luis, 2026-10-02). The rows
+// under a folded parent are in the tree, hidden, because a folded parent
+// still draws the envelope of its children on a gantt.
+//
+// A layer's query that fails is reported and its children are left unnarrowed:
+// the error is the status line, and a tree with too much in it reads better
+// than an empty one.
+func nest(repo *cache.RepoCache, items []map[string]any, n *nesting, open map[string]bool) ([]nested, error) {
+	if !n.expanded() {
 		out := make([]nested, 0, len(items))
 		for _, item := range items {
 			out = append(out, nested{item: item, id: host.StringOr(item["id"], "")})
 		}
-		return out
+		return out, nil
 	}
 
 	all, order := allIssues(repo)
-	kids := childrenIndex(repo, all, order, expand)
 
-	matched := map[string]map[string]any{}
-	for _, item := range items {
-		matched[host.StringOr(item["id"], "")] = item
+	indexes := map[string]map[string][]string{}
+	byRelation := func(relation string) map[string][]string {
+		if got, ok := indexes[relation]; ok {
+			return got
+		}
+		got := childrenIndex(repo, all, order, relation)
+		indexes[relation] = got
+		return got
 	}
-	// a matched issue shows the query's version of itself, which a jq
-	// program may have shaped; a child the query did not match is read
-	// off the store
+
+	// a matched issue shows the query's version of itself, which a jq program
+	// may have shaped, and so does a child its layer's query shaped; anything
+	// else is read off the store
+	shaped := map[string]map[string]any{}
+	for _, item := range items {
+		shaped[host.StringOr(item["id"], "")] = item
+	}
 	pick := func(id string) map[string]any {
-		if item, ok := matched[id]; ok {
+		if item, ok := shaped[id]; ok {
 			return item
 		}
 		return all[id]
 	}
-	within := func(level int) bool {
-		return depth <= 0 || level < depth
+
+	var failed error
+	kids := map[string][]string{}
+	childrenOf := func(id string, level int) []string {
+		layer := n.at(level + 1)
+		if layer == nil {
+			return nil
+		}
+		key := strconv.Itoa(n.index(level+1)) + "\x00" + id
+		if got, ok := kids[key]; ok {
+			return got
+		}
+
+		var candidates []string
+		for _, kid := range byRelation(layer.relation)[id] {
+			if all[kid] != nil {
+				candidates = append(candidates, kid)
+			}
+		}
+		out := candidates
+		if layer.program != nil && len(candidates) > 0 {
+			picked, shapes, err := runLayerQuery(layer.program, candidates, all)
+			if err != nil {
+				if failed == nil {
+					failed = err
+				}
+			} else {
+				out = picked
+				for id, item := range shapes {
+					shaped[id] = item
+				}
+			}
+		}
+		kids[key] = out
+		return out
 	}
 
 	// the roots are the matched issues no other matched issue reaches
-	// within the depth, whichever comes first in the query
 	under := map[string]bool{}
 	for _, item := range items {
 		var reach func(id string, level int, path map[string]bool)
 		reach = func(id string, level int, path map[string]bool) {
-			if !within(level) {
-				return
-			}
 			path[id] = true
-			for _, kid := range kids[id] {
-				if all[kid] == nil || path[kid] {
+			for _, kid := range childrenOf(id, level) {
+				if path[kid] {
 					continue
 				}
 				under[kid] = true
@@ -118,24 +256,25 @@ func nest(repo *cache.RepoCache, items []map[string]any, expand string, depth in
 		seen[id] = true
 		path[id] = true
 
-		n := nested{item: item, id: id, level: level, parent: parent, folded: folded[id], hidden: hidden}
 		var below []string
-		for _, kid := range kids[id] {
-			if all[kid] != nil && !path[kid] {
+		for _, kid := range childrenOf(id, level) {
+			if !path[kid] {
 				below = append(below, kid)
 			}
 		}
-		// a row at the depth is a leaf: what is under it is not the tree's
-		n.children = len(below)
-		if !within(level) {
-			n.children = 0
+		node := nested{
+			item:     item,
+			id:       id,
+			level:    level,
+			parent:   parent,
+			children: len(below),
+			folded:   !open[id],
+			hidden:   hidden,
 		}
-		out = append(out, n)
+		out = append(out, node)
 
-		if within(level) {
-			for _, kid := range below {
-				walk(kid, level+1, id, hidden || n.folded, path)
-			}
+		for _, kid := range below {
+			walk(kid, level+1, id, hidden || node.folded, path)
 		}
 		delete(path, id)
 	}
@@ -149,7 +288,48 @@ func nest(repo *cache.RepoCache, items []map[string]any, expand string, depth in
 	for _, item := range items {
 		walk(host.StringOr(item["id"], ""), 0, "", false, map[string]bool{})
 	}
-	return out
+	return out, failed
+}
+
+// runLayerQuery narrows one row's candidate children with its layer's query.
+//
+// The program runs over the array of that row's own children, the way the
+// view's query runs over the array of every issue, so the two are written the
+// same way and a layer can say `map(select(.fields.status != "done"))`
+// without knowing anything about the row it is under.
+func runLayerQuery(program *jq.Program, candidates []string, all map[string]map[string]any) ([]string, map[string]map[string]any, error) {
+	input := make([]any, 0, len(candidates))
+	for _, id := range candidates {
+		input = append(input, all[id])
+	}
+
+	values, err := program.Run(input)
+	if err != nil {
+		return nil, nil, err
+	}
+	// one array level is unwrapped and no more, the way a view's own query is
+	// read (host.IssueItems)
+	if len(values) == 1 {
+		if array, ok := values[0].([]any); ok {
+			values = array
+		}
+	}
+
+	ids := make([]string, 0, len(values))
+	shapes := map[string]map[string]any{}
+	for _, value := range values {
+		object, ok := value.(map[string]any)
+		if !ok {
+			return nil, nil, fmt.Errorf("expand: a layer's query returned something that is not an issue")
+		}
+		id, ok := object["id"].(string)
+		if !ok {
+			return nil, nil, fmt.Errorf("expand: a layer's query returned an issue with no id")
+		}
+		ids = append(ids, id)
+		shapes[id] = object
+	}
+	return ids, shapes, nil
 }
 
 // allIssues is the store as the default program sees it, less the archived,
@@ -176,9 +356,9 @@ func allIssues(repo *cache.RepoCache) (map[string]map[string]any, []string) {
 	return all, order
 }
 
-// childrenIndex maps every issue to its children along `expand`: the
-// targets of its own field, then the issues whose stored relation has
-// `expand` as its inverse and names it, in the store's order.
+// childrenIndex maps every issue to its children along one relation: the
+// targets of its own field, then the issues whose stored relation has that
+// name as its inverse and names it, in the store's order.
 func childrenIndex(repo *cache.RepoCache, all map[string]map[string]any, order []string, expand string) map[string][]string {
 	known := newKinds(repo)
 
@@ -224,17 +404,19 @@ type treeRow struct {
 	hidden   bool
 
 	group string
-	rank  string
+	// grouped says the row's own layer has a `group_by`, so its siblings are
+	// drawn in sections under their own headers.
+	grouped bool
+	rank    string
 	// text is everything the row draws, folded, for the filter to search.
 	text string
 }
 
 // treeOrder is the drawing order over rows in tree pre-order: a row that
 // matches the filter, or has a descendant that does, is drawn, never one
-// under a folded parent; the roots
-// are grouped in the order their groups first appear with (none) last; the
-// rank orders the roots within a group and the children under a parent by
-// (rank, id), the unranked keeping the query's order at the end; and a
+// under a folded parent; every set of siblings is grouped in the order their
+// groups first appear with (none) last; the rank orders them within a group
+// by (rank, id), the unranked keeping the query's order at the end; and a
 // subtree follows its root wherever the root goes.
 func treeOrder(rows []treeRow, filter string) []int {
 	needle := strings.ToLower(strings.TrimSpace(filter))
@@ -262,22 +444,49 @@ func treeOrder(rows []treeRow, filter string) []int {
 			childrenOf[row.parent] = append(childrenOf[row.parent], at)
 		}
 	}
-	rank := func(members []int) {
-		sort.SliceStable(members, func(i, j int) bool {
-			left, right := rows[members[i]], rows[members[j]]
-			return lessByRank(left.rank, left.id, right.rank, right.id)
-		})
+
+	order := make([]int, 0, len(rows))
+	var emit func(at int)
+	emit = func(at int) {
+		order = append(order, at)
+		for _, kid := range arrange(rows, childrenOf[rows[at].id]) {
+			emit(kid)
+		}
+	}
+	for _, at := range arrange(rows, childrenOf[""]) {
+		emit(at)
+	}
+	return order
+}
+
+// arrange is one set of siblings as it is drawn: the rank orders them, and
+// then, on a layer that groups, their groups in the order the groups first
+// appear with (none) last.
+//
+// Every level is arranged the same way, because every level is a list: the
+// roots were the only grouped ones while `expand` was a relation name, and a
+// layer that names a `group_by` of its own sections its own rows.
+func arrange(rows []treeRow, members []int) []int {
+	if len(members) == 0 {
+		return members
 	}
 
-	roots := childrenOf[""]
+	sort.SliceStable(members, func(i, j int) bool {
+		left, right := rows[members[i]], rows[members[j]]
+		return lessByRank(left.rank, left.id, right.rank, right.id)
+	})
+	if !rows[members[0]].grouped {
+		return members
+	}
+
 	groups := make([]string, 0, 4)
-	members := map[string][]int{}
-	for _, at := range roots {
+	of := map[string][]int{}
+	for _, at := range members {
 		group := rows[at].group
-		if _, seen := members[group]; !seen {
+		if _, seen := of[group]; !seen {
 			groups = append(groups, group)
 		}
-		members[group] = append(members[group], at)
+		of[group] = append(of[group], at)
 	}
 	// the rows with no value for the grouping field come last: they are the
 	// ones nobody has filed yet, and they are what a session works through
@@ -285,23 +494,33 @@ func treeOrder(rows []treeRow, filter string) []int {
 		return groups[j] == noGroup && groups[i] != noGroup
 	})
 
-	order := make([]int, 0, len(rows))
-	var emit func(at int)
-	emit = func(at int) {
-		order = append(order, at)
-		kids := childrenOf[rows[at].id]
-		rank(kids)
-		for _, kid := range kids {
-			emit(kid)
-		}
-	}
+	out := make([]int, 0, len(members))
 	for _, group := range groups {
-		rank(members[group])
-		for _, at := range members[group] {
-			emit(at)
-		}
+		out = append(out, of[group]...)
 	}
-	return order
+	return out
+}
+
+// groupHeads marks the places in the drawing order where a group opens: the
+// first of each run of siblings that share a group, on a layer that groups.
+//
+// A set of siblings is drawn group by group (arrange) but is not contiguous
+// — each of them carries its own subtree — so the last group drawn is kept
+// per parent rather than per line.
+func groupHeads(rows []treeRow, order []int) []bool {
+	heads := make([]bool, len(order))
+	last := map[string]string{}
+	for at, index := range order {
+		row := rows[index]
+		if !row.grouped {
+			continue
+		}
+		if was, seen := last[row.parent]; !seen || was != row.group {
+			heads[at] = true
+		}
+		last[row.parent] = row.group
+	}
+	return heads
 }
 
 // blockEnd is where the subtree drawn from order[at] ends, exclusive: the
@@ -316,13 +535,13 @@ func blockEnd(rows []treeRow, order []int, at int) int {
 }
 
 // siblingAt is the position in order of the previous (by < 0) or next
-// sibling of the row at order[at] — same parent, same level, and for a
-// root the same group — or -1 when there is none.
+// sibling of the row at order[at] — same parent, same level, and, on a layer
+// that groups, the same group — or -1 when there is none.
 func siblingAt(rows []treeRow, order []int, at, by int) int {
 	row := rows[order[at]]
 	sibling := func(other treeRow) bool {
 		return other.level == row.level && other.parent == row.parent &&
-			(row.level > 0 || other.group == row.group)
+			(!row.grouped || other.group == row.group)
 	}
 	if by < 0 {
 		for i := at - 1; i >= 0; i-- {
@@ -423,36 +642,106 @@ func siblingRanks(rows []treeRow, order []int, at int) (lo, hi string) {
 	return lo, hi
 }
 
-// nestGlyph is the fold marker before a nested row's id: a parent open or
-// folded, or a leaf.
-func nestGlyph(row treeRow) string {
-	switch {
-	case row.children == 0:
-		return "  "
-	case row.folded:
-		return "▸ "
-	default:
-		return "▾ "
+// The tree column is the cell after the id (Luis, 2026-10-02).
+//
+// The id column stays first and flush, so a list reads and sorts by id
+// whether or not anything nests, and the tree cell beside it carries the
+// level's indent, the fold arrow, and, folded, how many rows are hidden
+// under it. It is a cursor stop like any other cell: `→` reaches it, `Space`
+// folds and unfolds there, `Enter` opens the row as it does on the id, and a
+// leaf, which draws its indent alone, rings.
+
+// foldAll is `Z`: every parent folded shut, or, where none of them is open,
+// every parent opened.
+//
+// Folding wins the tie, because the tree a list opens with is the summary,
+// and getting back to it is what a reader of a tree opened all over wants.
+func foldAll(rows []treeRow, open map[string]bool) map[string]bool {
+	anyOpen := false
+	for _, row := range rows {
+		if row.children > 0 && !row.folded {
+			anyOpen = true
+			break
+		}
+	}
+	if anyOpen {
+		return map[string]bool{}
+	}
+
+	out := make(map[string]bool, len(rows))
+	for _, row := range rows {
+		if row.children > 0 {
+			out[row.id] = true
+		}
+	}
+	return out
+}
+
+// reveal opens the parents between a row and the roots, and says whether it
+// had to open any.
+//
+// A refresh can nest the row the cursor is on under a folded parent — a
+// parent given to an issue that had none, a tree opened the same moment
+// another process wrote — and a cursor that vanished with it would be a
+// cursor moved by somebody else's write. The ancestors of a row that is
+// wanted are opened, which is what the filter does for a match.
+func reveal(rows []treeRow, open map[string]bool, id string) bool {
+	if id == "" {
+		return false
+	}
+	byId := make(map[string]treeRow, len(rows))
+	for _, row := range rows {
+		byId[row.id] = row
+	}
+	row, ok := byId[id]
+	if !ok || !row.hidden {
+		return false
+	}
+
+	opened := false
+	for {
+		above, ok := byId[row.parent]
+		if !ok {
+			return opened
+		}
+		if !open[above.id] {
+			open[above.id] = true
+			opened = true
+		}
+		row = above
 	}
 }
 
-// indentOf is the room the tree takes before the id: the deepest visible
-// level's indent plus the fold marker, nothing when nothing is expanded.
-func indentOf(rows []treeRow, order []int, expanded bool) int {
+// treeCell is one row's tree column: its indent, its arrow, and the count of
+// what folding it hides.
+func treeCell(row treeRow) string {
+	cell := strings.Repeat("  ", row.level)
+	switch {
+	case row.children == 0:
+		return cell
+	case row.folded:
+		return cell + "▸ " + strconv.Itoa(row.children)
+	default:
+		return cell + "▾"
+	}
+}
+
+// treeWidth is the tree column's width: the deepest level drawn, the arrow,
+// and room for the largest count, measured over every row rather than over
+// the folded ones so that folding never moves the columns beside it. Nothing
+// when nothing nests.
+func treeWidth(rows []treeRow, order []int, expanded bool) int {
 	if !expanded {
 		return 0
 	}
-	deepest := 0
+	deepest, most := 0, 0
 	for _, at := range order {
 		deepest = max(deepest, rows[at].level)
+		most = max(most, rows[at].children)
 	}
-	return 2*deepest + 2
-}
-
-// nestPrefix is what a row's id is drawn behind: its level's indent and its
-// fold marker. The id moves with it, so that a level reads as a level,
-// and the page pads the id to the indent it settled on so that the
-// columns after it line up.
-func nestPrefix(row treeRow) string {
-	return strings.Repeat("  ", row.level) + nestGlyph(row)
+	width := 2*deepest + 1
+	if most > 0 {
+		width += 1 + len(strconv.Itoa(most))
+	}
+	return width
 }

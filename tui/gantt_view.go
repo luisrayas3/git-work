@@ -57,10 +57,10 @@ func (p *ganttPage) View() string {
 	return strings.Join(append(lines, bottom...), "\n")
 }
 
-// indent is the room the tree takes before the id, nothing when `expand`
-// is not bound.
-func (p *ganttPage) indent() int {
-	return indentOf(p.nodes, p.order, p.expandKey != "")
+// treeRoom is the width of the tree cell after the id, nothing when
+// `expand` is not bound (nest.go).
+func (p *ganttPage) treeRoom() int {
+	return treeWidth(p.nodes, p.order, p.nest.expanded())
 }
 
 // layout sizes the label column to the labels, up to two fifths of the
@@ -69,6 +69,11 @@ func (p *ganttPage) indent() int {
 // screen, colOffset moving as the board's does.
 func (p *ganttPage) layout() (labelWidth, visible int) {
 	labelWidth, visible = p.labelWidth(), p.capacity()
+	if p.col < 0 {
+		// the arrow cell is not a period: the chart stays where it was
+		p.colOffset = min(max(p.colOffset, 0), max(len(p.periods)-visible, 0))
+		return labelWidth, min(visible, len(p.periods))
+	}
 	if p.col < p.colOffset {
 		p.colOffset = p.col
 	}
@@ -86,8 +91,8 @@ func (p *ganttPage) labelWidth() int {
 	for _, index := range p.order {
 		longest = max(longest, ansi.StringWidth(p.bars[index].label))
 	}
-	labelWidth := 1 + p.indent() + idWidth + 1 + longest
-	return min(labelWidth, max(p.width*2/5, 1+p.indent()+idWidth+1+4))
+	labelWidth := 1 + p.treeRoom() + idWidth + 1 + longest
+	return min(labelWidth, max(p.width*2/5, 1+p.treeRoom()+idWidth+1+4))
 }
 
 // capacity is how many periods the window has room for.
@@ -158,7 +163,7 @@ func (p *ganttPage) headerLines(labelWidth, visible int) []string {
 	}
 
 	first := pad("", labelWidth) + styleDim.Render(sep) + styleDim.Render(fit(string(coarse), chart))
-	idHeader := styleHeader.Render(pad(strings.Repeat(" ", 1+p.indent())+"id", labelWidth))
+	idHeader := styleHeader.Render(pad(" id", labelWidth))
 	labels := make([]string, 0, len(fine)+1)
 	for n, label := range fine {
 		style := styleHeader
@@ -179,6 +184,11 @@ func (p *ganttPage) body(labelWidth, visible int) (lines []string, groups []int,
 	colors := p.groupColors()
 	w := periodWidth(p.scale)
 	cross := labelWidth + 1 + (p.col-p.colOffset)*w
+	if p.col < 0 {
+		// the cursor is on the arrow cell, which is in the label column:
+		// nothing in the chart is crossed
+		cross = p.width
+	}
 	group := ""
 	headerAt := -1
 	for at, index := range p.order {
@@ -191,7 +201,7 @@ func (p *ganttPage) body(labelWidth, visible int) (lines []string, groups []int,
 				header = header.Foreground(tint)
 			}
 			// the crosshair runs through the header too, unbroken
-			text := pad(group, max(ansi.StringWidth(group), cross+w))
+			text := pad(group, max(ansi.StringWidth(group), min(cross+w, p.width)))
 			line := header.Render(ansi.Cut(text, 0, cross)) +
 				header.Background(styleRow().GetBackground()).Render(ansi.Cut(text, cross, cross+w))
 			if rest := ansi.Cut(text, cross+w, p.width); rest != "" {
@@ -239,7 +249,7 @@ func (p *ganttPage) groupColors() map[string]color.Color {
 func (p *ganttPage) rowLine(index, labelWidth, visible int, under, grabbed bool, tint color.Color) string {
 	b, node := &p.bars[index], &p.nodes[index]
 	w := periodWidth(p.scale)
-	indent := p.indent()
+	indent := p.treeRoom()
 
 	wash := lipgloss.NewStyle()
 	if under {
@@ -257,12 +267,15 @@ func (p *ganttPage) rowLine(index, labelWidth, visible int, under, grabbed bool,
 	}
 
 	parts := []string{marker}
-	prefix := ""
+	parts = append(parts, wash.Faint(true).Render(pad(b.human, idWidth)))
 	if indent > 0 {
-		prefix = nestPrefix(*node)
-		parts = append(parts, wash.Render(prefix))
+		cell := pad(treeCell(*node), indent)
+		style := wash
+		if under && p.col < 0 {
+			style = styleMark()
+		}
+		parts = append(parts, wash.Render(" "), style.Render(cell))
 	}
-	parts = append(parts, wash.Faint(true).Render(pad(b.human, indent+idWidth-len([]rune(prefix)))))
 	room := max(labelWidth-1-indent-idWidth-1, 0)
 	parts = append(parts, wash.Render(" "+pad(b.label, room)))
 	parts = append(parts, wash.Faint(true).Render("│"))
@@ -414,11 +427,15 @@ func (p *ganttPage) hintLine() string {
 	if b == nil {
 		return hints()
 	}
+	// the arrow cell: enter opens the row as it does anywhere, space folds
+	if p.col < 0 {
+		return hints(append([]hint{{"enter", "open"}}, foldHints(p.node())...)...)
+	}
 	pairs := []hint{{"enter", "open"}}
 	if b.hasStart || b.hasStop {
 		pairs = append(pairs, hint{"space", "grab bar"})
 	} else {
 		pairs = append(pairs, hint{"space", "grab"})
 	}
-	return hints(append(pairs, foldHints(p.node())...)...)
+	return hints(pairs...)
 }

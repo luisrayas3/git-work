@@ -279,8 +279,9 @@ func TestGanttGrabUpAndDownWritesARank(t *testing.T) {
 }
 
 // TestGanttNestsRowsUnderRows: with `expand` the rows are a tree, a parent
-// with no dates of its own draws the envelope of its children's, z folds
-// it — the envelope staying — and tab and shift-tab walk the levels.
+// with no dates of its own draws the envelope of its children's, folded or
+// not; the arrow is the cell after the id, which ← reaches from the first
+// period and space folds, and tab and shift-tab walk the levels.
 func TestGanttNestsRowsUnderRows(t *testing.T) {
 	repo := testRepo(t)
 	withDates(t, repo)
@@ -290,20 +291,21 @@ func TestGanttNestsRowsUnderRows(t *testing.T) {
 
 	page := gantt(t, repo, `{"start":"start","stop":"stop","from":"2026-09-07","expand":"children","query":"map(select(.fields.type == \"story\"))"}`)
 	drawn := plainView(page)
-	require.Contains(t, drawn, "3 issues")
-	require.Contains(t, rowOf(page, story), "▾")
-	require.Contains(t, rowOf(page, story), strings.Repeat("═", 9), "the envelope spans the three weeks")
-	require.Contains(t, rowOf(page, one), "  "+one[:idWidth], "a child is indented")
-	require.Contains(t, rowOf(page, one), "▓▓▓")
+	require.Contains(t, drawn, "1 issue", "it opens folded")
+	require.Contains(t, rowOf(page, story), story[:idWidth]+" ▸ 2", "the arrow follows the id, with the count")
+	require.Contains(t, rowOf(page, story), strings.Repeat("═", 9), "folded, the envelope stays")
+	require.Equal(t, "", rowOf(page, two))
 	require.Equal(t, story, page.current().id)
 	require.Equal(t, 0, page.col, "the envelope starts the chart")
 
-	send(page, "z")
+	// ← from the first period is the arrow cell, where space unfolds
+	send(page, "left", "space")
 	drawn = plainView(page)
-	require.Contains(t, drawn, "1 issue")
-	require.Contains(t, rowOf(page, story), "▸")
-	require.Contains(t, rowOf(page, story), strings.Repeat("═", 9), "folded, the envelope stays")
-	require.Equal(t, "", rowOf(page, two))
+	require.Equal(t, -1, page.col)
+	require.Contains(t, drawn, "3 issues")
+	require.Contains(t, rowOf(page, story), story[:idWidth]+" ▾")
+	require.Contains(t, rowOf(page, one), one[:idWidth]+"   ", "a child is indented")
+	require.Contains(t, rowOf(page, one), "▓▓▓")
 
 	send(page, "tab")
 	require.Equal(t, one, page.current().id, "tab unfolds and enters")
