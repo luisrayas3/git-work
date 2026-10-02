@@ -16,7 +16,9 @@ def report(from_="7d", to=None, iteration=None, query=None):
 
     What is said about each issue is this flow's choice, not the tool's: there
     are no field roles, so `status` and `parent` are named here, in the open.
-    Only issues that actually changed are printed.
+    Only issues that actually changed are printed. An issue created inside the
+    window has no before to diff, so it is described rather than diffed: one
+    line of the fields it ends the window with, in the schema's order.
     """
 
     def short(id):
@@ -42,6 +44,12 @@ def report(from_="7d", to=None, iteration=None, query=None):
                     parts.append(str(element))
             return "[" + ", ".join(parts) + "]"
         return str(value)
+
+    def is_empty(value):
+        # What a described issue leaves out. `False` is empty because the one
+        # bool a report meets is `archived`, and a false `archived` is the
+        # ordinary case; a zero number is a value and stays.
+        return value == None or value == "" or value == [] or value == {} or value == False
 
     def named_value(value):
         # A relation holds another issue's id, so draw it as that issue; any
@@ -103,13 +111,34 @@ def report(from_="7d", to=None, iteration=None, query=None):
     # own type first, because a field belongs to exactly one type.
     closed_by_type = {}
     closed_anywhere = {}
+    # The same read gives the field order a created issue is described in: the
+    # export keeps the schema's order, and a report should read the way the
+    # issue does rather than alphabetically.
+    field_order = {}
     for type_key, spec in work.schema.export()["types"].items():
-        status = spec.get("fields", {}).get("status", {})
+        fields = spec.get("fields", {})
+        field_order[type_key] = fields.keys()
+        status = fields.get("status", {})
         closed_by_type[type_key] = {}
         for value in status.get("values", []):
             if value.get("category") in ("completed", "canceled"):
                 closed_by_type[type_key][value["id"]] = True
                 closed_anywhere[value["id"]] = True
+
+    def described_keys(item):
+        # The type's fields in the schema's order, then whatever the issue
+        # carries that the schema does not list — an off-schema value Jira
+        # holds, a field archived since — so nothing is silently dropped.
+        order = field_order.get(item["fields"].get("type"), [])
+        keys = []
+        for key in order:
+            if key in item["fields"]:
+                keys.append(key)
+        rest = []
+        for key in item["fields"]:
+            if key not in order:
+                rest.append(key)
+        return keys + sorted(rest)
 
     def is_closed(item, status):
         if status == None:
@@ -149,16 +178,6 @@ def report(from_="7d", to=None, iteration=None, query=None):
         if new_fields.get("archived") == True and old_fields.get("archived") != True:
             marks.append("archived")
 
-        # Every changed field, because this flow does not know which ones
-        # matter and a missing line is worse than an extra one. The status
-        # carries the whole path it took, read from the operations: the states
-        # a task passed through are often the interesting part of a week.
-        keys = {}
-        for key in old_fields:
-            keys[key] = True
-        for key in new_fields:
-            keys[key] = True
-
         path = []
         comments = []
         for entry in operations.get(id, []):
@@ -167,25 +186,49 @@ def report(from_="7d", to=None, iteration=None, query=None):
             elif entry["type"] == "add-comment":
                 comments.append(entry)
 
-        field_lines = 0
-        for key in sorted(keys):
-            was = old_fields.get(key)
-            now = new_fields.get(key)
-            if was == now:
-                continue
-            if key == "title" and was == None:
-                # The header already carries it, and a created issue's title
-                # was never anything else.
-                continue
-            line = "  %s: %s → %s" % (key, named_value(was), named_value(now))
-            if key == "status" and len(path) > 1:
-                line += " (via %s)" % ", ".join(path[:-1])
-            lines.append(line)
-            field_lines += 1
+        if old == None:
+            # A created issue has no before, so there is nothing to diff: a
+            # column of `(none) → value` is the whole issue written the long
+            # way. It is described instead — what it holds at the end of the
+            # window, one line, in the schema's order for its type.
+            described = []
+            for key in described_keys(new):
+                if key == "title" or key == "type":
+                    # The heading carries the title; the type is the grouping
+                    # and the schema order it is read in.
+                    continue
+                if is_empty(new_fields[key]):
+                    continue
+                described.append("%s %s" % (key, named_value(new_fields[key])))
+            if len(described) > 0:
+                lines.append("  with " + ", ".join(described))
+        else:
+            # Every changed field, because this flow does not know which ones
+            # matter and a missing line is worse than an extra one. The status
+            # carries the whole path it took, read from the operations: the
+            # states a task passed through are often the interesting part of a
+            # week.
+            keys = {}
+            for key in old_fields:
+                keys[key] = True
+            for key in new_fields:
+                keys[key] = True
 
-        if field_lines > 0 and old != None:
-            marks.append("changed")
-            changed += 1
+            field_lines = 0
+            for key in sorted(keys):
+                was = old_fields.get(key)
+                now = new_fields.get(key)
+                if was == now:
+                    continue
+                line = "  %s: %s → %s" % (key, named_value(was), named_value(now))
+                if key == "status" and len(path) > 1:
+                    line += " (via %s)" % ", ".join(path[:-1])
+                lines.append(line)
+                field_lines += 1
+
+            if field_lines > 0:
+                marks.append("changed")
+                changed += 1
 
         for entry in comments:
             lines.append("  comment — %s, %s: %s" % (

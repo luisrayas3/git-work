@@ -239,9 +239,21 @@ What it says, and why:
   **Closed** is a status whose schema category became `completed` or `canceled`.
   **Archived** is `archived` false becoming true.
   Nothing else is given a name.
-- **Every changed field is reported**, `before → after`, by key.
+- **Every changed field is reported**, `before → after`, by key,
+  for an issue that already existed at the start of the window.
   The flow does not know which fields matter, and guessing wrong is worse than
   one extra line.
+- **A created issue is described rather than diffed.**
+  There is no before to diff against,
+  so `before → after` would read `(none) → value` on every field —
+  the whole issue written the long way.
+  Instead the block line says `created` and one line follows it,
+  `with status done, priority high, area [tui], parent 58e95ff …`:
+  the fields it holds at the window's end,
+  in the schema's order for its type, the empty ones left out.
+  Its description is the body of the create operation and not a comment,
+  so it is never one of the comments listed under it;
+  those are comments someone wrote in the window.
 - **The status gets its whole path**, `to-do → done (via in-progress)`,
   read from the operations rather than from the two snapshots,
   because the interesting part of a week is often the states a task passed through.
