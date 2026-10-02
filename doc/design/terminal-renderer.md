@@ -17,8 +17,11 @@ without a second query language, a second data path, or a second lock.
 
 **Status:** decided 2026-09-24 (Luis); keys and `show` revised 2026-09-27 (Luis);
 the board decided and built 2026-09-28 (Luis);
-the gantt and nesting decided and built 2026-09-28 (`565d57a`, the gantt story `00a63d9`).
-List and show landed 2026-09-24, the board, the gantt and nesting 2026-09-28;
+the gantt and nesting decided and built 2026-09-28 (`565d57a`, the gantt story `00a63d9`);
+the matrix decided and built 2026-10-02 (the allocations story `3289ec1`,
+its reasoning in `doc/design/allocations.md`).
+List and show landed 2026-09-24, the board, the gantt and nesting 2026-09-28,
+the matrix 2026-10-02;
 every kind in the table is drawn.
 This document revises `config-entity.md` E9,
 which is now the short form and points here.
@@ -130,6 +133,7 @@ a jq program, defaulting to the list's default program
 | `list` | — | `fields` (`["type","title"]`) | `details`, `group_by`, `expand`, `depth`, `rank` |
 | `board` | `columns` | `values` (the field's schema order), `card` (`["title"]`) | `group_by`, `rank` |
 | `gantt` | `start`, `stop` | `label` (title), `scale` (`week`), `from`, `to` (the data's extent) | `progress`, `group_by`, `expand`, `depth`, `rank` |
+| `matrix` | `rows`, `columns` | `row_values`, `column_values` (each axis's own order) | `value`, `group_by` |
 | `show` | `id` | `fields` (the type's fields, schema order) | `children` |
 
 `fields` on a list is an ordered list of field keys,
@@ -142,6 +146,10 @@ a value the data has and `values` does not
 gets a trailing column of its own,
 because a board that silently drops issues is worse than a board with a ragged edge.
 `scale` is `day`, `week`, `month` or `quarter`.
+`rows` and `columns` on a matrix are the two fields it splits the issues by
+and `value` the number it sums in each cell;
+`row_values` and `column_values` order each axis
+the way `values` orders a board's columns.
 
 `sort_by` and `card_title` are gone.
 Order is the query's order — jq sorts, and it sorts better than a binding would —
@@ -710,6 +718,30 @@ so a relation's group is the issue it names, `13e21c6 north`.
 Each group's bars and header take a color of their own,
 given in the order the groups are stored so a filter keeps them,
 yellow left to the grab and the ungrouped left plain.
+
+## Matrix
+
+`matrix` is the two-axis summary:
+a row per value of `rows`, a column per value of `columns`,
+and in each cell the sum of the number field `value` names —
+or a count of the issues when none is named.
+Decided and built 2026-10-02 (Luis), for the allocations story (`3289ec1`);
+**its reasoning lives in `doc/design/allocations.md`**,
+because the kind and the allocation type were decided together
+and the kind is the half that belongs to the renderer.
+
+The short of it, for a reader who stops here:
+the axes order themselves the way a board's columns do —
+`row_values` / `column_values`, else an enum's schema order,
+then the values the data has, then `(none)` —
+and a relation axis is the issue it names, ordered by title;
+the cursor is a cell, `Enter` opens the issues summed into it
+as an ordinary list whose query selects them,
+`Space` rings because a sum is not a value,
+`/` narrows the axes rather than the issues,
+the totals row and column are dim and are cells like any other,
+`group_by` is blocks of rows under one column header,
+and the row labels stay put while the columns scroll sideways by whole columns.
 
 ## Show
 

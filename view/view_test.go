@@ -162,9 +162,48 @@ func TestParseChildrenShape(t *testing.T) {
 func TestParseUnknownKind(t *testing.T) {
 	_, err := Parse("burndown", nil)
 	require.Error(t, err)
-	for _, kind := range []string{"board", "gantt", "list", "show"} {
+	for _, kind := range []string{"board", "gantt", "list", "matrix", "show"} {
 		require.Contains(t, err.Error(), kind)
 	}
+}
+
+// TestParseMatrix: the matrix needs both axes, counts when no number is
+// named, and takes an order for either axis
+// (doc/design/allocations.md A4, A5).
+func TestParseMatrix(t *testing.T) {
+	_, err := Parse(KindMatrix, kwargs(t, `{"rows":"work"}`))
+	require.ErrorContains(t, err, "columns")
+
+	_, err = Parse(KindMatrix, kwargs(t, `{"columns":"iteration"}`))
+	require.ErrorContains(t, err, "rows")
+
+	call, err := Parse(KindMatrix, kwargs(t, `{"rows":"work","columns":"iteration"}`))
+	require.NoError(t, err)
+	require.Equal(t, DefaultQuery, call.String("query"))
+	// with no number named a cell counts, so `value` is simply absent
+	require.False(t, call.Has("value"))
+	require.False(t, call.Has("row_values"))
+	require.False(t, call.Has("group_by"))
+
+	call, err = Parse(KindMatrix, kwargs(t, `{
+		"rows": "assignee",
+		"columns": "iteration",
+		"value": "points",
+		"row_values": ["a", "b"],
+		"column_values": ["s1"],
+		"group_by": "work",
+		"query": "map(select(.fields.type == \"allocation\"))"
+	}`))
+	require.NoError(t, err)
+	require.Equal(t, "points", call.String("value"))
+	require.Equal(t, []string{"a", "b"}, call.Strings("row_values"))
+	require.Equal(t, []string{"s1"}, call.Strings("column_values"))
+	require.Equal(t, "work", call.String("group_by"))
+
+	// there is no rank on a matrix: the axes own the order
+	_, err = Parse(KindMatrix, kwargs(t, `{"rows":"work","columns":"iteration","rank":"rank"}`))
+	require.ErrorContains(t, err, "rank")
+	require.ErrorContains(t, err, "rows (required)")
 }
 
 // TestHelpIsGeneratedFromTheTable pins the one rule the help follows:

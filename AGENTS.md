@@ -100,6 +100,7 @@ in the change that makes it wrong.
 | Overview | `git work flow run overview` (TTY): open stories, open decisions and open tasks with no parent, grouped by type; `'{"group_by":"status"}'` regroups |
 | Board | `git work flow run board` (TTY): the same issues as a kanban, a column per open status, a swimlane per type; `'{"group_by":"area"}'` relanes |
 | Due dates | `git work view gantt '{"start":"due","stop":"due","query":"map(select(.fields.due != null))"}'` (TTY): the dated work as milestones on a week chart; `"expand":"children"` nests tasks under their stories |
+| Allocations | `git work view matrix '{"rows":"work","columns":"iteration","value":"points","query":"map(select(.fields.type == \"allocation\"))"}'` (TTY): the points allocated, work down, iterations across, totals both ways |
 | Create | `git work issue new '{"fields":{"title":"…","type":"task","status":"to-do","priority":"medium","area":["cli"],"parent":"<story id>"},"body":"…"}'` → prints the id |
 | Show | `git work issue get <id>` · `--format text` |
 | Close / reopen | `git work issue set <id> '{"status":"done"}'` · `'{"status":"to-do"}'` |
@@ -211,7 +212,7 @@ and the command is the whole input:
 one KWARGS object, the same one the Starlark call takes,
 nothing on standard input and nothing printed
 (design in `doc/design/terminal-renderer.md`).
-Every kind renders in the terminal (`84dfbde`; the gantt and nesting `565d57a`),
+Every kind renders in the terminal (`84dfbde`; the gantt and nesting `565d57a`; the matrix `3289ec1`),
 and `--gui` errors until the gui process exists (`8b06191`):
 
 | Action | Command |
@@ -220,6 +221,7 @@ and `--gui` errors until the gui process exists (`8b06191`):
 | Show | `git work view show [KWARGS\|-] [--gui]` (`id` required) |
 | Board | `git work view board [KWARGS\|-] [--gui]` (`columns` required) |
 | Gantt | `git work view gantt [KWARGS\|-] [--gui]` (`start` and `stop` required) |
+| Matrix | `git work view matrix [KWARGS\|-] [--gui]` (`rows` and `columns` required) |
 
 Which other arguments a kind takes is `git work view <kind> --help`,
 generated from the table in package `view`, which is the authority
@@ -264,6 +266,19 @@ on its first cell only `start` moves, on its last only `stop`, between them both
 and a one-cell bar grows — `↑`/`↓` reorder it only with `rank` bound,
 one drop is one commit, a row with one date is a milestone fading away from its date (a start to the right, a stop to the left) and running on as the dull band a row with none draws, `group_by` gives each group a color and heads it as a cell draws the value,
 and `progress` fills the bar.
+A matrix is a row per value of `rows` and a column per value of `columns`,
+each cell the sum of the number `value` names or a count of its issues when none is named,
+the axes ordered as a board's columns are (`row_values`/`column_values`, else an enum's schema order, then what the data has, then `(none)`)
+and a relation axis drawn as the issue it names, in title order;
+the cursor is a cell, `Enter` opens the issues summed into it as a list whose query selects them
+(on a totals cell, the whole row, column or matrix),
+`Space` rings because a sum is not a value,
+copy takes the number and `M-c`/`Y` the cell's `git work view list …` command,
+`/` narrows the axes rather than the issues,
+the dim totals row and column are of what is drawn,
+`group_by` is blocks of rows under one column header,
+and the row labels stay put while the columns scroll sideways
+(2026-10-02, `doc/design/allocations.md`).
 `expand` nests the list and the gantt along a relation,
 the derived side (`children`) read through the stored one (`parent`),
 `depth` levels deep (1 unless named, `0` unlimited):
@@ -501,7 +516,10 @@ Settled calls (details live in the referenced issues):
 ## The schema
 
 `schema.yaml` is the `jira` preset plus what the tracker needs:
-a `decision` type, and `area` on `story`, `task` and `decision`
+a `decision` type, an `allocation` type
+(`iteration`, `work`, `assignee`, `points`; no status, because it is a plan
+and not a piece of work — `doc/design/allocations.md`, which is also why the
+presets ship no such type), and `area` on `story`, `task` and `decision`
 (the labels the tracker used to simulate a schema with,
 migrated onto fields by `bf6f392`, mapping in `doc/design/store-migration.md`;
 `phase` came the same way and was archived the same day,
