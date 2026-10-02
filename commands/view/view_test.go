@@ -85,5 +85,9 @@ func TestHelpCarriesTheTable(t *testing.T) {
 	require.Contains(t, long, "stop")
 	require.Contains(t, long, "required")
 	require.Contains(t, long, "day, week, month, quarter")
-	require.Contains(t, long, "feature")
+	// the third tier is `optional`, and the footnote says what that means
+	// rather than warning that it is not drawn yet (f9c991e)
+	require.Contains(t, long, "optional")
+	require.Contains(t, long, "has no default")
+	require.NotContains(t, long, "not drawn yet")
 }

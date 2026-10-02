@@ -23,7 +23,7 @@ func TestParseAppliesTheDefaults(t *testing.T) {
 	// every kind that draws more than one issue queries the same way
 	require.Equal(t, DefaultQuery, call.String("query"))
 	require.Equal(t, []string{"type", "title"}, call.Strings("fields"))
-	// a feature nobody asked for is simply absent
+	// an optional argument nobody asked for is simply absent
 	require.False(t, call.Has("group_by"))
 	require.Nil(t, call.Expand())
 	// the manual order is the built-in rank until another field is named
@@ -56,7 +56,7 @@ func TestParseUnknownKeyNamesTheArguments(t *testing.T) {
 	// the error names what the view does take, with the tier
 	require.Contains(t, err.Error(), "columns (required)")
 	require.Contains(t, err.Error(), "card (defaulted)")
-	require.Contains(t, err.Error(), "group_by (feature)")
+	require.Contains(t, err.Error(), "group_by (optional)")
 }
 
 func TestParseMissingRequired(t *testing.T) {

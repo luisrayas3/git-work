@@ -20,9 +20,14 @@ const (
 //
 // It is in the table rather than in prose
 // because the help, the validation and a renderer's own checks
-// all need the same answer,
-// and because it is the honest way to publish a table
-// whose Feature rows are not drawn yet.
+// all need the same answer.
+//
+// The third tier was called `feature` until 2026-10-02,
+// from before any kind was drawn,
+// and the help footnoted it as "in the table and not drawn yet",
+// which read as *not implemented* once every kind was drawn:
+// an agent took `group_by` and `expand` for sketches.
+// It is `optional`, which is what it had always meant (f9c991e).
 type Tier string
 
 const (
@@ -30,8 +35,8 @@ const (
 	Required Tier = "required"
 	// Defaulted: absent, it takes the value in the table.
 	Defaulted Tier = "defaulted"
-	// Feature: absent, the view simply does not do that thing.
-	Feature Tier = "feature"
+	// Optional: no default; absent, the view simply does not do that thing.
+	Optional Tier = "optional"
 )
 
 // ValueKind is what an argument's JSON value has to be.
@@ -76,7 +81,7 @@ const (
 type Arg struct {
 	// Name is the keyword, in the JSON object and in Starlark alike.
 	Name string
-	// Tier says whether it is required, defaulted or a feature.
+	// Tier says whether it is required, defaulted or optional.
 	Tier Tier
 	// Kind is the shape of its value.
 	Kind ValueKind
@@ -100,11 +105,11 @@ var Kinds = map[string][]Arg{
 		queryArg,
 		{Name: "fields", Tier: Defaulted, Kind: FieldKeys, Default: `["type","title"]`,
 			Doc: "the fields shown as columns, in order"},
-		{Name: "details", Tier: Feature, Kind: FieldKeys,
+		{Name: "details", Tier: Optional, Kind: FieldKeys,
 			Doc: "the fields shown on a dim second line under each row"},
-		{Name: "group_by", Tier: Feature, Kind: FieldKey,
-			Doc: "the field whose value starts a new section"},
-		{Name: "expand", Tier: Feature, Kind: ExpandSpec, Doc: expandDoc},
+		{Name: "group_by", Tier: Optional, Kind: FieldKey,
+			Doc: "the field whose value starts a new section; the rows with no value at all are the last section, (none)"},
+		{Name: "expand", Tier: Optional, Kind: ExpandSpec, Doc: expandDoc},
 		rankArg,
 	},
 	KindBoard: {
@@ -115,8 +120,8 @@ var Kinds = map[string][]Arg{
 			Doc: "the column values, in order; the field's schema order by default, which is resolved at render time"},
 		{Name: "card", Tier: Defaulted, Kind: FieldKeys, Default: `["title"]`,
 			Doc: "the fields shown on a card"},
-		{Name: "group_by", Tier: Feature, Kind: FieldKey,
-			Doc: "the field whose value starts a new swimlane"},
+		{Name: "group_by", Tier: Optional, Kind: FieldKey,
+			Doc: "the field whose value starts a new swimlane; the cards with no value at all are the last swimlane, (none)"},
 		rankArg,
 	},
 	KindGantt: {
@@ -134,11 +139,11 @@ var Kinds = map[string][]Arg{
 			Doc: "the first date shown; the data's own extent by default"},
 		{Name: "to", Tier: Defaulted, Kind: String,
 			Doc: "the last date shown; the data's own extent by default"},
-		{Name: "progress", Tier: Feature, Kind: FieldKey,
+		{Name: "progress", Tier: Optional, Kind: FieldKey,
 			Doc: "the number field, 0 to 1, a bar is filled to"},
-		{Name: "group_by", Tier: Feature, Kind: FieldKey,
-			Doc: "the field whose value starts a new row group"},
-		{Name: "expand", Tier: Feature, Kind: ExpandSpec, Doc: expandDoc},
+		{Name: "group_by", Tier: Optional, Kind: FieldKey,
+			Doc: "the field whose value starts a new row group; the rows with no value at all are the last group, (none)"},
+		{Name: "expand", Tier: Optional, Kind: ExpandSpec, Doc: expandDoc},
 		rankArg,
 	},
 	// matrix is the two-axis summary: rows of one field by columns of
@@ -150,14 +155,14 @@ var Kinds = map[string][]Arg{
 			Doc: "the field whose values are the rows"},
 		{Name: "columns", Tier: Required, Kind: FieldKey,
 			Doc: "the field whose values are the columns"},
-		{Name: "value", Tier: Feature, Kind: FieldKey,
+		{Name: "value", Tier: Optional, Kind: FieldKey,
 			Doc: "the number field summed in a cell; with none, a cell counts its issues"},
 		{Name: "row_values", Tier: Defaulted, Kind: StringList,
 			Doc: "the row values, in order; the axis's own order by default, which is resolved at render time"},
 		{Name: "column_values", Tier: Defaulted, Kind: StringList,
 			Doc: "the column values, in order; the axis's own order by default"},
-		{Name: "group_by", Tier: Feature, Kind: FieldKey,
-			Doc: "the field whose value starts a new block of rows"},
+		{Name: "group_by", Tier: Optional, Kind: FieldKey,
+			Doc: "the field whose value starts a new block of rows; the rows with no value at all are the last block, (none)"},
 	},
 	// show is the one kind that is about a single issue,
 	// so it takes an id where every other kind takes a query.
@@ -166,7 +171,7 @@ var Kinds = map[string][]Arg{
 			Doc: "the issue to show, by id prefix or alias"},
 		{Name: "fields", Tier: Defaulted, Kind: FieldKeys,
 			Doc: "the fields shown, in order; the type's fields in schema order by default"},
-		{Name: "children", Tier: Feature, Kind: ChildRelations,
+		{Name: "children", Tier: Optional, Kind: ChildRelations,
 			Doc: `the issues pointing at this one, a section each, as [{"type":"task","relation":"parent","fields":["status"]}]; relation may be the inverse name instead, and type and fields may be left out`},
 	},
 }
@@ -215,6 +220,8 @@ func KindNames() []string {
 //
 // A default is shown where it is short enough to read in a column; the one
 // that is not — the default query — is a sentence in its own doc instead.
+// An `optional` row has no default at all: absent, the view does not do that
+// thing, which is what the footnote under the table says.
 func Help(kind string) string {
 	var b strings.Builder
 	for _, arg := range Kinds[kind] {

@@ -123,13 +123,21 @@ Every argument falls in one of three tiers:
 
 - **required** — the call has no meaning without it;
 - **defaulted** — the view always has one, and the default is usually right;
-- **feature** — off entirely unless named.
+- **optional** — no default; off entirely unless named.
+
+The third tier was called **feature** until 2026-10-02,
+and the help footnoted it as "in the table and not drawn yet" —
+true before any kind was drawn, and left standing after they all were,
+so an agent reading `view list --help` took `group_by` and `expand`
+for sketches and went looking for another way (`f9c991e`).
+A tier is what a call must say, not how far the renderer has got;
+`optional` says it, and the footnote now says what it means.
 
 `query` is on every kind but `show`:
 a jq program, defaulting to the list's default program
 (unarchived, last edited first).
 
-| Kind | Required | Defaulted | Feature |
+| Kind | Required | Defaulted | Optional |
 | --- | --- | --- | --- |
 | `list` | — | `fields` (`["type","title"]`), `rank` (`rank`) | `details`, `group_by`, `expand` |
 | `board` | `columns` | `values` (the field's schema order), `card` (`["title"]`), `rank` (`rank`) | `group_by` |
