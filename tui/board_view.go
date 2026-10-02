@@ -226,11 +226,7 @@ func (p *boardPage) statusLine() string {
 		count = fmt.Sprintf("%d of %d issues · /%s", n, len(p.cards), p.filter)
 	}
 
-	left := p.status
-	if left == "" {
-		left = p.hintLine()
-	}
-	return styleStatus.Render(fit(left+" · "+count, p.width))
+	return styleStatus.Render(bottomLine(p.hintLine(), lastAction(p.status, count), p.width))
 }
 
 // hintLine is what the keys do where the cursor is (hints.go). A card has no

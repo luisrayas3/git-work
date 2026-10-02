@@ -94,6 +94,7 @@ and it is the one argument that runs long,
 so it is what a narrow window cuts.
 An argument left at its default is dim, so the ones somebody chose stand out.
 The status line at the bottom keeps the last message and the count,
+on its right, beside the hints (Navigation and editing),
 and no longer carries the query (revised 2026-09-27, Luis).
 
 ## What a view call is
@@ -285,14 +286,32 @@ Two keys do everything, and what each of them does changes with the cell:
 `Enter` opens the row, follows a link, or sends a comment.
 A user who has to open the help to learn which is which, each time the cursor
 moves, is paying for the generality with the thing it was meant to buy.
-So the line the status line draws when it has no message to carry is a hint:
+So the line the status line draws is a hint:
 `enter` and `space` first, in that order where both act, then at most two or
 three more that matter in that exact state — the tree's `z` and `tab`,
 a grab's directions, a filter's `esc` — and `? keys` last, which is the only
 pair on every line. It replaces the one-off hints that preceded it:
 the relation cell's, and the matrix's *enter: the cell's issues*.
-A status message set by an action still wins the line until the next one,
-as before, and the count stays on the right where a kind has one.
+
+**The bottom line is two places** (revised 2026-10-02, Luis).
+The hints are on the left, always;
+the last action's message is right-aligned,
+with the count beside it where a kind has one — *moved · 12 issues* —
+and it stays there until the next action replaces it.
+The message had the whole line until then,
+so a field change or a move took the hints over
+and only the next key gave them back:
+the one moment a user has just done something new
+was the one moment the keys were hidden.
+The two never fight for the room:
+where the window cannot hold both, the hints win whole
+and the right side is cut **from its left**,
+because a count and the end of a refusal are what is read at that edge.
+One helper builds the line for every kind
+(`bottomLine` in `tui/hints.go`),
+so a message cannot land differently on a board than on a list.
+A copy names the **short** id in its message, the clipboard still taking the whole one:
+a 64-character hash right-aligned is a hash with its head cut off.
 Every kind builds its line from one helper over `(key, action)` pairs
 (`hints` in `tui/hints.go`), so the wording cannot drift between kinds,
 and the comment box's footer draws its pairs from the same list.

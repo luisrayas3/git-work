@@ -399,7 +399,8 @@ func TestGanttGroupsEnterAndCopy(t *testing.T) {
 	require.Equal(t, id, shown.id)
 
 	send(page, "ctrl+c")
-	require.Equal(t, "copied "+id, page.status)
+	// the clipboard gets the whole id, the message the short one
+	require.Equal(t, "copied "+id[:7], page.status)
 	page.Update(tea.PasteMsg{Content: "x"})
 	require.Equal(t, "nothing to paste into", page.status)
 }

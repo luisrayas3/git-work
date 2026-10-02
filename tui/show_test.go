@@ -293,7 +293,10 @@ func TestArchivedIsAHeaderCellThatFlips(t *testing.T) {
 	require.Equal(t, "true", fieldOf(t, repo, id, "archived"))
 	drawn := plainView(page)
 	require.Contains(t, drawn, "one  [x] archived")
-	require.Contains(t, drawn, "\narchived", "the status says so")
+	// the message is right-aligned on the bottom line, the hints on its left
+	require.Equal(t, "archived", page.status, "the status says so")
+	require.True(t, strings.HasSuffix(drawn, "archived"), drawn)
+	require.Contains(t, drawn, "space: flip · ? keys", "and the hints are still there")
 
 	page = send(page, "space").(*showPage)
 	require.Equal(t, "false", fieldOf(t, repo, id, "archived"))

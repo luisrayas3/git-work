@@ -252,9 +252,13 @@ so a kanban with no flow at all is one command:
 `git work view board '{"query":"map(select(.fields.status != \"done\"))","columns":"status"}'`.
 KWARGS is read from standard input when it is `-`, like every document argument.
 Standard, vim and emacs keys are all read at once, and `?` shows them as three tabs;
-the bottom line names the keys that act under the cursor —
-`enter` and `space` first, in the standard spelling, then `? keys` and the count —
-and never a key that rings the bell there (2026-10-02).
+the bottom line is two places (2026-10-02):
+the keys that act under the cursor on the left —
+`enter` and `space` first, in the standard spelling, then `? keys`,
+and never a key that rings the bell there —
+and the last action's message right-aligned, the count beside it,
+staying until the next action replaces it
+(the hints win a window too narrow for both, the message cut from its left).
 The cursor starts on the id column and the row under it is washed,
 and `Enter` opens while `Space` edits (2026-10-02):
 `Enter` on the id or any plain cell opens the row's issue as show,

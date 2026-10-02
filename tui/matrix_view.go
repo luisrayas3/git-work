@@ -193,11 +193,7 @@ func (p *matrixPage) statusLine() string {
 			len(p.rows), len(p.cols), len(p.rowAxis.values), len(p.colAxis.values), p.filter)
 	}
 
-	left := p.status
-	if left == "" {
-		left = p.hintLine()
-	}
-	return styleStatus.Render(fit(left+" · "+count, p.width))
+	return styleStatus.Render(bottomLine(p.hintLine(), lastAction(p.status, count), p.width))
 }
 
 // hintLine is what the keys do where the cursor is (hints.go).

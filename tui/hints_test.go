@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -10,6 +11,54 @@ import (
 // and in every state (doc/design/terminal-renderer.md, Navigation and
 // editing). These say what it reads where, which is the whole of the
 // feature: a key the line promises is a key the page answers.
+
+// TestTheBottomLineHasTwoPlaces: the hints on the left and the last action's
+// message right-aligned, both at once, because the message used to take the
+// whole line and leave the keys to be guessed at.
+func TestTheBottomLineHasTwoPlaces(t *testing.T) {
+	const keys = "enter: open · ? keys"
+
+	// room for both: the message against the right edge
+	require.Equal(t, keys+"    moved · 2 issues", bottomLine(keys, "moved · 2 issues", 40))
+
+	// too narrow for both: the hints win whole, and the right side is cut
+	// from its left, so what is nearest the edge survives
+	line := bottomLine(keys, "moved · 2 issues", 30)
+	require.True(t, strings.HasPrefix(line, keys), line)
+	require.True(t, strings.HasSuffix(line, "…2 issues"), line)
+	require.Equal(t, 30, len([]rune(line)))
+
+	// narrower than the hints themselves: the hints, cut, and nothing else
+	require.Equal(t, "enter: open · …", bottomLine(keys, "moved · 2 issues", 15))
+
+	// nothing done yet: the hints have the line to themselves
+	require.Equal(t, keys, bottomLine(keys, "", 40))
+}
+
+// TestAMessageLeavesTheHintsWhereTheyAre: the page draws both, and the
+// message stays through the keys that follow it.
+func TestAMessageLeavesTheHintsWhereTheyAre(t *testing.T) {
+	repo := testRepo(t)
+	id := newIssue(t, repo, map[string]any{"title": "one"})
+
+	page := list(t, repo, `{"fields":["title"]}`)
+	copied := send(page, "alt+c")
+
+	line := lastLine(plainView(copied))
+	require.True(t, strings.HasPrefix(line, "enter: open · space: grab · ? keys"), line)
+	require.True(t, strings.HasSuffix(line, "copied "+id[:7]+" · 1 issue"), line)
+
+	// an ordinary key no longer clears it: only the next action does
+	moved := send(copied, "right")
+	require.True(t, strings.HasSuffix(lastLine(plainView(moved)), "copied "+id[:7]+" · 1 issue"))
+	require.True(t, strings.HasPrefix(lastLine(plainView(moved)), "enter: open · space: edit · ? keys"))
+}
+
+// lastLine is the page's bottom line, which is where both places are.
+func lastLine(drawn string) string {
+	lines := strings.Split(drawn, "\n")
+	return lines[len(lines)-1]
+}
 
 // hintCase is one cursor position and the line it should draw.
 type hintCase struct {
