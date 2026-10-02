@@ -108,6 +108,12 @@ func TestQuickstartNamesRealCommands(t *testing.T) {
 		t.Run(strings.Join(path, " "), func(t *testing.T) {
 			cmd := root
 			for _, name := range path {
+				// A leaf's arguments are shaped like command names — a flow's
+				// name in `flow run report`, a schema key in `schema log
+				// task/status` — so the walk stops where the tree does.
+				if !cmd.HasSubCommands() {
+					break
+				}
 				child, ok := childCommand(cmd, name)
 				require.Truef(t, ok, "`git work %s` names no command", strings.Join(path, " "))
 				cmd = child
