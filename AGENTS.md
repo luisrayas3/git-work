@@ -178,7 +178,7 @@ It runs in-process over the same host API a command reaches (`52a2797`):
 | Action | Command |
 | --- | --- |
 | List | `git work flow` · `--format text` (name, description, arguments) |
-| Run | `git work flow run <name>\|- [KWARGS\|-]` (`-` as the name runs the script on standard input without importing it) · `--gui` (errors until the gui process exists) |
+| Run | `git work flow run <name>\|- [KWARGS\|-]` (`-` as the name runs the script on standard input without importing it; `print()` is stdout, a returned value is printed as JSON after it) · `--gui` (errors until the gui process exists) |
 | Import | `git work flow import FILE\|DIR\|-…` `[--prune] [--dry-run]` → prints the id of each flow it creates |
 | Show / export | `git work flow export <name>` prints the script, verbatim (`> FILE`) · `git work flow export --all DIR` |
 | History | `git work flow log [<name>]` · `--format text` (one JSON object per operation) |

@@ -523,6 +523,14 @@ and the fixed positionals of `set ID KEY VALUE` are that object spelled out.
 Nothing is reachable from a script that is not reachable from the shell,
 and the reverse,
 so a flow is exactly a shell script that runs in-process.
+Its output is its own (Luis, 2026-10-02):
+`print()` writes to standard output, as every language's print does,
+so a flow that renders text, a report, prints its page and returns `None`,
+and a flow that returns a value has it printed as JSON after whatever it printed.
+Until that day `print()` went to stderr to keep stdout JSON for `jq`;
+that protected a composition nobody had used,
+and it left a text-rendering flow with no way out at all.
+The runtime's own diagnostics, a schema warning, are what stderr is for.
 That mirroring is a **mechanism, not a discipline** (`52a2797`):
 package `host` is one plain Go function per command,
 over the repository cache and JSON-shaped values,
