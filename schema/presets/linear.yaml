@@ -60,11 +60,6 @@ shared:
     kind: date
     name: Due date
 
-  rank: &rank
-    kind: rank
-    name: Rank
-    description: Manual board and backlog order, sorted by (rank, id).
-
   # One side is stored and the inverse is derived (D4): `blocked_by` is what
   # the other issue reads, never a key an issue writes.
   blocks: &blocks
@@ -90,7 +85,6 @@ types:
       labels: *labels
       due: *due
       blocks: *blocks
-      rank: *rank
 
   project:
     name: Project
@@ -107,7 +101,6 @@ types:
         inverse: children
         target_types: [initiative]
       blocks: *blocks
-      rank: *rank
 
   # Linear has one work type. A sub-issue is an issue whose parent is an
   # issue, which is why `parent` takes both a project and an issue.
@@ -128,7 +121,6 @@ types:
         target_types: [project, issue]
       cycle: *cycle
       blocks: *blocks
-      rank: *rank
 
   # A cycle is an issue type, not a namespace (D5): it has a title, comments
   # for the retro, and its dates and capacity as ordinary fields.
@@ -146,4 +138,3 @@ types:
         kind: number
         name: Capacity
         description: Points the team commits to, in the unit estimate uses.
-      rank: *rank

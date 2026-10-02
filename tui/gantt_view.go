@@ -410,9 +410,7 @@ func (p *ganttPage) hintLine() string {
 		if b.hasStart || b.hasStop {
 			moves = append(moves, hint{"←→", "shift"})
 		}
-		if p.rankKey != "" {
-			moves = append(moves, hint{"↑↓", "reorder"})
-		}
+		moves = append(moves, hint{"↑↓", "reorder"})
 		return grabHints(moves...)
 	}
 
@@ -421,10 +419,9 @@ func (p *ganttPage) hintLine() string {
 		return hints()
 	}
 	pairs := []hint{{"enter", "open"}}
-	switch {
-	case b.hasStart || b.hasStop:
+	if b.hasStart || b.hasStop {
 		pairs = append(pairs, hint{"space", "grab bar"})
-	case p.rankKey != "":
+	} else {
 		pairs = append(pairs, hint{"space", "grab"})
 	}
 	return hints(append(pairs, foldHints(p.node())...)...)

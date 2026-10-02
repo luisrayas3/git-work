@@ -241,16 +241,14 @@ func (p *ganttPage) newBar(n nested, known *kinds) (bar, treeRow) {
 			node.group = value
 		}
 	}
-	if p.rankKey != "" {
-		node.rank = plainValue(fields[p.rankKey])
-	}
+	node.rank = plainValue(fields[p.rankKey])
 	node.text = strings.ToLower(b.human + " " + b.label)
 
 	return b, node
 }
 
 func (p *ganttPage) reorder() {
-	p.order = treeOrder(p.nodes, p.filter, p.rankKey != "")
+	p.order = treeOrder(p.nodes, p.filter)
 	p.clamp()
 }
 
@@ -754,9 +752,9 @@ func (p *ganttPage) updateFilter(msg tea.Msg) (page, tea.Cmd) {
 	return p, cmd
 }
 
-// startGrab picks the bar under the cursor up. It needs no rank: moving a
-// bar along the chart is the gantt's reason to exist, and only moving it
-// up or down needs an order to write.
+// startGrab picks the bar under the cursor up. It needs no binding at all:
+// moving a bar along the chart is the gantt's reason to exist, and the order
+// up and down writes is the built-in rank every type has (D8).
 func (p *ganttPage) startGrab() (page, tea.Cmd) {
 	if p.current() == nil {
 		return p, nil
@@ -783,10 +781,6 @@ func (p *ganttPage) updateGrab(press tea.KeyPressMsg) (page, tea.Cmd) {
 		return p, p.dragAlong(1)
 
 	case keys.up.matches(press), keys.down.matches(press):
-		if p.rankKey == "" {
-			p.status = "no rank: cannot reorder"
-			return p, bell()
-		}
 		if keys.up.matches(press) {
 			p.cursor = moveBlock(p.nodes, p.order, p.cursor, -1)
 		} else {
@@ -870,7 +864,7 @@ func (p *ganttPage) drop() tea.Cmd {
 		fields[p.stopKey] = issue.StringValue(shiftText(b.stopText, p.scale, b.dStop))
 	}
 	said := "moved"
-	if p.rankKey != "" && p.cursor != p.grabFrom.cursor {
+	if p.cursor != p.grabFrom.cursor {
 		lo, hi := siblingRanks(p.nodes, p.order, p.cursor)
 		key, err := rank.Between(lo, hi)
 		if err != nil {

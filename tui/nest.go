@@ -232,11 +232,11 @@ type treeRow struct {
 // treeOrder is the drawing order over rows in tree pre-order: a row that
 // matches the filter, or has a descendant that does, is drawn, never one
 // under a folded parent; the roots
-// are grouped in the order their groups first appear with (none) last; a
-// bound rank orders the roots within a group and the children under a
-// parent by (rank, id); and a subtree follows its root wherever the root
-// goes.
-func treeOrder(rows []treeRow, filter string, ranked bool) []int {
+// are grouped in the order their groups first appear with (none) last; the
+// rank orders the roots within a group and the children under a parent by
+// (rank, id), the unranked keeping the query's order at the end; and a
+// subtree follows its root wherever the root goes.
+func treeOrder(rows []treeRow, filter string) []int {
 	needle := strings.ToLower(strings.TrimSpace(filter))
 	byId := make(map[string]int, len(rows))
 	for at, row := range rows {
@@ -263,9 +263,6 @@ func treeOrder(rows []treeRow, filter string, ranked bool) []int {
 		}
 	}
 	rank := func(members []int) {
-		if !ranked {
-			return
-		}
 		sort.SliceStable(members, func(i, j int) bool {
 			left, right := rows[members[i]], rows[members[j]]
 			return lessByRank(left.rank, left.id, right.rank, right.id)

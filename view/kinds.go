@@ -105,8 +105,7 @@ var Kinds = map[string][]Arg{
 			Doc: "the relation whose targets are nested under a row"},
 		{Name: "depth", Tier: Feature, Kind: Int,
 			Doc: "how many levels of nesting to expand"},
-		{Name: "rank", Tier: Feature, Kind: FieldKey,
-			Doc: "the rank field rows are ordered and dragged by"},
+		rankArg,
 	},
 	KindBoard: {
 		queryArg,
@@ -118,8 +117,7 @@ var Kinds = map[string][]Arg{
 			Doc: "the fields shown on a card"},
 		{Name: "group_by", Tier: Feature, Kind: FieldKey,
 			Doc: "the field whose value starts a new swimlane"},
-		{Name: "rank", Tier: Feature, Kind: FieldKey,
-			Doc: "the rank field cards are ordered and dragged by"},
+		rankArg,
 	},
 	KindGantt: {
 		queryArg,
@@ -144,8 +142,7 @@ var Kinds = map[string][]Arg{
 			Doc: "the relation whose targets are nested under a bar"},
 		{Name: "depth", Tier: Feature, Kind: Int,
 			Doc: "how many levels of nesting to expand"},
-		{Name: "rank", Tier: Feature, Kind: FieldKey,
-			Doc: "the rank field rows are ordered and dragged by"},
+		rankArg,
 	},
 	// matrix is the two-axis summary: rows of one field by columns of
 	// another, a sum in each cell (doc/design/allocations.md). It reads any
@@ -175,6 +172,16 @@ var Kinds = map[string][]Arg{
 		{Name: "children", Tier: Feature, Kind: ChildRelations,
 			Doc: `the issues pointing at this one, a section each, as [{"type":"task","relation":"parent","fields":["status"]}]; relation may be the inverse name instead, and type and fields may be left out`},
 	},
+}
+
+// rankArg is the manual order every kind that draws a row of issues takes.
+//
+// It defaults to the built-in `rank` (D8), so a grab always has somewhere
+// to write and no view has to bind it; it stays an argument because a second
+// ordering field is a field like any other.
+var rankArg = Arg{
+	Name: "rank", Tier: Defaulted, Kind: FieldKey, Default: `"rank"`,
+	Doc: "the rank field rows are ordered and dragged by",
 }
 
 // queryArg is the same row on every kind that draws more than one issue,

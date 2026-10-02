@@ -36,7 +36,7 @@ func TestPresetJira(t *testing.T) {
 	// an iteration is a type, and its dates and capacity are its fields (D5)
 	iteration, ok := doc.Types.Get("iteration")
 	require.True(t, ok)
-	require.Equal(t, []string{"status", "start", "end", "capacity", "rank"}, iteration.Fields.Keys())
+	require.Equal(t, []string{"status", "start", "end", "capacity"}, iteration.Fields.Keys())
 	capacity, _ := iteration.Fields.Get("capacity")
 	require.Equal(t, "number", capacity.Kind)
 
@@ -86,7 +86,7 @@ func TestPresetLinear(t *testing.T) {
 
 	cycle, ok := doc.Types.Get("cycle")
 	require.True(t, ok)
-	require.Equal(t, []string{"start", "end", "capacity", "rank"}, cycle.Fields.Keys())
+	require.Equal(t, []string{"start", "end", "capacity"}, cycle.Fields.Keys())
 	capacity, _ := cycle.Fields.Get("capacity")
 	require.Equal(t, "number", capacity.Kind)
 }

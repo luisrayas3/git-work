@@ -69,7 +69,8 @@ func TestShowFieldOrderIsTheSchemaOrder(t *testing.T) {
 	page := show(t, repo, id, nil)
 	order := page.fieldOrder()
 	require.Equal(t, "title", order[0], "the built-ins sort before every configured field")
-	require.Less(t, indexOf(join(order), "status"), indexOf(join(order), "rank"))
+	require.Less(t, indexOf(join(order), "rank"), indexOf(join(order), "status"),
+		"rank is a built-in too (D8), so it sorts with them")
 
 	// and a call that names the fields gets exactly those
 	page = show(t, repo, id, []string{"status", "title"})

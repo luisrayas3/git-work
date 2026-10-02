@@ -240,11 +240,7 @@ func (p *boardPage) hintLine() string {
 	case p.filtering != nil:
 		return filterHints()
 	case p.grabbed >= 0:
-		moves := []hint{{"←→", "column"}}
-		if p.rankKey != "" {
-			moves = append(moves, hint{"↑↓", "reorder"})
-		}
-		return grabHints(moves...)
+		return grabHints(hint{"←→", "column"}, hint{"↑↓", "reorder"})
 	case p.current() == nil:
 		return hints()
 	}

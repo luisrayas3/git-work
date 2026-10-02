@@ -197,9 +197,7 @@ func (p *listPage) newRow(n nested, known *kinds) (listRow, treeRow) {
 			node.group = value
 		}
 	}
-	if p.rankKey != "" {
-		node.rank = plainValue(fields[p.rankKey])
-	}
+	node.rank = plainValue(fields[p.rankKey])
 
 	var text strings.Builder
 	text.WriteString(row.human)
@@ -216,7 +214,7 @@ func (p *listPage) newRow(n nested, known *kinds) (listRow, treeRow) {
 // order they first appear with the ungrouped last, then the rank, each
 // subtree under its root (treeOrder).
 func (p *listPage) reorder() {
-	p.order = treeOrder(p.nodes, p.filter, p.rankKey != "")
+	p.order = treeOrder(p.nodes, p.filter)
 	p.clamp()
 }
 
@@ -657,13 +655,9 @@ func (p *listPage) write(id, key string, value issue.Value) {
 
 // startGrab picks the row under the cursor up, to drop it somewhere else.
 //
-// It needs a rank field: without one the order is the query's, and moving a
-// row would be a change with nowhere to be written.
+// It needs no binding: `rank` is a field of every type and the argument's
+// own default (D8), so a move always has somewhere to be written.
 func (p *listPage) startGrab() (page, tea.Cmd) {
-	if p.rankKey == "" {
-		p.status = "no rank: cannot reorder"
-		return p, bell()
-	}
 	if p.current() == nil {
 		return p, nil
 	}
@@ -725,12 +719,20 @@ func blinkTick() tea.Cmd {
 
 const blinkInterval = 400 * time.Millisecond
 
-// lessByRank is the order rule a bound rank imposes: (rank, id), the issues
-// without a rank last. Never rank alone: the tie-break by id is what makes
-// two concurrent drags into the same gap both survive (441dcbb).
+// lessByRank is the one order rule a rank imposes, everywhere one orders
+// anything: (rank, id), the issues without a rank last.
+//
+// Never rank alone: the tie-break by id is what makes two concurrent drags
+// into the same gap both survive (441dcbb). Two issues with no rank at all
+// are equal here rather than ordered by id, so that they keep the query's
+// own order — which is the whole order of a store nobody has dragged
+// anything in yet, `rank` being null until a drop writes one (D8).
 func lessByRank(rankI, idI, rankJ, idJ string) bool {
 	if (rankI == "") != (rankJ == "") {
 		return rankJ == ""
+	}
+	if rankI == "" {
+		return false
 	}
 	if rankI != rankJ {
 		return rankI < rankJ

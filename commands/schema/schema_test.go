@@ -266,7 +266,7 @@ types:
 	require.NoError(t, err)
 	require.Equal(t, []string{"task"}, s.TypeKeys())
 	task, _ := s.Type("task")
-	require.Equal(t, []string{"title", "type", "archived", "status"}, task.FieldKeys())
+	require.Equal(t, []string{"title", "type", "archived", "rank", "status"}, task.FieldKeys())
 
 	// archived, not deleted: the entities are still there
 	require.NotEmpty(t, env.Backend.Schema().Query(cache.ConfigQuery{IncludeArchived: true}))

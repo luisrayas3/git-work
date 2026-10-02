@@ -140,9 +140,10 @@ Decided instead:
   id, author, timestamps, comments, timeline, actors and participants,
   and the fields map itself.
   Everything an issue *has* is a field, relations to other issues included.
-- Three fields are **built in**, present on every type and unremovable,
+- Four fields are **built in**, present on every type and unremovable,
   because tooling cannot function without them:
-  `title` (text), `type` (a type id) and `archived` (bool).
+  `title` (text), `type` (a type id), `archived` (bool)
+  and, since 2026-10-02, `rank` (D8).
   Status is **not** built in (`d56e6f1`, 2026-09-23):
   it is a preset field of kind `enum` on every work type,
   and everything keyed on categories, hiding done work, `status:open`, the weekly report,
@@ -392,6 +393,46 @@ One mapping needs a call during `bf6f392`:
 so either the preset carries a custom one or decisions become Task plus a marker.
 `area:` maps onto Components, which exercises `multi-enum`.
 
+### D8 — `rank` is built in too, and starts null (2026-10-02, `e524644`)
+
+The built-ins of D2 are four, not three:
+`title`, `type`, `archived` and **`rank`**, of kind `rank`.
+
+Because **both native models put an order on every issue**:
+Jira has Rank on every issue type and Linear `sortOrder` on every issue,
+so a schema that cannot represent a manual order
+cannot represent either model — which is this story's whole test.
+Both presets carried `rank` on every type anyway,
+and a field every type has in every preset
+is a field in code, not configuration:
+leaving it configurable only lets somebody remove
+the thing every board and backlog orders by.
+A view's manual order is a property of an issue
+the way `archived` is: structural, not a choice the schema makes.
+
+It is **nullable and starts null**.
+`new` writes none; the first drop on a view writes one (`441dcbb`).
+Null sorts **after** every set rank, and a set rank ties by id,
+which is the one rule everywhere a rank orders anything
+(`tui.lessByRank`).
+Two issues with no rank at all are equal to that rule,
+not ordered by id, so they keep the query's own order —
+which on a store nobody has dragged anything in yet is the whole order,
+and ordering it by hash would be worse than any order a query asked for.
+
+It is overridable the way the other built-ins are
+(`config-entity.md` E4): name and description, nothing else.
+A file that still lists `rank` as a field of a type is therefore
+not a duplicate and not an error — it is that override, exactly as
+a file listing `title` is — and `schema export` leaves it out
+unless an entity overrides it.
+
+Consequence, accepted: on a store where nothing has a rank,
+the first drop puts its issue at the top of its group,
+because it is then the only issue with a rank and null sorts last.
+The answer, if it ever annoys anybody, is the order-preserving renumber
+the `rank` package already describes, not a different sort rule.
+
 ## Order of work
 
 1. `5b09ee1` — the owned issue entity as a peer of `entities/bug`:
@@ -403,7 +444,7 @@ so either the preset carries a custom one or decisions become Task plus a marker
    Started 2026-09-22.
 2. `3556569` — the config entities, `schema init`/`export`/`import` on `reconcile`.
    Everything below reads this.
-3. `bb9e89e` — kinds, the three built-ins, categories, `target_types`, validation, actionable errors.
+3. `bb9e89e` — kinds, the built-ins, categories, `target_types`, validation, actionable errors.
    Pure library, wired into the issue cache's write path.
 4. `bf6f392` — the one-time migration:
    old operations to new, labels to fields, ids and lamport times preserved;
@@ -445,6 +486,7 @@ so either the preset carries a custom one or decisions become Task plus a marker
   The entity keeps the name `issue`: it is Jira's, Linear's and GitHub's word,
   Jira's own types include Initiative and Epic, and `item` collides with list items.
 - 2026-09-23 (`d56e6f1`): built-ins are `title`, `type`, `archived`; status is a preset field.
+  2026-10-02 (`e524644`): `rank` joins them, nullable and null until a drag writes it (D8).
   No field roles and no `on_open`/`on_close`: flows bind fields by key in their own config.
   The config entity is a plain document with four operations and no item map;
   shapes are `type`, `field` and `flow`, relation folded into field, view folded into flow,

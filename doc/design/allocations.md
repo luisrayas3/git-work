@@ -62,7 +62,7 @@ and it is eventually consistent, which is what a plan is anyway.
 
 The `allocation` type in this repository carries
 `iteration`, `work`, `assignee` and `points`, and nothing else:
-no `status`, no `priority`, no `area`, no `rank`.
+no `status`, no `priority`, no `area`.
 
 An allocation is a statement of plan, not a piece of work.
 *Where does it stand* has no answer:
@@ -72,10 +72,13 @@ A status would be worse than dead weight —
 it would put allocations into every "open work" listing in the repository,
 `git work issue 'map(select(.fields.status != "done"))'` included,
 and make `overview` and `board` report planning rows as work in flight.
-A `rank` would be dead weight too: a matrix's order is its axes' order,
-and there is nothing to drag.
+An allocation does carry the `rank` every type is born with
+(`configurable-schema.md` D8) and ignores it:
+a matrix's order is its axes' order, there is nothing to drag,
+and a null rank costs nothing.
 
-`title`, `type` and `archived` are built in on every type (`d56e6f1`),
+`title`, `type`, `archived` and `rank` are built in on every type
+(`d56e6f1`, `e524644`),
 so an allocation has a title if someone writes one.
 Nothing reads it: the matrix draws the axes and the sum.
 
@@ -129,7 +132,7 @@ with no number named, the matrix counts,
 which is the right answer for *how many issues per status per assignee*
 and needs no field to exist at all.
 
-There is no `rank`: the axes own the order, and there is nothing to drag.
+There is no `rank` argument: the axes own the order, and there is nothing to drag.
 There is no `totals` switch: the totals are always drawn (A7).
 
 ## A5 — The order of an axis

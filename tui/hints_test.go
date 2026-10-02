@@ -80,7 +80,7 @@ func TestListHintsNameWhatIsUnderTheCursor(t *testing.T) {
 	}
 
 	runHints(t, open(`{`+fields+`,`+onlyTask+`}`), []hintCase{
-		{what: "the id, with no rank bound", line: "enter: open · ? keys"},
+		{what: "the id", line: "enter: open · space: grab · ? keys"},
 		{what: "a text cell", at: right(1), line: "enter: open · space: edit · ? keys"},
 		{what: "a bool cell", at: right(2), line: "enter: open · space: flip · ? keys"},
 		{what: "a relation", at: right(3), line: "enter: go to · space: change · ? keys"},
@@ -96,8 +96,7 @@ func TestListHintsNameWhatIsUnderTheCursor(t *testing.T) {
 			line: "enter: write · esc: cancel · /: narrow · ? keys"},
 	})
 
-	runHints(t, open(`{`+fields+`,`+onlyTask+`,"rank":"rank"}`), []hintCase{
-		{what: "the id, with a rank bound", line: "enter: open · space: grab · ? keys"},
+	runHints(t, open(`{`+fields+`,`+onlyTask+`}`), []hintCase{
 		{what: "grabbed", at: func(p page) page { return send(p, "space") },
 			line: "↑↓: move · space: drop · esc: put back · ? keys"},
 	})
@@ -105,9 +104,10 @@ func TestListHintsNameWhatIsUnderTheCursor(t *testing.T) {
 	// a nested row with children adds the tree's keys
 	runHints(t, open(`{"fields":["title"],"expand":"children","query":"map(select(.fields.type == \"story\"))"}`),
 		[]hintCase{
-			{what: "a row with children", line: "enter: open · z: fold · tab: into children · ? keys"},
+			{what: "a row with children",
+				line: "enter: open · space: grab · z: fold · tab: into children · ? keys"},
 			{what: "folded", at: func(p page) page { return send(p, "z") },
-				line: "enter: open · z: unfold · tab: into children · ? keys"},
+				line: "enter: open · space: grab · z: unfold · tab: into children · ? keys"},
 		})
 }
 
@@ -123,16 +123,12 @@ func TestBoardHintsNameWhatIsUnderTheCursor(t *testing.T) {
 	runHints(t, open(`{"columns":"status"}`), []hintCase{
 		// a card has no cell: it is opened, grabbed, and edited on show
 		{what: "a card", line: "enter: open · space: grab · ? keys"},
-		{what: "grabbed, with no rank bound", at: grab,
-			line: "←→: column · space: drop · esc: put back · ? keys"},
+		{what: "grabbed", at: grab,
+			line: "←→: column · ↑↓: reorder · space: drop · esc: put back · ? keys"},
 		{what: "filtering", at: func(p page) page { return send(p, "/") },
 			line: "enter: keep · esc: clear · ? keys"},
 	})
 
-	runHints(t, open(`{"columns":"status","rank":"rank"}`), []hintCase{
-		{what: "grabbed, with a rank bound", at: grab,
-			line: "←→: column · ↑↓: reorder · space: drop · esc: put back · ? keys"},
-	})
 }
 
 func TestGanttHintsNameWhatIsUnderTheCursor(t *testing.T) {
@@ -149,19 +145,14 @@ func TestGanttHintsNameWhatIsUnderTheCursor(t *testing.T) {
 
 	runHints(t, open(`{"start":"start","stop":"stop","from":"2026-09-07"}`), []hintCase{
 		{what: "a bar", line: "enter: open · space: grab bar · ? keys"},
-		{what: "grabbed, with no rank bound", at: grab,
-			line: "←→: shift · space: drop · esc: put back · ? keys"},
+		{what: "grabbed", at: grab,
+			line: "←→: shift · ↑↓: reorder · space: drop · esc: put back · ? keys"},
 		{what: "filtering", at: func(p page) page { return send(p, "/") },
 			line: "enter: keep · esc: clear · ? keys"},
 	})
 
-	runHints(t, open(`{"start":"start","stop":"stop","from":"2026-09-07","rank":"rank"}`), []hintCase{
-		{what: "grabbed, with a rank bound", at: grab,
-			line: "←→: shift · ↑↓: reorder · space: drop · esc: put back · ? keys"},
-	})
-
-	// a row with no dates has no bar to shift: dragAlong refuses it, so the
-	// grab is named only where a bound rank still gives it something to do
+	// a row with no dates has no bar to shift: dragAlong refuses it, and the
+	// grab is still named, because the rank gives it something to do
 	newIssue(t, repo, map[string]any{"title": "dateless", "rank": "b"})
 	// the dateless row, wherever the order put it
 	dateless := func(p page) page {
@@ -174,10 +165,7 @@ func TestGanttHintsNameWhatIsUnderTheCursor(t *testing.T) {
 		return page
 	}
 	runHints(t, open(`{"start":"start","stop":"stop","from":"2026-09-07"}`), []hintCase{
-		{what: "a dateless row", at: dateless, line: "enter: open · ? keys"},
-	})
-	runHints(t, open(`{"start":"start","stop":"stop","from":"2026-09-07","rank":"rank"}`), []hintCase{
-		{what: "a dateless row, with a rank bound", at: dateless,
+		{what: "a dateless row", at: dateless,
 			line: "enter: open · space: grab · ? keys"},
 		{what: "a dateless row, grabbed", at: func(p page) page { return grab(dateless(p)) },
 			line: "↑↓: reorder · space: drop · esc: put back · ? keys"},

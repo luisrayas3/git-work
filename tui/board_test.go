@@ -178,10 +178,10 @@ func TestBoardGrabMovesAcrossColumnsWithoutARank(t *testing.T) {
 	require.Equal(t, id, page.currentId())
 }
 
-// TestBoardGrabUpAndDownNeedsARank: within a column the order is the
-// query's unless a rank is bound, and then a drop writes one rank between
-// the neighbours — and, across columns, both keys in one write.
-func TestBoardGrabUpAndDownNeedsARank(t *testing.T) {
+// TestBoardGrabUpAndDownWritesARank: within a column the rank is the order,
+// and a drop writes one key between the neighbours — and, across columns,
+// both keys in one write.
+func TestBoardGrabUpAndDownWritesARank(t *testing.T) {
 	repo := testRepo(t)
 	first := newIssue(t, repo, map[string]any{"title": "first", "status": "to-do", "rank": "a"})
 	second := newIssue(t, repo, map[string]any{"title": "second", "status": "to-do", "rank": "b"})
@@ -189,12 +189,7 @@ func TestBoardGrabUpAndDownNeedsARank(t *testing.T) {
 	other := newIssue(t, repo, map[string]any{"title": "other", "status": "done", "rank": "m"})
 
 	page := board(t, repo, `{"columns":"status"}`)
-	page = send(page, "space", "j").(*boardPage)
-	require.Contains(t, plainView(page), "no rank")
-	page = send(page, "esc").(*boardPage)
-
-	page = board(t, repo, `{"columns":"status","rank":"rank"}`)
-	require.Equal(t, first, page.currentId(), "a bound rank orders the column")
+	require.Equal(t, first, page.currentId(), "the rank orders the column")
 
 	page = send(page, "space", "j", "space").(*boardPage)
 	moved := fieldOf(t, repo, first, "rank")

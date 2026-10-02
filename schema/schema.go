@@ -67,7 +67,7 @@ type Field struct {
 	// for Jira a field reference, `customfield_10016` or `link:10000`.
 	Aliases map[string]string `json:"aliases,omitempty"`
 
-	// Builtin marks the three fields that exist in code on every type (E4).
+	// Builtin marks the four fields that exist in code on every type (E4, D8).
 	Builtin bool `json:"builtin,omitempty"`
 	// Configured marks a field an entity defines,
 	// which for a built-in means an entity overrides its configurable parts.

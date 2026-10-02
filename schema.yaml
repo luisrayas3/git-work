@@ -59,11 +59,6 @@ shared:
     kind: date
     name: Due date
 
-  rank: &rank
-    kind: rank
-    name: Rank
-    description: Manual board and backlog order, sorted by (rank, id).
-
   # One side is stored and the inverse is derived (D4): `blocked_by` is what
   # the other issue reads, never a key an issue writes.
   blocks: &blocks
@@ -104,7 +99,6 @@ types:
       labels: *labels
       due: *due
       blocks: *blocks
-      rank: *rank
 
   epic:
     name: Epic
@@ -122,7 +116,6 @@ types:
         inverse: children
         target_types: [initiative]
       blocks: *blocks
-      rank: *rank
 
   story:
     name: Story
@@ -141,7 +134,6 @@ types:
         target_types: [epic]
       iteration: *sprint
       blocks: *blocks
-      rank: *rank
       area: *area
 
   task:
@@ -161,7 +153,6 @@ types:
         target_types: [epic, story]
       iteration: *sprint
       blocks: *blocks
-      rank: *rank
       area: *area
 
   # This repository's own: a call made and its reasoning, closed once recorded.
@@ -179,7 +170,6 @@ types:
         inverse: children
         target_types: [epic, story, task]
       blocks: *blocks
-      rank: *rank
       area: *area
 
   bug:
@@ -199,7 +189,6 @@ types:
         target_types: [epic]
       iteration: *sprint
       blocks: *blocks
-      rank: *rank
 
   subtask:
     name: Sub-task
@@ -218,7 +207,6 @@ types:
         target_types: [story, task]
       iteration: *sprint
       blocks: *blocks
-      rank: *rank
 
   # An iteration is an issue type, not a namespace (D5): it has a title,
   # comments for the retro, and dates and capacity as ordinary fields.
@@ -244,12 +232,12 @@ types:
         kind: number
         name: Capacity
         description: Story points the team commits to, in the unit estimate uses.
-      rank: *rank
 
   # How much of whom goes to which work in which iteration
   # (doc/design/allocations.md). An allocation is a plan, not a piece of work,
-  # so it has no status — it is true, or it is archived — and no rank: a
-  # matrix's order is its axes'. The two relations take two inverse names
+  # so it has no status — it is true, or it is archived. It carries the
+  # built-in rank every type has and ignores it: a matrix's order is its
+  # axes'. The two relations take two inverse names
   # because an inverse is unique within the type that holds it.
   allocation:
     name: Allocation

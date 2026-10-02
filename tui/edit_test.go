@@ -158,17 +158,19 @@ func TestPasteOpensTheEditor(t *testing.T) {
 	require.Contains(t, plainView(updated), `status: no value "sideways"`)
 }
 
-// TestGrabNeedsARank says why: without a rank field there is nowhere to write
-// the new order to, so the drag would be a change that vanishes on reload.
-func TestGrabNeedsARank(t *testing.T) {
+// TestGrabNeedsNoBinding: `rank` is built in on every type and is the
+// argument's own default (D8), so space on the id of a list nobody
+// configured grabs the row.
+func TestGrabNeedsNoBinding(t *testing.T) {
 	repo := testRepo(t)
 	newIssue(t, repo, map[string]any{"title": "one"})
 
 	page := list(t, repo, "")
+	require.Equal(t, "rank", page.rankKey)
 	page = send(page, "space").(*listPage)
 
-	require.Equal(t, -1, page.grabbed)
-	require.Contains(t, plainView(page), "no rank")
+	require.GreaterOrEqual(t, page.grabbed, 0)
+	require.Contains(t, plainView(page), "space: drop")
 }
 
 // TestGrabAndDropWritesARankBetweenTheNeighbours is the drag: one key, one

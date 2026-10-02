@@ -58,11 +58,6 @@ shared:
     kind: date
     name: Due date
 
-  rank: &rank
-    kind: rank
-    name: Rank
-    description: Manual board and backlog order, sorted by (rank, id).
-
   # One side is stored and the inverse is derived (D4): `blocked_by` is what
   # the other issue reads, never a key an issue writes.
   blocks: &blocks
@@ -88,7 +83,6 @@ types:
       labels: *labels
       due: *due
       blocks: *blocks
-      rank: *rank
 
   epic:
     name: Epic
@@ -106,7 +100,6 @@ types:
         inverse: children
         target_types: [initiative]
       blocks: *blocks
-      rank: *rank
 
   story:
     name: Story
@@ -125,7 +118,6 @@ types:
         target_types: [epic]
       iteration: *sprint
       blocks: *blocks
-      rank: *rank
 
   task:
     name: Task
@@ -144,7 +136,6 @@ types:
         target_types: [epic, story]
       iteration: *sprint
       blocks: *blocks
-      rank: *rank
 
   bug:
     name: Bug
@@ -163,7 +154,6 @@ types:
         target_types: [epic]
       iteration: *sprint
       blocks: *blocks
-      rank: *rank
 
   subtask:
     name: Sub-task
@@ -182,7 +172,6 @@ types:
         target_types: [story, task]
       iteration: *sprint
       blocks: *blocks
-      rank: *rank
 
   # An iteration is an issue type, not a namespace (D5): it has a title,
   # comments for the retro, and dates and capacity as ordinary fields.
@@ -208,4 +197,3 @@ types:
         kind: number
         name: Capacity
         description: Story points the team commits to, in the unit estimate uses.
-      rank: *rank

@@ -55,7 +55,7 @@ func Quickstart(repo *cache.RepoCache) (string, error) {
 }
 
 // writeQuickstartSchema renders the live half: every type, and under it every
-// field that is not one of the three built-ins, which the guide already named.
+// field that is not one of the four built-ins, which the guide already named.
 func writeQuickstartSchema(b *strings.Builder, s *schema.Schema) {
 	b.WriteString("## This repository's types\n\n")
 
@@ -68,7 +68,7 @@ func writeQuickstartSchema(b *strings.Builder, s *schema.Schema) {
 		return
 	}
 
-	b.WriteString("Every type below carries the three built-in fields as well.\n")
+	b.WriteString("Every type below carries the four built-in fields as well.\n")
 	b.WriteString("`type` takes one of these keys.\n")
 
 	for _, typeKey := range s.TypeKeys() {

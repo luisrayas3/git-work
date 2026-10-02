@@ -54,7 +54,7 @@ func TestCompileTypesAndFields(t *testing.T) {
 	require.Equal(t, "Story", story.Name)
 
 	// the built-ins are there without an entity, and sort first
-	require.Equal(t, []string{TitleKey, TypeKey, ArchivedKey, "status", "parent"}, story.FieldKeys())
+	require.Equal(t, []string{TitleKey, TypeKey, ArchivedKey, RankKey, "status", "parent"}, story.FieldKeys())
 	title, _ := story.Field(TitleKey)
 	require.True(t, title.Builtin)
 	require.False(t, title.Configured)

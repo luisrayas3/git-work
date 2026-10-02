@@ -130,9 +130,9 @@ a jq program, defaulting to the list's default program
 
 | Kind | Required | Defaulted | Feature |
 | --- | --- | --- | --- |
-| `list` | — | `fields` (`["type","title"]`) | `details`, `group_by`, `expand`, `depth`, `rank` |
-| `board` | `columns` | `values` (the field's schema order), `card` (`["title"]`) | `group_by`, `rank` |
-| `gantt` | `start`, `stop` | `label` (title), `scale` (`week`), `from`, `to` (the data's extent) | `progress`, `group_by`, `expand`, `depth`, `rank` |
+| `list` | — | `fields` (`["type","title"]`), `rank` (`rank`) | `details`, `group_by`, `expand`, `depth` |
+| `board` | `columns` | `values` (the field's schema order), `card` (`["title"]`), `rank` (`rank`) | `group_by` |
+| `gantt` | `start`, `stop` | `label` (title), `scale` (`week`), `from`, `to` (the data's extent), `rank` (`rank`) | `progress`, `group_by`, `expand`, `depth` |
 | `matrix` | `rows`, `columns` | `row_values`, `column_values` (each axis's own order) | `value`, `group_by` |
 | `show` | `id` | `fields` (the type's fields, schema order) | `children` |
 
@@ -153,7 +153,7 @@ the way `values` orders a board's columns.
 
 `sort_by` and `card_title` are gone.
 Order is the query's order — jq sorts, and it sorts better than a binding would —
-except under `rank`, below.
+among the issues that have no rank; see `rank`, below.
 `card_title` was `card` with one element before it had a name.
 Gantt's `end` is renamed `stop` (Luis, 2026-09-24).
 
@@ -303,8 +303,7 @@ a one-line hint read as noise to all three.
 Where a key rings the bell its pair is left out rather than listed, so the line
 is shorter exactly where there is less to do: `space` is missing on a column
 that is not a field of the row's type, on a set-valued field, on a matrix's
-sum, and on a gantt row with no dates and no rank bound, because none of those
-has anything for it to grab or edit. One helper mirrors `editable`
+sum, because none of those has anything for it to grab or edit. One helper mirrors `editable`
 (`editHint`), which keeps that promise true as the widgets grow.
 
 **Copy and paste are the terminal's first** (revised again 2026-09-27, Luis).
@@ -519,16 +518,21 @@ That is acceptable: every target workflow is a workflow over issues.
 ## Rank
 
 The `rank` binding names a field of kind `rank` (`441dcbb`),
-and giving it **changes the order rule**:
-within each group, column or nesting level
-the view sorts by `(rank, id)`,
-issues without a rank last,
-and the query then only selects.
+and it **defaults to the built-in `rank`**
+every type carries (`configurable-schema.md` D8, 2026-10-02),
+so every list, board and gantt is draggable with nothing bound at all.
+It stays an argument because a second ordering field is a field like any other.
 
-Without `rank` the query's order stands,
-and grabbing an item moves it nowhere vertically —
-a view whose order is `sort_by(.fields.due)` cannot honour a drag,
-and pretending otherwise is the bug.
+The order rule, within each group, column or nesting level,
+is `(rank, id)`: the issues that have a rank first, in that order,
+then the issues that have none, in the query's own order.
+A rank is null until a drop writes one, so a store nobody has dragged
+anything in reads exactly as its query asked for,
+and the query only selects once ranks exist.
+The first drop on such a view does move its issue to the top of its group,
+it being the only issue with a rank;
+the answer to that, if it ever annoys anybody,
+is the order-preserving renumber `rank` describes, not another sort rule.
 
 A drop writes **one** midpoint key to **one** issue,
 which is the whole point of a fractional index:
@@ -554,16 +558,16 @@ and a paste has nowhere to go and says so.
 This supersedes the earlier "ask which field on a card",
 written when `e` was still the edit key.
 
-**Grab needs no rank on a board.**
+**Grab needs no binding on a board.**
 Moving a card to another column is the board's reason to exist,
 so `Space` always grabs;
 `←` and `→` carry the card into the neighbouring column, empty or not,
 and the drop writes the `columns` field — `null` when dropped in `(none)`.
-Only `↑` and `↓` need `rank`, because they need an order to write,
-and without one they ring the bell and say *no rank*.
+`↑` and `↓` need an order to write and always have one,
+the built-in `rank` being the argument's default (Rank, above).
 The drop is one `set` with up to two keys, which is one commit:
 the field when the column changed,
-and the rank whenever `rank` is bound and the card moved at all,
+and the rank whenever the card moved at all,
 because a card in a new column has new neighbours.
 A card dropped where it was picked up writes nothing.
 A drop the schema refuses — a task dragged into a column
@@ -653,7 +657,7 @@ because a plan is read from now on and the past is a scroll to the left
 With `from` or `to` bound it opens instead on the period the first row's
 bar starts in, which is where a grab would move its start.
 
-**Grab needs no rank.** `Space` always grabs;
+**Grab needs no binding.** `Space` always grabs;
 `←` and `→` shift the bar by one period:
 on its first cell only `start` moves,
 on its last cell only `stop`,
@@ -665,10 +669,9 @@ and growing is the move a one-period bar needs most:
 shifting it is two moves, one on each edge.
 A start never passes its stop.
 The cursor moves with what moved, so it stays on the edge it is dragging.
-Only `↑` and `↓` need `rank`, as on a board,
-and without one they ring the bell and say *no rank*.
+`↑` and `↓` reorder, as on a board, with the same always-bound rank.
 The drop is one `set` with up to three keys, which is one commit:
-each date that moved, and the rank when one is bound and the row moved.
+each date that moved, and the rank when the row moved.
 A bar dropped where it was picked up writes nothing;
 `Esc` puts it back on its stored dates;
 and a refresh while a bar is grabbed lets it go,
@@ -789,8 +792,9 @@ The page is **four stops**, top to bottom (revised again 2026-09-28, Luis):
 3. the **comment box**;
 4. the **tabs**: description, comments and log.
 
-The header is the three built-in fields,
-which are on every type and are not rows of the table:
+The header is three of the four built-in fields,
+which are on every type and are not rows of the table
+(`rank` is the fourth, and stays a row, being an order and not a heading):
 the type first, dim, because the list shows it left of the title too;
 the title bold, in the terminal's own foreground —
 a terminal has one size of text, so the title reads as a heading
@@ -990,7 +994,7 @@ and the derived side of a stored relation resolves through it
 so `expand=children` reads every issue whose `parent` names the row,
 and `expand=blocks` the targets of the row's own `blocks`.
 The children come off the whole store, not the query's result,
-in the store's order, and a bound `rank` orders them by `(rank, id)`.
+in the store's order, and the rank orders them by `(rank, id)`.
 A row at the depth is a leaf, whatever is under it;
 `0` is unlimited because a depth of nothing is not naming `expand` at all.
 

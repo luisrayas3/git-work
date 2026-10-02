@@ -2,7 +2,7 @@ package schema
 
 import "github.com/git-bug/git-bug/entities/issue"
 
-// The three built-in field keys (E4).
+// The four built-in field keys (E4, D8).
 //
 // They are taken from entities/issue rather than spelled again here,
 // because the entity guarantees them
@@ -14,9 +14,11 @@ const (
 	TypeKey = "type"
 	// ArchivedKey is the field the default listing hides by.
 	ArchivedKey = issue.ArchivedKey
+	// RankKey is the field a view's manual order is written to.
+	RankKey = "rank"
 )
 
-// Builtin describes one of the three fields that exist in code on every type.
+// Builtin describes one of the four fields that exist in code on every type.
 //
 // Status is deliberately not here (`d56e6f1`):
 // it is a preset field of kind enum on every work type,
@@ -34,6 +36,13 @@ type Builtin struct {
 // Their ordinals are negative so that they sort before every configured field
 // whatever ordinals an import assigns, and so that an override that carries no
 // ordinal of its own keeps its built-in place.
+//
+// `rank` is built in since 2026-10-02 (D8):
+// Jira's Rank and Linear's sortOrder put an order on every issue,
+// so it is part of the native models the schema has to represent,
+// and every type in both presets carried it anyway.
+// It is nullable and starts null — `new` writes none, the first drag does —
+// and a null rank sorts after every set one, ties broken by id.
 var Builtins = []Builtin{
 	{
 		Key:         TitleKey,
@@ -56,9 +65,16 @@ var Builtins = []Builtin{
 		Description: "Whether the issue is still worth looking at.",
 		Ordinal:     -10,
 	},
+	{
+		Key:         RankKey,
+		Kind:        KindRank,
+		Name:        "Rank",
+		Description: "Manual board and backlog order, sorted by (rank, id).",
+		Ordinal:     -5,
+	},
 }
 
-// IsBuiltin reports whether a field key is one of the three.
+// IsBuiltin reports whether a field key is one of the four.
 func IsBuiltin(key string) bool {
 	return builtin(key) != nil
 }

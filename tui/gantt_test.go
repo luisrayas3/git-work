@@ -253,21 +253,15 @@ func TestGanttProgressFillsTheBar(t *testing.T) {
 	require.Contains(t, rowOf(page, id), strings.Repeat("▓", 3)+strings.Repeat("░", 3))
 }
 
-// TestGanttGrabUpAndDownNeedsARank: reordering rows is a rank, so without
-// one it says so; with one the drop writes a key between the neighbours,
-// alongside the dates when both moved.
-func TestGanttGrabUpAndDownNeedsARank(t *testing.T) {
+// TestGanttGrabUpAndDownWritesARank: reordering rows is a rank, and the drop
+// writes a key between the neighbours, alongside the dates when both moved.
+func TestGanttGrabUpAndDownWritesARank(t *testing.T) {
 	repo := testRepo(t)
 	withDates(t, repo)
 	first := newIssue(t, repo, map[string]any{"title": "first", "start": "2026-09-07", "stop": "2026-09-13", "rank": "a"})
 	second := newIssue(t, repo, map[string]any{"title": "second", "start": "2026-09-07", "stop": "2026-09-13", "rank": "b"})
 
 	page := gantt(t, repo, `{"start":"start","stop":"stop","from":"2026-09-07"}`)
-	send(page, "space", "down")
-	require.Equal(t, "no rank: cannot reorder", page.status)
-	send(page, "esc")
-
-	page = gantt(t, repo, `{"start":"start","stop":"stop","from":"2026-09-07","rank":"rank"}`)
 	require.Equal(t, first, page.current().id)
 	send(page, "down", "space", "up", "right", "enter")
 	require.Equal(t, second, page.current().id)
