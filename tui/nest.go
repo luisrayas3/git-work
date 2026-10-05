@@ -42,7 +42,8 @@ type nestLayer struct {
 }
 
 // nesting is `expand` resolved: a layer per level, and whether the last of
-// them repeats (`"expand": "self"`).
+// them goes on at every level further down (`"expand": 0`; a positive count
+// is already that many copies of the layer).
 type nesting struct {
 	layers []nestLayer
 	repeat bool

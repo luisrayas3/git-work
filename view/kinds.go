@@ -196,7 +196,7 @@ const expandDoc = `the relation nested under a row: "children", or a layer ` +
 	`{"relation":…,"query":…,"fields":…,"details":…,"group_by":…,"rank":…,"expand":…}; ` +
 	`a relation is a stored one (parent) or the inverse name of one (children), a layer's query runs over ` +
 	`that row's own unarchived children, the keys it leaves out are the layer above's, and its expand is ` +
-	`the level below ("self" repeats the layer)`
+	`the level below: a layer, or a number of further levels this same layer draws, 0 for every one`
 
 // rankArg is the manual order every kind that draws a row of issues takes.
 //

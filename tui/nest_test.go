@@ -85,7 +85,7 @@ func TestListFoldsEveryRowAtOnce(t *testing.T) {
 	task := newTyped(t, repo, "task", map[string]any{"title": "the task", "parent": story})
 	sub := newTyped(t, repo, "subtask", map[string]any{"title": "the subtask", "parent": task})
 
-	page := list(t, repo, `{"expand":{"relation":"children","expand":"self"},"query":"map(select(.fields.type == \"story\"))"}`)
+	page := list(t, repo, `{"expand":{"relation":"children","expand":0},"query":"map(select(.fields.type == \"story\"))"}`)
 	require.Contains(t, plainView(page), "1 issue")
 
 	send(page, "shift+z")
@@ -122,22 +122,44 @@ func TestListAMatchedChildShowsOnce(t *testing.T) {
 	require.Contains(t, rowOf(page, task), task[:idWidth]+"   ")
 	require.Contains(t, rowOf(page, sub), sub[:idWidth]+" ")
 
-	page = list(t, repo, `{"expand":{"relation":"children","expand":"self"},"query":"sort_by(.fields.title)"}`)
+	page = list(t, repo, `{"expand":{"relation":"children","expand":0},"query":"sort_by(.fields.title)"}`)
 	send(page, "shift+z")
-	require.Contains(t, rowOf(page, sub), sub[:idWidth]+"     ", "self: the subtask two levels down")
+	require.Contains(t, rowOf(page, sub), sub[:idWidth]+"     ", "0: the subtask two levels down")
 
 	// a cycle: each blocks the other
 	a := newTyped(t, repo, "task", map[string]any{"title": "a"})
 	b := newTyped(t, repo, "task", map[string]any{"title": "b", "blocks": []any{a}})
 	_, err := host.IssueSet(repo, a, map[string]issue.Value{"blocks": issue.MustValue([]any{b})}, false)
 	require.NoError(t, err)
-	page = list(t, repo, `{"expand":{"relation":"blocks","expand":"self"},"query":"map(select(.fields.title == \"a\" or .fields.title == \"b\")) | sort_by(.fields.title)"}`)
+	page = list(t, repo, `{"expand":{"relation":"blocks","expand":0},"query":"map(select(.fields.title == \"a\" or .fields.title == \"b\")) | sort_by(.fields.title)"}`)
 	send(page, "shift+z")
 	drawn = plainView(page)
 	require.Contains(t, drawn, "2 issues")
 	require.Equal(t, 1, strings.Count(drawn, a[:idWidth]))
 	require.Equal(t, 1, strings.Count(drawn, b[:idWidth]))
 	require.Contains(t, rowOf(page, b), b[:idWidth]+"   ", "b under a, and a not again under b")
+}
+
+// TestListACountIsThatManyMoreLevels: `"expand": N` on a layer is the same
+// layer N more levels down and no further, where 0 is every level.
+func TestListACountIsThatManyMoreLevels(t *testing.T) {
+	repo := testRepo(t)
+	d := newTyped(t, repo, "task", map[string]any{"title": "d"})
+	c := newTyped(t, repo, "task", map[string]any{"title": "c", "blocks": []any{d}})
+	b := newTyped(t, repo, "task", map[string]any{"title": "b", "blocks": []any{c}})
+	newTyped(t, repo, "task", map[string]any{"title": "a", "blocks": []any{b}})
+
+	page := list(t, repo, `{"expand":{"relation":"blocks","expand":1},"query":"map(select(.fields.title == \"a\"))"}`)
+	send(page, "shift+z")
+	require.Contains(t, plainView(page), "3 issues", "a, b under it, c under b, and the layer stops")
+	require.Contains(t, rowOf(page, b), b[:idWidth]+"   ")
+	require.Contains(t, rowOf(page, c), c[:idWidth]+"     ")
+	require.Equal(t, "", rowOf(page, d), "past the count")
+
+	page = list(t, repo, `{"expand":{"relation":"blocks","expand":0},"query":"map(select(.fields.title == \"a\"))"}`)
+	send(page, "shift+z")
+	require.Contains(t, plainView(page), "4 issues")
+	require.Contains(t, rowOf(page, d), d[:idWidth]+"       ", "0: every level")
 }
 
 // TestListLayerQueryAndFields: a layer carries the list's own arguments for

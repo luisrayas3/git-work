@@ -325,7 +325,8 @@ It is a **layer spec** (2026-10-02, `f4426ff`; `depth` is gone):
 `{"relation":"children","query":…,"fields":…,"details":…,"group_by":…,"rank":…,"expand":…}`,
 where a layer's `query` runs over that row's own unarchived children (every one of them without it),
 the keys it leaves out are the layer above's,
-and its `expand` is the level below — none means leaves, `"self"` repeats the layer.
+and its `expand` is the level below — none means leaves, a layer is the next level,
+and a number is this same layer again for that many more levels, `0` for every level down.
 `"expand":"children"` is the shorthand for one layer with every default.
 A layer draws its own columns, and the header describes the layer of the row the cursor is on.
 The id column stays first and flush and the **fold arrow is the cell after it**:

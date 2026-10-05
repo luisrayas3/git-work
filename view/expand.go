@@ -35,9 +35,15 @@ type Layer struct {
 	Rank string `json:"rank,omitempty"`
 	// Expand is the layer below; nil, this layer's rows are leaves.
 	Expand *Layer `json:"expand,omitempty"`
-	// Self marks the string `"self"`: the layer above repeats, as far down as
-	// the relation goes.
-	Self bool `json:"-"`
+	// Repeat is the integer form of `expand`: the level below is this layer
+	// again, and so on for that many more levels, 0 being as far down as the
+	// relation goes. Nil when `expand` is a layer or absent.
+	//
+	// It is a number and not a name because every string in that slot is a
+	// relation, and a layer that repeats cannot describe what is under it
+	// anyway: a tree of unknown height has one layer, drawn at every level
+	// (Luis, 2026-10-04).
+	Repeat *int `json:"-"`
 }
 
 // layerKeys are the keys a layer takes, in the order an error names them.
@@ -45,17 +51,25 @@ var layerKeys = []string{"relation", "query", "fields", "details", "group_by", "
 
 // parseExpand reads the `expand` argument: a relation name, or a layer.
 //
-// `self` is a layer's answer to "and the same again", so it has nothing to
+// A number is a layer's answer to "and the same again", so it has nothing to
 // repeat at the top.
 func parseExpand(raw json.RawMessage) (*Layer, error) {
-	layer, err := parseLayer(raw, 1)
-	if err != nil {
-		return nil, err
+	if _, err := asRepeat(raw); err == nil {
+		return nil, fmt.Errorf(`is a number, which repeats the layer it is on, so it cannot be the first one`)
 	}
-	if layer.Self {
-		return nil, fmt.Errorf(`is "self", which repeats the layer it is on, so it cannot be the first one`)
+	return parseLayer(raw, 1)
+}
+
+// asRepeat reads the integer form of a layer's `expand`.
+func asRepeat(raw json.RawMessage) (int, error) {
+	var n float64
+	if err := json.Unmarshal(raw, &n); err != nil {
+		return 0, fmt.Errorf("is not a number")
 	}
-	return layer, nil
+	if n != float64(int(n)) || n < 0 {
+		return 0, fmt.Errorf("is %s, it is 0 for every level down or how many more levels this layer draws", strings.TrimSpace(string(raw)))
+	}
+	return int(n), nil
 }
 
 // parseLayer reads one layer, at a level counted from 1 for the errors.
@@ -66,9 +80,6 @@ func parseLayer(raw json.RawMessage, at int) (*Layer, error) {
 	}
 
 	if name, err := asString(raw); err == nil {
-		if name == "self" {
-			return &Layer{Self: true}, nil
-		}
 		if strings.TrimSpace(name) == "" {
 			return nil, fmt.Errorf("%sis empty, it names a relation", where)
 		}
@@ -139,6 +150,14 @@ func parseLayer(raw json.RawMessage, at int) (*Layer, error) {
 	}
 
 	if raw, ok := object["expand"]; ok && !isNull(raw) {
+		if jsonKind(raw) == "a number" {
+			n, err := asRepeat(raw)
+			if err != nil {
+				return nil, fmt.Errorf("%sexpand %w", where, err)
+			}
+			layer.Repeat = &n
+			return layer, nil
+		}
 		below, err := parseLayer(raw, at+1)
 		if err != nil {
 			return nil, err
@@ -164,22 +183,26 @@ func (c *Call) Expand() *Layer {
 	return layer
 }
 
-// Layers flattens a spec into one layer per level below the roots, and says
-// whether the last of them repeats (`"expand": "self"`).
+// Layers flattens a spec into one layer per level below the roots, the last
+// of them repeated as its integer `expand` says: that many more times, or,
+// for 0, at every level further down (`forever`).
 //
-// Level n of the tree is Layers()[n-1], or the last one when it repeats, so
-// a renderer reads a row's layer off its level and never walks the spec.
-func (l *Layer) Layers() (layers []*Layer, repeat bool) {
-	for layer := l; layer != nil; {
+// Level n of the tree is Layers()[n-1], or the last one when it goes on
+// forever, so a renderer reads a row's layer off its level and never walks
+// the spec. A repeated layer is the same pointer at every level it draws.
+func (l *Layer) Layers() (layers []*Layer, forever bool) {
+	for layer := l; layer != nil; layer = layer.Expand {
 		layers = append(layers, layer)
-		below := layer.Expand
-		if below == nil {
-			return layers, false
+		if layer.Repeat == nil {
+			continue
 		}
-		if below.Self {
+		if *layer.Repeat == 0 {
 			return layers, true
 		}
-		layer = below
+		for i := 0; i < *layer.Repeat; i++ {
+			layers = append(layers, layer)
+		}
+		return layers, false
 	}
 	return layers, false
 }
@@ -197,6 +220,9 @@ func checkExpand(s *schema.Schema, root *Layer) error {
 
 	layers, _ := root.Layers()
 	for at, layer := range layers {
+		if at > 0 && layers[at-1] == layer {
+			break // a repeated layer was checked where it was written
+		}
 		where := ""
 		if at > 0 {
 			where = fmt.Sprintf("layer %d ", at+1)
