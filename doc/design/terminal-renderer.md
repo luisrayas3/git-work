@@ -1134,8 +1134,13 @@ and the rest are the list's own arguments *for that layer's rows*:
 the level below is its own `expand`,
 and a layer with none is leaves.
 `"expand": "children"` is one layer with every default,
-and `"expand": "self"` on a layer repeats that layer
-as far down as the relation goes.
+and a **number** as a layer's `expand` is that same layer again,
+that many more levels down — `"expand": 1` under `children` is tasks, then subtasks —
+and `0` as far down as the relation goes.
+It is a number and not a name because every string in that slot is a relation,
+and because a repeated layer is not a level below inheriting the one above —
+an odd idea across types that do not share fields —
+but one layer drawn at every level, which a count says plainly.
 
 **`depth` is gone.** A number said how far to walk and nothing about what
 was down there, so every level drew the columns of the first one
@@ -1144,7 +1149,8 @@ and a second level nobody could describe was all it could give:
 with the tasks' columns and the roots' query.
 A layer is the description, and it costs nothing to leave out:
 the shorthand is the old behaviour, one level deep.
-`"self"` is the old `depth: 0`, and the only reason to write a number was that.
+A number belongs on the layer it repeats, where it says how far *that* layer goes,
+never at the top, where there is nothing to repeat.
 
 **The query selects the roots; a layer's query selects that row's children.**
 The root `query` runs over the array of every issue, as it always has.
