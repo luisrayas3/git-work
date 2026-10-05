@@ -19,7 +19,7 @@ input when it is "-":
   fields         field keys                       defaulted ["type","title"] the fields shown as columns, in order
   details        field keys                       optional           the fields shown on a dim second line under each row
   group_by       field key                        optional           the field whose value starts a new section; the rows with no value at all are the last section, (none)
-  expand         relation or layer                optional           the relation nested under a row: "children", or a layer {"relation":…,"query":…,"fields":…,"details":…,"group_by":…,"rank":…,"expand":…}; a relation is a stored one (parent) or the inverse name of one (children), a layer's query runs over that row's own unarchived children, the keys it leaves out are the layer above's, and its expand is the level below ("self" repeats the layer)
+  expand         relation or layer                optional           the relation nested under a row: "children", or a layer {"relation":…,"query":…,"fields":…,"details":…,"group_by":…,"rank":…,"expand":…}; a relation is a stored one (parent) or the inverse name of one (children), a layer's query runs over that row's own unarchived children, the keys it leaves out are the layer above's, and its expand is the level below: a layer, or a number of further levels this same layer draws, 0 for every one
   rank           field key                        defaulted "rank"   the rank field rows are ordered and dragged by
 
 .PP

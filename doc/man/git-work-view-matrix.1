@@ -1,0 +1,41 @@
+.nh
+.TH "GIT-WORK" "1" "Apr 2019" "Generated from git-work's source code" ""
+
+.SH NAME
+git-work-view-matrix - Draw a matrix
+
+
+.SH SYNOPSIS
+\fBgit-work view matrix [KWARGS|-] [flags]\fP
+
+
+.SH DESCRIPTION
+Draw a matrix.
+
+.PP
+KWARGS is a JSON object of this view's arguments, read from standard
+input when it is "-":
+  query          query                            defaulted          the jq program the issues come from; the default is every unarchived issue, last edited first
+  rows           field key                        required           the field whose values are the rows
+  columns        field key                        required           the field whose values are the columns
+  value          field key                        optional           the number field summed in a cell; with none, a cell counts its issues
+  row_values     strings                          defaulted          the row values, in order; the axis's own order by default, which is resolved at render time
+  column_values  strings                          defaulted          the column values, in order; the axis's own order by default
+  group_by       field key                        optional           the field whose value starts a new block of rows; the rows with no value at all are the last block, (none)
+
+.PP
+An \fBoptional\fR argument has no default: name it and the view does that
+thing, leave it out and it does not.
+
+
+.SH OPTIONS
+\fB--gui\fP[=false]
+	Draw the view in the browser
+
+.PP
+\fB-h\fP, \fB--help\fP[=false]
+	help for matrix
+
+
+.SH SEE ALSO
+\fBgit-work-view(1)\fP

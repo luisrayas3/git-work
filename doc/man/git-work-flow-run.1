@@ -24,8 +24,9 @@ argument with no default that nobody named is an error too. \fBgit work flow\fR
 lists them.
 
 .PP
-A flow that returns a value prints it as JSON; one that returns nothing prints
-nothing.
+print() writes to standard output, so a flow that renders text prints it. A
+flow that returns a value prints it as JSON after that; one that returns
+nothing prints nothing more.
 
 .PP
 A flow that calls a view draws it here and blocks until you quit it, so a
