@@ -15,8 +15,9 @@ what the object omits, an unknown key is an error naming the arguments, and an
 argument with no default that nobody named is an error too. `git work flow`
 lists them.
 
-A flow that returns a value prints it as JSON; one that returns nothing prints
-nothing.
+print() writes to standard output, so a flow that renders text prints it. A
+flow that returns a value prints it as JSON after that; one that returns
+nothing prints nothing more.
 
 A flow that calls a view draws it here and blocks until you quit it, so a
 saved view is a flow that calls one. That needs a terminal: without one, the

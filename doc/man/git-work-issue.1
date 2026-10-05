@@ -22,8 +22,18 @@ Each emitted value is printed as JSON, one per line when there are several.
 --format text prints one line per issue when the program returned issues, and
 falls back to JSON when it returned anything else.
 
+.PP
+--at TIME runs the program over the issues as they stood at that moment,
+replayed from their operations: TIME is a date (2026-09-21), an RFC 3339 time, or a duration back from now (7d, 2w, 12h).
+An issue created after TIME is absent, and archived is the value that stood
+then, so the default program hides what was archived at the time.
+
 
 .SH OPTIONS
+\fB--at\fP=""
+	the issues as they stood at TIME
+
+.PP
 \fB-f\fP, \fB--format\fP="json"
 	Select the output formatting style. Valid values are [json,text]
 
@@ -42,6 +52,9 @@ git work issue 'map(select(.fields.parent == "6a1b2c3")) | map(.fields.title)'
 
 A kanban of what is not done:
 git work view board '{"query":"map(select(.fields.status != \\"done\\"))","columns":"status"}'
+
+What was open a week ago:
+git work issue 'map(select(.fields.status != "done"))' --at 7d
 
 .EE
 

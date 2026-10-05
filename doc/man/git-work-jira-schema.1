@@ -1,0 +1,46 @@
+.nh
+.TH "GIT-WORK" "1" "Apr 2019" "Generated from git-work's source code" ""
+
+.SH NAME
+git-work-jira-schema - Print the schema the sync derives from the Jira project
+
+
+.SH SYNOPSIS
+\fBgit-work jira schema [flags]\fP
+
+
+.SH DESCRIPTION
+Print the live schema with the Jira project's issue types, fields and values
+adopted or added, each carrying its Jira id as an alias. Nothing is written;
+warnings and errors on what does not map go to stderr, and with --verbose the
+info notes too.
+
+.PP
+The first mapping is reviewed as this file, then imported; after that every
+sync derives and imports it itself.
+
+
+.SH OPTIONS
+\fB-f\fP, \fB--format\fP="yaml"
+	Select the output formatting style. Valid values are [yaml,json]
+
+.PP
+\fB-h\fP, \fB--help\fP[=false]
+	help for schema
+
+.PP
+\fB-v\fP, \fB--verbose\fP[=false]
+	Print the info notes too
+
+
+.SH EXAMPLE
+.EX
+git work jira schema > jira.yaml
+$EDITOR jira.yaml
+git work schema import jira.yaml --dry-run
+git work schema import jira.yaml
+.EE
+
+
+.SH SEE ALSO
+\fBgit-work-jira(1)\fP
