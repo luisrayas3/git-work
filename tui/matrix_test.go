@@ -246,7 +246,7 @@ func TestMatrixEnterOpensTheCellsIssues(t *testing.T) {
 	require.Contains(t, pushed.query, alpha)
 	require.Contains(t, pushed.query, first)
 	require.Len(t, pushed.order, 2, "the two tasks that made the 5")
-	require.Equal(t, []string{"title", "parent", "iteration", "estimate"}, pushed.columns())
+	require.Equal(t, []string{"title", "parent", "iteration", "estimate"}, pushed.cursorFields())
 
 	drawn := plainView(pushed)
 	require.Contains(t, drawn, "one")

@@ -79,10 +79,16 @@ func (p *ganttPage) View() string {
 	return strings.Join(append(lines, bottom...), "\n")
 }
 
-// treeRoom is the width of the tree cell after the id, nothing when
-// `expand` is not bound (nest.go).
+// treeRoom is the width of the tree cell after the id — the deepest level's
+// indent, then the arrow and its count — nothing when `expand` is not bound.
+// The gantt keeps the indent in its label column, because its rows share one
+// time axis and cannot be tables of their own; it is measured over every
+// row, hidden or drawn, so that folding moves nothing (nest.go).
 func (p *ganttPage) treeRoom() int {
-	return treeWidth(p.nodes, p.order, p.nest.expanded())
+	if !p.nest.expanded() {
+		return 0
+	}
+	return indentWidth*deepest(p.nodes) + treeWidth(p.nodes, true)
 }
 
 // layout sizes the label column to the labels, up to two fifths of the
@@ -291,7 +297,7 @@ func (p *ganttPage) rowLine(index, labelWidth, visible int, under, grabbed bool,
 	parts := []string{marker}
 	parts = append(parts, wash.Faint(true).Render(pad(b.human, idWidth)))
 	if indent > 0 {
-		cell := pad(treeCell(*node), indent)
+		cell := pad(strings.Repeat(" ", indentWidth*node.level)+treeCell(*node), indent)
 		style := wash
 		if under && p.col < 0 {
 			style = styleMark()

@@ -328,9 +328,14 @@ the keys it leaves out are the layer above's,
 and its `expand` is the level below — none means leaves, a layer is the next level,
 and a number is this same layer again for that many more levels, `0` for every level down.
 `"expand":"children"` is the shorthand for one layer with every default.
-A layer draws its own columns, and the header describes the layer of the row the cursor is on.
-The id column stays first and flush and the **fold arrow is the cell after it**:
-the level's indent, `▾`/`▸`, and, folded, the count of the rows under it (`▸ 3`);
+**A nested layer is its own table** (2026-10-07): the rows under an opened parent are drawn
+indented as one unit, two cells a level, with their own header line above the first of them
+and their own columns in the layer's widths, id first and flush within the table;
+widths are measured over every row of a layer, hidden or drawn, so folding moves nothing,
+the top header is the roots' and never changes,
+and a child table whose header has scrolled off keeps it on the first body line as a group header is.
+Within a table the id column is first and the **fold arrow is the cell after it**:
+`▾`/`▸` and, folded, the count of the rows under it (`▸ 3`), the cell as wide as the largest count;
 `→` reaches it, `Space` there folds (on the gantt it is `←` from the first period), `Enter` opens the row,
 and `Z` folds or unfolds every parent (`z` is gone).
 **A nested view opens folded**, so the roots and their counts read as a summary;

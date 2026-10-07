@@ -12,21 +12,26 @@ import (
 // surface prints, so an id read here is an id that can be typed there.
 const idWidth = 7
 
+// indentWidth is what one level of nesting moves a child table right by:
+// the whole table, header and rows, as one unit
+// (doc/design/terminal-renderer.md, Nesting).
+const indentWidth = 2
+
 func (p *listPage) View() string {
 	if p.help != nil {
 		return p.help.View(p.width)
 	}
 
 	bottom := p.bottom()
-	header, rows, groups, cursorLine := p.body()
+	body := p.body()
 
 	// one line for the call, one for the header, the rest for the rows, the
 	// bottom for whatever is open and the status line
 	room := max(p.height-2-len(bottom), 1)
 
 	lines := make([]string, 0, p.height)
-	lines = append(lines, callLine(p.call, "", "", p.width), header)
-	lines = append(lines, window(&p.top, rows, groups, cursorLine, room)...)
+	lines = append(lines, callLine(p.call, "", "", p.width), body.header)
+	lines = append(lines, window(&p.top, body.lines, body.sticky, body.cursorLine, room)...)
 	for len(lines) < p.height-len(bottom) {
 		lines = append(lines, "")
 	}
@@ -93,79 +98,120 @@ func (p *listPage) hintLine() string {
 	return hints(hint{"enter", "open"}, hint{"space", "grab"})
 }
 
-// body draws the header and every row in the drawing order, says which line
-// the cursor is on so the window can be scrolled to it, and which group
-// header each line sits under so that header can be kept on screen.
+// listBody is the page's body as drawn: the top table's header, which is
+// fixed, and the lines under it — rows, group lines, detail lines and the
+// headers of the child tables — with, for every line, the header line it is
+// read under, and the line the cursor's row is on.
+type listBody struct {
+	header     string
+	lines      []string
+	sticky     []int
+	cursorLine int
+}
+
+// body draws the body (listBody).
 //
-// The header describes the layer the cursor's row is on, not the roots': a
-// layer draws its own columns in its own widths under its parent, so the
-// only header that can be right is the one for the row being read, and it
-// changes as tab and shift-tab change level.
-func (p *listPage) body() (header string, rows []string, groups []int, cursorLine int) {
+// The list is a table of tables (doc/design/terminal-renderer.md, Nesting).
+// The roots are the top table, whose header is the page's second line and
+// never changes. The rows under an opened parent are a child table: indented
+// as one unit, headed by its own header line above its first row, its
+// columns the layer's own in the layer's widths. The pre-order puts a
+// parent's visible children right after it, so the first child is the row
+// whose predecessor is its parent, and that is where the header goes.
+//
+// sticky is, per line, the header it must not be read without: a root's is
+// the group line it is under, when the roots are grouped, because the top
+// header is always on screen; a nested line's is its table's header, because
+// a row read without its header is a row of numbers. A header is its own
+// sticky, which is how window knows not to pin a copy of a line that is
+// already drawn.
+func (p *listPage) body() listBody {
 	widths := p.widths()
 	tree := p.treeRoom()
 	heads := groupHeads(p.nodes, p.order)
 
-	cells := []string{pad("id", idWidth)}
-	if tree > 0 {
-		cells = append(cells, pad("", tree))
+	body := listBody{header: p.tableHeader(0, widths, tree)}
+	add := func(line string, under int) {
+		body.lines = append(body.lines, line)
+		body.sticky = append(body.sticky, under)
 	}
-	for at, key := range p.columns() {
-		cells = append(cells, pad(key, widths[p.cursorLayer()][at]))
-	}
-	header = styleHeader.Render(fit(strings.Join(cells, " "), p.width))
 
-	cursorLine = 0
-	headerAt := -1
+	rootGroup := -1
+	tableHeader := map[string]int{} // the header line of the table under each parent
 	for at, index := range p.order {
 		row, node := &p.rows[index], &p.nodes[index]
 
+		under := rootGroup
+		if node.level > 0 {
+			if at > 0 && p.nodes[p.order[at-1]].id == node.parent {
+				tableHeader[node.parent] = len(body.lines)
+				add(p.tableHeader(node.level, widths, tree), len(body.lines))
+			}
+			under = tableHeader[node.parent]
+		}
+
 		// a group is its own level's: the roots section the whole list, and
-		// a layer with a `group_by` sections the children under one parent
+		// a layer with a `group_by` sections the table under one parent
 		if heads[at] {
 			line := styleGroup.Render(fit(p.groupLine(node), p.width))
 			if node.level == 0 {
-				headerAt = len(rows)
+				rootGroup = len(body.lines)
+				under = rootGroup
+				add(line, rootGroup)
+			} else {
+				add(line, under)
 			}
-			rows = append(rows, line)
-			groups = append(groups, headerAt)
 		}
 
 		if at == p.cursor {
-			cursorLine = len(rows)
+			body.cursorLine = len(body.lines)
 		}
-		rows = append(rows, p.rowLine(row, node, widths, tree, at == p.cursor, index == p.grabbed))
-		groups = append(groups, headerAt)
-
+		add(p.rowLine(row, node, widths, tree, at == p.cursor, index == p.grabbed), under)
 		for _, line := range p.detailLines(row, node, tree) {
-			rows = append(rows, line)
-			groups = append(groups, headerAt)
+			add(line, under)
 		}
 	}
 
-	return header, rows, groups, cursorLine
+	return body
 }
 
-// groupLine is a group header: the value, under the id column and at the
-// level's own indent, so that a nested section reads as the parent's and the
-// roots' sections still head the whole list.
-func (p *listPage) groupLine(node *treeRow) string {
-	if node.level == 0 {
-		return node.group
+// tableHeader is the header line of the tables at one level: the id, the
+// tree cell and the layer's fields, each over its column, at the level's
+// indent. Level 0 is the top table's, the page's fixed header.
+func (p *listPage) tableHeader(level int, widths [][]int, tree int) string {
+	cells := []string{indent(level) + " " + pad("id", idWidth)}
+	if tree > 0 {
+		cells = append(cells, pad("", tree))
 	}
-	return strings.Repeat(" ", 1+idWidth+1+2*node.level) + node.group
+	sizes := widths[p.nest.family(level)]
+	for at, key := range p.layer(level).fields {
+		cells = append(cells, pad(key, sizes[at]))
+	}
+	return styleHeader.Render(fit(strings.Join(cells, " "), p.width))
 }
 
-// rowLine draws one issue: the short id, the tree cell, then the fields of
-// the row's own layer as columns.
+// indent is the left margin of the tables at one level.
+func indent(level int) string {
+	return strings.Repeat(" ", indentWidth*level)
+}
+
+// groupLine is a group header: the value, at its table's indent, so that a
+// nested section reads as part of the table it sections and the roots'
+// sections still head the whole list.
+func (p *listPage) groupLine(node *treeRow) string {
+	return indent(node.level) + node.group
+}
+
+// rowLine draws one issue in its table: the table's indent, the cursor
+// marker, the short id, the tree cell, then the fields of the row's own
+// layer as columns in the layer's widths.
 //
 // The row under the cursor has a light wash across the whole window, which
 // says which issue; the cell under the column cursor is reversed within it,
 // which says that edit and copy act on that one. The id is a cell like the
 // others, and the one the cursor starts on. A cell that links other issues
 // is underlined, because enter follows it. The tree cell is the one after
-// the id: the level's indent, the fold arrow, and the count of what a fold
-// is hiding (treeCell).
+// the id: the fold arrow and the count of what a fold is hiding (treeCell).
 func (p *listPage) rowLine(row *listRow, node *treeRow, widths [][]int, tree int, under bool, grabbed bool) string {
 	// every piece is styled on its own, the wash included: a style ends in
 	// a reset, and a reset inside the row would end the wash with it
@@ -174,10 +220,22 @@ func (p *listPage) rowLine(row *listRow, node *treeRow, widths [][]int, tree int
 		wash = styleRow()
 	}
 
-	layer := p.nest.index(node.level)
-	fields, sizes := p.nest.layers[layer].fields, widths[layer]
+	fields, sizes := p.layer(node.level).fields, widths[p.nest.family(node.level)]
 
-	parts := make([]string, 0, 2*len(fields)+6)
+	parts := make([]string, 0, 2*len(fields)+8)
+	margin := indent(node.level)
+	switch {
+	case grabbed && p.blink:
+		parts = append(parts, margin, styleGrab.Render("["))
+	case grabbed:
+		parts = append(parts, margin, styleGrab.Render("⟨"))
+	case under:
+		parts = append(parts, wash.Render(margin+"›"))
+	default:
+		parts = append(parts, margin+" ")
+	}
+	used := len(margin) + 1
+
 	id := pad(row.human, idWidth)
 	if under && p.column == 0 {
 		id = styleCell.Render(id)
@@ -185,7 +243,7 @@ func (p *listPage) rowLine(row *listRow, node *treeRow, widths [][]int, tree int
 		id = wash.Faint(true).Render(id)
 	}
 	parts = append(parts, id)
-	used := idWidth
+	used += idWidth
 
 	if tree > 0 {
 		cell := pad(treeCell(*node), tree)
@@ -214,27 +272,19 @@ func (p *listPage) rowLine(row *listRow, node *treeRow, widths [][]int, tree int
 		parts = append(parts, style.Render(text)+fill.Render(gap))
 		used += 1 + sizes[at]
 	}
-	if under && p.width > used {
+	switch {
+	case grabbed:
+		parts = append(parts, styleGrab.Render(map[bool]string{true: "]", false: "⟩"}[p.blink]))
+	case under && p.width > used:
 		parts = append(parts, wash.Render(strings.Repeat(" ", p.width-used)))
 	}
 
-	line := strings.Join(parts, "")
-	switch {
-	case grabbed && p.blink:
-		line = styleGrab.Render("[") + line + styleGrab.Render("]")
-	case grabbed:
-		line = styleGrab.Render("⟨") + line + styleGrab.Render("⟩")
-	case under:
-		line = wash.Render("›") + line
-	default:
-		line = " " + line
-	}
-	return fit(line, p.width)
+	return fit(strings.Join(parts, ""), p.width)
 }
 
 // detailLines are the dim second line under a row, one per detail field of
 // the row's own layer, so that what a row is about can be read without
-// opening it.
+// opening it. They start under the row's first field, in its table.
 func (p *listPage) detailLines(row *listRow, node *treeRow, tree int) []string {
 	details := p.layer(node.level).details
 	if len(details) == 0 {
@@ -253,60 +303,68 @@ func (p *listPage) detailLines(row *listRow, node *treeRow, tree int) []string {
 		return nil
 	}
 
-	indent := strings.Repeat(" ", tree+idWidth+2)
-	return []string{styleDim.Render(fit(indent+strings.Join(parts, "  "), p.width))}
+	margin := strings.Repeat(" ", fieldsStart(node.level, tree))
+	return []string{styleDim.Render(fit(margin+strings.Join(parts, "  "), p.width))}
+}
+
+// fieldsStart is the column a table's first field starts in: the indent,
+// the marker, the id, the tree cell and the spaces between them.
+func fieldsStart(level, tree int) int {
+	start := indentWidth*level + 1 + idWidth + 1
+	if tree > 0 {
+		start += tree + 1
+	}
+	return start
 }
 
 // treeRoom is the width of the tree cell after the id, nothing where
-// `expand` is not bound.
+// `expand` is not bound. It is measured over every row, hidden or drawn, so
+// that folding moves nothing.
 func (p *listPage) treeRoom() int {
-	return treeWidth(p.nodes, p.order, p.nest.expanded())
+	return treeWidth(p.nodes, p.nest.expanded())
 }
 
-// cursorLayer is the layer the header is drawn for: the cursor's row's.
-func (p *listPage) cursorLayer() int {
-	node := p.node()
-	if node == nil {
-		return 0
-	}
-	return p.nest.index(node.level)
-}
-
-// widths sizes every layer's columns, one set per layer: a layer's rows are
-// measured against each other, so a child's columns are as wide as the
-// children need and not as wide as their parents do.
+// widths sizes every layer's columns, one set per layer family: the rows of
+// one layer are measured against each other, wherever in the tree they are
+// drawn and whether or not a fold hides them, so that every table of that
+// layer has the same columns at the same widths and unfolding moves nothing.
 func (p *listPage) widths() [][]int {
 	tree := p.treeRoom()
 	out := make([][]int, len(p.nest.layers))
-	for at := range out {
-		out[at] = p.widthsOf(at, tree)
+	for family := range out {
+		out[family] = p.widthsOf(family, tree)
 	}
 	return out
 }
 
-// widthsOf sizes one layer's columns to what is in them, and then to the
-// window.
-func (p *listPage) widthsOf(layer, tree int) []int {
-	fields := p.nest.layers[layer].fields
+// widthsOf sizes one layer family's columns to what is in them, and then to
+// the window at the deepest indent the family is drawn at.
+func (p *listPage) widthsOf(family, tree int) []int {
+	fields := p.nest.layers[family].fields
 	widths := make([]int, len(fields))
 	for at, key := range fields {
 		widths[at] = len([]rune(key))
-		for _, index := range p.order {
-			if p.nest.index(p.nodes[index].level) != layer {
-				continue
-			}
+	}
+	deepest := 0
+	for index := range p.rows {
+		level := p.nodes[index].level
+		if p.nest.family(level) != family {
+			continue
+		}
+		deepest = max(deepest, level)
+		for at, key := range fields {
 			if n := ansi.StringWidth(p.rows[index].cells[key]); n > widths[at] {
 				widths[at] = n
 			}
 		}
 	}
 
-	// The budget is the window less the id column, the tree cell, the cursor
-	// marker and one space between columns. Over it, the widest column gives
-	// way first, so that a long title shrinks before a short status
-	// disappears; a column is never capped below that, so a wide window
-	// shows a whole title.
-	budget := p.width - tree - idWidth - 2 - len(fields)
+	// The budget is the window less the table's indent, the id column, the
+	// tree cell, the cursor marker and one space between columns. Over it,
+	// the widest column gives way first, so that a long title shrinks before
+	// a short status disappears; a column is never capped below that, so a
+	// wide window shows a whole title.
+	budget := p.width - fieldsStart(deepest, tree) - len(fields) + 1
 	for budget > 0 && sum(widths) > budget {
 		widest := 0
 		for at := range widths {
@@ -341,36 +399,36 @@ func scroll(top *int, cursorLine, room, total int) {
 }
 
 // window is the slice of a body a page draws: scroll moves a window of room
-// lines to the cursor's line, and then, in a grouped view, the window's first
-// line is the header of the group it opens in — a sticky header, because a
-// header scrolled off the top is unreachable, and the rows under it lose the
-// only thing that says which group they are in. The sticky line is the header
-// as the page drew it, so whatever it carries — the gantt's crosshair, a
-// group's tint — comes with it.
+// lines to the cursor's line, and then the window's first line is the header
+// the line it opens on is read under — a group's, or a child table's — a
+// sticky header, because a header scrolled off the top is unreachable, and
+// the rows under it lose the only thing that says what they are. The sticky
+// line is the header as the page drew it, so whatever it carries — the
+// gantt's crosshair, a group's tint — comes with it.
 //
-// groups is parallel to lines: the line each line's group header is drawn on,
-// -1 where there is none. The window is room lines whatever happens, the
-// sticky header taking one of them, and the cursor's line stays within those
-// that are left.
-func window(top *int, lines []string, groups []int, cursorLine, room int) []string {
+// sticky is parallel to lines: the line each line's header is drawn on, -1
+// where there is none. The window is room lines whatever happens, the sticky
+// header taking one of them, and the cursor's line stays within those that
+// are left.
+func window(top *int, lines []string, sticky []int, cursorLine, room int) []string {
 	scroll(top, cursorLine, room, len(lines))
 
 	// a window of one line has none to spare: the cursor's row wins it
-	sticky := -1
+	pinned := -1
 	if room > 1 {
-		sticky = groupHeader(groups, *top)
+		pinned = stickyHeader(sticky, *top)
 	}
-	if sticky >= 0 && cursorLine <= *top {
+	if pinned >= 0 && cursorLine <= *top {
 		// the rows start one line lower than the window does, so the cursor's
 		// row, which the scroll put on its first line, moves down with them
 		*top = max(cursorLine-1, 0)
-		sticky = groupHeader(groups, *top)
+		pinned = stickyHeader(sticky, *top)
 	}
 
 	drawn := make([]string, 0, room)
 	first := *top
-	if sticky >= 0 {
-		drawn = append(drawn, lines[sticky])
+	if pinned >= 0 {
+		drawn = append(drawn, lines[pinned])
 		first++
 	}
 	for at := first; at < min(*top+room, len(lines)); at++ {
@@ -379,14 +437,13 @@ func window(top *int, lines []string, groups []int, cursorLine, room int) []stri
 	return drawn
 }
 
-// groupHeader is the group header the line at top sits under, or -1 when the
-// view is not grouped, when that line has no header above it, or when it is
-// the header itself and so needs no sticky copy of itself.
-func groupHeader(groups []int, top int) int {
-	if top < 0 || top >= len(groups) || groups[top] == top {
+// stickyHeader is the header the line at top is read under, or -1 when that
+// line has none, or is the header itself and so needs no copy of itself.
+func stickyHeader(sticky []int, top int) int {
+	if top < 0 || top >= len(sticky) || sticky[top] == top {
 		return -1
 	}
-	return groups[top]
+	return sticky[top]
 }
 
 // rowsPerPage is what a page key moves by: the rows that fit, at least one.
