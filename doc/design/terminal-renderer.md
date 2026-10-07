@@ -1177,31 +1177,62 @@ A rank orders a layer's rows by `(rank, id)`.
 A layer's relation, and every field key it names, are checked against the
 schema before anything draws, the way show's `children` are.
 
-**A layer draws its own columns.**
+**A nested layer is its own table** (Luis, 2026-10-07).
+The rows under an opened parent are drawn as a table of their own:
+the whole of it indented as one unit, two cells a level,
+with its own header line above its first row,
+its own columns in its own widths,
+and its id column first and flush *within the table*,
+so a child table reads and sorts by id the way the top one does.
 `fields` and `details` a layer leaves out are the layer above's,
-so the shorthand is still the uniform tree,
-and a layer that names them draws them in its own widths under its parent:
+so the shorthand is a tree of like tables,
+and a layer that names them draws them:
 a story's tasks can show `status` and `assignee`
 where the stories show `type` and `priority`.
-**The header describes the layer of the row the cursor is on**,
-and changes as `Tab`, `Shift-Tab` and any move change its level.
-One header for a tree of unlike rows can only be wrong somewhere;
-the row being read is the one the header can be right about.
+A layer's widths are measured over every row of that layer,
+drawn or hidden under a fold,
+so every table of one layer has the same columns at the same widths,
+and folding or unfolding moves nothing beside it.
+The top header describes the roots and never changes;
+each child table's header describes its layer,
+and when the cursor is in a table whose header has scrolled off the top
+that header is kept on the first body line, as a group header is,
+because a row read without its header is a row of numbers.
 A `group_by` is the layer's own: the roots' sections head the list,
-and a layer that names one sections the children under each parent.
+and a layer that names one sections each child table, its group lines indented with it.
 A group is where a row is drawn, so a rank moves a row among its siblings
 in its group only, its subtree with it,
 and a story dragged past another carries its tasks.
 Only a root crosses into another group (Rank):
 a child's place is under its parent, wherever the parent goes.
+A detail line is indented with its table.
+The keys do not change: `Tab` lands on the first child's id,
+`←`/`→` walk the child's own cells, and the cursor cell is reversed as before.
+A folded parent has no table under it, so the headers cost lines only where a tree is open.
+The gantt is not a table of tables:
+its rows share one time axis, so it keeps the indent in its label column
+and one header, the chart's periods.
+
+This replaces the first drawing of nesting, where every level started at the
+same column with the indent inside the tree cell, each layer in its own widths,
+and one header following the cursor's level.
+It was two things at once: one table by its header, many by its widths,
+so a child's cells sat under its parent's header and not under its columns.
+It was also unstable: the tree cell was measured over the rows being drawn,
+despite meaning to be measured over all of them, so unfolding a parent
+deepened the tree, widened the cell and shifted every column to the right,
+and a repeated layer's widths were measured the same way, so a parent's columns
+moved when its children appeared.
+Measuring every row is the rule both for the tree cell and for the columns.
 
 **The fold arrow is a cell, and it comes after the id** (2026-10-02).
 The id column stays first and flush, so a list reads and sorts by id
 whether or not anything nests — before this the indent pushed the id
 sideways by level, and the first column of a tree was ragged.
-The tree cell carries the level's indent, two cells a level,
-the arrow — `▾` open, `▸` folded, nothing on a leaf —
-and, folded, the count of the rows hidden under it: `▸ 3`.
+The tree cell carries the arrow — `▾` open, `▸` folded, nothing on a leaf —
+and, folded, the count of the rows hidden under it: `▸ 3`;
+the indent is the child table's, not the cell's (2026-10-07),
+and the cell is as wide as the largest count on any row, so it never moves.
 The count is the row's own children, which is what unfolding reveals.
 It is a cursor stop like any other cell:
 the cursor still starts on the id, `→` reaches the arrow,
