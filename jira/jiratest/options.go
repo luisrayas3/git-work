@@ -150,7 +150,7 @@ func WithDenied(ops ...string) Option {
 
 // WithLooseHierarchy accepts any parent in the same project, whatever the
 // types' declared hierarchy levels: a site whose data disagrees with its
-// hierarchy, as AUT's Tasks with an Epic parent under a Task declared a
+// hierarchy, as one site's Tasks with an Epic parent under a Task declared a
 // sub-task type (pull-schema-check.md). Off by default.
 func WithLooseHierarchy() Option { return func(c *config) { c.looseHierarchy = true } }
 

@@ -226,11 +226,11 @@ func TestPushUnderRefUpdateCap(t *testing.T) {
 // What GitHub answered a three-ref push on 2026-10-02, abridged.
 const gitHubCapRejection = `git push: remote: error: GH013: Repository rule violations found for refs/work-issues/d3d5.
 remote: - Pushes can not update more than 2 branches or tags.
-To github.com:chef-robotics/ChefAutonomy.git
+To github.com:example/private.git
  ! [remote rejected]       refs/work-issues/d3d5 -> refs/work-issues/d3d5 (push declined due to repository rule violations)
  ! [remote rejected]       refs/work-issues/21e1 -> refs/work-issues/21e1 (push declined due to repository rule violations)
  ! [remote rejected]       refs/work-issues/c2e7 -> refs/work-issues/c2e7 (push declined due to repository rule violations)
-error: failed to push some refs to 'github.com:chef-robotics/ChefAutonomy.git'`
+error: failed to push some refs to 'github.com:example/private.git'`
 
 func TestRefUpdateCap(t *testing.T) {
 	limit, refused := refUpdateCap(errors.New(gitHubCapRejection))

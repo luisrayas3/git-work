@@ -453,7 +453,7 @@ Gotchas, hardened from use:
   (`sync` pulls first, runs the Jira sync with `--jira`, then pushes).
 - A GitHub remote may cap the refs one push can update
   (`GH013 … Pushes can not update more than N branches or tags`,
-  enforced on these namespaces too, and on `chef-robotics/ChefAutonomy`
+  enforced on these namespaces too, and on a private repository
   with no ruleset in sight, 2026-10-02).
   `PushRefs` then pushes the refs the rejection lists N at a time,
   silently, so a first push of a large store takes minutes, not forever.

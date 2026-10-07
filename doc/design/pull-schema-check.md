@@ -13,8 +13,8 @@ is shape, not policy: without the field there is no kind to fit.
 `admit` (`jira/issue.go`) checks every pulled field change
 with the full `Checker`,
 and turns a refusal into a pending `Retry`.
-On AUT, eight Tasks (e.g. AUT-173) have an Epic parent,
-while AUT declares Task a sub-task type (hierarchyLevel -1);
+On one real Cloud site, eight Tasks have an Epic parent,
+while the site declares Task a sub-task type (hierarchyLevel -1);
 `derive.go` therefore allows only level-0 parents.
 Those parents are refused on every run and never converge:
 the local copy silently disagrees with Jira.
