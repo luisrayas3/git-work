@@ -5,9 +5,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/git-bug/git-bug/cache"
 	"github.com/git-bug/git-bug/commands/cmdjson"
 	"github.com/git-bug/git-bug/commands/execenv"
+	"github.com/git-bug/git-bug/host"
 	"github.com/git-bug/git-bug/util/colors"
 )
 
@@ -44,14 +44,9 @@ per identity, the id and the display name.`,
 }
 
 func runUser(env *execenv.Env, opts userOptions) error {
-	ids := env.Backend.Identities().AllIds()
-	var users []*cache.IdentityExcerpt
-	for _, id := range ids {
-		user, err := env.Backend.Identities().ResolveExcerpt(id)
-		if err != nil {
-			return err
-		}
-		users = append(users, user)
+	users, err := host.UserList(env.Backend)
+	if err != nil {
+		return err
 	}
 
 	switch opts.format {
@@ -64,22 +59,17 @@ func runUser(env *execenv.Env, opts userOptions) error {
 	}
 }
 
-func userTextFormatter(env *execenv.Env, users []*cache.IdentityExcerpt) error {
+func userTextFormatter(env *execenv.Env, users []cmdjson.Identity) error {
 	for _, user := range users {
 		env.Out.Printf("%s %s\n",
-			colors.Cyan(user.Id().Human()),
-			user.DisplayName(),
+			colors.Cyan(user.HumanId),
+			meDisplayName(user),
 		)
 	}
 
 	return nil
 }
 
-func userJsonFormatter(env *execenv.Env, users []*cache.IdentityExcerpt) error {
-	jsonUsers := make([]cmdjson.Identity, len(users))
-	for i, user := range users {
-		jsonUsers[i] = cmdjson.NewIdentityFromExcerpt(user)
-	}
-
-	return env.Out.PrintJSON(jsonUsers)
+func userJsonFormatter(env *execenv.Env, users []cmdjson.Identity) error {
+	return env.Out.PrintJSON(users)
 }

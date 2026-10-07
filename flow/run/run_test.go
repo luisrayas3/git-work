@@ -404,6 +404,26 @@ func TestUserMeIsWhatTheCommandPrints(t *testing.T) {
 	require.Equal(t, printed, value)
 }
 
+// TestUserListIsWhatTheCommandPrints: `work.user.list()` is `git work user`,
+// the same host call, so a flow that names people reads the identities the
+// shell lists.
+func TestUserListIsWhatTheCommandPrints(t *testing.T) {
+	repo := testRepo(t)
+	_, err := repo.Identities().New("Jane Roe", "jroe@example.com")
+	require.NoError(t, err)
+
+	value, _, err := run(t, repo, `def who():
+    """Everyone."""
+    return [user["name"] for user in work.user.list()]
+`, nil)
+	require.NoError(t, err)
+	require.ElementsMatch(t, []any{"John Doe", "Jane Roe"}, value)
+
+	listed, err := host.UserList(repo)
+	require.NoError(t, err)
+	require.Len(t, listed, 2)
+}
+
 // TestQuickstartIsWhatTheCommandPrints pins the other half of the mirror:
 // a root command is a verb on the module itself,
 // so `git work quickstart` is `work.quickstart()`, the same text.
