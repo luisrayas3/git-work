@@ -210,8 +210,8 @@ KWARGS is one JSON object of the flow's arguments,
 defaults from the signature filling what it omits;
 an unknown key is an error naming the parameters.
 A flow's script reaches one predeclared name, `work`, and through it
-`work.issue.*`, `work.schema.*`, `work.flow.*`, `work.view.*` and
-`work.user.me()` —
+`work.issue.*`, `work.schema.*`, `work.flow.*`, `work.view.*`,
+`work.user.list()` and `work.user.me()` —
 the same verbs, the same arguments, the same output as the commands,
 because both go through package `host` —
 and writes through the cache, schema check included, like any command does.

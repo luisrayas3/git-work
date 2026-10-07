@@ -197,7 +197,7 @@ so that one verb is spelled with a trailing underscore;
 `work.flow.import_(scripts, prune=False, dry_run=False)`,
 `work.flow.log(name="")`, `work.flow.archive(name)`, `work.flow.rm(name)`;
 `work.view.list(...)`, `work.view.board(...)`, `work.view.gantt(...)`, `work.view.show(id, ...)`;
-`work.user.me()`, which is `git work user me`.
+`work.user.list()` and `work.user.me()`, which are `git work user` and `git work user me`.
 A root command is a verb on the module itself:
 `work.quickstart()` is `git work quickstart`, the same markdown as a string.
 Every function returns what the command would print, as a Starlark value.

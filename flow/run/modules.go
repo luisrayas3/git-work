@@ -77,6 +77,7 @@ func (r *runtime) work() *starlarkstruct.Module {
 		),
 		sub("view", r.viewMembers()...),
 		sub("user",
+			verb("list", r.userList),
 			verb("me", r.userMe),
 		),
 		// A root command is a verb on the module itself, the way it is a verb
@@ -635,6 +636,19 @@ func (r *runtime) flowRun(thread *starlark.Thread, b *starlark.Builtin, args sta
 		return nil, err
 	}
 	return toStarlark(decoded)
+}
+
+// work.user.list() — `git work user`, every identity the repository knows.
+func (r *runtime) userList(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+	if err := starlark.UnpackArgs(b.Name(), args, kwargs); err != nil {
+		return nil, err
+	}
+
+	users, err := host.UserList(r.repo)
+	if err != nil {
+		return nil, err
+	}
+	return reencode(b, users)
 }
 
 // work.user.me() — `git work user me`, the identity this repository writes as.

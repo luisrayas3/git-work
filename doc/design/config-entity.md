@@ -608,6 +608,7 @@ nesting, rank and the sequencing are `terminal-renderer.md` (`84dfbde`).
 `work.user.me()` is the current identity,
 and the command line spells it `git work user me`,
 the explicit form of the bare `git work user`,
+which is `work.user.list()`, every identity the store knows,
 so the only script-only name left is `work.stderr`,
 whose shell form is a redirection rather than a command.
 
