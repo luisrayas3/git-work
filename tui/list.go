@@ -18,8 +18,9 @@ import (
 //
 // The rows are the excerpts the query returned, verbatim, so what is drawn is
 // what `git work issue` prints and a jq program can be written against.
-// With `expand` bound they are a tree: under each row the issues its layer's
-// relation names, each layer drawing its own columns (nest.go).
+// With `expand` bound they are a tree: under each opened row the issues its
+// layer's relation names, drawn as a child table of their own (nest.go,
+// list_view.go).
 type listPage struct {
 	repo *cache.RepoCache
 
@@ -134,10 +135,10 @@ func (p *listPage) layer(level int) *nestLayer {
 	return &p.nest.layers[0]
 }
 
-// columns are the fields of the layer the cursor's row is on, which is what
-// the header describes: move between levels and the header follows, because
-// a layer draws its own columns under its parent.
-func (p *listPage) columns() []string {
+// cursorFields are the fields of the layer the cursor's row is on: the
+// cells `←` and `→` walk after the id and the tree cell, which are the
+// row's own table's columns.
+func (p *listPage) cursorFields() []string {
 	node := p.node()
 	if node == nil {
 		return p.nest.layers[0].fields
@@ -154,7 +155,7 @@ func (p *listPage) treeCol() int {
 	return -1
 }
 
-// firstFieldCol is where the cursor's layer's fields start.
+// firstFieldCol is the column of the cursor's row's first field.
 func (p *listPage) firstFieldCol() int {
 	if p.nest.expanded() {
 		return 2
@@ -164,7 +165,7 @@ func (p *listPage) firstFieldCol() int {
 
 // lastCol is the right-most cell of the cursor's row.
 func (p *listPage) lastCol() int {
-	return max(p.firstFieldCol()+len(p.columns())-1, 0)
+	return max(p.firstFieldCol()+len(p.cursorFields())-1, 0)
 }
 
 // load re-runs the query and rebuilds the rows, keeping the cursor on the
@@ -582,7 +583,7 @@ func (p *listPage) push(id string) tea.Cmd {
 // fieldKey is the field under the column cursor, or "" on the id and on the
 // tree cell, neither of which is a field.
 func (p *listPage) fieldKey() string {
-	fields := p.columns()
+	fields := p.cursorFields()
 	at := p.column - p.firstFieldCol()
 	if at < 0 || at >= len(fields) {
 		return ""

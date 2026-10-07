@@ -25,7 +25,9 @@ import (
 // layer's own query kept still shows under its parent, because a parent's
 // children are the reason to expand a parent. The list and the gantt both
 // nest, so what is shared is here: the layers, the tree, the drawing order
-// over it, and moving a row among its siblings.
+// over it, and moving a row among its siblings. How the tree is drawn is
+// each kind's own: the list draws a child table under an opened parent
+// (list_view.go), the gantt indents its label column (gantt_view.go).
 
 // nestLayer is one level as the renderer uses it: the spec's layer with its
 // query compiled and the keys it inherits filled in.
@@ -47,6 +49,10 @@ type nestLayer struct {
 type nesting struct {
 	layers []nestLayer
 	repeat bool
+	// families maps a layer to the first layer written the same: a count
+	// (`"expand": 2`) is the one layer at several levels, and its rows are
+	// one table's rows wherever they are drawn, so they are measured as one.
+	families []int
 }
 
 // newNesting resolves the root's own arguments and the spec's layers.
@@ -57,14 +63,22 @@ type nesting struct {
 // the parent. `group_by` is not inherited: a level is sectioned because that
 // level was asked to be.
 func newNesting(root nestLayer, spec *view.Layer) (*nesting, error) {
-	n := &nesting{layers: []nestLayer{root}}
+	n := &nesting{layers: []nestLayer{root}, families: []int{0}}
 	if spec == nil {
 		return n, nil
 	}
 
 	layers, repeat := spec.Layers()
 	n.repeat = repeat
-	for _, layer := range layers {
+	for at, layer := range layers {
+		family := at + 1
+		for before := range layers[:at] {
+			if layers[before] == layer {
+				family = before + 1
+				break
+			}
+		}
+		n.families = append(n.families, family)
 		above := n.layers[len(n.layers)-1]
 		resolved := nestLayer{
 			relation: layer.Relation,
@@ -115,12 +129,21 @@ func (n *nesting) at(level int) *nestLayer {
 }
 
 // index is a level's layer by position, which every level past a repeating
-// last layer shares, so that one set of column widths serves them all.
+// last layer shares.
 func (n *nesting) index(level int) int {
 	if n == nil || len(n.layers) == 0 {
 		return 0
 	}
 	return min(level, len(n.layers)-1)
+}
+
+// family is the layer whose columns and widths a level's rows share: the
+// level's own layer, or the one it is a copy of (families).
+func (n *nesting) family(level int) int {
+	if n == nil || len(n.families) == 0 {
+		return 0
+	}
+	return n.families[n.index(level)]
 }
 
 // nested is one issue in the tree, in pre-order: a row and where it sits.
@@ -629,10 +652,11 @@ func crossGroup(rows []treeRow, order []int, at, by int) (int, bool) {
 //
 // The id column stays first and flush, so a list reads and sorts by id
 // whether or not anything nests, and the tree cell beside it carries the
-// level's indent, the fold arrow, and, folded, how many rows are hidden
-// under it. It is a cursor stop like any other cell: `→` reaches it, `Space`
-// folds and unfolds there, `Enter` opens the row as it does on the id, and a
-// leaf, which draws its indent alone, rings.
+// fold arrow and, folded, how many rows are hidden under it. It is a cursor
+// stop like any other cell: `→` reaches it, `Space` folds and unfolds there,
+// `Enter` opens the row as it does on the id, and a leaf, whose cell is
+// empty, rings. The indent is not the cell's: on the list it is the child
+// table's margin, on the gantt the label column's.
 
 // foldAll is `Z`: every parent folded shut, or, where none of them is open,
 // every parent opened.
@@ -695,36 +719,43 @@ func reveal(rows []treeRow, open map[string]bool, id string) bool {
 	}
 }
 
-// treeCell is one row's tree column: its indent, its arrow, and the count of
-// what folding it hides.
+// treeCell is one row's tree column: its arrow, and the count of what
+// folding it hides. A leaf's is empty.
 func treeCell(row treeRow) string {
-	cell := strings.Repeat("  ", row.level)
 	switch {
 	case row.children == 0:
-		return cell
+		return ""
 	case row.folded:
-		return cell + "▸ " + strconv.Itoa(row.children)
+		return "▸ " + strconv.Itoa(row.children)
 	default:
-		return cell + "▾"
+		return "▾"
 	}
 }
 
-// treeWidth is the tree column's width: the deepest level drawn, the arrow,
-// and room for the largest count, measured over every row rather than over
-// the folded ones so that folding never moves the columns beside it. Nothing
-// when nothing nests.
-func treeWidth(rows []treeRow, order []int, expanded bool) int {
+// treeWidth is the tree column's width: the arrow and room for the largest
+// count, measured over every row — hidden under a fold or drawn — so that
+// folding never moves the columns beside it. Nothing when nothing nests.
+func treeWidth(rows []treeRow, expanded bool) int {
 	if !expanded {
 		return 0
 	}
-	deepest, most := 0, 0
-	for _, at := range order {
-		deepest = max(deepest, rows[at].level)
-		most = max(most, rows[at].children)
+	most := 0
+	for _, row := range rows {
+		most = max(most, row.children)
 	}
-	width := 2*deepest + 1
+	width := 1
 	if most > 0 {
 		width += 1 + len(strconv.Itoa(most))
 	}
 	return width
+}
+
+// deepest is the deepest level any row sits at, hidden or drawn, so that an
+// indent sized by it never changes with a fold.
+func deepest(rows []treeRow) int {
+	level := 0
+	for _, row := range rows {
+		level = max(level, row.level)
+	}
+	return level
 }

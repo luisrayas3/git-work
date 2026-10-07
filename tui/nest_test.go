@@ -4,13 +4,50 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
+	"unicode/utf8"
 
+	tea "charm.land/bubbletea/v2"
 	"github.com/stretchr/testify/require"
 
 	"github.com/git-bug/git-bug/entities/issue"
 	"github.com/git-bug/git-bug/host"
 	"github.com/git-bug/git-bug/view"
 )
+
+// colOf is the column a text starts in on a drawn line, -1 when it is not
+// there: columns, not bytes, because the marker and the arrows are one
+// column of several bytes.
+func colOf(line, text string) int {
+	at := strings.Index(line, text)
+	if at < 0 {
+		return -1
+	}
+	return utf8.RuneCountInString(line[:at])
+}
+
+// startOf is the column a row's id is drawn in, -1 when the row is not
+// drawn: the table's indent plus the cursor marker, so a root's id is at 1
+// and a child's at 1 + indentWidth per level.
+func startOf(p page, id string) int {
+	return colOf(rowOf(p, id), id[:idWidth])
+}
+
+// tableHeaderAbove is the header line of the table a drawn row is in: the
+// nearest line above it that starts, at the row's indent, with "id".
+func tableHeaderAbove(p page, id string) string {
+	lines := strings.Split(plainView(p), "\n")
+	indent := startOf(p, id)
+	for at := len(lines) - 1; at >= 0; at-- {
+		if strings.Contains(lines[at], id[:idWidth]) {
+			for above := at - 1; above >= 0; above-- {
+				if strings.HasPrefix(lines[above], strings.Repeat(" ", indent)+"id ") {
+					return lines[above]
+				}
+			}
+		}
+	}
+	return ""
+}
 
 // kwargs reads a call's arguments, for the checks that go through view.Parse
 // rather than through a page.
@@ -47,8 +84,10 @@ func TestListNestsChildrenUnderTheirParent(t *testing.T) {
 	drawn = plainView(page)
 	require.Contains(t, drawn, "4 issues")
 	require.Contains(t, rowOf(page, story), story[:idWidth]+" ▾")
-	require.Contains(t, rowOf(page, one), one[:idWidth]+"   ", "a child is indented under its parent")
-	require.Contains(t, rowOf(page, other), other[:idWidth]+"   ", "a leaf draws its indent and no arrow")
+	require.Equal(t, 1, startOf(page, story), "a root's table is flush")
+	require.Equal(t, 1+indentWidth, startOf(page, one), "the child table is indented as a unit")
+	require.Equal(t, 1+indentWidth, startOf(page, two))
+	require.Contains(t, rowOf(page, other), other[:idWidth]+"   ", "a leaf's tree cell is empty")
 	require.Less(t, indexOf(drawn, other[:idWidth]), indexOf(drawn, story[:idWidth]))
 	require.Less(t, indexOf(drawn, story[:idWidth]), indexOf(drawn, one[:idWidth]))
 	require.Less(t, indexOf(drawn, one[:idWidth]), indexOf(drawn, two[:idWidth]))
@@ -91,7 +130,7 @@ func TestListFoldsEveryRowAtOnce(t *testing.T) {
 	send(page, "shift+z")
 	drawn := plainView(page)
 	require.Contains(t, drawn, "3 issues", "every parent open, however deep")
-	require.Contains(t, rowOf(page, sub), sub[:idWidth]+"     ", "two levels down")
+	require.Equal(t, 1+2*indentWidth, startOf(page, sub), "two levels down")
 
 	send(page, "shift+z")
 	require.Contains(t, plainView(page), "1 issue")
@@ -119,12 +158,12 @@ func TestListAMatchedChildShowsOnce(t *testing.T) {
 	require.Contains(t, drawn, "3 issues")
 	// the task is a level under the story, and the subtask, past the one
 	// layer the spec describes, is a root of its own
-	require.Contains(t, rowOf(page, task), task[:idWidth]+"   ")
-	require.Contains(t, rowOf(page, sub), sub[:idWidth]+" ")
+	require.Equal(t, 1+indentWidth, startOf(page, task))
+	require.Equal(t, 1, startOf(page, sub))
 
 	page = list(t, repo, `{"expand":{"relation":"children","expand":0},"query":"sort_by(.fields.title)"}`)
 	send(page, "shift+z")
-	require.Contains(t, rowOf(page, sub), sub[:idWidth]+"     ", "0: the subtask two levels down")
+	require.Equal(t, 1+2*indentWidth, startOf(page, sub), "0: the subtask two levels down")
 
 	// a cycle: each blocks the other
 	a := newTyped(t, repo, "task", map[string]any{"title": "a"})
@@ -137,7 +176,7 @@ func TestListAMatchedChildShowsOnce(t *testing.T) {
 	require.Contains(t, drawn, "2 issues")
 	require.Equal(t, 1, strings.Count(drawn, a[:idWidth]))
 	require.Equal(t, 1, strings.Count(drawn, b[:idWidth]))
-	require.Contains(t, rowOf(page, b), b[:idWidth]+"   ", "b under a, and a not again under b")
+	require.Equal(t, 1+indentWidth, startOf(page, b), "b under a, and a not again under b")
 }
 
 // TestListACountIsThatManyMoreLevels: `"expand": N` on a layer is the same
@@ -152,19 +191,20 @@ func TestListACountIsThatManyMoreLevels(t *testing.T) {
 	page := list(t, repo, `{"expand":{"relation":"blocks","expand":1},"query":"map(select(.fields.title == \"a\"))"}`)
 	send(page, "shift+z")
 	require.Contains(t, plainView(page), "3 issues", "a, b under it, c under b, and the layer stops")
-	require.Contains(t, rowOf(page, b), b[:idWidth]+"   ")
-	require.Contains(t, rowOf(page, c), c[:idWidth]+"     ")
+	require.Equal(t, 1+indentWidth, startOf(page, b))
+	require.Equal(t, 1+2*indentWidth, startOf(page, c))
 	require.Equal(t, "", rowOf(page, d), "past the count")
 
 	page = list(t, repo, `{"expand":{"relation":"blocks","expand":0},"query":"map(select(.fields.title == \"a\"))"}`)
 	send(page, "shift+z")
 	require.Contains(t, plainView(page), "4 issues")
-	require.Contains(t, rowOf(page, d), d[:idWidth]+"       ", "0: every level")
+	require.Equal(t, 1+3*indentWidth, startOf(page, d), "0: every level")
 }
 
 // TestListLayerQueryAndFields: a layer carries the list's own arguments for
 // its own rows — a `query` over that row's children, and `fields` of its
-// own, which the header describes as the cursor moves between the levels.
+// own, which the child table's own header describes while the top header
+// stays the roots'.
 func TestListLayerQueryAndFields(t *testing.T) {
 	repo := testRepo(t)
 	story := newTyped(t, repo, "story", map[string]any{"title": "the story"})
@@ -181,16 +221,141 @@ func TestListLayerQueryAndFields(t *testing.T) {
 	require.NotEqual(t, "", rowOf(page, open))
 	require.Equal(t, "", rowOf(page, done), "the layer's query left it out")
 
-	// the header is the cursor's own layer's, and changes with the level
-	header := func(p *listPage) string {
+	// the top header is the roots' and stays so; the child table has its
+	// own, with the layer's columns
+	topHeader := func(p *listPage) string {
 		return strings.Split(plainView(p), "\n")[1]
 	}
-	require.NotContains(t, header(page), "status")
+	require.NotContains(t, topHeader(page), "status")
+	require.Contains(t, tableHeaderAbove(page, open), "status", "the child's layer draws its own columns")
 	send(page, "tab")
 	require.Equal(t, open, page.current().id)
-	require.Contains(t, header(page), "status", "the child's layer draws its own columns")
+	require.NotContains(t, topHeader(page), "status", "the top header never follows the cursor")
+	require.Equal(t, []string{"status", "title"}, page.cursorFields(), "the cursor walks the child's own cells")
+	send(page, "right") // the column was on the tree cell; one step in is the first field
+	require.Equal(t, "status", page.fieldKey())
 	send(page, "shift+tab")
-	require.NotContains(t, header(page), "status")
+	require.NotContains(t, topHeader(page), "status")
+}
+
+// TestListChildTableHasItsOwnHeader: the rows under every opened parent are
+// a table of their own — a header line above the first child at the table's
+// indent, the same columns and widths under every parent — and a folded
+// parent has no table and no header under it.
+func TestListChildTableHasItsOwnHeader(t *testing.T) {
+	repo := testRepo(t)
+	first := newTyped(t, repo, "story", map[string]any{"title": "first story"})
+	a := newTyped(t, repo, "task", map[string]any{"title": "a", "parent": first, "status": "to-do"})
+	second := newTyped(t, repo, "story", map[string]any{"title": "second story"})
+	b := newTyped(t, repo, "task", map[string]any{"title": "a much longer title", "parent": second, "status": "done"})
+
+	page := list(t, repo, `{"fields":["title"],"expand":{"relation":"children","fields":["status","title"]},`+
+		`"query":"map(select(.fields.type == \"story\")) | sort_by(.fields.title)"}`)
+	lines := strings.Split(plainView(page), "\n")
+	headers := 0
+	for _, line := range lines[2:] {
+		if strings.HasPrefix(strings.TrimLeft(line, " "), "id ") {
+			headers++
+		}
+	}
+	require.Equal(t, 0, headers, "folded: no child table, no header")
+
+	send(page, "shift+z")
+	lines = strings.Split(plainView(page), "\n")
+	require.True(t, strings.HasPrefix(lines[1], " id "), "the top header is the roots'")
+	require.NotContains(t, lines[1], "status")
+
+	under := func(parent string) string { return lines[indexOfLine(lines, parent[:idWidth])+1] }
+	for _, parent := range []string{first, second} {
+		header := under(parent)
+		require.True(t, strings.HasPrefix(header, strings.Repeat(" ", indentWidth)+" id "),
+			"a header line right under the parent, at the table's indent: %q", header)
+		require.Contains(t, header, "status")
+		require.Contains(t, header, "title")
+	}
+	require.Equal(t, under(first), under(second), "every table of one layer has the same header")
+
+	// the columns sit under the header's cells in both tables
+	header := under(first)
+	require.Equal(t, colOf(header, "status"), colOf(rowOf(page, a), "to-do"))
+	require.Equal(t, colOf(header, "status"), colOf(rowOf(page, b), "done"))
+	require.Equal(t, colOf(header, "title"), colOf(rowOf(page, b), "a much"))
+}
+
+// TestListUnfoldingMovesNothing: the tree cell and a layer's columns are
+// measured over every row, hidden or drawn, so opening a parent — even one
+// whose children share its layer and carry a long title — moves no column of
+// the rows already on the screen.
+func TestListUnfoldingMovesNothing(t *testing.T) {
+	repo := testRepo(t)
+	story := newTyped(t, repo, "story", map[string]any{"title": "short", "status": "to-do"})
+	task := newTyped(t, repo, "task", map[string]any{"title": "a task with a title much longer than its parent's", "parent": story, "status": "in-progress"})
+	sub := newTyped(t, repo, "subtask", map[string]any{"title": "deeper", "parent": task})
+	for i := 0; i < 10; i++ {
+		newTyped(t, repo, "subtask", map[string]any{"title": "s", "parent": task})
+	}
+
+	page := list(t, repo, `{"fields":["title","status"],"expand":{"relation":"children","expand":0},"query":"map(select(.fields.type == \"story\"))"}`)
+	folded := rowOf(page, story)
+	require.Contains(t, folded, "▸ 1")
+
+	send(page, "shift+z")
+	opened := rowOf(page, story)
+	require.Contains(t, opened, "▾")
+	require.Equal(t, colOf(folded, "short"), colOf(opened, "short"), "the title column stayed put")
+	require.Equal(t, colOf(folded, "to-do"), colOf(opened, "to-do"), "and the status column")
+	require.Equal(t, utf8.RuneCountInString(folded), utf8.RuneCountInString(opened))
+
+	// the eleven-child task's count sized the tree cell before it was drawn
+	require.Contains(t, rowOf(page, task), "▾")
+	require.Equal(t, colOf(rowOf(page, task), "a task"), colOf(rowOf(page, sub), "deeper")-indentWidth,
+		"the subtask's table is one indent further in, its title column with it")
+
+	send(page, "shift+z")
+	require.Equal(t, folded, rowOf(page, story), "folded again, drawn as before")
+}
+
+// TestListKeepsTheChildTableHeaderOnTop: a window too small for a child
+// table still opens on that table's header when its first line is inside
+// the table, whether the cursor is deep in it or on its first row, because a
+// row read without its header is a row of numbers.
+func TestListKeepsTheChildTableHeaderOnTop(t *testing.T) {
+	repo := testRepo(t)
+	story := newTyped(t, repo, "story", map[string]any{"title": "the story"})
+	var tasks []string
+	for _, title := range []string{"a", "b", "c", "d", "e", "f", "g", "h"} {
+		tasks = append(tasks, newTyped(t, repo, "task", map[string]any{"title": title, "parent": story, "status": "to-do"}))
+	}
+
+	page := list(t, repo, `{"fields":["title"],"expand":{"relation":"children","fields":["status","title"],"query":"sort_by(.fields.title)"},`+
+		`"query":"map(select(.fields.type == \"story\"))"}`)
+	page.Update(tea.WindowSizeMsg{Width: 100, Height: 9})
+	send(page, "tab", "G")
+	require.Equal(t, tasks[7], page.current().id)
+
+	lines := strings.Split(plainView(page), "\n")
+	require.True(t, strings.HasPrefix(lines[2], strings.Repeat(" ", indentWidth)+" id "), "the window opens on the table's header: %q", lines[2])
+	require.Contains(t, lines[2], "status")
+	require.NotContains(t, plainView(page), tasks[0][:idWidth], "and not on the table's first row")
+	require.Contains(t, plainView(page), tasks[7][:idWidth], "the cursor's row is on screen")
+
+	// back up onto the first task, the header is still the line above it
+	for page.current().id != tasks[0] {
+		send(page, "k")
+	}
+	lines = strings.Split(plainView(page), "\n")
+	require.True(t, strings.HasPrefix(lines[2], strings.Repeat(" ", indentWidth)+" id "), "the table's header is the first body line: %q", lines[2])
+	require.Contains(t, lines[3], tasks[0][:idWidth], "the cursor's row is right under it")
+}
+
+// indexOfLine is the first line containing a text, -1 when none does.
+func indexOfLine(lines []string, text string) int {
+	for at, line := range lines {
+		if strings.Contains(line, text) {
+			return at
+		}
+	}
+	return -1
 }
 
 // TestListLayerGroupsItsOwnRows: a layer's `group_by` sections the children
