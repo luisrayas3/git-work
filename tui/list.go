@@ -42,6 +42,9 @@ type listPage struct {
 	// open is the parents folded open, by key, across every rebuild: a tree
 	// opens folded, so what is remembered is what was opened.
 	open map[string]bool
+	// opening is the call's `open`, levels to unfold the first tree to, -1
+	// for every one; it is spent on the first build (R4).
+	opening int
 
 	rows []listRow
 	// nodes is the tree the rows sit in, one per row: level, parent, group,
@@ -106,6 +109,7 @@ func newListPage(repo *cache.RepoCache, call *view.Call) (*listPage, error) {
 		groupBy:        call.String("group_by"),
 		rankKey:        call.String("rank"),
 		open:           map[string]bool{},
+		opening:        call.OpenLevels(),
 		width:          80,
 		height:         24,
 		grabbed:        -1,
@@ -226,6 +230,12 @@ func (p *listPage) rebuild() {
 	}
 
 	build()
+	if p.opening != 0 {
+		// the call's `open`, on the first tree only (R4)
+		openTo(p.nodes, p.opening, p.open)
+		p.opening = 0
+		build()
+	}
 	if reveal(p.nodes, p.open, was) {
 		build()
 	}

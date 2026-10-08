@@ -51,6 +51,9 @@ type ganttPage struct {
 	// open is the parents folded open, by key: a tree opens folded, so what
 	// is remembered is what was opened.
 	open map[string]bool
+	// opening is the call's `open`, levels to unfold the first tree to, -1
+	// for every one; it is spent on the first build (R4).
+	opening int
 
 	bars  []bar
 	nodes []treeRow
@@ -136,6 +139,7 @@ func newGanttPage(repo *cache.RepoCache, call *view.Call) (*ganttPage, error) {
 		groupBy:        call.String("group_by"),
 		rankKey:        call.String("rank"),
 		open:           map[string]bool{},
+		opening:        call.OpenLevels(),
 		width:          80,
 		height:         24,
 		col:            -1,
@@ -200,6 +204,12 @@ func (p *ganttPage) rebuild() {
 		}
 	}
 	build()
+	if p.opening != 0 {
+		// the call's `open`, on the first tree only (R4)
+		openTo(p.nodes, p.opening, p.open)
+		p.opening = 0
+		build()
+	}
 	if reveal(p.nodes, p.open, was) {
 		build()
 	}

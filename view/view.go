@@ -177,6 +177,27 @@ func (c *Call) Bool(name string) bool {
 	return b
 }
 
+// OpenLevels returns `open` as a number of levels from the roots: -1 for
+// every one, 0 for none, which is also its absence.
+func (c *Call) OpenLevels() int {
+	raw, ok := c.Args["open"]
+	if !ok {
+		return 0
+	}
+	var all bool
+	if json.Unmarshal(raw, &all) == nil {
+		if all {
+			return -1
+		}
+		return 0
+	}
+	var n int
+	if err := json.Unmarshal(raw, &n); err != nil {
+		return 0
+	}
+	return n
+}
+
 // check validates one value against its row of the table,
 // and returns it compacted, so that equal arguments are equal bytes.
 func (a Arg) check(raw json.RawMessage) (json.RawMessage, error) {
@@ -229,6 +250,19 @@ func (a Arg) check(raw json.RawMessage) (json.RawMessage, error) {
 		var b bool
 		if err := json.Unmarshal(raw, &b); err != nil {
 			return nil, fmt.Errorf("is true or false, not %s", jsonKind(raw))
+		}
+
+	case OpenLevels:
+		var b bool
+		if json.Unmarshal(raw, &b) == nil {
+			break
+		}
+		var n float64
+		if err := json.Unmarshal(raw, &n); err != nil {
+			return nil, fmt.Errorf("is true, false or a number of levels, not %s", jsonKind(raw))
+		}
+		if n != float64(int(n)) || n < 0 {
+			return nil, fmt.Errorf("is %s, it is a whole number of levels from the roots", strings.TrimSpace(string(raw)))
 		}
 
 	case Document:
