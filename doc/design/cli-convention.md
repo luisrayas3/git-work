@@ -6,7 +6,8 @@ and the rules every command follows.
 The tables in `AGENTS.md` describe what the current binary verifies;
 this document is where it is going.
 Decisions are recorded on `e8d6426` (plumbing), `b511c63` (flows),
-`52a2797` (views), `84dfbde` and `8b06191` (renderers) and `3556569` (schema).
+`52a2797` (views), `84dfbde` and `8b06191` (renderers), `3556569` (schema)
+and `0aeb7d2` (the bare noun).
 What a view does once it is open —
 the keys, editing, grab, rank and nesting —
 is `terminal-renderer.md`; this document is the command line it is reached by.
@@ -17,12 +18,38 @@ is `terminal-renderer.md`; this document is the command line it is reached by.
   JSON out by default, `--format text` for a human.
   There is no sugar: no `--fields`, no `-t`/`-m`, no per-field flags.
   A jq program projects, a flow is the porcelain.
+  The one porcelain default is the bare noun, below.
+- **The bare noun is the human form of `list`** (decided 2026-10-08, `0aeb7d2`).
+  `git work issue list`, `git work flow list` and `git work user list`
+  are the plumbing: JSON by default, the form a script or an agent calls.
+  `git work issue`, `git work flow` and `git work user` alone
+  are the same command with text as the default:
+  the same program, the same flags, the same rows,
+  one line each, as `list --format text` prints them;
+  a program whose values are not issues, an empty array among them,
+  still prints as JSON, because there is no line to draw.
+  The bare form keeps `--format json`, because only the default differs
+  and a flag that worked on one spelling and not the other would be a trap.
+  The reason is who types what:
+  the easy thing to type is the thing a human reads,
+  and plumbing is spelled out, the way an agent spells out every other verb.
+  Only the bare noun flips; `user me`, `get`, `log` and every other verb
+  keep JSON as their default.
+  `git work schema` already worked this way, the YAML a human reads
+  being the bare noun and `schema export --format json` the machine's form.
+  `list` is a sub-command, never a program:
+  cobra resolves a sub-command name before it reads a positional,
+  as it always has for `get` or `log`, and `list` is no jq program.
 - **The Starlark host API mirrors the command line one to one.**
   The SDK is one module, named after the binary:
   `git work <module> <verb>` is `work.<module>.<verb>(...)`,
   same arguments, returning what the command prints.
   Nothing is reachable from a script that the shell cannot reach, and the reverse;
   there is no script-only name.
+  The bare noun is the human form of `list`, a porcelain default with no
+  Starlark name: `work.issue.list()`, `work.flow.list()` and `work.user.list()`
+  mirror `issue list`, `flow list` and `user list`, and return the raw value,
+  because a script reads data and never wants the text.
   One predeclared name rather than five
   leaves `issue`, `flow`, `schema`, `view` and `user` free for a script's own locals.
 - **Arguments are keyword arguments.**
@@ -76,7 +103,7 @@ is `terminal-renderer.md`; this document is the command line it is reached by.
   `rm` deletes the local ref and the entity returns on the next pull;
   `archive` is an operation and reaches every clone.
 - **The list is a jq program** (`3c9c24d`) over the array of excerpts,
-  the same JSON `--format json` prints.
+  the same JSON `git work issue list` prints.
   Its input is the unarchived issues, the archived too with `--include-archive`,
   and the default program is that input, last edited first;
   `.` is the whole input (`df6ff51`, `include-archive.md`).
@@ -103,7 +130,7 @@ is `terminal-renderer.md`; this document is the command line it is reached by.
   so `git work view` has no `--format`
   and `{"view", "bindings", "items"}` is gone.
   No TTY and no `--gui` is an error;
-  an agent that wants the data runs `git work issue PROGRAM`, where the data is.
+  an agent that wants the data runs `git work issue list PROGRAM`, where the data is.
   Every kind but `show` takes `query`, a jq program the view runs, re-runs on a
   ref-watcher change and after its own writes, which is what keeps a view live.
   Which other arguments a kind takes, and which of them it cannot do without,
@@ -118,7 +145,8 @@ is `terminal-renderer.md`; this document is the command line it is reached by.
 ## Map
 
 ```
-git work issue [PROGRAM] [--at TIME] [--include-archive] [--format json|text]
+git work issue list [PROGRAM] [--at TIME] [--include-archive] [--format json|text]
+git work issue [PROGRAM] [--at TIME] [--include-archive] [--format text|json]   # list's human form, one line each
 git work issue new DOC|-                        # prints the id
 git work issue get ID [--at TIME]               # the issue as it stood then, replayed
 git work issue set ID FIELDS|- [--dry-run]      # {"key": value, ...}; null clears; one SetField per key, one commit
@@ -138,7 +166,8 @@ git work schema log [KEY | --id ID]             # a key is every entity that hel
 git work schema archive KEY | --id ID           # a key two entities hold is refused, naming both ids
 git work schema rm KEY | --id ID                # --id is an id or unique prefix, never read as a key
 
-git work flow                                   # names, descriptions, arguments
+git work flow list [--format json|text]         # names, descriptions, arguments
+git work flow [--format text|json]              # list's human form: name and description
 git work flow run NAME|- [KWARGS|-] [--gui]      # - runs the script on stdin without importing it
 git work flow import FILE|DIR|-... [--prune] [--dry-run]   # one def per file; its name is the flow's
 git work flow export NAME > FILE
@@ -158,7 +187,8 @@ git work pull
 git work migrate [--dry-run]                    # ran once here on 2026-09-25 (bf6f392); stays to import git-bug repos (01c6231)
 
 git work bridge configure|pull|push|rm          # Jira, phase 3
-git work user
+git work user list [--format json|text]
+git work user [--format text|json]              # list's human form: id and name
 git work user me                                # the identity this repository writes as
 git work user new | adopt ID
 git work gui [--port N] [--no-browser]          # every flow as a page, every view as a renderer
@@ -203,7 +233,9 @@ so that one verb is spelled with a trailing underscore;
 `work.flow.import_(scripts, prune=False, dry_run=False)`,
 `work.flow.log(name="")`, `work.flow.archive(name)`, `work.flow.rm(name)`;
 `work.view.list(...)`, `work.view.board(...)`, `work.view.gantt(...)`, `work.view.show(id, ...)`;
-`work.user.list()` and `work.user.me()`, which are `git work user` and `git work user me`.
+`work.user.list()` and `work.user.me()`, which are `git work user list` and `git work user me`.
+`work.issue.list`, `work.flow.list` and `work.user.list` are the `list` sub-commands;
+the bare nouns, their human form, have no Starlark name.
 A root command is a verb on the module itself:
 `work.quickstart()` is `git work quickstart`, the same markdown as a string.
 Every function returns what the command would print, as a Starlark value.

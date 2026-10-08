@@ -68,7 +68,7 @@ and the command line's help is generated from it.
 until that process exists it is an error.
 No TTY and no `--gui` is an error too.
 An agent that wants the data does not open a view —
-it runs `git work issue PROGRAM`, which is where the data lives.
+it runs `git work issue list PROGRAM`, which is where the data lives.
 `flow run` keeps its `--format`, for what the flow itself returns.
 
 This revises the 2026-09-24 morning decision,

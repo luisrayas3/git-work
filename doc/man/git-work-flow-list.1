@@ -1,0 +1,35 @@
+.nh
+.TH "GIT-WORK" "1" "Apr 2019" "Generated from git-work's source code" ""
+
+.SH NAME
+git-work-flow-list - List the flows, JSON out
+
+
+.SH SYNOPSIS
+\fBgit-work flow list [flags]\fP
+
+
+.SH DESCRIPTION
+List the flows: their names, descriptions and arguments, as JSON.
+
+.PP
+A flow is one Starlark function stored in refs/work-flows. Its name is the
+flow's name, its docstring the description and its parameters the arguments
+\fBgit work flow run\fR takes.
+
+.PP
+--format text prints one line per flow, the name and its summary line, which
+is what the bare \fBgit work flow\fR prints.
+
+
+.SH OPTIONS
+\fB-f\fP, \fB--format\fP="json"
+	Select the output formatting style. Valid values are [json,text]
+
+.PP
+\fB-h\fP, \fB--help\fP[=false]
+	help for list
+
+
+.SH SEE ALSO
+\fBgit-work-flow(1)\fP

@@ -59,7 +59,7 @@ One name, in each of the three places the one-to-one rule has
 
 | Where | Spelling |
 | --- | --- |
-| `git work issue [PROGRAM]` | `--include-archive` |
+| `git work issue list [PROGRAM]`, and the bare `git work issue [PROGRAM]` | `--include-archive` |
 | `git work issue log [ID\|PROGRAM]` | `--include-archive` |
 | `git work view KIND KWARGS` | `"include_archive": true`, a defaulted argument on every kind that takes `query` |
 | `work.issue.list(program, at=None, include_archive=False)` | the keyword |

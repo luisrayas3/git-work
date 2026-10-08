@@ -4,7 +4,7 @@ import "fmt"
 
 // Rows a view's query makes (doc/design/query-rows.md, 2026-10-08).
 //
-// A row is an issue as `git work issue` prints it, or as a program shaped it,
+// A row is an issue as `git work issue list` prints it, or as a program shaped it,
 // with two top-level keys an issue never has:
 // `key`, the row's identity on the screen, and
 // `children`, what nests under it.

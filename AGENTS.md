@@ -94,8 +94,8 @@ in the change that makes it wrong.
 | Action | Command |
 | --- | --- |
 | Quickstart | `git work quickstart`: the model and this repo's types, for an agent |
-| Open work | `git work issue 'map(select(.fields.status != "done"))'` · `--format text` |
-| One type | `git work issue 'map(select(.fields.type == "decision"))'` · by area: `select(.fields.area // [] \| index("cli"))` |
+| Open work | `git work issue list 'map(select(.fields.status != "done"))'` (JSON) · the bare `git work issue '…'` for one line each |
+| One type | `git work issue list 'map(select(.fields.type == "decision"))'` · by area: `select(.fields.area // [] \| index("cli"))` |
 | Live list | `git work view list '{"fields":["type","status","priority","title"],"group_by":"status"}'` (TTY) |
 | Overview | `git work flow run overview` (TTY): open stories, open decisions and open tasks, each story's tasks folded under it, grouped by type; `'{"group_by":"status"}'` regroups |
 | Board | `git work flow run board` (TTY): the same issues as a kanban, a column per open status, a swimlane per type; `'{"group_by":"area"}'` relanes |
@@ -106,7 +106,7 @@ in the change that makes it wrong.
 | Show | `git work issue get <id>` · `--format text` |
 | Close / reopen | `git work issue set <id> '{"status":"done"}'` · `'{"status":"to-do"}'` |
 | Comment | `git work issue comment new <id> -` with the body on standard input |
-| Tasks of a story | `git work issue 'map(select(.fields.parent == "<full story id>"))'` |
+| Tasks of a story | `git work issue list 'map(select(.fields.parent == "<full story id>"))'` |
 | Sync | `git work sync [--jira]` (pull, then push; every namespace) · `git work pull` · `git work push` |
 
 Types in use are `story`, `task` and `decision`;
@@ -121,7 +121,8 @@ built to the map in `doc/design/cli-convention.md` (`e8d6426`):
 
 | Action | Command |
 | --- | --- |
-| List | `git work issue [PROGRAM] [--at TIME] [--include-archive]` · `--format text`; PROGRAM is a jq program over the array of unarchived excerpts (the archived too with `--include-archive`), the default being all of them, last edited first |
+| List | `git work issue list [PROGRAM] [--at TIME] [--include-archive]` · `--format text`; PROGRAM is a jq program over the array of unarchived excerpts (the archived too with `--include-archive`), the default being all of them, last edited first |
+| List, for a human | `git work issue [PROGRAM] [same flags]`: the same rows, one line each (id, status, title) · `--format json` |
 | Create | `git work issue new DOC\|-` → prints the new id |
 | Show | `git work issue get <id> [--at TIME]` · `--format text` |
 | Set fields | `git work issue set <id> '{"status":"done","estimate":3}'` (`null` clears; one commit whatever the number of keys) |
@@ -132,6 +133,14 @@ built to the map in `doc/design/cli-convention.md` (`e8d6426`):
 
 Everything in is JSON, everything out is JSON unless `--format text` is asked for,
 and a document argument is read from standard input when it is `-`.
+**The bare noun is the human form of `list`** (2026-10-08, `0aeb7d2`):
+`git work issue`, `git work flow` and `git work user` alone print text,
+the same command as their `list` with the other default and the same flags,
+`--format json` included,
+because the easy thing to type is the one a human reads and plumbing is spelled out.
+Only the bare noun flips; every other verb keeps JSON.
+Starlark mirrors `list` (`work.issue.list`, `work.flow.list`, `work.user.list`, the raw value),
+and the bare noun has no Starlark name.
 **TIME is one grammar** everywhere it appears: a date (`2026-09-21`),
 an RFC 3339 time, or a duration back from now (`7d`, `2w`, `12h`).
 `--at` replays the issue's operations into the snapshot that stood then —
@@ -212,7 +221,7 @@ It runs in-process over the same host API a command reaches (`52a2797`):
 
 | Action | Command |
 | --- | --- |
-| List | `git work flow` · `--format text` (name, description, arguments) |
+| List | `git work flow list` (name, description, arguments) · `--format text` · the bare `git work flow` is one line each, the name and the description's first line |
 | Run | `git work flow run <name>\|- [KWARGS\|-]` (`-` as the name runs the script on standard input without importing it; `print()` is stdout, a returned value is printed as JSON after it) · `--gui` (errors until the gui process exists) |
 | Import | `git work flow import FILE\|DIR\|-…` `[--prune] [--dry-run]` → prints the id of each flow it creates |
 | Show / export | `git work flow export <name>` prints the script, verbatim (`> FILE`) · `git work flow export --all DIR` |
@@ -292,7 +301,7 @@ Which other arguments a kind takes is `git work view <kind> --help`,
 generated from the table in package `view`, which is the authority
 (designed in `doc/design/terminal-renderer.md`).
 
-Every kind but `show` takes `query`, a jq program over the same array `git work issue` prints,
+Every kind but `show` takes `query`, a jq program over the same array `git work issue list` prints,
 which the view runs itself and re-runs on a ref-watcher change and after its own writes,
 so a kanban with no flow at all is one command:
 `git work view board '{"query":"map(select(.fields.status != \"done\"))","columns":"status"}'`.
@@ -495,7 +504,8 @@ There is no `work.jira.*` in Starlark yet (v2), a known gap in the 1:1 rule.
 
 Gotchas, hardened from use:
 
-- `ls` is not a command; the list is the bare `git work issue`.
+- `ls` is not a command; the list is `git work issue list`,
+  and the bare `git work issue` is its human form, text, not JSON.
 - `git work migrate` ran once on 2026-09-25 and refuses to run again;
   a fresh clone pulls the migrated refs and needs nothing.
   The migration copies `refs/identities/*` to `refs/work-users/*`
@@ -508,8 +518,8 @@ Gotchas, hardened from use:
   `user new`/`user adopt` remain as overrides,
   and `git work user me` prints the identity it settled on —
   the same document `work.user.me()` returns.
-  `git work user` and `git work user me` print JSON like every other reader,
-  `--format text` for a human.
+  `git work user list` and `git work user me` print JSON like every other reader,
+  `--format text` for a human, and the bare `git work user` is the text list.
 - Config reads and remote transport go through the `git` CLI
   (package `gitcli`, wired in `execenv.LoadRepo`),
   because go-git reimplements git's environment incompletely:
@@ -558,6 +568,7 @@ Settled calls (details live in the referenced issues):
   dimension anywhere; "cross-project" in older text meant across epics
   (`cd41e40`, 2026-09-21).
 - `git work issue *` is **plumbing, agent-first**: JSON out by default,
+  the bare noun alone being the human form of `list` (2026-10-08, `0aeb7d2`),
   `new` takes a JSON document only, `get` returns one, `set`/`add`/`remove`
   take an object and commit one operation per key (no RFC 6902), writers
   print the id they created and nothing else, no sugar flags (`e8d6426`).
@@ -565,7 +576,9 @@ Settled calls (details live in the referenced issues):
   The **Starlark host API mirrors the CLI one to one**: it is one module
   named after the binary, so `git work issue get ID` is
   `work.issue.get(id)`, a command's arguments are one JSON object of
-  keyword arguments, and no name is script-only. `work` is the only
+  keyword arguments, and no name is script-only; the bare noun is the
+  human form of `list`, a porcelain default, mirrored in Starlark by
+  `list`. `work` is the only
   predeclared name, which leaves `issue`, `flow`, `schema`, `view` and
   `user` for a script's own locals (2026-09-24). The target map is
   `doc/design/cli-convention.md` (2026-09-23).

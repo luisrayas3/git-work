@@ -2,6 +2,7 @@
 //
 // It is plumbing (e8d6426): explicit ids, no editor, no implicit selection,
 // JSON in and JSON out, and no sugar flag anywhere.
+// The one porcelain default is the bare noun, the human form of `issue list`.
 // The command map it implements is doc/design/cli-convention.md.
 // The `bug` tree keeps serving the old entity until the store is migrated (bf6f392).
 //
@@ -27,41 +28,48 @@ type issueListOptions struct {
 	format         string
 }
 
+// issueListLong is the help both list forms share:
+// one program, one input, one set of flags, and only the default format differs.
+const issueListLong = `Run a jq program over the issues and print what it emits.
+
+The program's input is the array of unarchived issue excerpts, the same JSON
+` + "`git work issue list`" + ` prints: one object per issue, with an id, times, an
+author and a fields map. --include-archive brings the archived back into the
+input. With no program, the list is every issue of the input, last edited first.
+
+--format json prints each emitted value as JSON, one per line when there are
+several. --format text prints one line per issue when the program returned
+issues, and falls back to JSON when it returned anything else.
+
+--at TIME runs the program over the issues as they stood at that moment,
+replayed from their operations: ` + TimeFormsHelp + `.
+An issue created after TIME is absent, and archived is the value that stood
+then, so the input leaves out what was archived at the time.`
+
+// NewIssueCommand is the bare `git work issue`: the human form of
+// `issue list`, the same program and flags with text as the default
+// (decided 2026-10-08, doc/design/cli-convention.md).
+// It has no Starlark name; work.issue.list() mirrors `issue list`.
 func NewIssueCommand(env *execenv.Env) *cobra.Command {
 	options := issueListOptions{}
 
 	cmd := &cobra.Command{
 		Use:   "issue [PROGRAM]",
-		Short: "List issues",
-		Long: `Run a jq program over the issues and print what it emits.
+		Short: "List issues, one line each",
+		Long: `The human form of ` + "`git work issue list`" + `: the same program, input and
+flags, printed one line per issue (id, status, title) unless --format json
+is asked for. ` + "`git work issue list`" + ` is the plumbing, JSON by default, and
+the form to script against.
 
-The program's input is the array of unarchived issue excerpts, the same JSON
-this command prints: one object per issue, with an id, times, an author and a
-fields map. --include-archive brings the archived back into the input.
-With no program, the list is every issue of the input, last edited first.
+` + issueListLong,
+		Example: `What is not done:
+git work issue 'map(select(.fields.status != "done"))'
 
-Each emitted value is printed as JSON, one per line when there are several.
---format text prints one line per issue when the program returned issues, and
-falls back to JSON when it returned anything else.
-
---at TIME runs the program over the issues as they stood at that moment,
-replayed from their operations: ` + TimeFormsHelp + `.
-An issue created after TIME is absent, and archived is the value that stood
-then, so the input leaves out what was archived at the time.`,
-		Example: `Every issue, in the input's own order:
-git work issue .
-
-The titles of the issues of one epic:
-git work issue 'map(select(.fields.parent == "6a1b2c3")) | map(.fields.title)'
-
-A kanban of what is not done:
-git work view board '{"query":"map(select(.fields.status != \"done\"))","columns":"status"}'
+The same, as JSON:
+git work issue list 'map(select(.fields.status != "done"))'
 
 What was open a week ago:
 git work issue 'map(select(.fields.status != "done"))' --at 7d
-
-The archived issues:
-git work issue 'map(select(.fields.archived))' --include-archive
 `,
 		Args:    cobra.MaximumNArgs(1),
 		PreRunE: execenv.LoadBackend(env),
@@ -70,17 +78,13 @@ git work issue 'map(select(.fields.archived))' --include-archive
 		}),
 	}
 
-	flags := cmd.Flags()
-	flags.SortFlags = false
-	flags.StringVar(&options.at, "at", "", "the issues as they stood at TIME")
-	flags.BoolVar(&options.includeArchive, "include-archive", false, "include the archived issues in the program's input")
-
-	execenv.AddFormatFlag(cmd, &options.format, "json", "text")
+	addIssueListFlags(cmd, &options, "text", "json")
 
 	cmd.AddCommand(newIssueAddCommand(env))
 	cmd.AddCommand(newIssueArchiveCommand(env))
 	cmd.AddCommand(newIssueCommentCommand(env))
 	cmd.AddCommand(newIssueGetCommand(env))
+	cmd.AddCommand(newIssueListCommand(env))
 	cmd.AddCommand(newIssueLogCommand(env))
 	cmd.AddCommand(newIssueNewCommand(env))
 	cmd.AddCommand(newIssueRemoveCommand(env))
@@ -88,6 +92,50 @@ git work issue 'map(select(.fields.archived))' --include-archive
 	cmd.AddCommand(newIssueSetCommand(env))
 
 	return cmd
+}
+
+// newIssueListCommand is `git work issue list`, the plumbing:
+// JSON by default, and what work.issue.list() returns.
+func newIssueListCommand(env *execenv.Env) *cobra.Command {
+	options := issueListOptions{}
+
+	cmd := &cobra.Command{
+		Use:   "list [PROGRAM]",
+		Short: "Run a jq program over the issues, JSON out",
+		Long:  issueListLong,
+		Example: `Every issue, in the input's own order:
+git work issue list .
+
+The titles of the issues of one epic:
+git work issue list 'map(select(.fields.parent == "6a1b2c3")) | map(.fields.title)'
+
+What was open a week ago:
+git work issue list 'map(select(.fields.status != "done"))' --at 7d
+
+The archived issues:
+git work issue list 'map(select(.fields.archived))' --include-archive
+`,
+		Args:    cobra.MaximumNArgs(1),
+		PreRunE: execenv.LoadBackend(env),
+		RunE: execenv.CloseBackend(env, func(cmd *cobra.Command, args []string) error {
+			return runIssueList(env, options, args)
+		}),
+	}
+
+	addIssueListFlags(cmd, &options, "json", "text")
+
+	return cmd
+}
+
+// addIssueListFlags gives both list forms the same flags;
+// the first format is the default.
+func addIssueListFlags(cmd *cobra.Command, options *issueListOptions, formats ...string) {
+	flags := cmd.Flags()
+	flags.SortFlags = false
+	flags.StringVar(&options.at, "at", "", "the issues as they stood at TIME")
+	flags.BoolVar(&options.includeArchive, "include-archive", false, "include the archived issues in the program's input")
+
+	execenv.AddFormatFlag(cmd, &options.format, formats...)
 }
 
 func runIssueList(env *execenv.Env, opts issueListOptions, args []string) error {

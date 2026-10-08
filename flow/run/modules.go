@@ -128,7 +128,8 @@ func newModule(path string, members ...member) *starlarkstruct.Module {
 }
 
 // work.issue.list(program, at=None, include_archive=False) —
-// `git work issue [PROGRAM] [--at TIME] [--include-archive]`.
+// `git work issue list [PROGRAM] [--at TIME] [--include-archive]`;
+// the bare `git work issue`, list's human form, has no Starlark name.
 //
 // One value comes back as itself, which is the array a program usually
 // returns; several come back as a list, which is what a stream is.
@@ -520,7 +521,7 @@ func (r *runtime) schemaRm(thread *starlark.Thread, b *starlark.Builtin, args st
 	return starlark.None, nil
 }
 
-// work.flow.list() — `git work flow`.
+// work.flow.list() — `git work flow list`.
 func (r *runtime) flowList(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 	if err := starlark.UnpackArgs(b.Name(), args, kwargs); err != nil {
 		return nil, err
@@ -685,7 +686,7 @@ func (r *runtime) flowRun(thread *starlark.Thread, b *starlark.Builtin, args sta
 	return toStarlark(decoded)
 }
 
-// work.user.list() — `git work user`, every identity the repository knows.
+// work.user.list() — `git work user list`, every identity the repository knows.
 func (r *runtime) userList(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 	if err := starlark.UnpackArgs(b.Name(), args, kwargs); err != nil {
 		return nil, err

@@ -30,7 +30,7 @@ type IssueDocument struct {
 // IssueList runs a jq program over the issues and returns every value it emits.
 //
 // An empty program is the default one,
-// so that `git work issue` and `work.issue.list()` mean the same thing.
+// so that `git work issue list` and `work.issue.list()` mean the same thing.
 // The input is the unarchived issues unless includeArchive brings the
 // archived back (doc/design/include-archive.md).
 func IssueList(repo *cache.RepoCache, program string, includeArchive bool) ([]any, error) {
@@ -40,7 +40,7 @@ func IssueList(repo *cache.RepoCache, program string, includeArchive bool) ([]an
 // defaultProgram is the listing you get when you name no program.
 //
 // The same constant a view's `query` argument defaults to:
-// `git work issue` with no program and a view with no query have to
+// `git work issue list` with no program and a view with no query have to
 // show the same issues, and one constant is what guarantees it.
 func defaultProgram() string {
 	return view.DefaultQuery

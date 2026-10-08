@@ -64,7 +64,8 @@ func UserName(repo *cache.RepoCache, id string) string {
 
 // UserList returns every identity the repository knows about.
 //
-// It is `git work user` and `work.user.list()`, the same call twice over:
+// It is `git work user list` and `work.user.list()`, the same call twice over
+// (the bare `git work user` is its text form):
 // an identity field holds an id, so a flow that reads work by person
 // has to ask who the people are, and so does a shell.
 func UserList(repo *cache.RepoCache) ([]cmdjson.Identity, error) {

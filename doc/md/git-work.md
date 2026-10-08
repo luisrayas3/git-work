@@ -26,8 +26,8 @@ git-work [flags]
 
 * [git-work bridge](git-work_bridge.md)	 - List bridges to other bug trackers
 * [git-work bug](git-work_bug.md)	 - List issues (old format)
-* [git-work flow](git-work_flow.md)	 - List the flows
-* [git-work issue](git-work_issue.md)	 - List issues
+* [git-work flow](git-work_flow.md)	 - List the flows, one line each
+* [git-work issue](git-work_issue.md)	 - List issues, one line each
 * [git-work jira](git-work_jira.md)	 - Sync with a Jira Cloud project
 * [git-work label](git-work_label.md)	 - List valid labels
 * [git-work migrate](git-work_migrate.md)	 - Migrate the store once from git-bug's format to the owned model
@@ -37,7 +37,7 @@ git-work [flags]
 * [git-work schema](git-work_schema.md)	 - Show the schema
 * [git-work sync](git-work_sync.md)	 - Pull from a git remote, then push back to it
 * [git-work termui](git-work_termui.md)	 - Launch the terminal UI
-* [git-work user](git-work_user.md)	 - List identities
+* [git-work user](git-work_user.md)	 - List identities, one line each
 * [git-work version](git-work_version.md)	 - Print version information
 * [git-work view](git-work_view.md)	 - Draw the issues
 * [git-work webui](git-work_webui.md)	 - Launch the web UI

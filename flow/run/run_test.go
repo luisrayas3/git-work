@@ -428,7 +428,7 @@ func TestUserMeIsWhatTheCommandPrints(t *testing.T) {
 	require.Equal(t, printed, value)
 }
 
-// TestUserListIsWhatTheCommandPrints: `work.user.list()` is `git work user`,
+// TestUserListIsWhatTheCommandPrints: `work.user.list()` is `git work user list`,
 // the same host call, so a flow that names people reads the identities the
 // shell lists.
 func TestUserListIsWhatTheCommandPrints(t *testing.T) {

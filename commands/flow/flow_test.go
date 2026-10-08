@@ -314,6 +314,55 @@ func TestFlowListText(t *testing.T) {
 	require.JSONEq(t, `[]`, other.Out.String())
 }
 
+// TestFlowListForms runs both list forms from argv (2026-10-08):
+// `flow list` is the plumbing, JSON by default,
+// and the bare `flow` its human form, text by default.
+func TestFlowListForms(t *testing.T) {
+	env := newTestEnv(t)
+	dir := t.TempDir()
+	writeFlow(t, dir, "board.star", boardFlow)
+	writeFlow(t, dir, "report.star", reportFlow)
+	importFlows(t, env, flowImportOptions{}, dir)
+
+	run := func(args ...string) string {
+		t.Helper()
+		env.Out.Reset()
+		require.NoError(t, execenv.ExecuteTest(t, env, NewFlowCommand(env), args...))
+		return env.Out.String()
+	}
+
+	env.Out.Reset()
+	require.NoError(t, runFlowList(env, flowListOptions{format: "json"}))
+	asJSON := env.Out.String()
+	env.Out.Reset()
+	require.NoError(t, runFlowList(env, flowListOptions{format: "text"}))
+	asText := env.Out.String()
+	require.Contains(t, asText, "board\tKanban of one iteration, a column per status.\n")
+
+	// a docstring of several lines is its first line in the text form,
+	// and whole in the JSON
+	writeFlow(t, dir, "long.star", "def long():\n    \"\"\"The summary.\n\n    The rest.\n    \"\"\"\n    pass\n")
+	importFlows(t, env, flowImportOptions{}, dir)
+	require.Contains(t, run(), "long\tThe summary.\n")
+	require.NotContains(t, run(), "The rest.")
+	require.Contains(t, run("list"), "The rest.")
+	env.Out.Reset()
+	require.NoError(t, runFlowList(env, flowListOptions{format: "json"}))
+	asJSON = env.Out.String()
+	env.Out.Reset()
+	require.NoError(t, runFlowList(env, flowListOptions{format: "text"}))
+	asText = env.Out.String()
+
+	require.JSONEq(t, asJSON, run("list"))
+	require.Equal(t, asText, run())
+	require.JSONEq(t, asJSON, run("--format", "json"))
+	require.Equal(t, asText, run("list", "--format", "text"))
+
+	// neither form takes an argument
+	require.Error(t, execenv.ExecuteTest(t, env, NewFlowCommand(env), "board"))
+	require.Error(t, execenv.ExecuteTest(t, env, NewFlowCommand(env), "list", "board"))
+}
+
 func TestFlowExportOne(t *testing.T) {
 	env := newTestEnv(t)
 	path := writeFlow(t, t.TempDir(), "board.star", boardFlow)

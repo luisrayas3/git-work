@@ -23,5 +23,5 @@ git-work user me [flags]
 
 ### SEE ALSO
 
-* [git-work user](git-work_user.md)	 - List identities
+* [git-work user](git-work_user.md)	 - List identities, one line each
 

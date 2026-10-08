@@ -477,6 +477,70 @@ func TestIssueList(t *testing.T) {
 	require.Error(t, runIssueList(env, issueListOptions{format: "json"}, []string{`map(`}))
 }
 
+// TestIssueListForms runs both list forms from argv (2026-10-08):
+// `issue list` is the plumbing, JSON by default,
+// the bare `issue` is its human form, text by default,
+// and they take the same program and the same flags.
+func TestIssueListForms(t *testing.T) {
+	env := newTestEnv(t)
+	first := newTestIssue(t, env, `{"fields":{"title":"first","status":"open"}}`)
+	second := newTestIssue(t, env, `{"fields":{"title":"second","status":"done"}}`)
+	archived := newTestIssue(t, env, `{"fields":{"title":"gone","status":"open"}}`)
+	require.NoError(t, runIssueArchive(env, writeOptions{}, []string{archived.Human()}))
+
+	run := func(args ...string) string {
+		t.Helper()
+		env.Out.Reset()
+		require.NoError(t, execenv.ExecuteTest(t, env, NewIssueCommand(env), args...))
+		return env.Out.String()
+	}
+	lines := func(out string) []string {
+		return strings.Split(strings.TrimSpace(out), "\n")
+	}
+
+	// the reference: what the plumbing printed before the flip
+	env.Out.Reset()
+	require.NoError(t, runIssueList(env, issueListOptions{format: "json"}, nil))
+	allJSON := env.Out.String()
+
+	// `list` is the plumbing, JSON by default, and is never read as a program
+	require.JSONEq(t, allJSON, run("list"))
+
+	// the bare noun is the same rows, one line each
+	require.Equal(t, []string{
+		second.Human() + "\tdone\tsecond",
+		first.Human() + "\topen\tfirst",
+	}, lines(run()))
+
+	// --format crosses over both ways
+	require.JSONEq(t, allJSON, run("--format", "json"))
+	require.Equal(t, lines(run()), lines(run("list", "--format", "text")))
+
+	// a program, on either form
+	require.JSONEq(t, `["first"]`, run("list", `map(select(.fields.status == "open")) | map(.fields.title)`))
+	require.Equal(t, []string{first.Human() + "\topen\tfirst"},
+		lines(run(`map(select(.fields.status == "open"))`)))
+
+	// the bare form falls back to JSON when the program does not return issues
+	require.JSONEq(t, `["first","second"]`, run(`map(.fields.title) | sort`))
+
+	// --include-archive on both, before or after the subcommand
+	require.Len(t, lines(run("--include-archive")), 3)
+	require.JSONEq(t, `["gone"]`,
+		run("list", "--include-archive", `map(select(.fields.archived)) | map(.fields.title)`))
+	require.JSONEq(t, `["gone"]`,
+		run("--include-archive", "list", `map(select(.fields.archived)) | map(.fields.title)`))
+
+	// --at on both; an empty list is not a list of issues, so text prints it as JSON
+	require.JSONEq(t, `[]`, run("--at", "2000-01-01"))
+	require.JSONEq(t, `[]`, run("list", "--at", "2000-01-01"))
+
+	// `list` takes one program at most, and a broken one is an error on both
+	require.Error(t, execenv.ExecuteTest(t, env, NewIssueCommand(env), "list", ".", "."))
+	require.Error(t, execenv.ExecuteTest(t, env, NewIssueCommand(env), "list", "map("))
+	require.Error(t, execenv.ExecuteTest(t, env, NewIssueCommand(env), "map("))
+}
+
 func TestIssueAliases(t *testing.T) {
 	env := newTestEnv(t)
 	id := newTestIssue(t, env,

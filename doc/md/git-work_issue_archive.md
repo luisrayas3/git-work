@@ -22,5 +22,5 @@ git-work issue archive ID [flags]
 
 ### SEE ALSO
 
-* [git-work issue](git-work_issue.md)	 - List issues
+* [git-work issue](git-work_issue.md)	 - List issues, one line each
 

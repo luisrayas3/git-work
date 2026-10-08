@@ -7,6 +7,7 @@ import (
 	"io"
 	"testing"
 
+	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/require"
 
 	"github.com/git-bug/git-bug/cache"
@@ -100,4 +101,50 @@ func newTestEnv(t *testing.T, isTerminal bool) *Env {
 		Out:     &TestOut{Buffer: &bytes.Buffer{}, forceIsTerminal: isTerminal},
 		Err:     &TestOut{Buffer: &bytes.Buffer{}, forceIsTerminal: isTerminal},
 	}
+}
+
+// ExecuteTest runs a command tree from argv against a test env,
+// so that a test reaches what cobra parses — which subcommand an argument
+// names, which format a flag defaults to — and not only the run function.
+//
+// A command loads its backend before it runs and closes it after;
+// here the load reopens a cache over the test repository when the last run
+// closed it, and the env is left with an open one for the next assertion.
+func ExecuteTest(t *testing.T, env *Env, cmd *cobra.Command, args ...string) error {
+	t.Helper()
+
+	reopen := func() error {
+		if env.Backend != nil {
+			return nil
+		}
+		backend, err := cache.NewRepoCacheNoEvents(env.Repo)
+		if err != nil {
+			return err
+		}
+		env.Backend = backend
+		t.Cleanup(func() { _ = backend.Close() })
+		return nil
+	}
+
+	var walk func(*cobra.Command)
+	walk = func(c *cobra.Command) {
+		if c.PreRunE != nil {
+			c.PreRunE = func(*cobra.Command, []string) error { return reopen() }
+		}
+		for _, sub := range c.Commands() {
+			walk(sub)
+		}
+	}
+	walk(cmd)
+
+	cmd.SilenceUsage = true
+	cmd.SilenceErrors = true
+	if args == nil {
+		args = []string{} // nil would have cobra read the test binary's own os.Args
+	}
+	cmd.SetArgs(args)
+	err := cmd.Execute()
+
+	require.NoError(t, reopen())
+	return err
 }
