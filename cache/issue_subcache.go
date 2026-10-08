@@ -80,6 +80,22 @@ func (c *RepoCacheIssue) checkNew(title string, fields map[string]issue.Value, s
 	return checker.CheckNew(all)
 }
 
+// CheckNew measures a document against the live schema without writing it,
+// the title not required: what a draft is checked by before a page draws it
+// (doc/design/create.md, C1). The type is still required, as checkNew
+// requires it; a draft with none is not checked at all, because nothing
+// can say which fields it has.
+func (c *RepoCacheIssue) CheckNew(fields map[string]issue.Value) error {
+	if c.checker == nil {
+		return nil
+	}
+	checker, err := c.checker()
+	if err != nil {
+		return err
+	}
+	return checker.CheckNew(rawValues(fields))
+}
+
 // ResolveAlias retrieves the issue carrying the given external id under any
 // alias:<name> key of its create operation. It fails if several match.
 func (c *RepoCacheIssue) ResolveAlias(alias string) (*IssueCache, error) {

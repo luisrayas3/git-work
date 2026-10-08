@@ -3,6 +3,7 @@ package host
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 
 	"github.com/git-bug/git-bug/cache"
 	"github.com/git-bug/git-bug/view"
@@ -34,6 +35,12 @@ func View(ctx context.Context, repo *cache.RepoCache, renderer view.Renderer, ki
 		}
 		if err := view.CheckSchema(call, s); err != nil {
 			return nil, err
+		}
+	}
+
+	if call.Kind == view.KindNew && call.Has("doc") {
+		if _, err := IssueDraft(repo, call.Raw("doc")); err != nil {
+			return nil, fmt.Errorf("view new: doc %w", err)
 		}
 	}
 

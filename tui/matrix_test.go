@@ -247,7 +247,7 @@ func TestMatrixEnterOpensTheCellsIssues(t *testing.T) {
 
 	require.Contains(t, pushed.query, alpha)
 	require.Contains(t, pushed.query, first)
-	require.Len(t, pushed.order, 2, "the two tasks that made the 5")
+	require.Equal(t, 2, pushed.count(), "the two tasks that made the 5")
 	require.Equal(t, []string{"title", "parent", "iteration", "estimate"}, pushed.cursorFields())
 
 	drawn := plainView(pushed)
@@ -275,7 +275,7 @@ func TestMatrixNoneCellSelectsTheIssuesWithNoValue(t *testing.T) {
 	_, cmd := page.Update(press("enter"))
 	pushed := cmd().(pushMsg).page.(*listPage)
 	require.Contains(t, pushed.query, "== null")
-	require.Len(t, pushed.order, 1)
+	require.Equal(t, 1, pushed.count())
 	require.Contains(t, plainView(pushed), "unfiled")
 }
 
@@ -428,7 +428,7 @@ func TestMatrixMultiValuedAxisDoubleCounts(t *testing.T) {
 	_, cmd := page.Update(press("enter"))
 	pushed := cmd().(pushMsg).page.(*listPage)
 	require.Contains(t, pushed.query, "index(")
-	require.Len(t, pushed.order, 1)
+	require.Equal(t, 1, pushed.count())
 }
 
 // TestMatrixIsOnTheCallLine: the two axes and the number are arguments the
@@ -459,12 +459,12 @@ func TestMatrixCountsTheArchivedOnlyWhenAsked(t *testing.T) {
 	page := matrix(t, repo, `{"rows":"parent","columns":"iteration","value":"estimate","query":"`+tasksOnly+`"}`)
 	put(t, page, "alpha", "sprint 1")
 	_, cmd := page.Update(press("enter"))
-	require.Len(t, cmd().(pushMsg).page.(*listPage).order, 2)
+	require.Equal(t, 2, cmd().(pushMsg).page.(*listPage).total())
 
 	page = matrix(t, repo, `{"rows":"parent","columns":"iteration","value":"estimate","include_archive":true,"query":"`+tasksOnly+`"}`)
 	put(t, page, "alpha", "sprint 1")
 	_, cmd = page.Update(press("enter"))
 	pushed := cmd().(pushMsg).page.(*listPage)
-	require.Len(t, pushed.order, 3, "the drill-down reads the same input the cell summed")
+	require.Equal(t, 3, pushed.total(), "the drill-down reads the same input the cell summed")
 	require.Contains(t, plainView(pushed), "gone")
 }

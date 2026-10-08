@@ -55,9 +55,11 @@ func New(out io.Writer) (*Renderer, bool) {
 
 // Render draws a call and blocks until the user quits.
 //
-// The answer is nil for every kind today; the signature carries one because a
-// view is a question as much as a picture, and the deferred questions to the
-// user (choose, confirm, ask) will return what the user answered.
+// The answer is nil for every kind but `new`, which answers the id it
+// created, or nil when it was left without creating (doc/design/create.md,
+// C4); the signature carries one because a view is a question as much as a
+// picture, and the deferred questions to the user (choose, confirm, ask)
+// will return what the user answered.
 func (r *Renderer) Render(ctx context.Context, repo *cache.RepoCache, call *view.Call) (json.RawMessage, error) {
 	first, err := r.page(repo, call)
 	if err != nil {
@@ -70,7 +72,8 @@ func (r *Renderer) Render(ctx context.Context, repo *cache.RepoCache, call *view
 	}
 	defer closeIn()
 
-	program := tea.NewProgram(&root{pages: []page{first}, width: 80, height: 24},
+	stack := &root{pages: []page{first}, width: 80, height: 24}
+	program := tea.NewProgram(stack,
 		tea.WithContext(ctx),
 		tea.WithInput(in),
 		tea.WithOutput(r.out),
@@ -97,7 +100,10 @@ func (r *Renderer) Render(ctx context.Context, repo *cache.RepoCache, call *view
 		case job := <-jobs:
 			job()
 		case err := <-done:
-			return nil, err
+			if err != nil {
+				return nil, err
+			}
+			return stack.answer, nil
 		}
 	}
 }
@@ -115,6 +121,8 @@ func (r *Renderer) page(repo *cache.RepoCache, call *view.Call) (page, error) {
 		return newGanttPage(repo, call)
 	case view.KindMatrix:
 		return newMatrixPage(repo, call)
+	case view.KindNew:
+		return newNewPage(repo, call)
 	default:
 		return nil, fmt.Errorf("the terminal renderer does not draw a %s", call.Kind)
 	}

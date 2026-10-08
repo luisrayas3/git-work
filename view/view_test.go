@@ -351,3 +351,27 @@ func TestParseIncludeArchive(t *testing.T) {
 	_, err = Parse(KindList, kwargs(t, `{"expand":{"relation":"children","include_archive":1}}`))
 	require.ErrorContains(t, err, "include_archive is true or false")
 }
+
+// TestParseNewTakesADocument: `new` takes the document `issue new` takes,
+// and refuses anything else in it, so that a flow learns at the call.
+func TestParseNewTakesADocument(t *testing.T) {
+	call, err := Parse(KindNew, nil)
+	require.NoError(t, err)
+	require.False(t, call.Has("doc"), "an empty form needs nothing")
+
+	call, err = Parse(KindNew, kwargs(t, `{"doc":{"fields":{"type":"task","parent":"abc1234"},"body":"why"},"fields":["status"]}`))
+	require.NoError(t, err)
+	require.True(t, call.Has("doc"))
+	require.Equal(t, []string{"status"}, call.Strings("fields"))
+
+	_, err = Parse(KindNew, kwargs(t, `{"doc":"a title"}`))
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "object")
+
+	_, err = Parse(KindNew, kwargs(t, `{"doc":{"title":"a title"}}`))
+	require.Error(t, err, "a key issue new does not read is a mistake, not a field")
+	require.Contains(t, err.Error(), "title")
+
+	_, err = Parse(KindNew, kwargs(t, `{"doc":{"fields":{"type":"task"},"body":3}}`))
+	require.Error(t, err)
+}

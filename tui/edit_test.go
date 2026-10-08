@@ -219,10 +219,14 @@ func TestGrabCanBePutBack(t *testing.T) {
 	require.Equal(t, "a", fieldOf(t, repo, first, "rank"))
 }
 
+// drawnIds is the list's rows in the order they are drawn, the ghosts
+// left out: they are places to add, never issues (ghost.go).
 func drawnIds(p *listPage) []string {
 	ids := make([]string, 0, len(p.order))
 	for _, at := range p.order {
-		ids = append(ids, p.rows[at].id)
+		if !p.nodes[at].ghost {
+			ids = append(ids, p.rows[at].id)
+		}
 	}
 	return ids
 }

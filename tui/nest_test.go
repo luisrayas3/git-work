@@ -96,7 +96,9 @@ func TestListNestsChildrenUnderTheirParent(t *testing.T) {
 	send(page, "left")
 	require.Equal(t, story, page.current().id)
 	send(page, "down")
-	require.Equal(t, story, page.current().id, "the last story: nothing at this level below")
+	require.True(t, page.node().ghost, "the last story: below it at this level is the ghost (ghost.go)")
+	send(page, "up")
+	require.Equal(t, story, page.current().id)
 	send(page, "tab")
 	require.Equal(t, one, page.current().id)
 	send(page, "down")
@@ -330,7 +332,8 @@ func TestListKeepsTheChildTableHeaderOnTop(t *testing.T) {
 	page := list(t, repo, `{"fields":["title"],"expand":{"relation":"children","fields":["status","title"],"query":"sort_by(.fields.title)"},`+
 		`"query":"map(select(.fields.type == \"story\"))"}`)
 	page.Update(tea.WindowSizeMsg{Width: 100, Height: 9})
-	send(page, "tab", "G")
+	// G is the roots' ghost, the last row; the last task is seven down
+	send(page, "tab", "down", "down", "down", "down", "down", "down", "down")
 	require.Equal(t, tasks[7], page.current().id)
 
 	lines := strings.Split(plainView(page), "\n")

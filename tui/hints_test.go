@@ -210,7 +210,7 @@ func TestGanttHintsNameWhatIsUnderTheCursor(t *testing.T) {
 	dateless := func(p page) page {
 		page := p.(*ganttPage)
 		for at, index := range page.order {
-			if b := &page.bars[index]; !b.hasStart && !b.hasStop {
+			if b := &page.bars[index]; !b.hasStart && !b.hasStop && !page.nodes[index].ghost {
 				page.cursor = at
 			}
 		}

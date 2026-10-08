@@ -39,8 +39,10 @@ type boardPage struct {
 	// authority on its default).
 	colWidth int
 
-	// cards is every issue the query returned, in the query's order.
+	// cards is every issue the query returned, in the query's order, and
+	// after them, from real on, the ghosts arrange adds (ghost.go).
 	cards []card
+	real  int
 	// columns is the drawing order of the columns, resolved on every load.
 	columns []column
 	// lanes is the board as drawn: a stack of card indexes per column, per
@@ -89,6 +91,9 @@ type card struct {
 	rank  string
 	// text is everything the card draws, folded, for the filter to search.
 	text string
+	// ghost marks the `+` card at the foot of a stack, which opens the
+	// creator and is never moved or ranked (ghost.go).
+	ghost bool
 }
 
 // column is one column: the value it holds, and how its header reads.
@@ -149,11 +154,28 @@ func (p *boardPage) load() error {
 	for _, item := range items {
 		p.cards = append(p.cards, p.newCard(item, known))
 	}
+	p.real = len(p.cards)
 
 	p.columns = p.resolveColumns()
 	p.arrange()
 	p.putCursorOn(was)
+	if was == "" {
+		p.firstCard()
+	}
 	return nil
+}
+
+// firstCard puts the cursor on the first card on the board, which is where
+// a board opens: a ghost is a place to add, not a place to open on.
+func (p *boardPage) firstCard() {
+	for l, la := range p.lanes {
+		for c, stack := range la.stacks {
+			if p.realLen(stack) > 0 {
+				p.lane, p.col, p.row = l, c, 0
+				return
+			}
+		}
+	}
 }
 
 func (p *boardPage) newCard(item map[string]any, known *kinds) card {
@@ -289,6 +311,7 @@ func (p *boardPage) arrange() {
 	}
 
 	needle := strings.ToLower(strings.TrimSpace(p.filter))
+	p.cards = p.cards[:p.real]
 	p.lanes = p.lanes[:0]
 	laneOf := map[string]int{}
 	for index, c := range p.cards {
@@ -324,8 +347,76 @@ func (p *boardPage) arrange() {
 			sortStack(p.cards, stack)
 		}
 	}
+	if needle == "" {
+		p.addGhosts()
+	}
 
 	p.clamp()
+}
+
+// addGhosts puts a ghost at the foot of every stack: each column of each
+// lane, so that the issue it creates is already in that column and lane
+// (ghost.go). The filter leaves them out with the cards it narrows away.
+func (p *boardPage) addGhosts() {
+	for l := range p.lanes {
+		la := &p.lanes[l]
+		var types []string
+		for _, stack := range la.stacks {
+			for _, index := range stack {
+				types = append(types, p.cards[index].typeKey)
+			}
+		}
+		typeKey := sharedType(types)
+		for c, column := range p.columns {
+			ghost := card{
+				id:      ghostId(la.group, column.value),
+				human:   ghostPrefix,
+				typeKey: typeKey,
+				fields:  map[string]any{},
+				cells:   map[string]string{schema.TitleKey: ghostLabel},
+				links:   map[string]bool{},
+				value:   column.value,
+				group:   la.group,
+				ghost:   true,
+			}
+			p.cards = append(p.cards, ghost)
+			la.stacks[c] = append(la.stacks[c], len(p.cards)-1)
+		}
+	}
+}
+
+// ghostDoc is the draft a ghost opens: the type its lane's cards share, the
+// `columns` field as the column, and the `group_by` field as a drop into
+// the lane would write it (C6).
+func (p *boardPage) ghostDoc(ghost *card) host.IssueDocument {
+	doc := host.IssueDocument{Fields: map[string]issue.Value{}}
+	if ghost.typeKey != "" {
+		doc.Fields[schema.TypeKey] = issue.StringValue(ghost.typeKey)
+	}
+	if ghost.value != "" {
+		doc.Fields[p.columnsKey] = issue.StringValue(ghost.value)
+	}
+	for _, c := range p.cards[:p.real] {
+		if p.groupBy == "" || c.group != ghost.group {
+			continue
+		}
+		if value, ok := groupPrefill(p.repo, c.typeKey, p.groupBy, ghost.group, c.fields[p.groupBy]); ok {
+			doc.Fields[p.groupBy] = value
+		}
+		break
+	}
+	return doc
+}
+
+// realLen is how many cards a stack holds before its ghost.
+func (p *boardPage) realLen(stack []int) int {
+	n := 0
+	for _, index := range stack {
+		if !p.cards[index].ghost {
+			n++
+		}
+	}
+	return n
 }
 
 // sortStack orders one stack by (rank, id), stably, so that cards without a
@@ -403,12 +494,13 @@ func (p *boardPage) putCursorOn(id string) {
 	p.clamp()
 }
 
-// count is how many cards are on the board, after the filter.
+// count is how many cards are on the board, after the filter, the ghosts
+// left out.
 func (p *boardPage) count() int {
 	n := 0
 	for _, la := range p.lanes {
 		for _, stack := range la.stacks {
-			n += len(stack)
+			n += p.realLen(stack)
 		}
 	}
 	return n
@@ -422,6 +514,21 @@ func (p *boardPage) Update(msg tea.Msg) (page, tea.Cmd) {
 
 	case statusMsg:
 		p.status = string(msg)
+		return p, nil
+
+	case createdMsg:
+		// a draft opened from here was created: the issue appears where the
+		// ghost stood, the cursor on it (doc/design/create.md, C4), or is
+		// named when the query does not keep it
+		if err := p.load(); err != nil {
+			p.status = err.Error()
+			return p, nil
+		}
+		p.putCursorOn(msg.id)
+		p.status = "created " + human(msg.id)
+		if p.currentId() != msg.id {
+			p.status += ", not in this view"
+		}
 		return p, nil
 
 	case refreshMsg:
@@ -499,6 +606,9 @@ func (p *boardPage) key(press tea.KeyPressMsg) (page, tea.Cmd) {
 
 	case keys.act.matches(press):
 		if c := p.current(); c != nil {
+			if c.ghost {
+				return p, openNew(p.repo, p.ghostDoc(c))
+			}
 			return p, p.push(c.id)
 		}
 
@@ -511,6 +621,10 @@ func (p *boardPage) key(press tea.KeyPressMsg) (page, tea.Cmd) {
 	case keys.filter.matches(press):
 		p.startFilter()
 	case keys.grab.matches(press):
+		if c := p.current(); c != nil && c.ghost {
+			p.status = "enter adds an issue here"
+			return p, bell()
+		}
 		return p.startGrab()
 	case keys.help.matches(press):
 		p.help = &help{}
@@ -557,11 +671,16 @@ func (p *boardPage) moveWithin(by int) {
 
 // moveCol moves to the nearest column in that direction with a card in this
 // lane; a column with nothing in it is nothing to stand on.
+// moveCol moves to the nearest column in that direction with anything in
+// it in this lane, which with a ghost at the foot of every stack is the
+// next column: an empty column is a place to add, and the ghost is how it
+// is reached. The row is kept where the column has a card for it, else the
+// last card, else the ghost.
 func (p *boardPage) moveCol(by int) {
 	for c := p.col + by; c >= 0 && c < len(p.columns); c += by {
 		if stack := p.lanes[p.lane].stacks[c]; len(stack) > 0 {
 			p.col = c
-			p.row = min(p.row, len(stack)-1)
+			p.row = min(p.row, max(p.realLen(stack)-1, 0))
 			return
 		}
 	}
@@ -584,7 +703,7 @@ func (p *boardPage) push(id string) tea.Cmd {
 
 func (p *boardPage) copyId() tea.Cmd {
 	c := p.current()
-	if c == nil {
+	if c == nil || c.ghost {
 		return bell()
 	}
 	// the clipboard gets the whole id, the message the short one (copyId)
@@ -676,7 +795,8 @@ func (p *boardPage) dragAcross(by int) {
 	stacks := p.lanes[p.lane].stacks
 	stacks[p.col] = append(stacks[p.col][:p.row], stacks[p.col][p.row+1:]...)
 
-	row := min(p.row, len(stacks[to]))
+	// above the ghost, which stays at the foot
+	row := min(p.row, p.realLen(stacks[to]))
 	stacks[to] = append(stacks[to], 0)
 	copy(stacks[to][row+1:], stacks[to][row:])
 	stacks[to][row] = p.grabbed
@@ -689,7 +809,7 @@ func (p *boardPage) dragAcross(by int) {
 // the `group_by` field the way a column drop writes `columns` (group.go).
 func (p *boardPage) dragBy(by int) tea.Cmd {
 	stack := p.stack()
-	if to := p.row + by; to >= 0 && to < len(stack) {
+	if to := p.row + by; to >= 0 && to < len(stack) && !p.cards[stack[to]].ghost {
 		stack[p.row], stack[to] = stack[to], stack[p.row]
 		p.row = to
 		return nil
@@ -720,7 +840,7 @@ func (p *boardPage) crossLane(by int) tea.Cmd {
 	stacks := p.lanes[lane].stacks
 	row := 0
 	if by < 0 {
-		row = len(stacks[p.col])
+		row = p.realLen(stacks[p.col])
 	}
 	stacks[p.col] = append(stacks[p.col], 0)
 	copy(stacks[p.col][row+1:], stacks[p.col][row:])
@@ -739,7 +859,7 @@ func (p *boardPage) laneValue(lane int) (crossing, bool) {
 	group := p.lanes[lane].group
 	for _, stack := range p.lanes[lane].stacks {
 		for _, index := range stack {
-			if index != p.grabbed {
+			if index != p.grabbed && !p.cards[index].ghost {
 				return crossing{group: group, value: groupValue(p.cards[index].fields[p.groupBy], group)}, true
 			}
 		}
@@ -821,6 +941,7 @@ func (p *boardPage) drop() tea.Cmd {
 // is one lane's one column, and is the card's whole ordering scope.
 func (p *boardPage) stackFills() (above []rankFill, key string, err error) {
 	stack := p.stack()
+	stack = stack[:p.realLen(stack)] // the ghost is at the foot, and is no card
 	ids := make([]string, len(stack))
 	ranks := make([]string, len(stack))
 	for at, index := range stack {

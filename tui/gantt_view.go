@@ -123,10 +123,12 @@ func (p *ganttPage) labelWidth() int {
 	return min(labelWidth, max(p.width*2/5, 1+p.treeRoom()+idWidth+1+4))
 }
 
-// capacity is how many periods the window has room for.
+// capacity is how many periods the window has room for: the chart less one
+// cell, which is the › that says there are periods off screen, so that a
+// chart whose periods divide its width exactly still has somewhere to say so.
 func (p *ganttPage) capacity() int {
 	w := periodWidth(p.scale)
-	return max(max(p.width-p.labelWidth()-1, w)/w, 1)
+	return max(max(p.width-p.labelWidth()-2, w)/w, 1)
 }
 
 // headerLines are the chart's header: the coarse labels, the month over
@@ -292,6 +294,17 @@ func (p *ganttPage) rowLine(index, labelWidth, visible int, under, grabbed bool,
 		marker = styleGrab.Render("⟨")
 	case under:
 		marker = wash.Render("›")
+	}
+
+	if node.ghost {
+		// the ghost is a place to add, drawn dim, with no bar
+		parts := []string{marker, wash.Faint(true).Render(pad(b.human, idWidth))}
+		if indent > 0 {
+			parts = append(parts, wash.Render(" "), wash.Render(pad("", indent)))
+		}
+		room := max(labelWidth-1-indent-idWidth-1, 0)
+		parts = append(parts, wash.Faint(true).Render(" "+pad(b.label, room)), wash.Faint(true).Render("│"))
+		return fit(strings.Join(parts, ""), p.width)
 	}
 
 	parts := []string{marker}
@@ -460,7 +473,7 @@ func (p *ganttPage) statusLine() string {
 		count = "1 issue"
 	}
 	if p.filter != "" {
-		count = fmt.Sprintf("%d of %d issues · /%s", n, len(p.bars), p.filter)
+		count = fmt.Sprintf("%d of %d issues · /%s", n, p.total(), p.filter)
 	}
 
 	return styleStatus.Render(bottomLine(p.hintLine(), lastAction(p.status, count), p.width))
@@ -488,6 +501,9 @@ func (p *ganttPage) hintLine() string {
 	b := p.current()
 	if b == nil {
 		return hints()
+	}
+	if isGhost(b.id) {
+		return hints(hint{"enter", "new issue"})
 	}
 	// the arrow cell: enter opens the row as it does anywhere, space folds
 	if p.col < 0 {

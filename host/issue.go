@@ -151,6 +151,40 @@ func IssueLog(repo *cache.RepoCache, id string) ([]cmdjson.IssueOperation, error
 	return IssueLogBetween(repo, id, time.Time{}, time.Time{}, false)
 }
 
+// IssueDraft decodes the document `new` opens on and checks it as `issue new`
+// would, the title and the type excepted: a key that is not a field of its
+// type, or a value that does not fit its kind, is refused at the call,
+// before anything draws, as `children` and `expand` are (doc/design/create.md,
+// C1). A document with no type is not checked, since nothing can say which
+// fields it has; Create checks the whole draft once it has one.
+func IssueDraft(repo *cache.RepoCache, raw json.RawMessage) (IssueDocument, error) {
+	var doc IssueDocument
+	if len(raw) == 0 {
+		return doc, nil
+	}
+	if err := DecodeStrict(raw, &doc); err != nil {
+		return doc, err
+	}
+	if doc.Fields == nil {
+		doc.Fields = map[string]issue.Value{}
+	}
+	for key, value := range doc.Fields {
+		if err := issue.ValidateKey(key); err != nil {
+			return doc, err
+		}
+		if err := issue.ValidateValue(key, value); err != nil {
+			return doc, err
+		}
+	}
+	if _, err := aliasMetadata(doc.Aliases); err != nil {
+		return doc, err
+	}
+	if typeKey, _ := issue.String(doc.Fields[schema.TypeKey]); typeKey == "" {
+		return doc, nil
+	}
+	return doc, repo.Issues().CheckNew(doc.Fields)
+}
+
 // IssueNew creates an issue from a document and returns its id.
 func IssueNew(repo *cache.RepoCache, doc IssueDocument) (entity.Id, error) {
 	title, fields, err := splitTitle(doc.Fields)

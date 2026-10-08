@@ -222,9 +222,95 @@ func (p *listPage) rebuild() {
 	if reveal(p.nodes, p.open, was) {
 		build()
 	}
+	p.addGhosts()
 
 	p.reorder()
 	p.putCursorOn(was)
+}
+
+// addGhosts puts a ghost at the foot of each group of roots, one for the
+// whole list when nothing groups it (ghost.go). It is appended after every
+// row and carries no rank, so the order draws it last in its group.
+func (p *listPage) addGhosts() {
+	layer := p.layer(0)
+	groups := []string{}
+	types := map[string][]string{}
+	seen := map[string]bool{}
+	for index, node := range p.nodes {
+		if node.level != 0 || node.ghost {
+			continue
+		}
+		group := node.group
+		if layer.groupBy == "" {
+			group = noGroup
+		}
+		if !seen[group] {
+			seen[group] = true
+			groups = append(groups, group)
+		}
+		types[group] = append(types[group], p.rows[index].typeKey)
+	}
+	if len(groups) == 0 {
+		groups = append(groups, noGroup)
+	}
+	for _, group := range groups {
+		row := listRow{
+			id:      ghostId(group),
+			human:   ghostPrefix,
+			typeKey: sharedType(types[group]),
+			fields:  map[string]any{},
+			cells:   map[string]string{},
+			links:   map[string][]string{},
+		}
+		if len(layer.fields) > 0 {
+			row.cells[layer.fields[0]] = ghostLabel
+		}
+		node := treeRow{id: row.id, group: group, grouped: layer.groupBy != "", ghost: true}
+		p.rows = append(p.rows, row)
+		p.nodes = append(p.nodes, node)
+	}
+}
+
+// ghostDoc is the draft a ghost opens: the type its group's rows share, and
+// the `group_by` field as a drop into the group would write it (C6).
+func (p *listPage) ghostDoc(ghost *listRow, node *treeRow) host.IssueDocument {
+	doc := host.IssueDocument{Fields: map[string]issue.Value{}}
+	if ghost.typeKey != "" {
+		doc.Fields[schema.TypeKey] = issue.StringValue(ghost.typeKey)
+	}
+	for index, other := range p.nodes {
+		if other.ghost || other.level != 0 || other.group != node.group {
+			continue
+		}
+		row := &p.rows[index]
+		if value, ok := groupPrefill(p.repo, row.typeKey, p.groupBy, node.group, row.fields[p.groupBy]); ok {
+			doc.Fields[p.groupBy] = value
+		}
+		break
+	}
+	return doc
+}
+
+// total is how many issues the query returned: the rows, less the ghosts.
+func (p *listPage) total() int {
+	n := 0
+	for _, node := range p.nodes {
+		if !node.ghost {
+			n++
+		}
+	}
+	return n
+}
+
+// count is how many issues the list draws: the rows, less the ghosts.
+func (p *listPage) count() int {
+	n := 0
+	for _, index := range p.order {
+		if !p.nodes[index].ghost {
+			n++
+		}
+	}
+	return n
 }
 
 func (p *listPage) newRow(n nested, known *kinds) (listRow, treeRow) {
@@ -356,6 +442,21 @@ func (p *listPage) Update(msg tea.Msg) (page, tea.Cmd) {
 
 	case statusMsg:
 		p.status = string(msg)
+		return p, nil
+
+	case createdMsg:
+		// a draft opened from here was created: the issue appears where the
+		// ghost stood, the cursor on it (doc/design/create.md, C4), or is
+		// named when the query does not keep it
+		if err := p.load(); err != nil {
+			p.status = err.Error()
+			return p, nil
+		}
+		p.putCursorOn(msg.id)
+		p.status = "created " + human(msg.id)
+		if p.currentId() != msg.id {
+			p.status += ", not in this view"
+		}
 		return p, nil
 
 	case refreshMsg:
@@ -553,6 +654,9 @@ func (p *listPage) act() (page, tea.Cmd) {
 	if row == nil {
 		return p, nil
 	}
+	if node := p.node(); node.ghost {
+		return p, openNew(p.repo, p.ghostDoc(row, node))
+	}
 	if links := row.links[p.fieldKey()]; len(links) > 0 {
 		return p, p.push(links[0])
 	}
@@ -565,6 +669,10 @@ func (p *listPage) act() (page, tea.Cmd) {
 // is not a field of the row's type is drawn, never written, and rings the
 // bell (startEdit).
 func (p *listPage) edit() (page, tea.Cmd) {
+	if node := p.node(); node != nil && node.ghost {
+		p.status = "enter adds an issue here"
+		return p, bell()
+	}
 	switch p.column {
 	case 0:
 		return p.startGrab()
@@ -601,7 +709,7 @@ func (p *listPage) fieldKey() string {
 // chat pin (ca81145) is the first key anybody presses.
 func (p *listPage) copyCell() tea.Cmd {
 	row := p.current()
-	if row == nil {
+	if row == nil || isGhost(row.id) {
 		return bell()
 	}
 	fieldKey := p.fieldKey()
@@ -624,7 +732,7 @@ func (p *listPage) copyCell() tea.Cmd {
 // the id the screen shows and the only part that fits the line.
 func (p *listPage) copyId() tea.Cmd {
 	row := p.current()
-	if row == nil {
+	if row == nil || isGhost(row.id) {
 		return bell()
 	}
 	p.status = "copied " + row.human
@@ -678,7 +786,7 @@ func (p *listPage) updateFilter(msg tea.Msg) (page, tea.Cmd) {
 // be a question with one answer. A cell that cannot be edited rings the bell.
 func (p *listPage) startEdit(pasted *string) tea.Cmd {
 	row := p.current()
-	if row == nil {
+	if row == nil || isGhost(row.id) {
 		return bell()
 	}
 	fieldKey := p.fieldKey()
@@ -825,6 +933,7 @@ func (p *listPage) dragBy(by int) tea.Cmd {
 	group := p.nodes[neighbour].group
 	p.nodes[p.grabbed].group = group
 	p.crossed = &crossing{group: group, value: groupValue(p.rows[neighbour].fields[p.groupBy], group)}
+	p.cursor = crossGhost(p.nodes, p.order, p.cursor, by)
 	p.status = ""
 	return nil
 }

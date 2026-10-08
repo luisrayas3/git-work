@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"encoding/json"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
@@ -49,6 +50,10 @@ type root struct {
 	// quits, and any other key returns to the view
 	// (doc/design/terminal-renderer.md, 2026-09-28).
 	onCall bool
+
+	// answer is what the view returns once the program ends: the id a
+	// standalone `new` created, else nothing (doc/design/create.md, C4).
+	answer json.RawMessage
 }
 
 // callHint is the status line while the cursor is on the call line.
@@ -113,6 +118,23 @@ func (r *root) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case refreshMsg:
 		return r, r.broadcast(msg)
+
+	case createdMsg:
+		// Opened from a view, Create pops back to it and the view puts its
+		// cursor on the new issue, which is the ghost's promise kept. With
+		// nothing underneath, show on the new issue takes the draft's
+		// place, so that the first view stays a view, and the id is the
+		// program's answer (doc/design/create.md, C4).
+		if len(r.pages) <= 1 {
+			r.pages = []page{msg.shown}
+			r.answer, _ = json.Marshal(msg.id)
+			_, cmd := r.top().Update(tea.WindowSizeMsg{Width: r.width, Height: r.height})
+			return r, tea.Batch(cmd, r.say("created "+human(msg.id)))
+		}
+		r.pages = r.pages[:len(r.pages)-1]
+		top, cmd := r.top().Update(msg)
+		r.pages[len(r.pages)-1] = top
+		return r, cmd
 	}
 
 	top, cmd := r.top().Update(msg)

@@ -250,6 +250,32 @@ and `--gui` errors until the gui process exists (`8b06191`):
 | Board | `git work view board [KWARGS\|-] [--gui]` (`columns` required) |
 | Gantt | `git work view gantt [KWARGS\|-] [--gui]` (`start` and `stop` required) |
 | Matrix | `git work view matrix [KWARGS\|-] [--gui]` (`rows` and `columns` required) |
+| New | `git work view new [KWARGS\|-] [--gui]` (nothing required; `doc` is the `issue new` document to open on) → prints the created id, or nothing |
+
+`new` is the interactive `issue new` (2026-10-07, `doc/design/create.md`):
+show's page over an issue that does not exist yet —
+the type and the title in the header, the type's fields as rows with show's editors,
+the description box, and a `[ create ]` button last, `Enter` on it committing the draft
+through the same `host.IssueNew` the command uses, one operation, nothing written before.
+`doc` is the document `issue new` takes, with what is already decided filled in,
+every value still editable, and it is checked against the schema at the call, before anything draws;
+`fields` keeps show's meaning.
+The page opens on the title, typing, when the type is set, and on the type cell when it is not;
+a field left empty is not stored, because a null imports Jira's default back where a made-up one would not.
+Opened from a view, Create pops back to it with the cursor on the new issue;
+standalone, show on the new issue takes the draft's place and `git work view new` prints the id,
+the one view that prints, because it is a writer (`work.view.new(doc=…)` returns it, or `None`).
+**The ghost** opens it from a view (2026-10-07, `414417b`): a dim `+ (new)` row at the foot of each group on a list and a gantt,
+one at the foot of the whole view when `group_by` is not bound, and a `+ (new)` card at the foot of each column on a board, of each lane's column when `group_by` is bound.
+It is a row the cursor reaches with `↓` and `End`, `Enter` opens the creator **prefilled with the drop's write set** —
+the `group_by` field with the group's stored value, a board's `columns` field with the column's, the lane's with the lane's,
+and `type` when every row in the scope shares one, else the page opens on the type cell —
+`Space` rings, copy copies nothing, the filter hides it, and it is never a rank sibling:
+a grab skips it, a row dragged past the edge of its group steps over it into the next, and the rank fills do not count it.
+No rank is written for the issue it creates: a null rank already sorts last, where the ghost stood.
+On a board `←`/`→` therefore reach every column, an empty one on its ghost, which is how an issue is added to it,
+and the status line's counts leave the ghosts out.
+On a nested list the ghost is the roots' only; the child ghost is `b9a9b62`.
 
 Which other arguments a kind takes is `git work view <kind> --help`,
 generated from the table in package `view`, which is the authority

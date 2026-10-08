@@ -93,6 +93,9 @@ const (
 	stopFields
 	stopBox
 	stopTabs
+	// stopCreate is new's last stop, the button (new.go); show has no such
+	// stop and never lands on it.
+	stopCreate
 )
 
 // The header's cells: the three built-in fields, which every type has and
@@ -1013,16 +1016,23 @@ func (p *showPage) descFooter() string {
 	return fit(marker+" "+styleDim.Render(hintText(pairs...)), p.width)
 }
 
-// fieldLines is the fields table: the key, then the value, a link
-// underlined; the row under the cursor marked while the cursor is in it.
+// fieldLines is the fields table (tableLines), the row under the cursor
+// marked while the cursor is in it.
 func (p *showPage) fieldLines(here position) ([]string, int) {
-	if len(p.rows) == 0 {
+	return tableLines(p.rows, p.row, here.stop == stopFields, p.width)
+}
+
+// tableLines is a fields table as show and new draw it: the key, then the
+// value, a link underlined; the row at cursor marked while on is set. It
+// says which line the cursor is on, or -1.
+func tableLines(rows []tableRow, cursor int, on bool, width int) ([]string, int) {
+	if len(rows) == 0 {
 		return nil, -1
 	}
 
 	cursorLine := -1
-	lines := make([]string, 0, len(p.rows)+1)
-	for at, row := range p.rows {
+	lines := make([]string, 0, len(rows)+1)
+	for at, row := range rows {
 		key := ""
 		if row.first {
 			key = row.key
@@ -1033,13 +1043,13 @@ func (p *showPage) fieldLines(here position) ([]string, int) {
 			style = styleLink
 		}
 		marker := " "
-		if here.stop == stopFields && at == p.row {
+		if on && at == cursor {
 			marker = "›"
 			cursorLine = len(lines)
 			style = styleCell.Underline(row.link != "")
 			value = pad(value, max(ansi.StringWidth(value), 1))
 		}
-		lines = append(lines, fit(marker+styleDim.Render(pad(key, 16))+style.Render(value), p.width))
+		lines = append(lines, fit(marker+styleDim.Render(pad(key, 16))+style.Render(value), width))
 	}
 	return append(lines, ""), cursorLine
 }

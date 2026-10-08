@@ -27,11 +27,14 @@ func writes(t *testing.T, repo *cache.RepoCache, id string) int {
 	return len(ops)
 }
 
-// barIds is the gantt's rows in the order they are drawn.
+// barIds is the gantt's rows in the order they are drawn, the ghosts left
+// out (ghost.go).
 func barIds(p *ganttPage) []string {
 	ids := make([]string, 0, len(p.order))
 	for _, at := range p.order {
-		ids = append(ids, p.bars[at].id)
+		if !p.nodes[at].ghost {
+			ids = append(ids, p.bars[at].id)
+		}
 	}
 	return ids
 }

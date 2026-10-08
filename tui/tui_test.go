@@ -272,6 +272,8 @@ func TestCursorMoves(t *testing.T) {
 	require.Equal(t, first, page.currentId())
 
 	page = send(page, "G").(*listPage)
+	require.True(t, page.node().ghost, "the last row is the ghost, the place to add (ghost.go)")
+	page = send(page, "k").(*listPage)
 	require.Equal(t, first, page.currentId())
 	page = send(page, "g").(*listPage)
 	require.Equal(t, second, page.currentId())
