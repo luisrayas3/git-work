@@ -541,9 +541,14 @@ are two spellings of something the view already does.
 jq is enough because it is the program `git work issue` takes,
 `.` is the whole array,
 and a view is then exactly a saved `git work issue` invocation with a drawing attached.
-What is given up is rows that are not issues —
-a view cannot show a synthetic total row or a schema entity.
-That is acceptable: every target workflow is a workflow over issues.
+What was given up here was rows that are not issues,
+on the grounds that every target workflow is a workflow over issues.
+Reversed 2026-10-08 (`query-rows.md`):
+a sprint page by person is over issues and still needs rows that are not,
+so on a list and a gantt a row may carry a `key`, its identity on the screen,
+apart from the `id` of the issue it acts on, which may be left out,
+and a `children` listing what nests under it.
+The cursor comes back across a re-run on the same **key**, which is the id unless the query gave one.
 
 ## Rank
 
@@ -1144,6 +1149,7 @@ A layer is an object:
 ```
 
 `relation` is the only required key,
+and since 2026-10-08 only where some row above lists no `children` of its own (`query-rows.md`, R3),
 and the rest are the list's own arguments *for that layer's rows*:
 the level below is its own `expand`,
 and a layer with none is leaves.
@@ -1179,7 +1185,8 @@ Without one, every unarchived child shows,
 which is what "do the children obey the query?" had to be answered with
 before the spec (it was no, and nothing said so: `f9c991e`).
 A matched issue that is another matched issue's child
-shows nested under it, once, not twice;
+shows nested under it, once, not twice —
+since 2026-10-08 a *key* shows once, and a row's key is its id unless the query gave one (`query-rows.md`);
 a child shows under its parent whether or not the root query matched it,
 because a parent's children are the reason to expand a parent.
 Cycles are cut at the repeat.

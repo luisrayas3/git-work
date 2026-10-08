@@ -148,7 +148,7 @@ func (p *boardPage) load() error {
 		return err
 	}
 
-	items, _ := host.IssueItems(values)
+	items := host.IssueRows(values)
 	known := newKinds(p.repo)
 	p.cards = make([]card, 0, len(items))
 	for _, item := range items {

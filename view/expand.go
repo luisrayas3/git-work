@@ -19,7 +19,9 @@ import (
 type Layer struct {
 	// Relation is the stored relation field, or the name its `inverse`
 	// gives the derived side: `children` is read off every `parent`.
-	Relation string `json:"relation"`
+	// Empty, the rows above list their own children, and a row that does
+	// not has none (doc/design/query-rows.md, R3).
+	Relation string `json:"relation,omitempty"`
 	// Query is a jq program over the array of the row's candidate children,
 	// every unarchived one; empty, they are all this layer's rows.
 	Query string `json:"query,omitempty"`
@@ -105,19 +107,20 @@ func parseLayer(raw json.RawMessage, at int) (*Layer, error) {
 		}
 	}
 
+	// relation is required only where a row above lists no children of its
+	// own, which only the rows can say, so its absence is the renderer's to
+	// report (doc/design/query-rows.md, R3)
 	layer := &Layer{}
-	relation, ok := object["relation"]
-	if !ok || isNull(relation) {
-		return nil, fmt.Errorf("%sneeds relation: the relation whose targets nest under a row", where)
+	if relation, ok := object["relation"]; ok && !isNull(relation) {
+		name, err := asString(relation)
+		if err != nil {
+			return nil, fmt.Errorf("%srelation %w", where, err)
+		}
+		if strings.TrimSpace(name) == "" {
+			return nil, fmt.Errorf("%srelation is empty", where)
+		}
+		layer.Relation = name
 	}
-	name, err := asString(relation)
-	if err != nil {
-		return nil, fmt.Errorf("%srelation %w", where, err)
-	}
-	if strings.TrimSpace(name) == "" {
-		return nil, fmt.Errorf("%srelation is empty", where)
-	}
-	layer.Relation = name
 
 	for _, key := range []struct {
 		name  string
@@ -244,9 +247,15 @@ func checkExpand(s *schema.Schema, root *Layer) error {
 			where = fmt.Sprintf("layer %d ", at+1)
 		}
 
-		types, err := relationRows(s, layer.Relation)
-		if err != nil {
-			return fmt.Errorf("%s%w", where, err)
+		// a layer with no relation draws the rows listed above it, which can
+		// be of any type
+		types := s.TypeKeys()
+		if layer.Relation != "" {
+			var err error
+			types, err = relationRows(s, layer.Relation)
+			if err != nil {
+				return fmt.Errorf("%s%w", where, err)
+			}
 		}
 
 		for _, key := range keysOf(layer) {

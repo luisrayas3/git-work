@@ -365,6 +365,18 @@ the keys it leaves out are the layer above's,
 and its `expand` is the level below — none means leaves, a layer is the next level,
 and a number is this same layer again for that many more levels, `0` for every level down.
 `"expand":"children"` is the shorthand for one layer with every default.
+**A row the query makes is not always one issue** (2026-10-08, `d1c547a`, `doc/design/query-rows.md`):
+on a list and a gantt a row may carry a top-level `key`, its identity on the screen —
+drawing order, siblings, parents, folds and the cursor across a refresh —
+while its `id` stays what `Enter`, `Space`, copy, a rank and a link act on,
+so `{"id":"<epic>","key":"<epic>@<person>",…}` draws one epic once per person.
+A key given twice is refused naming it, and none starts with `+`, the ghost's.
+`id` may be left out beside a key: such a row draws and is reached, `Enter` and `Space` on a cell ring, copy copies nothing.
+A top-level `children`, ids or rows and rows all the way down, is that row's children
+in place of what the layer's relation reads for it; the layer below still applies its fields, details, group_by, rank and query,
+and its `relation` is needed only where a row above lists none (`{}` is a layer).
+A key shows once, so an issue reached twice through the store shows once and one keyed twice shows twice.
+The board and the matrix ignore `key` and `children`, drop a row with no id, and draw an issue once.
 **A nested layer is its own table** (2026-10-07): the rows under an opened parent are drawn
 indented as one unit, two cells a level, with their own header line above the first of them
 and their own columns in the layer's widths, id first and flush within the table;

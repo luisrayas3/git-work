@@ -111,7 +111,7 @@ type Arg struct {
 // so a view is never a command on one surface and not the other.
 var Kinds = map[string][]Arg{
 	KindList: {
-		queryArg,
+		rowsQueryArg,
 		includeArchiveArg,
 		{Name: "fields", Tier: Defaulted, Kind: FieldKeys, Default: `["type","title"]`,
 			Doc: "the fields shown as columns, in order"},
@@ -138,7 +138,7 @@ var Kinds = map[string][]Arg{
 		rankArg,
 	},
 	KindGantt: {
-		queryArg,
+		rowsQueryArg,
 		includeArchiveArg,
 		{Name: "start", Tier: Required, Kind: FieldKey,
 			Doc: "the date field a bar starts at"},
@@ -216,7 +216,9 @@ const minColumnWidth = 10
 // and a layer carries the level below it.
 const expandDoc = `the relation nested under a row: "children", or a layer ` +
 	`{"relation":…,"query":…,"include_archive":…,"fields":…,"details":…,"group_by":…,"rank":…,"expand":…}; ` +
-	`a relation is a stored one (parent) or the inverse name of one (children), a layer's query runs over ` +
+	`a relation is a stored one (parent) or the inverse name of one (children), a row's own top-level ` +
+	`children (ids or rows) replace it for that row, so a layer needs one only where a row above lists none; ` +
+	`a layer's query runs over ` +
 	`that row's own unarchived children (the archived too with include_archive, which a layer inherits from ` +
 	`the call or the layer above unless it names its own), the keys it leaves out ` +
 	`are the layer above's, and its expand is ` +
@@ -237,6 +239,17 @@ var rankArg = Arg{
 var queryArg = Arg{
 	Name: "query", Tier: Defaulted, Kind: Query, Default: defaultQueryJSON,
 	Doc: "the jq program the issues come from, over every unarchived issue; the default is all of them, last edited first",
+}
+
+// rowsQueryArg is `query` on the kinds that nest, whose rows may be more
+// than issues (doc/design/query-rows.md): a top-level key is a row's
+// identity on the screen, its id optional beside one, and a top-level
+// children lists what nests under it.
+var rowsQueryArg = Arg{
+	Name: "query", Tier: Defaulted, Kind: Query, Default: defaultQueryJSON,
+	Doc: "the jq program the rows come from, over every unarchived issue; the default is all of them, last edited first; " +
+		"a row may add a key, its identity on screen (unique, not starting with +), with or without the id of the issue it acts on, " +
+		"and children, the ids or rows nested under it",
 }
 
 // includeArchiveArg brings the archived back into the input `query` runs

@@ -48,7 +48,7 @@ type ganttPage struct {
 	nest *nesting
 
 	items []map[string]any
-	// open is the parents folded open, by id: a tree opens folded, so what
+	// open is the parents folded open, by key: a tree opens folded, so what
 	// is remembered is what was opened.
 	open map[string]bool
 
@@ -86,8 +86,10 @@ type ganttPage struct {
 	status string
 }
 
-// bar is one issue on the chart.
+// bar is one row on the chart: key is its identity on the screen, id the
+// issue it acts on, "" where it stands for none (doc/design/query-rows.md).
 type bar struct {
+	key     string
 	id      string
 	human   string
 	typeKey string
@@ -168,7 +170,11 @@ func (p *ganttPage) load() error {
 	if err != nil {
 		return err
 	}
-	p.items, _ = host.IssueItems(values)
+	p.items, _ = host.ViewRows(values)
+	if err := host.CheckRowKeys(p.items); err != nil {
+		p.items = nil
+		return err
+	}
 	p.rebuild()
 	return nil
 }
@@ -176,7 +182,7 @@ func (p *ganttPage) load() error {
 // rebuild makes the rows out of the last query's items: the tree along
 // `expand`, a bar per node, the drawing order, and the chart's extent.
 func (p *ganttPage) rebuild() {
-	was := p.currentId()
+	was := p.currentKey()
 	at, hadCol := p.colDate()
 
 	known := newKinds(p.repo)
@@ -231,6 +237,7 @@ func (p *ganttPage) newBar(n nested, known *kinds) (bar, treeRow) {
 	}
 
 	b := bar{
+		key:     n.key,
 		id:      n.id,
 		human:   host.StringOr(n.item["human_id"], ""),
 		typeKey: host.StringOr(fields[schema.TypeKey], ""),
@@ -254,6 +261,7 @@ func (p *ganttPage) newBar(n nested, known *kinds) (bar, treeRow) {
 
 	layer := p.layer(n.level)
 	node := treeRow{
+		key:      n.key,
 		id:       n.id,
 		parent:   n.parent,
 		level:    n.level,
@@ -324,6 +332,16 @@ func (p *ganttPage) node() *treeRow {
 	return &p.nodes[p.order[p.cursor]]
 }
 
+// currentKey is the key of the row under the cursor, which is what a
+// refresh puts the cursor back on.
+func (p *ganttPage) currentKey() string {
+	if b := p.current(); b != nil {
+		return b.key
+	}
+	return ""
+}
+
+// currentId is the issue the row under the cursor acts on.
 func (p *ganttPage) currentId() string {
 	if b := p.current(); b != nil {
 		return b.id
@@ -339,12 +357,12 @@ func (p *ganttPage) colDate() (time.Time, bool) {
 	return p.periods[p.col], true
 }
 
-// putCursorOn keeps the cursor on the issue it was on across a refresh,
-// falling back to the same position when that issue is gone.
-func (p *ganttPage) putCursorOn(id string) {
-	if id != "" {
+// putCursorOn keeps the cursor on the row it was on across a refresh, by
+// key, falling back to the same position when that row is gone.
+func (p *ganttPage) putCursorOn(key string) {
+	if key != "" {
 		for at, index := range p.order {
-			if p.bars[index].id == id {
+			if p.bars[index].key == key {
 				p.cursor = at
 				return
 			}
@@ -653,8 +671,8 @@ func (p *ganttPage) addGhosts() {
 		groups = append(groups, noGroup)
 	}
 	for _, group := range groups {
-		b := bar{id: ghostId(group), human: ghostPrefix, typeKey: sharedType(types[group]), fields: map[string]any{}, label: ghostLabel}
-		node := treeRow{id: b.id, group: group, grouped: p.groupBy != "", ghost: true}
+		b := bar{key: ghostId(group), human: ghostPrefix, typeKey: sharedType(types[group]), fields: map[string]any{}, label: ghostLabel}
+		node := treeRow{key: b.key, group: group, grouped: p.groupBy != "", ghost: true}
 		p.bars = append(p.bars, b)
 		p.nodes = append(p.nodes, node)
 	}
@@ -797,6 +815,10 @@ func (p *ganttPage) key(press tea.KeyPressMsg) (page, tea.Cmd) {
 			if node := p.node(); node.ghost {
 				return p, openNew(p.repo, p.ghostDoc(b, node))
 			}
+			if b.id == "" {
+				// a row that stands for no issue has nothing to open (R2)
+				return p, bell()
+			}
 			return p, p.push(b.id)
 		}
 
@@ -855,7 +877,7 @@ func (p *ganttPage) intoChild() {
 		return
 	}
 	if node.folded {
-		p.open[node.id] = true
+		p.open[node.key] = true
 		p.rebuild()
 		node = p.node()
 	}
@@ -888,7 +910,7 @@ func (p *ganttPage) toggleFold() tea.Cmd {
 		p.status = "nothing to fold"
 		return bell()
 	}
-	p.open[node.id] = node.folded
+	p.open[node.key] = node.folded
 	p.rebuild()
 	return nil
 }
@@ -912,7 +934,7 @@ func (p *ganttPage) push(id string) tea.Cmd {
 
 func (p *ganttPage) copyId() tea.Cmd {
 	b := p.current()
-	if b == nil || isGhost(b.id) {
+	if b == nil || b.id == "" {
 		return bell()
 	}
 	// the clipboard gets the whole id, the message the short one (copyId)
@@ -1034,6 +1056,11 @@ func (p *ganttPage) dragAlong(by int) tea.Cmd {
 		p.status = "no dates: nothing to move"
 		return bell()
 	}
+	if b.id == "" {
+		// its dates are the query's, and no issue's to write (R2)
+		p.status = "no issue: dates not movable"
+		return bell()
+	}
 
 	first, last, _, _ := p.span(p.grabbed)
 	moveStart, moveStop := true, true
@@ -1146,7 +1173,7 @@ func (p *ganttPage) drop() tea.Cmd {
 	if err := p.load(); err != nil {
 		p.status = err.Error()
 	}
-	p.putCursorOn(id)
+	p.putCursorOn(b.key)
 	return nil
 }
 
@@ -1155,7 +1182,7 @@ func (p *ganttPage) putBack(b *bar) {
 	b.dStart, b.dStop = 0, 0
 	at, _ := p.colDate()
 	p.reorder()
-	p.putCursorOn(b.id)
+	p.putCursorOn(b.key)
 	p.layoutPeriods()
 	p.col = p.index(at)
 	p.clampCol()

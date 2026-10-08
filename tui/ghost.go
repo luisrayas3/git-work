@@ -24,20 +24,18 @@ import (
 // filter hides it with the rows it narrows away. No rank is written for the
 // issue it creates: a null rank already sorts last, where the ghost stood.
 
-// ghostPrefix starts every ghost's id, which no issue id can start with.
-const ghostPrefix = "+"
+// ghostPrefix starts every ghost's key, which no issue id can start with,
+// and which a key a query gives a row may not (doc/design/query-rows.md, R1).
+const ghostPrefix = host.KeyPrefix
 
 // ghostLabel is what a ghost draws where a row draws its first field.
 const ghostLabel = "(new)"
 
-// ghostId is a ghost's id: unique per scope, because the drawing order keys
-// rows by id, and never an issue's.
+// ghostId is a ghost's key: unique per scope, because the drawing order keys
+// rows by key, and never an issue's or a query's. A ghost stands for no
+// issue, so its id is empty.
 func ghostId(scope ...string) string {
 	return ghostPrefix + strings.Join(scope, "\x00")
-}
-
-func isGhost(id string) bool {
-	return strings.HasPrefix(id, ghostPrefix)
 }
 
 // sharedType is the type every row of a scope has, or "" where they differ

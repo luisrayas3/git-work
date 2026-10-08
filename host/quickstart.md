@@ -147,6 +147,11 @@ in Starlark, the same reason `work.schema.import_` does.
   `group_by` sections the rows by a field, the ones with no value last;
   and `expand` nests the issues one relation reaches under each row,
   as `"children"` or as a layer that says what that level draws.
+  On a list and a gantt a row the query makes may carry a top-level `key`,
+  its identity on the screen, so one issue can be drawn twice;
+  its `id` stays the issue it acts on, and may be left out beside a key;
+  and a top-level `children`, the ids or rows nested under it
+  in place of what the layer's relation reads.
 - Starlark mirrors this command line one to one,
   because both go through the same code.
   `work` is the only predeclared name:

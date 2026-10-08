@@ -83,23 +83,34 @@ func (p *listPage) hintLine() string {
 	if row == nil {
 		return hints()
 	}
-	if isGhost(row.id) {
+	if p.node().ghost {
 		return hints(hint{"enter", "new issue"})
 	}
+	// a row that stands for no issue opens nothing and edits nothing: what
+	// is left is a link to follow, its fold and its grab (R2)
+	none := row.id == ""
 	if key := p.fieldKey(); key != "" {
-		pairs := []hint{openHint(len(row.links[key]) > 0)}
-		if edit, ok := editHint(fieldKind(p.repo, row.typeKey, key)); ok {
+		linked := len(row.links[key]) > 0
+		var pairs []hint
+		if !none || linked {
+			pairs = append(pairs, openHint(linked))
+		}
+		if edit, ok := editHint(fieldKind(p.repo, row.typeKey, key)); ok && !none {
 			pairs = append(pairs, edit)
 		}
 		return hints(pairs...)
 	}
 
+	open := []hint{{"enter", "open"}}
+	if none {
+		open = nil
+	}
 	// the tree cell: enter opens the row as the id does, space folds it
 	if p.column == p.treeCol() {
-		return hints(append([]hint{{"enter", "open"}}, foldHints(p.node())...)...)
+		return hints(append(open, foldHints(p.node())...)...)
 	}
 	// the id column: enter opens the row, space grabs it to move it
-	return hints(hint{"enter", "open"}, hint{"space", "grab"})
+	return hints(append(open, hint{"space", "grab"})...)
 }
 
 // listBody is the page's body as drawn: the top table's header, which is
@@ -147,7 +158,7 @@ func (p *listPage) body() listBody {
 
 		under := rootGroup
 		if node.level > 0 {
-			if at > 0 && p.nodes[p.order[at-1]].id == node.parent {
+			if at > 0 && p.nodes[p.order[at-1]].key == node.parent {
 				tableHeader[node.parent] = len(body.lines)
 				add(p.tableHeader(node.level, widths, tree), len(body.lines))
 			}
