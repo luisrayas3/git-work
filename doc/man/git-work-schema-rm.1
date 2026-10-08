@@ -6,7 +6,7 @@ git-work-schema-rm - Remove a type or a field from the local repository
 
 
 .SH SYNOPSIS
-\fBgit-work schema rm KEY [flags]\fP
+\fBgit-work schema rm KEY | --id ID [flags]\fP
 
 
 .SH DESCRIPTION
@@ -14,17 +14,24 @@ Remove a type's or a field's local ref. This is local: the entity comes back on
 the next pull. The replicated removal is archive.
 
 .PP
-KEY is a type key or a field key, /\&.
+KEY is a type key or a field key, /\&. A KEY two entities hold is
+refused, naming both ids: name one with --id ID, a full id or a unique prefix,
+archived or not, which is never read as a key.
 
 
 .SH OPTIONS
 \fB-h\fP, \fB--help\fP[=false]
 	help for rm
 
+.PP
+\fB--id\fP=""
+	name the entity by its id or a unique prefix of it, archived or not, instead of by KEY
+
 
 .SH EXAMPLE
 .EX
 git work schema rm task/estimate
+git work schema rm --id db9cdb7
 .EE
 
 

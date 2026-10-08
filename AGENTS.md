@@ -172,8 +172,8 @@ The schema itself, types and fields under `refs/work-schema`
 | Bootstrap | `git work schema init [jira\|linear]` → prints the created ids; refuses if any field exists |
 | Round trip | `git work schema export > schema.yaml` · `git work schema import schema.yaml` (writes only what differs; a no-op when nothing did) |
 | Import a partial file | `git work schema import FILE\|- [--prune] [--dry-run]`; an upsert unless `--prune`, which archives what the file omits |
-| History | `git work schema log [KEY]` · `--format text`; one JSON object per line |
-| Archive / remove | `git work schema archive <key>` (an operation, replicated) · `git work schema rm <key>` (the local ref only) |
+| History | `git work schema log [KEY \| --id ID]` · `--format text`; one JSON object per line; a key is every entity holding it, the current first |
+| Archive / remove | `git work schema archive <key>` (an operation, replicated) · `git work schema rm <key>` (the local ref only); `--id ID` in place of the key names one entity by id or prefix, archived or not, and is how the loser of a key two clones defined is reached, since by key that is refused (`schema-archive-id.md`) |
 
 A field's KEY is `<type>/<field>`: every field belongs to exactly one type, so
 `task/status` and `epic/status` are two entities (`e7e58f2`). `title`, `type`,

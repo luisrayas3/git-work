@@ -20,10 +20,46 @@ func SchemaDuplicates(repo *cache.RepoCache) []string {
 	var warnings []string
 	for _, excerpt := range repo.Schema().AllDuplicates() {
 		warnings = append(warnings, fmt.Sprintf(
-			"%s %s is defined twice; %s is ignored, archive or import it",
-			excerpt.Shape, excerpt.Key, excerpt.Id().Human()))
+			"%s %s is defined twice; %s is ignored:\ngit work schema archive --id %s",
+			excerpt.Shape, excerpt.Key, excerpt.Id().Human(), excerpt.Id().Human()))
 	}
 	return warnings
+}
+
+// SchemaRef names one schema entity, by key or by id, and the caller says
+// which: a key may be hexadecimal and an id prefix is,
+// so nothing is inferred from the spelling (schema-archive-id.md, A1).
+// At most one of the two is set; neither is every entity, where that means
+// anything.
+type SchemaRef struct {
+	// Key is a type key or <type>/<field>, resolved as Current resolves it.
+	Key string
+	// Id is a full entity id or a unique prefix of one,
+	// archived or not, winner or loser.
+	Id string
+}
+
+func (r SchemaRef) check() error {
+	if r.Key != "" && r.Id != "" {
+		return fmt.Errorf("name a schema entity by key or by id, not both")
+	}
+	return nil
+}
+
+// resolveOne is the entity a writer acts on: exactly one of key and id,
+// a duplicated key refused.
+func (r SchemaRef) resolveOne(repo *cache.RepoCache) (*cache.ConfigCache, error) {
+	if err := r.check(); err != nil {
+		return nil, err
+	}
+	switch {
+	case r.Id != "":
+		return repo.Schema().ResolveSchemaId(r.Id)
+	case r.Key != "":
+		return repo.Schema().ResolveSchemaKey(r.Key)
+	default:
+		return nil, fmt.Errorf("name a schema entity by key or by id")
+	}
 }
 
 // SchemaExport returns the live schema as the document a human edits,
@@ -110,17 +146,30 @@ func SchemaInit(repo *cache.RepoCache, preset string, dryRun bool) ([]schema.Cha
 }
 
 // SchemaLog returns the operations the schema is made of, oldest first within
-// each entity. An empty key is every type and field entity, archived included.
-func SchemaLog(repo *cache.RepoCache, key string) ([]cmdjson.ConfigOperation, error) {
+// each entity. An empty ref is every type and field entity, archived included;
+// a key is every entity holding it, the winner first, so that a duplicated
+// key shows both ids to choose between; an id is that entity alone.
+func SchemaLog(repo *cache.RepoCache, ref SchemaRef) ([]cmdjson.ConfigOperation, error) {
+	if err := ref.check(); err != nil {
+		return nil, err
+	}
+
 	var entities []*cache.ConfigCache
 
-	if key != "" {
-		cached, err := repo.Schema().ResolveSchemaKey(key)
+	switch {
+	case ref.Id != "":
+		cached, err := repo.Schema().ResolveSchemaId(ref.Id)
 		if err != nil {
 			return nil, err
 		}
 		entities = append(entities, cached)
-	} else {
+	case ref.Key != "":
+		holders, err := repo.Schema().SchemaHolders(ref.Key)
+		if err != nil {
+			return nil, err
+		}
+		entities = holders
+	default:
 		for _, excerpt := range repo.Schema().Query(cache.ConfigQuery{IncludeArchived: true}) {
 			cached, err := repo.Schema().Resolve(excerpt.Id())
 			if err != nil {
@@ -147,8 +196,10 @@ func SchemaLog(repo *cache.RepoCache, key string) ([]cmdjson.ConfigOperation, er
 
 // SchemaArchive archives a type or a field, the replicated removal,
 // and returns what archiving it left behind.
-func SchemaArchive(repo *cache.RepoCache, key string) ([]string, error) {
-	cached, err := repo.Schema().ResolveSchemaKey(key)
+// By id it sets the flag on an entity already archived again, as
+// `issue archive` does.
+func SchemaArchive(repo *cache.RepoCache, ref SchemaRef) ([]string, error) {
+	cached, err := ref.resolveOne(repo)
 	if err != nil {
 		return nil, err
 	}
@@ -165,8 +216,8 @@ func SchemaArchive(repo *cache.RepoCache, key string) ([]string, error) {
 
 // SchemaRm deletes a type's or a field's local ref;
 // the entity comes back on the next pull.
-func SchemaRm(repo *cache.RepoCache, key string) error {
-	cached, err := repo.Schema().ResolveSchemaKey(key)
+func SchemaRm(repo *cache.RepoCache, ref SchemaRef) error {
+	cached, err := ref.resolveOne(repo)
 	if err != nil {
 		return err
 	}
@@ -232,6 +283,10 @@ func applySchemaChange(repo *cache.RepoCache, change schema.Change) (entity.Id, 
 // not atomic here (AGENTS.md), so the honest thing is to name what is left.
 func orphanedFields(repo *cache.RepoCache, shape config.Shape, key string) []string {
 	if shape != config.ShapeType {
+		return nil
+	}
+	// archiving one of two holders of a key leaves the type live
+	if _, err := repo.Schema().CurrentExcerpt(config.ShapeType, key); err == nil {
 		return nil
 	}
 

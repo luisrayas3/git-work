@@ -6,13 +6,16 @@ git-work-schema-log - Print the schema's history
 
 
 .SH SYNOPSIS
-\fBgit-work schema log [KEY] [flags]\fP
+\fBgit-work schema log [KEY | --id ID] [flags]\fP
 
 
 .SH DESCRIPTION
 Print the schema's history: every operation of every type and field entity,
 one JSON object per line, oldest first within each entity. With a KEY, only
-that entity's.
+the operations of the entities holding it: one in the ordinary case, and every
+one, the current first, when two clones defined the key before exchanging.
+With --id ID, a full id or a unique prefix, only that entity's, archived or
+not; an ID is never read as a key.
 
 .PP
 This is what says who added a status and when. KEY is a type key or a field
@@ -20,6 +23,10 @@ key, /\&.
 
 
 .SH OPTIONS
+\fB--id\fP=""
+	name the entity by its id or a unique prefix of it, archived or not, instead of by KEY
+
+.PP
 \fB-f\fP, \fB--format\fP="json"
 	Select the output formatting style. Valid values are [json,text]
 
@@ -32,6 +39,7 @@ key, /\&.
 .EX
 git work schema log
 git work schema log task/status
+git work schema log --id db9cdb7
 .EE
 
 

@@ -448,7 +448,7 @@ func TestPrintGoesToStdoutAndWarningsToStderr(t *testing.T) {
     """Say something, then leave a field live on an archived type."""
     print("hello")
     work.schema.init()
-    work.schema.archive("bug")
+    work.schema.archive(key="bug")
     return 1
 `
 	def, err := flow.Parse(script)
@@ -797,7 +797,7 @@ func TestSchemaLogReturnsOperations(t *testing.T) {
 	value, _, err := run(t, repo, `def history():
     """Who added a status, and when."""
     work.schema.init()
-    return [work.schema.log("task/status"), len(work.schema.log())]
+    return [work.schema.log(key="task/status"), len(work.schema.log())]
 `, nil)
 	require.NoError(t, err)
 
@@ -821,9 +821,9 @@ func TestSchemaArchiveAndRmFromAScript(t *testing.T) {
 	_, stderr, err := run(t, repo, `def clean():
     """Archive a field, archive a type, then drop a local ref."""
     work.schema.init()
-    work.schema.archive("task/estimate")
-    work.schema.archive("bug")
-    work.schema.rm("task/due")
+    work.schema.archive(key="task/estimate")
+    work.schema.archive(key="bug")
+    work.schema.rm(key="task/due")
 `, nil)
 	require.NoError(t, err)
 	require.Contains(t, stderr, "still live on the archived type bug")
@@ -834,6 +834,39 @@ func TestSchemaArchiveAndRmFromAScript(t *testing.T) {
 	require.False(t, ok)
 	_, ok = s.Field("task", "due")
 	require.False(t, ok)
+}
+
+// TestSchemaArchiveById: key= and id= are keywords, exactly one of them,
+// and id= reaches the loser of a duplicated key (schema-archive-id.md, A5).
+func TestSchemaArchiveById(t *testing.T) {
+	repo := testRepo(t)
+
+	winner, _, err := repo.Schema().New(config.ShapeType, "task", nil)
+	require.NoError(t, err)
+	loser, _, err := repo.Schema().New(config.ShapeType, "task", nil)
+	require.NoError(t, err)
+
+	for _, call := range []string{
+		`work.schema.archive(key="task", id="` + loser.Id().String() + `")`,
+		`work.schema.archive()`,
+		`work.schema.archive("task")`,
+		`work.schema.rm()`,
+		`work.schema.log(key="task", id="` + loser.Id().String() + `")`,
+	} {
+		_, _, err := run(t, repo, "def refused():\n    \"\"\"Refused.\"\"\"\n    "+call+"\n", nil)
+		require.Error(t, err, call)
+	}
+
+	_, _, err = run(t, repo, `def repair():
+    """Archive the loser of a duplicated key."""
+    work.schema.archive(id="`+loser.Id().Human()+`")
+`, nil)
+	require.NoError(t, err)
+
+	require.Empty(t, repo.Schema().AllDuplicates())
+	current, err := repo.Schema().Current(config.ShapeType, "task")
+	require.NoError(t, err)
+	require.Equal(t, winner.Id(), current.Id())
 }
 
 // TestIssueHistoryKwargs: the history arguments are the flags, one for one —
