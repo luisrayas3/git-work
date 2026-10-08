@@ -72,6 +72,9 @@ const (
 	// ExpandSpec is `expand`: a relation name, or a layer of one carrying
 	// the list's own arguments and an `expand` of its own (expand.go).
 	ExpandSpec ValueKind = "relation or layer"
+	// OpenLevels is `open`: true for every level, false for none, or a whole
+	// number of levels from the roots (doc/design/query-rows.md, R4).
+	OpenLevels ValueKind = "bool or levels"
 	// Document is `new`'s `doc`: the document `git work issue new` takes,
 	// {"fields":{…},"body":"…","aliases":{…}}, with what is already decided
 	// filled in (doc/design/create.md, C1).
@@ -120,6 +123,7 @@ var Kinds = map[string][]Arg{
 		{Name: "group_by", Tier: Optional, Kind: FieldKey,
 			Doc: "the field whose value starts a new section; the rows with no value at all are the last section, (none)"},
 		{Name: "expand", Tier: Optional, Kind: ExpandSpec, Doc: expandDoc},
+		openArg,
 		rankArg,
 	},
 	KindBoard: {
@@ -158,6 +162,7 @@ var Kinds = map[string][]Arg{
 		{Name: "group_by", Tier: Optional, Kind: FieldKey,
 			Doc: "the field whose value starts a new row group; the rows with no value at all are the last group, (none)"},
 		{Name: "expand", Tier: Optional, Kind: ExpandSpec, Doc: expandDoc},
+		openArg,
 		rankArg,
 	},
 	// matrix is the two-axis summary: rows of one field by columns of
@@ -223,6 +228,14 @@ const expandDoc = `the relation nested under a row: "children", or a layer ` +
 	`the call or the layer above unless it names its own), the keys it leaves out ` +
 	`are the layer above's, and its expand is ` +
 	`the level below: a layer, or a number of further levels this same layer draws, 0 for every one`
+
+// openArg is how unfolded a nested view is drawn (doc/design/query-rows.md,
+// R4): a call argument and not a layer key, because it is how the view
+// opens, which is the call's, and the folds after that are the person's.
+var openArg = Arg{
+	Name: "open", Tier: Optional, Kind: OpenLevels,
+	Doc: "how unfolded a nested view opens: true every parent, a number that many levels from the roots, false or absent folded",
+}
 
 // rankArg is the manual order every kind that draws a row of issues takes.
 //

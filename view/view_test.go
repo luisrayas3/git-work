@@ -322,6 +322,36 @@ func TestParseBoardColumnWidth(t *testing.T) {
 	require.Contains(t, Help(KindBoard), "at least 10")
 }
 
+// TestParseOpen: the list and the gantt take `open`, true for every level, a
+// number for that many from the roots, false or absent for none
+// (doc/design/query-rows.md, R4); the kinds that do not nest do not.
+func TestParseOpen(t *testing.T) {
+	for _, kind := range []string{KindList, KindGantt} {
+		base := `"start":"due","stop":"due",`
+		if kind == KindList {
+			base = ""
+		}
+		for text, levels := range map[string]int{`true`: -1, `false`: 0, `2`: 2, `0`: 0} {
+			call, err := Parse(kind, kwargs(t, `{`+base+`"open":`+text+`}`))
+			require.NoError(t, err, text)
+			require.Equal(t, levels, call.OpenLevels(), text)
+		}
+		call, err := Parse(kind, kwargs(t, `{`+base[:max(len(base)-1, 0)]+`}`))
+		require.NoError(t, err)
+		require.Equal(t, 0, call.OpenLevels())
+
+		_, err = Parse(kind, kwargs(t, `{`+base+`"open":"all"}`))
+		require.ErrorContains(t, err, "open is true, false or a number of levels, not a string")
+		_, err = Parse(kind, kwargs(t, `{`+base+`"open":1.5}`))
+		require.ErrorContains(t, err, "open is 1.5")
+		_, err = Parse(kind, kwargs(t, `{`+base+`"open":-1}`))
+		require.ErrorContains(t, err, "open is -1")
+	}
+
+	_, err := Parse(KindBoard, kwargs(t, `{"columns":"status","open":true}`))
+	require.ErrorContains(t, err, "takes no argument open")
+}
+
 // TestParseIncludeArchive: every kind with a query takes include_archive, a
 // boolean that is false when absent, and so does a layer of `expand`
 // (doc/design/include-archive.md, I2, I5).

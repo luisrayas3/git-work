@@ -387,7 +387,9 @@ Within a table the id column is first and the **fold arrow is the cell after it*
 `▾`/`▸` and, folded, the count of the rows under it (`▸ 3`), the cell as wide as the largest count;
 `→` reaches it, `Space` there folds (on the gantt it is `←` from the first period), `Enter` opens the row,
 and `Z` folds or unfolds every parent (`z` is gone).
-**A nested view opens folded**, so the roots and their counts read as a summary;
+**A nested view opens folded**, so the roots and their counts read as a summary,
+unless the call's `open` says otherwise (2026-10-08): `true` opens every parent, a number that many levels from the roots,
+by key and once, so a refresh keeps the person's folds;
 `Tab` goes into the first child, onto its id, and `S-Tab` up to the parent, onto its fold arrow (2026-10-07),
 a list's `↑`/`↓` stay on the level, a rank moves a row among its siblings with its subtree,
 and a parent with no dates draws its children's envelope on the gantt

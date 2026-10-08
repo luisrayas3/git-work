@@ -152,6 +152,8 @@ in Starlark, the same reason `work.schema.import_` does.
   its `id` stays the issue it acts on, and may be left out beside a key;
   and a top-level `children`, the ids or rows nested under it
   in place of what the layer's relation reads.
+  A nested view opens folded; `"open":true` opens every parent,
+  a number that many levels from the roots.
 - Starlark mirrors this command line one to one,
   because both go through the same code.
   `work` is the only predeclared name:

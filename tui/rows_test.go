@@ -262,3 +262,52 @@ func TestAListedChildIsTheRowsOwn(t *testing.T) {
 	require.Equal(t, "a", nodeOf(t, page, hers).parent)
 	require.Equal(t, 0, nodeOf(t, page, "b").children)
 }
+
+// TestOpenUnfoldsTheTree: `open` is how unfolded a nested view is drawn —
+// true every parent, a number that many levels from the roots — and a
+// refresh keeps the person's folds, not the argument's (R4).
+func TestOpenUnfoldsTheTree(t *testing.T) {
+	repo := testRepo(t)
+	initiative := newTyped(t, repo, "initiative", map[string]any{"title": "Initiative"})
+	epic := newTyped(t, repo, "epic", map[string]any{"title": "Epic", "parent": initiative})
+	newTyped(t, repo, "story", map[string]any{"title": "Story", "parent": epic})
+
+	roots := `map(select(.fields.type == "initiative"))`
+	deep := map[string]any{"relation": "children", "expand": 0}
+
+	page := listCall(t, repo, map[string]any{"query": roots, "expand": deep})
+	require.True(t, nodeOf(t, page, initiative).folded, "absent, the tree opens folded")
+
+	page = listCall(t, repo, map[string]any{"query": roots, "expand": deep, "open": true})
+	require.False(t, nodeOf(t, page, initiative).folded)
+	require.False(t, nodeOf(t, page, epic).folded, "true opens every level")
+	require.Contains(t, plainView(page), "Story")
+
+	page = listCall(t, repo, map[string]any{"query": roots, "expand": deep, "open": 1})
+	require.False(t, nodeOf(t, page, initiative).folded)
+	require.True(t, nodeOf(t, page, epic).folded, "1 opens the roots only")
+
+	// the person folds the epic; a refresh keeps that, and a parent that
+	// appears with it stays folded, the argument being spent
+	page = listCall(t, repo, map[string]any{"query": roots, "expand": deep, "open": true})
+	cursorTo(t, page, epic)
+	page = send(page, "right", "space").(*listPage)
+	require.True(t, nodeOf(t, page, epic).folded)
+	other := newTyped(t, repo, "epic", map[string]any{"title": "Other epic", "parent": initiative})
+	newTyped(t, repo, "story", map[string]any{"title": "Other story", "parent": other})
+	page.Update(refreshMsg{})
+	require.True(t, nodeOf(t, page, epic).folded, "the person's fold is kept")
+	require.True(t, nodeOf(t, page, other).folded, "a new parent opens folded")
+	require.False(t, nodeOf(t, page, initiative).folded)
+
+	// the gantt opens the same way
+	g, err := newGanttPage(repo, call(t, view.KindGantt, map[string]any{
+		"query": roots, "expand": deep, "open": true, "start": "due", "stop": "due",
+	}))
+	require.NoError(t, err)
+	for _, node := range g.nodes {
+		if node.children > 0 {
+			require.False(t, node.folded, node.key)
+		}
+	}
+}

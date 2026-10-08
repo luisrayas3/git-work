@@ -800,6 +800,21 @@ func foldAll(rows []treeRow, open map[string]bool) map[string]bool {
 	return out
 }
 
+// openTo is `open` applied to a tree that has just been built: every parent
+// opened, for levels -1, or every parent less than that many levels from the
+// roots (doc/design/query-rows.md, R4). It sets the fold state the view
+// starts with, by key, once; what the person folds after that is theirs.
+func openTo(rows []treeRow, levels int, open map[string]bool) {
+	if levels == 0 {
+		return
+	}
+	for _, row := range rows {
+		if row.children > 0 && (levels < 0 || row.level < levels) {
+			open[row.key] = true
+		}
+	}
+}
+
 // reveal opens the parents between a row and the roots, and says whether it
 // had to open any.
 //

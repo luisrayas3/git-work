@@ -1271,7 +1271,10 @@ none is — because a tree opened all over has no other way back.
 **A nested view opens folded.** Every parent starts shut, so the first screen
 is the roots and their counts, which is a summary;
 `Space`, `Tab` or `Z` opens what the eye wants.
-Fold state is kept by id across a refresh,
+A call that knows better says `open` (2026-10-08, `query-rows.md`, R4):
+`true` opens every parent, a number that many levels from the roots,
+and the argument is spent on the first tree, so a refresh keeps the person's folds.
+Fold state is kept by key across a refresh,
 and a refresh that would leave the cursor's row hidden opens its ancestors,
 the way the filter keeps a match's ancestors on the screen:
 a cursor is never moved by somebody else's write.
