@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"maps"
-	"os"
 	"slices"
 	"strings"
 	"testing"
@@ -77,11 +76,55 @@ func (s *store) export(t *testing.T) *schema.Document { return schema.Export(s.s
 func starts(t *testing.T) map[string]*schema.Document {
 	preset, err := schema.Preset("jira")
 	require.NoError(t, err)
-	data, err := os.ReadFile("../schema.yaml")
+	return map[string]*schema.Document{"empty": schema.NewDocument(), "preset": preset, "repo": customized(t)}
+}
+
+// customized is the jira preset as a team grows it: a type of its own,
+// `decision`, a local-only field, `area`, on three types, and an `allocation`
+// type relating two of the preset's. Derive has to leave all of it alone.
+func customized(t *testing.T) *schema.Document {
+	t.Helper()
+	doc, err := schema.Preset("jira")
 	require.NoError(t, err)
-	repo, err := schema.ParseDocument(data)
-	require.NoError(t, err)
-	return map[string]*schema.Document{"empty": schema.NewDocument(), "preset": preset, "repo": repo}
+	area := schema.FieldDoc{Kind: "multi-enum", Name: "Area",
+		Description: "The parts of the code base the work touches.",
+		Values:      []schema.ValueDoc{{Id: "core", Name: "Core"}, {Id: "cli", Name: "CLI"}}}
+	task, ok := doc.Types.Get("task")
+	require.True(t, ok)
+	field := func(key string) schema.FieldDoc {
+		f, ok := task.Fields.Get(key)
+		require.True(t, ok, key)
+		return f
+	}
+
+	decision := schema.TypeDoc{Name: "Decision", Description: "A design call and its reasoning."}
+	for _, key := range []string{"status", "priority", "assignee", "labels"} {
+		decision.SetField(key, field(key))
+	}
+	decision.SetField("parent", schema.FieldDoc{Kind: "relation", Name: "Parent",
+		Inverse: "children", TargetTypes: []string{"epic", "story", "task"}})
+	decision.SetField("blocks", field("blocks"))
+	decision.SetField("area", area)
+
+	allocation := schema.TypeDoc{Name: "Allocation",
+		Description: "How much of one person's iteration goes to one piece of work."}
+	allocation.SetField("iteration", schema.FieldDoc{Kind: "relation", Name: "Iteration",
+		Inverse: "allocations", TargetTypes: []string{"iteration"}})
+	allocation.SetField("work", schema.FieldDoc{Kind: "relation", Name: "Work",
+		Inverse: "staffing", TargetTypes: []string{"epic", "story"}})
+	allocation.SetField("assignee", field("assignee"))
+	allocation.SetField("points", schema.FieldDoc{Kind: "number", Name: "Points"})
+
+	for _, key := range []string{"story", "task"} {
+		typeDoc, ok := doc.Types.Get(key)
+		require.True(t, ok)
+		typeDoc.SetField("area", area)
+		doc.SetType(key, typeDoc)
+	}
+	doc.SetType("decision", decision)
+	doc.SetType("allocation", allocation)
+	require.NoError(t, doc.Validate(nil))
+	return doc
 }
 
 // derived imports a starting schema, derives against one site, and imports

@@ -2,7 +2,6 @@ package jira_test
 
 import (
 	"context"
-	"os"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -34,10 +33,14 @@ func TestDeriveThroughImport(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, repo.SetUserIdentity(me))
 
-	data, err := os.ReadFile("../schema.yaml")
+	// the jira preset with one local-only field, which the merge leaves out
+	tracker, err := schema.Preset("jira")
 	require.NoError(t, err)
-	tracker, err := schema.ParseDocument(data)
-	require.NoError(t, err)
+	task, ok := tracker.Types.Get("task")
+	require.True(t, ok)
+	task.SetField("area", schema.FieldDoc{Kind: "multi-enum", Name: "Area",
+		Values: []schema.ValueDoc{{Id: "core", Name: "Core"}}})
+	tracker.SetType("task", task)
 	_, _, err = host.SchemaImport(repo, tracker, false, false)
 	require.NoError(t, err)
 
@@ -57,7 +60,7 @@ func TestDeriveThroughImport(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, changes)
 
-	// D5: the alias-free schema.yaml unmaps nothing, and export | import is zero operations
+	// D5: the alias-free starting schema unmaps nothing, and export | import is zero operations
 	_, _, err = host.SchemaImport(repo, tracker, false, false)
 	require.NoError(t, err)
 	s, err := repo.LoadSchema()

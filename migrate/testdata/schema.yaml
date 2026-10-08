@@ -1,0 +1,74 @@
+# The schema the label mapping writes into: every key migrate.Needs lists,
+# with the values the test's labels name (store-migration.md).
+
+shared:
+  status: &status
+    kind: enum
+    name: Status
+    values:
+      - {id: to-do, name: To Do, category: unstarted}
+      - {id: done,  name: Done,  category: completed}
+
+  priority: &priority
+    kind: ordinal-enum
+    name: Priority
+    values:
+      - {id: high,   name: High}
+      - {id: medium, name: Medium}
+      - {id: low,    name: Low}
+
+  phase: &phase
+    kind: enum
+    name: Phase
+    values:
+      - {id: 4-flows}
+      - {id: 5-surfaces}
+
+  area: &area
+    kind: multi-enum
+    name: Area
+    values:
+      - {id: core, name: Core}
+      - {id: cli,  name: CLI}
+
+  labels: &labels
+    kind: multi-enum
+    name: Labels
+    freeform: true
+
+  parent: &parent
+    kind: relation
+    name: Parent
+    inverse: children
+    target_types: [story]
+
+types:
+  story:
+    name: Story
+    fields:
+      status: *status
+      priority: *priority
+      phase: *phase
+      area: *area
+      parent: *parent
+      labels: *labels
+
+  task:
+    name: Task
+    fields:
+      status: *status
+      priority: *priority
+      phase: *phase
+      area: *area
+      parent: *parent
+      labels: *labels
+
+  decision:
+    name: Decision
+    fields:
+      status: *status
+      priority: *priority
+      phase: *phase
+      area: *area
+      parent: *parent
+      labels: *labels
