@@ -113,9 +113,11 @@ func TestIssueSnapshotAtBeforeCreation(t *testing.T) {
 	require.ErrorContains(t, err, "did not exist at")
 }
 
-// TestIssueListAtArchived: archived is an ordinary field, so the list's
-// default program hides what was archived at the time and shows what was not,
-// with no special case on the replay path.
+// TestIssueListAtArchived: archived is an ordinary field, so the input leaves
+// out what was archived at the time and keeps what was not, with no special
+// case on the replay path; a program with no filter of its own sees no
+// archived issue, and include_archive brings them back
+// (doc/design/include-archive.md, I1, I4).
 func TestIssueListAtArchived(t *testing.T) {
 	repo, author := atTestRepo(t)
 
@@ -128,8 +130,8 @@ func TestIssueListAtArchived(t *testing.T) {
 
 	newIssueAt(t, repo, author, t2, "the late one", nil)
 
-	titles := func(at time.Time) []string {
-		values, err := IssueListAt(repo, "", at)
+	titlesOf := func(program string, at time.Time, includeArchive bool) []string {
+		values, err := IssueListAt(repo, program, at, includeArchive)
 		require.NoError(t, err)
 		items, ok := IssueItems(values)
 		if !ok {
@@ -142,6 +144,7 @@ func TestIssueListAtArchived(t *testing.T) {
 		}
 		return out
 	}
+	titles := func(at time.Time) []string { return titlesOf("", at, false) }
 
 	// At t1 the old issue is open and the late one does not exist yet.
 	require.Equal(t, []string{"the old one"}, titles(t1))
@@ -152,6 +155,43 @@ func TestIssueListAtArchived(t *testing.T) {
 
 	// And now, which is the live path, agrees with the replay at now.
 	require.Equal(t, titles(time.Time{}), titles(time.Now().Add(time.Hour)))
+
+	// `.` is the whole input, and the input has no archived issue in it,
+	// live or replayed.
+	require.Equal(t, []string{"the late one"}, titlesOf(".", time.Time{}, false))
+	require.Equal(t, []string{"the late one"}, titlesOf(".", t2, false))
+
+	// The switch brings them back: every issue that existed then.
+	require.Equal(t, []string{"the old one", "the late one"}, titlesOf(".", time.Time{}, true))
+	require.Equal(t, []string{"the old one", "the late one"}, titlesOf(".", t2, true))
+	require.Equal(t, []string{"the old one"}, titlesOf(".", t1, true))
+}
+
+// TestIssueLogBetweenArchived: the log's PROGRAM form selects from the same
+// input, so an archived issue is out of it unless include_archive brings it
+// back, and an id names its issue archived or not.
+func TestIssueLogBetweenArchived(t *testing.T) {
+	repo, author := atTestRepo(t)
+
+	t0 := time.Date(2026, 9, 1, 9, 0, 0, 0, time.UTC)
+	gone := newIssueAt(t, repo, author, t0, "gone", nil)
+	setAt(t, gone, author, t0.Add(time.Hour), issue.ArchivedKey, issue.MustValue(true))
+	newIssueAt(t, repo, author, t0, "kept", nil)
+
+	issues := func(idOrProgram string, includeArchive bool) map[string]int {
+		entries, err := IssueLogBetween(repo, idOrProgram, time.Time{}, time.Time{}, includeArchive)
+		require.NoError(t, err)
+		out := map[string]int{}
+		for _, entry := range entries {
+			out[entry.Issue]++
+		}
+		return out
+	}
+
+	require.NotContains(t, issues(".", false), gone.Id().String())
+	require.Len(t, issues(".", false), 1)
+	require.Equal(t, 2, issues(".", true)[gone.Id().String()])
+	require.Equal(t, 2, issues(gone.Id().String(), false)[gone.Id().String()])
 }
 
 // TestIssueListAtExcerptShape: the replayed excerpt is the same shape the live
@@ -162,7 +202,7 @@ func TestIssueListAtExcerptShape(t *testing.T) {
 	t0 := time.Date(2026, 9, 1, 9, 0, 0, 0, time.UTC)
 	newIssueAt(t, repo, author, t0, "a title", map[string]issue.Value{"status": str("open")})
 
-	values, err := IssueListAt(repo, ".", t0)
+	values, err := IssueListAt(repo, ".", t0, false)
 	require.NoError(t, err)
 	items, ok := IssueItems(values)
 	require.True(t, ok)
@@ -199,7 +239,7 @@ func TestIssueLogBetween(t *testing.T) {
 	b := newIssueAt(t, repo, author, t1, "b", nil)
 
 	// One issue, the whole history.
-	entries, err := IssueLogBetween(repo, a.Id().String(), time.Time{}, time.Time{})
+	entries, err := IssueLogBetween(repo, a.Id().String(), time.Time{}, time.Time{}, false)
 	require.NoError(t, err)
 	require.Len(t, entries, 3)
 	for _, entry := range entries {
@@ -207,14 +247,14 @@ func TestIssueLogBetween(t *testing.T) {
 	}
 
 	// Half-open: t1 is in, t2 is out.
-	entries, err = IssueLogBetween(repo, a.Id().String(), t1, t2)
+	entries, err = IssueLogBetween(repo, a.Id().String(), t1, t2, false)
 	require.NoError(t, err)
 	require.Len(t, entries, 1)
 	require.EqualValues(t, t1.Unix(), entries[0].UnixTime)
 	require.True(t, entries[0].Time.Equal(t1), "the same moment, written out")
 
 	// A program selects many issues, and the entries come back by time.
-	entries, err = IssueLogBetween(repo, "map(select(.fields.title != null))", t1, t2)
+	entries, err = IssueLogBetween(repo, "map(select(.fields.title != null))", t1, t2, false)
 	require.NoError(t, err)
 	require.Len(t, entries, 2)
 	require.EqualValues(t, t1.Unix(), entries[0].UnixTime)
@@ -228,7 +268,7 @@ func TestIssueLogBetween(t *testing.T) {
 	require.True(t, seen[b.Id().String()])
 
 	// No argument is the default selection, every unarchived issue.
-	entries, err = IssueLogBetween(repo, "", time.Time{}, time.Time{})
+	entries, err = IssueLogBetween(repo, "", time.Time{}, time.Time{}, false)
 	require.NoError(t, err)
 	require.Len(t, entries, 4)
 }
@@ -239,15 +279,15 @@ func TestIssueLogSelectionErrors(t *testing.T) {
 	repo, author := atTestRepo(t)
 	newIssueAt(t, repo, author, time.Now(), "a", nil)
 
-	_, err := IssueLogBetween(repo, "deadbeef", time.Time{}, time.Time{})
+	_, err := IssueLogBetween(repo, "deadbeef", time.Time{}, time.Time{}, false)
 	require.ErrorContains(t, err, "neither an issue")
 	require.ErrorContains(t, err, "nor a jq program")
 
-	_, err = IssueLogBetween(repo, "map(.fields.title)", time.Time{}, time.Time{})
+	_, err = IssueLogBetween(repo, "map(.fields.title)", time.Time{}, time.Time{}, false)
 	require.ErrorContains(t, err, "did not return a list of issues")
 
 	// A program that matches nothing is no issues, not a shape problem.
-	entries, err := IssueLogBetween(repo, `map(select(.fields.title == "nothing"))`, time.Time{}, time.Time{})
+	entries, err := IssueLogBetween(repo, `map(select(.fields.title == "nothing"))`, time.Time{}, time.Time{}, false)
 	require.NoError(t, err)
 	require.Empty(t, entries)
 }

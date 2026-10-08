@@ -13,8 +13,9 @@ import (
 )
 
 type issueLogOptions struct {
-	from, to string
-	format   string
+	from, to       string
+	includeArchive bool
+	format         string
 }
 
 func newIssueLogCommand(env *execenv.Env) *cobra.Command {
@@ -27,9 +28,11 @@ func newIssueLogCommand(env *execenv.Env) *cobra.Command {
 names the issue it belongs to. This is what a status report is generated from.
 
 The argument is one issue — an id prefix or an alias — or a jq program over
-the same array the list runs on, in which case the selected issues' operations
-all come back, ordered by time. With no argument the selection is the list's
-default: every unarchived issue.
+the same array the list runs on, the unarchived issues, in which case the
+selected issues' operations all come back, ordered by time. With no argument
+the selection is the list's default: every unarchived issue.
+--include-archive brings the archived back into the program's input; an id
+names its issue archived or not, with or without it.
 
 An id is tried first, because no id prefix is a valid jq program; what does not
 resolve is compiled as one, and if that fails too the error names both.
@@ -56,6 +59,7 @@ git work issue log --from 7d --format text
 	flags.SortFlags = false
 	flags.StringVar(&options.from, "from", "", "only operations at or after TIME")
 	flags.StringVar(&options.to, "to", "", "only operations before TIME")
+	flags.BoolVar(&options.includeArchive, "include-archive", false, "include the archived issues in the program's input")
 
 	execenv.AddFormatFlag(cmd, &options.format, "json", "text")
 
@@ -77,7 +81,7 @@ func runIssueLog(env *execenv.Env, opts issueLogOptions, args []string) error {
 		idOrProgram = args[0]
 	}
 
-	entries, err := host.IssueLogBetween(env.Backend, idOrProgram, from, to)
+	entries, err := host.IssueLogBetween(env.Backend, idOrProgram, from, to, opts.includeArchive)
 	if err != nil {
 		return err
 	}

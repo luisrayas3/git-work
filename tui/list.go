@@ -28,6 +28,8 @@ type listPage struct {
 	// unpacked once for everything else
 	call  *view.Call
 	query string
+	// includeArchive brings the archived back into the input query runs over.
+	includeArchive bool
 	// nest is `expand` resolved: the layer per level, level 0 being the
 	// call's own fields, details, group_by and rank.
 	nest    *nesting
@@ -94,15 +96,16 @@ func (p *listPage) Call() (*view.Call, string, string) {
 
 func newListPage(repo *cache.RepoCache, call *view.Call) (*listPage, error) {
 	p := &listPage{
-		repo:    repo,
-		call:    call,
-		query:   call.String("query"),
-		groupBy: call.String("group_by"),
-		rankKey: call.String("rank"),
-		open:    map[string]bool{},
-		width:   80,
-		height:  24,
-		grabbed: -1,
+		repo:           repo,
+		call:           call,
+		includeArchive: call.Bool("include_archive"),
+		query:          call.String("query"),
+		groupBy:        call.String("group_by"),
+		rankKey:        call.String("rank"),
+		open:           map[string]bool{},
+		width:          80,
+		height:         24,
+		grabbed:        -1,
 	}
 
 	root := nestLayer{
@@ -176,7 +179,7 @@ func (p *listPage) lastCol() int {
 // whole of what the page knows, so there is nothing to reconcile: it is read
 // again, and the cursor is put back by id.
 func (p *listPage) load() error {
-	values, err := host.IssueList(p.repo, p.query)
+	values, err := host.IssueList(p.repo, p.query, p.includeArchive)
 	if err != nil {
 		return err
 	}

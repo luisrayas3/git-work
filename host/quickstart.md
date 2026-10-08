@@ -78,11 +78,14 @@ a relation naming the types it may point at.
 
 The listing is a jq program.
 `git work issue 'PROGRAM'` runs PROGRAM
-over the array of every issue as an excerpt
+over the array of every unarchived issue as an excerpt
 (`id`, `human_id`, `create_time`, `edit_time`, `fields`, `author`,
 `actors`, `participants`, `comments` (a count) and `metadata`)
 and prints what it emits.
-With no program the default is every unarchived issue, last edited first.
+With no program the default is all of them, last edited first.
+`--include-archive` puts the archived issues back in the input;
+a view takes it as `"include_archive": true`,
+and `work.issue.list` and `work.issue.log` as `include_archive=True`.
 
 ## What changed since
 

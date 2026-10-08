@@ -32,12 +32,14 @@ import (
 type matrixPage struct {
 	repo *cache.RepoCache
 
-	call       *view.Call
-	query      string
-	rowsKey    string
-	columnsKey string
-	valueKey   string
-	groupBy    string
+	call  *view.Call
+	query string
+	// includeArchive brings the archived back into the input query runs over.
+	includeArchive bool
+	rowsKey        string
+	columnsKey     string
+	valueKey       string
+	groupBy        string
 
 	// the two axes, resolved on every load: their values in drawing order.
 	rowAxis axis
@@ -156,15 +158,16 @@ func (p *matrixPage) Call() (*view.Call, string, string) {
 
 func newMatrixPage(repo *cache.RepoCache, call *view.Call) (*matrixPage, error) {
 	p := &matrixPage{
-		repo:       repo,
-		call:       call,
-		query:      call.String("query"),
-		rowsKey:    call.String("rows"),
-		columnsKey: call.String("columns"),
-		valueKey:   call.String("value"),
-		groupBy:    call.String("group_by"),
-		width:      80,
-		height:     24,
+		repo:           repo,
+		call:           call,
+		includeArchive: call.Bool("include_archive"),
+		query:          call.String("query"),
+		rowsKey:        call.String("rows"),
+		columnsKey:     call.String("columns"),
+		valueKey:       call.String("value"),
+		groupBy:        call.String("group_by"),
+		width:          80,
+		height:         24,
 	}
 	p.rowAxis = axis{key: p.rowsKey}
 	p.colAxis = axis{key: p.columnsKey}
@@ -180,7 +183,7 @@ func newMatrixPage(repo *cache.RepoCache, call *view.Call) (*matrixPage, error) 
 func (p *matrixPage) load() error {
 	wasRow, wasCol := p.cursorKeys()
 
-	values, err := host.IssueList(p.repo, p.query)
+	values, err := host.IssueList(p.repo, p.query, p.includeArchive)
 	if err != nil {
 		return err
 	}
@@ -800,6 +803,10 @@ func (p *matrixPage) cellCall() (*view.Call, error) {
 	kwargs := map[string]json.RawMessage{
 		"query":  mustJSON(query),
 		"fields": mustJSON(fields),
+	}
+	// the same input, or the list would not be the issues the cell summed
+	if p.includeArchive {
+		kwargs["include_archive"] = mustJSON(true)
 	}
 	return view.Parse(view.KindList, kwargs)
 }

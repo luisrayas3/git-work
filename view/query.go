@@ -3,10 +3,13 @@ package view
 import "encoding/json"
 
 // DefaultQuery is the listing you get when you name no program:
-// everything that is not archived, most recently edited first.
+// the whole input, most recently edited first.
 //
-// It is written as a jq program rather than special-cased in Go
-// so that `.` means the whole array and nothing is hidden from it.
+// The input is already the unarchived issues, unless the caller asked for
+// the archived back with `include_archive` (doc/design/include-archive.md):
+// a filter every author must remember is worse than a default every author
+// can lift, so the select this constant used to open with lives in
+// host.IssueListInput, and the program is the order alone.
 // "mine" would be the friendlier default and can never be this one:
 // there are no field roles on the schema (d56e6f1, f4bac00),
 // so nothing here can tell which field is the assignee.
@@ -17,9 +20,7 @@ import "encoding/json"
 // because two callers apply it and they must apply the same one:
 // `host.IssueList` when a program is empty,
 // and every view kind whose `query` argument was not given.
-const DefaultQuery = `map(select(.fields.archived != true))
-	| sort_by(.edit_time.lamport, .edit_time.timestamp)
-	| reverse`
+const DefaultQuery = `sort_by(.edit_time.lamport, .edit_time.timestamp) | reverse`
 
 // defaultQueryJSON is DefaultQuery as the table's Default holds it, JSON.
 var defaultQueryJSON = func() string {

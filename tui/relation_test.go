@@ -4,6 +4,9 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/git-bug/git-bug/entities/issue"
+	"github.com/git-bug/git-bug/host"
 )
 
 // pickerValues are what a picker's choices write, in order.
@@ -179,4 +182,25 @@ func TestSpaceOnAViewOnlyColumnRings(t *testing.T) {
 	require.NotNil(t, cmd, "the bell")
 	require.Nil(t, updated.(*listPage).editor)
 	require.Contains(t, plainView(updated), "not a field")
+}
+
+// TestThePickerLeavesTheArchivedOut: a relation's picker reads the same input
+// a list does, so an archived issue is not offered, unless it is the value
+// already there (doc/design/include-archive.md, I5).
+func TestThePickerLeavesTheArchivedOut(t *testing.T) {
+	repo := testRepo(t)
+	north := newIssue(t, repo, map[string]any{"type": "story", "title": "north"})
+	south := newIssue(t, repo, map[string]any{"type": "story", "title": "south"})
+	id := newIssue(t, repo, map[string]any{"title": "the task", "parent": north})
+	for _, archived := range []string{north, south} {
+		_, err := host.IssueSet(repo, archived, map[string]issue.Value{"archived": issue.MustValue(true)}, false)
+		require.NoError(t, err)
+	}
+
+	page := show(t, repo, id, []string{"parent"})
+	page = send(page, "shift+tab", "space").(*showPage)
+	require.NotNil(t, page.editor)
+	picker := page.editor.picker
+	require.ElementsMatch(t, []string{north, ""}, pickerValues(picker))
+	require.Equal(t, north, picker.items[picker.cursor].value, "on the current value, archived as it is")
 }

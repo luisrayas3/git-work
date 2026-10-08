@@ -164,6 +164,19 @@ func (c *Call) Int(name string) int {
 	return n
 }
 
+// Bool returns a boolean argument, false when it is absent.
+func (c *Call) Bool(name string) bool {
+	raw, ok := c.Args[name]
+	if !ok {
+		return false
+	}
+	var b bool
+	if err := json.Unmarshal(raw, &b); err != nil {
+		return false
+	}
+	return b
+}
+
 // check validates one value against its row of the table,
 // and returns it compacted, so that equal arguments are equal bytes.
 func (a Arg) check(raw json.RawMessage) (json.RawMessage, error) {
@@ -210,6 +223,12 @@ func (a Arg) check(raw json.RawMessage) (json.RawMessage, error) {
 	case ExpandSpec:
 		if _, err := parseExpand(raw); err != nil {
 			return nil, err
+		}
+
+	case Bool:
+		var b bool
+		if err := json.Unmarshal(raw, &b); err != nil {
+			return nil, fmt.Errorf("is true or false, not %s", jsonKind(raw))
 		}
 
 	case Int:

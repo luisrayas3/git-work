@@ -56,6 +56,8 @@ const (
 	StringList ValueKind = "strings"
 	// Int is a whole number.
 	Int ValueKind = "int"
+	// Bool is true or false.
+	Bool ValueKind = "bool"
 	// Enum is one of the argument's Allowed values.
 	Enum ValueKind = "enum"
 	// Id is an issue id: a prefix or an alias, as everywhere else.
@@ -105,6 +107,7 @@ type Arg struct {
 var Kinds = map[string][]Arg{
 	KindList: {
 		queryArg,
+		includeArchiveArg,
 		{Name: "fields", Tier: Defaulted, Kind: FieldKeys, Default: `["type","title"]`,
 			Doc: "the fields shown as columns, in order"},
 		{Name: "details", Tier: Optional, Kind: FieldKeys,
@@ -116,6 +119,7 @@ var Kinds = map[string][]Arg{
 	},
 	KindBoard: {
 		queryArg,
+		includeArchiveArg,
 		{Name: "columns", Tier: Required, Kind: FieldKey,
 			Doc: "the field whose values are the columns"},
 		{Name: "values", Tier: Defaulted, Kind: StringList,
@@ -130,6 +134,7 @@ var Kinds = map[string][]Arg{
 	},
 	KindGantt: {
 		queryArg,
+		includeArchiveArg,
 		{Name: "start", Tier: Required, Kind: FieldKey,
 			Doc: "the date field a bar starts at"},
 		{Name: "stop", Tier: Required, Kind: FieldKey,
@@ -155,6 +160,7 @@ var Kinds = map[string][]Arg{
 	// issue set, so allocations and story points are the same call.
 	KindMatrix: {
 		queryArg,
+		includeArchiveArg,
 		{Name: "rows", Tier: Required, Kind: FieldKey,
 			Doc: "the field whose values are the rows"},
 		{Name: "columns", Tier: Required, Kind: FieldKey,
@@ -193,9 +199,10 @@ const minColumnWidth = 10
 // a layer's query is over that row's own children and not over the store,
 // and a layer carries the level below it.
 const expandDoc = `the relation nested under a row: "children", or a layer ` +
-	`{"relation":…,"query":…,"fields":…,"details":…,"group_by":…,"rank":…,"expand":…}; ` +
+	`{"relation":…,"query":…,"include_archive":…,"fields":…,"details":…,"group_by":…,"rank":…,"expand":…}; ` +
 	`a relation is a stored one (parent) or the inverse name of one (children), a layer's query runs over ` +
-	`that row's own unarchived children, the keys it leaves out are the layer above's, and its expand is ` +
+	`that row's own unarchived children (the archived too with include_archive), the keys it leaves out ` +
+	`are the layer above's, and its expand is ` +
 	`the level below: a layer, or a number of further levels this same layer draws, 0 for every one`
 
 // rankArg is the manual order every kind that draws a row of issues takes.
@@ -212,7 +219,19 @@ var rankArg = Arg{
 // so that `query` means one thing across the whole table.
 var queryArg = Arg{
 	Name: "query", Tier: Defaulted, Kind: Query, Default: defaultQueryJSON,
-	Doc: "the jq program the issues come from; the default is every unarchived issue, last edited first",
+	Doc: "the jq program the issues come from, over every unarchived issue; the default is all of them, last edited first",
+}
+
+// includeArchiveArg brings the archived back into the input `query` runs
+// over, the archived being left out of it otherwise
+// (doc/design/include-archive.md).
+//
+// Its default, false, is the absence of the argument rather than a value the
+// table applies, so that a call that does not name it neither says it on the
+// call line nor carries it into the copied command.
+var includeArchiveArg = Arg{
+	Name: "include_archive", Tier: Defaulted, Kind: Bool,
+	Doc: "include the archived issues in the input the query runs over; false by default",
 }
 
 // KindNames lists the view kinds, in a stable order.

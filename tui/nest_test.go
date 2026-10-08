@@ -443,3 +443,36 @@ func TestExpandIsCheckedAgainstTheSchema(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, view.CheckSchema(call, s))
 }
+
+// TestArchivedAreOutOfTheInputUnlessAsked: a view's query and a layer's run
+// over the unarchived issues, and include_archive brings the archived back,
+// on the call and on a layer alike (doc/design/include-archive.md, I1, I5).
+func TestArchivedAreOutOfTheInputUnlessAsked(t *testing.T) {
+	repo := testRepo(t)
+	story := newTyped(t, repo, "story", map[string]any{"title": "the story"})
+	live := newTyped(t, repo, "task", map[string]any{"title": "live", "parent": story})
+	gone := newTyped(t, repo, "task", map[string]any{"title": "gone", "parent": story})
+	_, err := host.IssueSet(repo, gone, map[string]issue.Value{"archived": issue.MustValue(true)}, false)
+	require.NoError(t, err)
+
+	// `.` is the whole input, and the input has no archived issue
+	page := list(t, repo, `{"query":"."}`)
+	require.NotEqual(t, "", rowOf(page, live))
+	require.Equal(t, "", rowOf(page, gone))
+
+	page = list(t, repo, `{"query":".","include_archive":true}`)
+	require.NotEqual(t, "", rowOf(page, gone))
+
+	// a layer's children are the unarchived, unless the layer says otherwise
+	roots := `"query":"map(select(.fields.type == \"story\"))"`
+	page = list(t, repo, `{`+roots+`,"expand":"children"}`)
+	require.Contains(t, rowOf(page, story), "▸ 1")
+
+	page = list(t, repo, `{`+roots+`,"include_archive":true,"expand":"children"}`)
+	require.Contains(t, rowOf(page, story), "▸ 1", "the call's switch is the roots', not the layer's")
+
+	page = list(t, repo, `{`+roots+`,"expand":{"relation":"children","include_archive":true}}`)
+	require.Contains(t, rowOf(page, story), "▸ 2")
+	send(page, "right", "space")
+	require.NotEqual(t, "", rowOf(page, gone))
+}

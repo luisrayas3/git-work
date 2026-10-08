@@ -134,15 +134,17 @@ A tier is what a call must say, not how far the renderer has got;
 `optional` says it, and the footnote now says what it means.
 
 `query` is on every kind but `show`:
-a jq program, defaulting to the list's default program
-(unarchived, last edited first).
+a jq program over the unarchived issues, defaulting to the list's default program
+(all of them, last edited first);
+`include_archive`, false by default, is on every kind that takes `query`
+and puts the archived back in its input (`df6ff51`, `include-archive.md`).
 
 | Kind | Required | Defaulted | Optional |
 | --- | --- | --- | --- |
-| `list` | — | `fields` (`["type","title"]`), `rank` (`rank`) | `details`, `group_by`, `expand` |
-| `board` | `columns` | `values` (the field's schema order), `card` (`["title"]`), `rank` (`rank`) | `group_by` |
-| `gantt` | `start`, `stop` | `label` (title), `scale` (`week`), `from`, `to` (the data's extent), `rank` (`rank`) | `progress`, `group_by`, `expand` |
-| `matrix` | `rows`, `columns` | `row_values`, `column_values` (each axis's own order) | `value`, `group_by` |
+| `list` | — | `fields` (`["type","title"]`), `rank` (`rank`), `include_archive` (false) | `details`, `group_by`, `expand` |
+| `board` | `columns` | `values` (the field's schema order), `card` (`["title"]`), `rank` (`rank`), `include_archive` (false) | `group_by` |
+| `gantt` | `start`, `stop` | `label` (title), `scale` (`week`), `from`, `to` (the data's extent), `rank` (`rank`), `include_archive` (false) | `progress`, `group_by`, `expand` |
+| `matrix` | `rows`, `columns` | `row_values`, `column_values` (each axis's own order), `include_archive` (false) | `value`, `group_by` |
 | `show` | `id` | `fields` (the type's fields, schema order) | `children` |
 
 `fields` on a list is an ordered list of field keys,
@@ -1153,9 +1155,11 @@ A number belongs on the layer it repeats, where it says how far *that* layer goe
 never at the top, where there is nothing to repeat.
 
 **The query selects the roots; a layer's query selects that row's children.**
-The root `query` runs over the array of every issue, as it always has.
+The root `query` runs over the array of every unarchived issue, as every program does.
 A layer's runs over the array of *that row's own candidate children* —
-every unarchived issue the relation reaches from it —
+every unarchived issue the relation reaches from it,
+the archived too when the layer says `"include_archive": true`
+(its own, not the call's nor the layer above's: `include-archive.md`, I5) —
 so it is written exactly like a view's query and reads as one:
 `map(select(…))` over a smaller array.
 Without one, every unarchived child shows,

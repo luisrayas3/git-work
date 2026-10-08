@@ -56,7 +56,7 @@ func (p *showPage) childRows() []tableRow {
 	if len(p.children) == 0 {
 		return nil
 	}
-	all, order := allIssues(p.repo)
+	all, order := allIssues(p.repo, false)
 	known := newKinds(p.repo)
 
 	var out []tableRow

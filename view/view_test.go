@@ -315,3 +315,39 @@ func TestParseBoardColumnWidth(t *testing.T) {
 	// the help says the floor, from the same row of the table
 	require.Contains(t, Help(KindBoard), "at least 10")
 }
+
+// TestParseIncludeArchive: every kind with a query takes include_archive, a
+// boolean that is false when absent, and so does a layer of `expand`
+// (doc/design/include-archive.md, I2, I5).
+func TestParseIncludeArchive(t *testing.T) {
+	for _, kind := range []string{KindList, KindBoard, KindGantt, KindMatrix} {
+		args := map[string]Arg{}
+		for _, arg := range Kinds[kind] {
+			args[arg.Name] = arg
+		}
+		require.Equal(t, Bool, args["include_archive"].Kind, kind)
+	}
+
+	call, err := Parse(KindList, kwargs(t, `{}`))
+	require.NoError(t, err)
+	require.False(t, call.Bool("include_archive"))
+	require.False(t, call.Has("include_archive"), "the default is the absence of the argument")
+
+	call, err = Parse(KindList, kwargs(t, `{"include_archive":true}`))
+	require.NoError(t, err)
+	require.True(t, call.Bool("include_archive"))
+
+	_, err = Parse(KindList, kwargs(t, `{"include_archive":"yes"}`))
+	require.ErrorContains(t, err, "include_archive is true or false")
+
+	_, err = Parse(KindShow, kwargs(t, `{"id":"abc","include_archive":true}`))
+	require.ErrorContains(t, err, "takes no argument include_archive")
+
+	call, err = Parse(KindList, kwargs(t, `{"expand":{"relation":"children","include_archive":true,"expand":{"relation":"children"}}}`))
+	require.NoError(t, err)
+	require.True(t, call.Expand().IncludeArchive)
+	require.False(t, call.Expand().Expand.IncludeArchive, "a layer's default, not the layer above's")
+
+	_, err = Parse(KindList, kwargs(t, `{"expand":{"relation":"children","include_archive":1}}`))
+	require.ErrorContains(t, err, "include_archive is true or false")
+}

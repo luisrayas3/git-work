@@ -149,7 +149,7 @@ func TestTheFirstLineIsTheCall(t *testing.T) {
 
 	// the fields are the columns, so they are not said twice, and the query
 	// needs no name: it is last and always there
-	require.True(t, strings.HasPrefix(first, "list  group_by=status  map(select(.fields.archived != true))"), first)
+	require.True(t, strings.HasPrefix(first, "list  group_by=status  sort_by(.edit_time.lamport, .edit_time.timestamp) | reverse"), first)
 	require.NotContains(t, first, "fields=")
 	require.NotContains(t, first, "query=")
 	require.NotContains(t, plainView(page), "? keys · 1 issue · map", "the query left the status line")
@@ -177,9 +177,8 @@ func TestBackFromTheFirstViewLandsOnTheCall(t *testing.T) {
 		// the call line stays the call line, and the query unfolds under it
 		// as the pipeline it is, one line per top-level pipe
 		require.Equal(t, "› list  group_by=status", strings.TrimSpace(lines[0]))
-		require.Equal(t, "  map(select(.fields.archived != true))", strings.TrimRight(lines[1], " "))
-		require.Equal(t, "  | sort_by(.edit_time.lamport, .edit_time.timestamp)", strings.TrimRight(lines[2], " "))
-		require.Equal(t, "  | reverse", strings.TrimRight(lines[3], " "))
+		require.Equal(t, "  sort_by(.edit_time.lamport, .edit_time.timestamp)", strings.TrimRight(lines[1], " "))
+		require.Equal(t, "  | reverse", strings.TrimRight(lines[2], " "))
 		require.Contains(t, drawn, "esc: quit")
 
 		// narrow, a long segment wraps and the page still keeps its height

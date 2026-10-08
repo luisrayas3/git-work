@@ -9,6 +9,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/git-bug/git-bug/cache"
+	"github.com/git-bug/git-bug/entities/issue"
+	"github.com/git-bug/git-bug/host"
 	"github.com/git-bug/git-bug/view"
 )
 
@@ -442,4 +444,27 @@ func TestMatrixIsOnTheCallLine(t *testing.T) {
 	require.Contains(t, first, "rows=parent")
 	require.Contains(t, first, "columns=iteration")
 	require.Contains(t, first, "value=estimate")
+}
+
+// TestMatrixCountsTheArchivedOnlyWhenAsked: the matrix sums its query's
+// input, the unarchived, and include_archive puts the archived back, in the
+// sum and in the list a cell opens (doc/design/include-archive.md).
+func TestMatrixCountsTheArchivedOnlyWhenAsked(t *testing.T) {
+	repo := testRepo(t)
+	alpha, _, first, _ := twoByTwo(t, repo)
+	gone := newIssue(t, repo, map[string]any{"title": "gone", "parent": alpha, "iteration": first, "estimate": 7})
+	_, err := host.IssueSet(repo, gone, map[string]issue.Value{"archived": issue.MustValue(true)}, false)
+	require.NoError(t, err)
+
+	page := matrix(t, repo, `{"rows":"parent","columns":"iteration","value":"estimate","query":"`+tasksOnly+`"}`)
+	put(t, page, "alpha", "sprint 1")
+	_, cmd := page.Update(press("enter"))
+	require.Len(t, cmd().(pushMsg).page.(*listPage).order, 2)
+
+	page = matrix(t, repo, `{"rows":"parent","columns":"iteration","value":"estimate","include_archive":true,"query":"`+tasksOnly+`"}`)
+	put(t, page, "alpha", "sprint 1")
+	_, cmd = page.Update(press("enter"))
+	pushed := cmd().(pushMsg).page.(*listPage)
+	require.Len(t, pushed.order, 3, "the drill-down reads the same input the cell summed")
+	require.Contains(t, plainView(pushed), "gone")
 }
