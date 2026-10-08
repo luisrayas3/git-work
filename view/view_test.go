@@ -137,26 +137,41 @@ func TestNullMeansTheDefault(t *testing.T) {
 	require.ErrorContains(t, err, "columns")
 }
 
-// TestParseChildrenShape: show's children are checked for shape by the
-// table, which needs no store; the names are CheckSchema's.
-func TestParseChildrenShape(t *testing.T) {
-	call, err := Parse(KindShow, kwargs(t, `{"id":"abc","children":[{"type":"task","relation":"parent","fields":["status"]},{"relation":"children"}]}`))
+// TestParseSideTables: show's expand is the list's spec, or a list of it, a
+// table per element, checked for shape by the table, which needs no store;
+// what a flat table cannot draw is refused by name, and `children` is gone
+// (doc/design/show-side-table.md, S1 and S3).
+func TestParseSideTables(t *testing.T) {
+	call, err := Parse(KindShow, kwargs(t, `{"id":"abc","expand":"children"}`))
 	require.NoError(t, err)
-	require.Equal(t, []Child{
-		{Type: "task", Relation: "parent", Fields: []string{"status"}},
-		{Relation: "children"},
-	}, call.ChildList())
+	require.Len(t, call.SideTables(), 1)
+	require.Equal(t, "children", call.SideTables()[0].Relation)
+	require.Nil(t, call.Expand(), "show's expand is no list's spec")
+
+	call, err = Parse(KindShow, kwargs(t, `{"id":"abc","expand":[{"relation":"children","query":"map(.)","fields":["status"],"rank":"rank","include_archive":true},"blocks"]}`))
+	require.NoError(t, err)
+	tables := call.SideTables()
+	require.Len(t, tables, 2)
+	require.Equal(t, []string{"status"}, tables[0].Fields)
+	require.Equal(t, "map(.)", tables[0].Query)
+	require.True(t, *tables[0].IncludeArchive)
+	require.Equal(t, "blocks", tables[1].Relation)
 
 	for doc, says := range map[string]string{
-		`{"id":"abc","children":"parent"}`:                                  "a list of",
-		`{"id":"abc","children":[{"type":"task"}]}`:                         "needs relation",
-		`{"id":"abc","children":[{"relation":""}]}`:                         "empty",
-		`{"id":"abc","children":[{"relation":"parent","as":"x"}]}`:          "no key as",
-		`{"id":"abc","children":[{"relation":"parent","fields":"status"}]}`: "fields is a list",
+		`{"id":"abc","expand":[]}`:                                                     "empty list",
+		`{"id":"abc","expand":{"query":"."}}`:                                          "needs relation",
+		`{"id":"abc","expand":[{"relation":""}]}`:                                      "empty",
+		`{"id":"abc","expand":[{"relation":"children","as":"x"}]}`:                     "no key as",
+		`{"id":"abc","expand":{"relation":"children","fields":"status"}}`:              "fields is a list",
+		`{"id":"abc","expand":{"relation":"children","details":["status"]}}`:           "takes no details",
+		`{"id":"abc","expand":["blocks",{"relation":"children","group_by":"status"}]}`: "table 2 takes no group_by",
+		`{"id":"abc","expand":{"relation":"children","expand":"children"}}`:            "takes no expand",
+		`{"id":"abc","expand":{"relation":"children","expand":0}}`:                     "takes no expand",
+		`{"id":"abc","expand":3}`:                                                      "relation name or an object",
+		`{"id":"abc","children":[{"relation":"children"}]}`:                            "takes no argument children",
 	} {
 		_, err := Parse(KindShow, kwargs(t, doc))
 		require.ErrorContains(t, err, says, doc)
-		require.ErrorContains(t, err, "children", doc)
 	}
 }
 

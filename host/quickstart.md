@@ -149,7 +149,9 @@ in Starlark, the same reason `work.schema.import_` does.
   Most kinds take a `query`, the same jq program the listing takes;
   `group_by` sections the rows by a field, the ones with no value last;
   and `expand` nests the issues one relation reaches under each row,
-  as `"children"` or as a layer that says what that level draws.
+  as `"children"` or as a layer that says what that level draws;
+  on `show` it takes the same, or a list of them,
+  and draws each as a flat table of the issues it reaches beside the fields.
   On a list and a gantt a row the query makes may carry a top-level `key`,
   its identity on the screen, so one issue can be drawn twice;
   its `id` stays the issue it acts on, and may be left out beside a key,

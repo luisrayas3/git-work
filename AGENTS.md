@@ -431,13 +431,18 @@ On the comment box the cursor washes it whole, its keys on the bottom line like 
 and `Esc` leaves the text keeping the draft (`Tab` skips the box whole).
 `Space` on the description tab edits the description — the issue's first comment —
 in that same editor, `Enter` writing it, an emptied one refused (2026-10-02).
-Show's `children` lists the issues pointing at it, a section of table rows per entry,
-each child a link `Enter` follows and `Space` rings on:
-`git work view show '{"id":"<story>","children":[{"type":"task","relation":"parent","fields":["status"]}]}'`,
-where `relation` is the field on the child holding this issue's id, or its inverse name
-(`{"relation":"children"}` alone is every type's `parent`), `type` and `fields` optional;
-names are checked against the schema before anything draws
-(2026-09-29, `doc/design/terminal-renderer.md`, Show, Children).
+Show's `expand` draws a **side table** per element beside the fields, under them in a window too narrow for both
+(2026-10-08, `doc/design/show-side-table.md`; it replaces show's `children`, gone with no alias):
+`git work view show '{"id":"<story>","expand":{"relation":"children","fields":["status"]}}'`.
+It takes what the list's `expand` takes — a relation, stored on the shown issue (`blocks`) or the inverse the schema declares (`children`), or a layer — or a list of them,
+read by the same parser and the same check before anything draws;
+`query`, `include_archive`, `fields` (the columns after id and title) and `rank` are a layer's,
+and `details`, `group_by` and a nested `expand` are refused, a side table being flat.
+The heading is the relation as given; past the taller of the fields and 12 lines the column scrolls by itself, its heading kept on top.
+The side tables are a stop between the fields and the box, reached by `Tab`/`S-Tab` only — `←`/`→` stay the tab keys there too —
+and a row is one issue: `Enter` opens it, `Space` grabs it to rank it within its table, copy copies its id, `/` narrows the rows.
+A table over an inverse ends in a ghost prefilled with the stored field set to this issue's id (and the type where one type holds that field);
+a table over a stored relation of the shown issue has none, since that would be a second commit on this issue.
 `Esc` (or vim's `q`, emacs's `C-g`) is always back;
 from the first view it parks on the call line, the query formatted under it
 (`query/jq.Format`, a pipe per line; `C-c` copies the whole `git work view …` command), and from there it quits;

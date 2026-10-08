@@ -65,13 +65,12 @@ const (
 	Id ValueKind = "id"
 	// Query is a jq program over the array `git work issue` prints.
 	Query ValueKind = "query"
-	// ChildRelations is show's `children`: a list of
-	// {"type","relation","fields"} objects, each naming the relation on a
-	// child that holds the shown issue's id (children.go).
-	ChildRelations ValueKind = "child relations"
 	// ExpandSpec is `expand`: a relation name, or a layer of one carrying
 	// the list's own arguments and an `expand` of its own (expand.go).
 	ExpandSpec ValueKind = "relation or layer"
+	// SideTables is show's `expand`: what the list's takes, or a list of
+	// it, one flat table per element beside the fields (side.go).
+	SideTables ValueKind = "relations or layers"
 	// OpenLevels is `open`: true for every level, false for none, or a whole
 	// number of levels from the roots (doc/design/query-rows.md, R4).
 	OpenLevels ValueKind = "bool or levels"
@@ -191,8 +190,9 @@ var Kinds = map[string][]Arg{
 			Doc: "the issue to show, by id prefix or alias"},
 		{Name: "fields", Tier: Defaulted, Kind: FieldKeys,
 			Doc: "the fields shown, in order; the type's fields in schema order by default"},
-		{Name: "children", Tier: Optional, Kind: ChildRelations,
-			Doc: `the issues pointing at this one, a section each, as [{"type":"task","relation":"parent","fields":["status"]}]; relation may be the inverse name instead, and type and fields may be left out`},
+		// expand is the list's, drawn flat beside the fields: one name for
+		// one object on every kind (doc/design/show-side-table.md, S1)
+		{Name: "expand", Tier: Optional, Kind: SideTables, Doc: sideDoc},
 	},
 	// new is the interactive `issue new`: show's page over an issue that
 	// does not exist yet, nothing written until Create, which commits the
@@ -228,6 +228,15 @@ const expandDoc = `the relation nested under a row: "children", or a layer ` +
 	`the call or the layer above unless it names its own), the keys it leaves out ` +
 	`are the layer above's, and its expand is ` +
 	`the level below: a layer, or a number of further levels this same layer draws, 0 for every one`
+
+// sideDoc is `expand` on show: the list's spec, drawn as a flat table beside
+// the fields rather than nested under a row (doc/design/show-side-table.md).
+const sideDoc = `the issues a relation reaches from this one, a table each beside the fields ` +
+	`(under them in a narrow window): what a list's expand takes, a relation name ("children", "blocks") ` +
+	`or a layer {"relation":…,"query":…,"include_archive":…,"fields":…,"rank":…}, or a list of them, ` +
+	`one table per element; a relation is a stored one or the inverse name the schema gives one, ` +
+	`the query runs over the unarchived issues it reaches, fields are the columns after id and title, ` +
+	`and details, group_by and expand are refused, a side table being flat`
 
 // openArg is how unfolded a nested view is drawn (doc/design/query-rows.md,
 // R4): a call argument and not a layer key, because it is how the view

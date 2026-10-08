@@ -280,18 +280,8 @@ func TestShowHintsNameWhatIsUnderTheCursor(t *testing.T) {
 	toHeader := func(p page) page { return send(p, "shift+tab") }
 	toFields := func(p page) page { return p }
 	toBox := func(p page) page { return send(p, "tab") }
-	// a child's rows come after the fields, so the cursor is put on the
-	// first of them rather than walked there
-	toChildren := func(p page) page {
-		page := toFields(p).(*showPage)
-		for at, row := range page.rows {
-			if row.derived {
-				page.row = at
-				break
-			}
-		}
-		return page
-	}
+	// the side tables are the stop after the fields
+	toSide := func(p page) page { return send(p, "tab") }
 
 	runHints(t, open("status"), []hintCase{
 		{what: "the comment box", at: toBox, line: "space: type · tab: skip · ? keys"},
@@ -324,16 +314,24 @@ func TestShowHintsNameWhatIsUnderTheCursor(t *testing.T) {
 		{what: "an empty relation row", at: toFields, line: "space: change · ? keys"},
 	})
 
-	// a child's row is the other side of a relation: followed, never edited
-	children, err := showCall(t, repo, `{"id":"`+story+`","children":[{"type":"task","relation":"parent"}]}`)
-	require.NoError(t, err)
-	runHints(t, func() page { return children }, []hintCase{
-		{what: "a child's row", at: toChildren, line: "enter: follow · ? keys"},
+	// a side table's row is one issue: opened, or grabbed to move it; its
+	// ghost creates, and a table with neither has nothing to do
+	children := func() page {
+		page, err := showCall(t, repo, `{"id":"`+story+`","expand":"children"}`)
+		require.NoError(t, err)
+		return page
+	}
+	runHints(t, children, []hintCase{
+		{what: "a side table's row", at: toSide, line: "enter: open · space: grab · ? keys"},
+		{what: "its ghost", at: func(p page) page { return send(toSide(p), "down") }, line: "enter: new issue · ? keys"},
+		{what: "a grabbed row", at: func(p page) page { return send(toSide(p), "space") },
+			line: "↑↓: move · space: drop · esc: put back · ? keys"},
+		{what: "the filter", at: func(p page) page { return send(toSide(p), "/") }, line: "enter: keep · esc: clear · ? keys"},
 	})
 
-	none, err := showCall(t, repo, `{"id":"`+id+`","children":[{"type":"task","relation":"parent"}]}`)
+	none, err := showCall(t, repo, `{"id":"`+other+`","expand":"blocks"}`)
 	require.NoError(t, err)
 	runHints(t, func() page { return none }, []hintCase{
-		{what: "an empty section", at: toChildren, line: helpHint},
+		{what: "an empty table with no ghost", at: toSide, line: helpHint},
 	})
 }

@@ -311,10 +311,11 @@ func TestViewReachesTheRendererParsed(t *testing.T) {
 	require.Equal(t, []string{"type", "title"}, call.Strings("fields"))
 }
 
-// TestViewShowTakesChildren: show's children are a list of dicts in
-// Starlark as they are a list of objects on the command line, one to one,
-// and the schema check is host.View's, so a flow is refused as a command is.
-func TestViewShowTakesChildren(t *testing.T) {
+// TestViewShowTakesExpand: show's expand is a list of dicts in Starlark as it
+// is a list of objects on the command line, one to one, and the schema check
+// is host.View's, so a flow is refused as a command is; `children` is gone
+// (doc/design/show-side-table.md, S8).
+func TestViewShowTakesExpand(t *testing.T) {
 	repo := testRepo(t)
 	_, _, err := host.SchemaInit(repo, "jira", false)
 	require.NoError(t, err)
@@ -326,19 +327,29 @@ func TestViewShowTakesChildren(t *testing.T) {
 
 	_, _, err = runWith(t, repo, renderer, `def story(id):
     """A story and its tasks."""
-    return work.view.show(id=id, children=[{"type": "task", "relation": "parent", "fields": ["status"]}])
+    return work.view.show(id=id, expand=[{"relation": "children", "fields": ["status"]}, "blocks"])
 `, map[string]json.RawMessage{"id": json.RawMessage(`"` + story.String() + `"`)})
 	require.NoError(t, err)
 	require.Len(t, renderer.calls, 1)
-	require.Equal(t, []view.Child{{Type: "task", Relation: "parent", Fields: []string{"status"}}},
-		renderer.calls[0].ChildList())
+	tables := renderer.calls[0].SideTables()
+	require.Len(t, tables, 2)
+	require.Equal(t, "children", tables[0].Relation)
+	require.Equal(t, []string{"status"}, tables[0].Fields)
+	require.Equal(t, "blocks", tables[1].Relation)
 
 	_, _, err = runWith(t, repo, renderer, `def story(id):
     """A relation that is not one."""
-    return work.view.show(id=id, children=[{"type": "task", "relation": "status"}])
+    return work.view.show(id=id, expand="nephews")
 `, map[string]json.RawMessage{"id": json.RawMessage(`"` + story.String() + `"`)})
-	require.ErrorContains(t, err, "not a relation")
+	require.ErrorContains(t, err, "view show: expand")
+	require.ErrorContains(t, err, "nephews")
 	require.Len(t, renderer.calls, 1, "refused before the renderer")
+
+	_, _, err = runWith(t, repo, renderer, `def story(id):
+    """The argument that went."""
+    return work.view.show(id=id, children=[{"relation": "children"}])
+`, map[string]json.RawMessage{"id": json.RawMessage(`"` + story.String() + `"`)})
+	require.ErrorContains(t, err, "takes no argument children")
 }
 
 func TestStepCapTrips(t *testing.T) {

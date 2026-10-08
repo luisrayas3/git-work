@@ -192,7 +192,8 @@ func parseLayer(raw json.RawMessage, at int) (*Layer, error) {
 // and reads as absence rather than as a second error nobody can act on.
 func (c *Call) Expand() *Layer {
 	raw, ok := c.Args["expand"]
-	if !ok {
+	if !ok || c.Kind == KindShow {
+		// show's is a table per element, read by SideTables (side.go)
 		return nil
 	}
 	layer, err := parseExpand(raw)
