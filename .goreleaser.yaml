@@ -6,14 +6,6 @@ project_name: git-bug
 
 report_sizes: true
 
-before:
-  hooks:
-    # The webui is compiled into the binary with //go:embed, behind the "webui"
-    # build tag (see //webui:assets.go). webui/dist is not tracked in git, so
-    # the frontend has to be built before the tagged build can succeed.
-    - pnpm --dir webui install --frozen-lockfile
-    - pnpm --dir webui run build
-
 builds:
   - id: git-bug
     main: .
@@ -22,9 +14,6 @@ builds:
       - CGO_ENABLED=0
     flags:
       - -trimpath
-    tags:
-      # without this the binary has no web UI, and `git-bug webui` says so
-      - webui
     ldflags:
       # main.version is read by //:version.go. Everything else shown by
       # `git-bug version` (commit, dirty, go version, os, arch) comes from the

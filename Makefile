@@ -9,25 +9,21 @@ LDFLAGS:=-X main.version="${TAG}"
 
 all: build
 
-.PHONY: build-webui
-build-webui:
-	cd webui && pnpm install && pnpm run build
-
 .PHONY: build
-build: build-webui
+build:
 	go generate
-	go build -tags webui -ldflags "$(LDFLAGS)" .
+	go build -ldflags "$(LDFLAGS)" .
 
 # produce a debugger-friendly build
 .PHONY: build/debug
-build/debug: build-webui
+build/debug:
 	go generate
-	go build -tags webui -ldflags "$(LDFLAGS)" -gcflags=all="-N -l" .
+	go build -ldflags "$(LDFLAGS)" -gcflags=all="-N -l" .
 
 .PHONY: install
-install: build-webui
+install:
 	go generate
-	go install -tags webui -ldflags "$(LDFLAGS)" .
+	go install -ldflags "$(LDFLAGS)" .
 
 .PHONY: secure
 secure:
