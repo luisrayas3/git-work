@@ -40,6 +40,5 @@ git-work [flags]
 * [git-work user](git-work_user.md)	 - List identities, one line each
 * [git-work version](git-work_version.md)	 - Print version information
 * [git-work view](git-work_view.md)	 - Draw the issues
-* [git-work webui](git-work_webui.md)	 - Launch the web UI
 * [git-work wipe](git-work_wipe.md)	 - Wipe git-bug from the git repository
 
