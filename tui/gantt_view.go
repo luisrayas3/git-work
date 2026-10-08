@@ -119,8 +119,20 @@ func (p *ganttPage) labelWidth() int {
 	for _, index := range p.order {
 		longest = max(longest, ansi.StringWidth(p.bars[index].label))
 	}
-	labelWidth := 1 + p.treeRoom() + idWidth + 1 + longest
-	return min(labelWidth, max(p.width*2/5, 1+p.treeRoom()+idWidth+1+4))
+	idw := p.idCol()
+	labelWidth := 1 + p.treeRoom() + idw + 1 + longest
+	return min(labelWidth, max(p.width*2/5, 1+p.treeRoom()+idw+1+4))
+}
+
+// idCol is the id's width in the label column: the widest id a bar draws,
+// at least idWidth, over every bar, hidden or drawn, so folding moves
+// nothing; a key is never cut (alias-ids.md A3).
+func (p *ganttPage) idCol() int {
+	out := idWidth
+	for index := range p.bars {
+		out = max(out, ansi.StringWidth(p.bars[index].human))
+	}
+	return out
 }
 
 // capacity is how many periods the window has room for: the chart less one
@@ -280,6 +292,7 @@ func (p *ganttPage) rowLine(index, labelWidth, visible int, under, grabbed bool,
 	b, node := &p.bars[index], &p.nodes[index]
 	w := periodWidth(p.scale)
 	indent := p.treeRoom()
+	idw := p.idCol()
 
 	wash := lipgloss.NewStyle()
 	if under {
@@ -298,17 +311,17 @@ func (p *ganttPage) rowLine(index, labelWidth, visible int, under, grabbed bool,
 
 	if node.ghost {
 		// the ghost is a place to add, drawn dim, with no bar
-		parts := []string{marker, wash.Faint(true).Render(pad(b.human, idWidth))}
+		parts := []string{marker, wash.Faint(true).Render(pad(b.human, idw))}
 		if indent > 0 {
 			parts = append(parts, wash.Render(" "), wash.Render(pad("", indent)))
 		}
-		room := max(labelWidth-1-indent-idWidth-1, 0)
+		room := max(labelWidth-1-indent-idw-1, 0)
 		parts = append(parts, wash.Faint(true).Render(" "+pad(b.label, room)), wash.Faint(true).Render("│"))
 		return fit(strings.Join(parts, ""), p.width)
 	}
 
 	parts := []string{marker}
-	parts = append(parts, wash.Faint(true).Render(pad(b.human, idWidth)))
+	parts = append(parts, idStyle(p.repo, wash, b.id, b.human).Render(pad(b.human, idw)))
 	if indent > 0 {
 		cell := pad(strings.Repeat(" ", indentWidth*node.level)+treeCell(*node), indent)
 		style := wash
@@ -317,7 +330,7 @@ func (p *ganttPage) rowLine(index, labelWidth, visible int, under, grabbed bool,
 		}
 		parts = append(parts, wash.Render(" "), style.Render(cell))
 	}
-	room := max(labelWidth-1-indent-idWidth-1, 0)
+	room := max(labelWidth-1-indent-idw-1, 0)
 	parts = append(parts, wash.Render(" "+pad(b.label, room)))
 	parts = append(parts, wash.Faint(true).Render("│"))
 

@@ -447,6 +447,11 @@ the wash says which issue, the cell says which field.
 A field of kind `relation` or `multi-relation` holds the other issue's whole id,
 and nobody reads a 64-character hash,
 so it is drawn as the issue it names: short id and title, underlined.
+Wherever an issue's id is drawn — a link, an id column, a card, a picker, a message —
+it is its `human_id`, which is the Jira key when `git-work.display.id` asks for one;
+a key is never cut, an id column is as wide as its widest id,
+a hash that stands in for a missing key is dim, and copy copies what is shown
+(2026-10-08, `alias-ids.md`).
 **`Enter` on it follows it, and `Space` changes it** (revised 2026-10-02, Luis).
 A link is also a value, and a cell that only followed could never be edited;
 with `Space` the edit key, the two are two keys and neither waits on the other.

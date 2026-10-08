@@ -704,9 +704,9 @@ func (p *boardPage) copyId() tea.Cmd {
 	if c == nil || c.ghost {
 		return bell()
 	}
-	// the clipboard gets the whole id, the message the short one (copyId)
+	// what is shown: an alias as drawn, a hash whole (copyOf)
 	p.status = "copied " + c.human
-	return setClipboard(c.id)
+	return setClipboard(copyOf(c.id, c.human))
 }
 
 func (p *boardPage) startFilter() {

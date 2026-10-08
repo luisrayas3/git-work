@@ -39,8 +39,9 @@ func linkIds(value any) []string {
 	return nil
 }
 
-// linkLabel is one linked issue as a person reads it: its short id and its
-// title. An id the store does not have — a link to an issue not pulled yet —
+// linkLabel is one linked issue as a person reads it: the id it is drawn by
+// (humanOf, an alias where git-work.display.id asks for one) and its title.
+// An id the store does not have — a link to an issue not pulled yet —
 // is its short id alone, because the link is still true, just not followable.
 func linkLabel(repo *cache.RepoCache, id string) string {
 	short := id
@@ -51,7 +52,7 @@ func linkLabel(repo *cache.RepoCache, id string) string {
 	if err != nil {
 		return short
 	}
-	return short + " " + excerpt.Title()
+	return humanOf(repo, id) + " " + excerpt.Title()
 }
 
 // linkText is a whole relation value, drawn.

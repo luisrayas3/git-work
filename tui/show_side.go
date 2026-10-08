@@ -208,7 +208,7 @@ func (p *showPage) loadSide() {
 			}
 			fields, _ := item["fields"].(map[string]any)
 			typeKey := host.StringOr(fields[schema.TypeKey], "")
-			cells := []string{human(id), host.StringOr(fields[schema.TitleKey], "")}
+			cells := []string{host.StringOr(item["human_id"], humanOf(p.repo, id)), host.StringOr(fields[schema.TitleKey], "")}
 			for _, key := range table.layer.Fields {
 				value := fields[key]
 				text := known.cellText(typeKey, key, value)
@@ -320,14 +320,14 @@ func cloneDoc(doc host.IssueDocument) host.IssueDocument {
 }
 
 // sideCopy copies the row's id, whichever copy key: a row is one issue, and
-// its id is what a command takes.
+// its id is what a command takes, copied as it is shown (alias-ids.md A7).
 func (p *showPage) sideCopy() tea.Cmd {
 	row := p.sideRowAt(p.sideCurrent())
 	if row == nil {
 		return bell()
 	}
-	p.status = "copied " + human(row.id)
-	return setClipboard(row.id)
+	p.status = "copied " + row.cells[0]
+	return setClipboard(copyOf(row.id, row.cells[0]))
 }
 
 // startSideGrab is space on a row: it is picked up to move within its table.
@@ -486,11 +486,10 @@ func sideWidths(table *sideTable) []int {
 	}
 	for _, row := range table.rows {
 		for c, cell := range row.cells {
-			if c == 0 {
-				continue
-			}
 			limit := sideFieldMax
-			if c == 1 {
+			// neither the title nor the id is capped: a cut key is another
+			// issue's (alias-ids.md A3)
+			if c <= 1 {
 				limit = 1 << 20
 			}
 			widths[c] = max(widths[c], min(ansi.StringWidth(cell), limit))
@@ -567,13 +566,21 @@ func (p *showPage) sideLines(width int, here position) []sideLine {
 			item := itemAt[[2]int{t, at}]
 			text := join(row.cells)
 			marker, style := " ", styleDim.Faint(false)
+			drawn := ""
 			switch {
 			case p.grab != nil && p.grab.id == row.id && p.grab.table == t:
 				marker, style = "≡", styleGrab
 			case on && item == p.side:
 				marker, style = "›", styleCell
+			case len(row.cells) > 0 && p.repo.DisplayNamespace() != "" && !isAlias(row.id, row.cells[0]):
+				// a hash an issue fell back to is dim (alias-ids.md A3)
+				id := pad(row.cells[0], widths[0])
+				drawn = styleDim.Render(id) + style.Render(strings.TrimPrefix(text, id))
 			}
-			out = append(out, sideLine{text: fit(marker+style.Render(text), width), item: item, table: t})
+			if drawn == "" {
+				drawn = style.Render(text)
+			}
+			out = append(out, sideLine{text: fit(marker+drawn, width), item: item, table: t})
 		}
 		if len(rows) == 0 {
 			item, stop := noneAt[t]

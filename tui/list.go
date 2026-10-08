@@ -764,8 +764,12 @@ func (p *listPage) copyCell() tea.Cmd {
 	if fieldKey == "" {
 		return p.copyId()
 	}
-	// a link copies the ids it holds, which is what another command takes
+	// a link copies the ids it holds, which is what another command takes,
+	// each as it is drawn (alias-ids.md A7)
 	value := plainValue(row.fields[fieldKey])
+	if ids := row.links[fieldKey]; len(ids) > 0 {
+		value = linkCopy(p.repo, ids)
+	}
 	if value == "" {
 		p.status = fieldKey + " empty"
 		return bell()
@@ -774,17 +778,15 @@ func (p *listPage) copyCell() tea.Cmd {
 	return setClipboard(value)
 }
 
-// copyId copies the issue's whole id, whatever column the cursor is on.
-//
-// The clipboard gets the whole id; the message names the short one, which is
-// the id the screen shows and the only part that fits the line.
+// copyId copies the issue's id, whatever column the cursor is on: what is
+// shown, an alias as it is drawn and a hash whole (copyOf, alias-ids.md A7).
 func (p *listPage) copyId() tea.Cmd {
 	row := p.current()
 	if row == nil || row.id == "" {
 		return bell()
 	}
 	p.status = "copied " + row.human
-	return setClipboard(row.id)
+	return setClipboard(copyOf(row.id, row.human))
 }
 
 // paste opens the editor on the field under the cursor with the text in it.

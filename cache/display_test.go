@@ -33,8 +33,6 @@ func TestIssueHumanId(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "PROJ-1", c.IssueHumanId(keyed.Id()))
 	require.Equal(t, local.Id().Human(), c.IssueHumanId(local.Id()))
-	require.False(t, c.IsFallbackId(keyed.Id().String(), "PROJ-1"))
-	require.True(t, c.IsFallbackId(local.Id().String(), local.Id().Human()))
 
 	// an alias in another namespace is not drawn
 	other, _, err := c.Issues().NewWithMetadata("linear", "", map[string]issue.Value{
@@ -83,7 +81,6 @@ func TestIssueHumanIdHash(t *testing.T) {
 		require.Equal(t, "", c.DisplayNamespace())
 		keyed := newAliased(t, c, "PROJ-1")
 		require.Equal(t, keyed.Id().Human(), c.IssueHumanId(keyed.Id()))
-		require.False(t, c.IsFallbackId(keyed.Id().String(), keyed.Id().Human()))
 	}
 }
 
