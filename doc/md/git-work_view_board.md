@@ -15,6 +15,7 @@ input when it is "-":
   card             field keys                       defaulted ["title"] the fields shown on a card
   column_width     int, at least 10                 defaulted 32       the narrowest a column goes before the board scrolls sideways; when every column fits they share the width
   group_by         field key                        optional           the field whose value starts a new swimlane; the cards with no value at all are the last swimlane, (none)
+  show             type to show arguments           optional           what Enter opens per type: {"epic":{"expand":"children"}} maps a type key to show's arguments without id, checked as show's own call; the type is the stored issue's, an unlisted one opens a bare show, and every page opened from there opens by the same map
 
 An `optional` argument has no default: name it and the view does that
 thing, leave it out and it does not.

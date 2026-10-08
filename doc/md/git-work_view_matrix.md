@@ -16,6 +16,7 @@ input when it is "-":
   row_values       strings                          defaulted          the row values, in order; the axis's own order by default, which is resolved at render time
   column_values    strings                          defaulted          the column values, in order; the axis's own order by default
   group_by         field key                        optional           the field whose value starts a new block of rows; the rows with no value at all are the last block, (none)
+  show             type to show arguments           optional           the list a cell's Enter opens takes it as its own: what Enter opens per type, a type key mapped to show's arguments without id
 
 An `optional` argument has no default: name it and the view does that
 thing, leave it out and it does not.

@@ -15,6 +15,29 @@ func kwargs(t *testing.T, doc string) map[string]json.RawMessage {
 	return out
 }
 
+// TestShowForPicksTheEntry: the stored type's entry with the row's id, a
+// bare show for a type not listed, and the map carried on either
+// (doc/design/show-from-a-view.md, V1, V3).
+func TestShowForPicksTheEntry(t *testing.T) {
+	shows := json.RawMessage(`{"epic": {"expand": "children", "fields": ["status"]}}`)
+
+	call, err := ShowFor(shows, "epic", "abc")
+	require.NoError(t, err)
+	require.Equal(t, "abc", call.String("id"))
+	require.Equal(t, []string{"status"}, call.Strings("fields"))
+	require.Len(t, call.SideTables(), 1)
+	require.JSONEq(t, string(shows), string(call.Raw("show")))
+
+	call, err = ShowFor(shows, "story", "abc")
+	require.NoError(t, err)
+	require.False(t, call.Has("expand"), "an unlisted type opens a bare show")
+	require.True(t, call.Has("show"), "carrying the map")
+
+	call, err = ShowFor(nil, "epic", "abc")
+	require.NoError(t, err)
+	require.Equal(t, []string{"id"}, sortedKeys(call.Args))
+}
+
 func TestParseAppliesTheDefaults(t *testing.T) {
 	call, err := Parse(KindList, nil)
 	require.NoError(t, err)

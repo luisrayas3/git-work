@@ -78,6 +78,10 @@ const (
 	// {"fields":{…},"body":"…","aliases":{…}}, with what is already decided
 	// filled in (doc/design/create.md, C1).
 	Document ValueKind = "issue document"
+	// ShowMap is `show`: type keys, each mapped to show's arguments without
+	// `id`, the show `Enter` opens on an issue of that type
+	// (doc/design/show-from-a-view.md).
+	ShowMap ValueKind = "type to show arguments"
 )
 
 // Arg is one keyword argument of one view kind.
@@ -123,6 +127,7 @@ var Kinds = map[string][]Arg{
 			Doc: "the field whose value starts a new section; the rows with no value at all are the last section, (none)"},
 		{Name: "expand", Tier: Optional, Kind: ExpandSpec, Doc: expandDoc},
 		openArg,
+		showArg,
 	},
 	KindBoard: {
 		queryArg,
@@ -137,6 +142,7 @@ var Kinds = map[string][]Arg{
 			Doc: "the narrowest a column goes before the board scrolls sideways; when every column fits they share the width"},
 		{Name: "group_by", Tier: Optional, Kind: FieldKey,
 			Doc: "the field whose value starts a new swimlane; the cards with no value at all are the last swimlane, (none)"},
+		showArg,
 	},
 	KindGantt: {
 		rowsQueryArg,
@@ -160,6 +166,7 @@ var Kinds = map[string][]Arg{
 			Doc: "the field whose value starts a new row group; the rows with no value at all are the last group, (none)"},
 		{Name: "expand", Tier: Optional, Kind: ExpandSpec, Doc: expandDoc},
 		openArg,
+		showArg,
 	},
 	// matrix is the two-axis summary: rows of one field by columns of
 	// another, a sum in each cell (doc/design/allocations.md). It reads any
@@ -179,6 +186,9 @@ var Kinds = map[string][]Arg{
 			Doc: "the column values, in order; the axis's own order by default"},
 		{Name: "group_by", Tier: Optional, Kind: FieldKey,
 			Doc: "the field whose value starts a new block of rows; the rows with no value at all are the last block, (none)"},
+		// the list a cell's Enter opens inherits it, and the matrix uses it
+		// for nothing else (doc/design/show-from-a-view.md, V3)
+		{Name: "show", Tier: Optional, Kind: ShowMap, Doc: showMatrixDoc},
 	},
 	// show is the one kind that is about a single issue,
 	// so it takes an id where every other kind takes a query.
@@ -190,6 +200,8 @@ var Kinds = map[string][]Arg{
 		// expand is the list's, drawn flat beside the fields: one name for
 		// one object on every kind (doc/design/show-side-table.md, S1)
 		{Name: "expand", Tier: Optional, Kind: SideTables, Doc: sideDoc},
+		// for the pages this one opens, never for itself (V3)
+		{Name: "show", Tier: Optional, Kind: ShowMap, Doc: showShowDoc},
 	},
 	// new is the interactive `issue new`: show's page over an issue that
 	// does not exist yet, nothing written until Create, which commits the
@@ -234,6 +246,20 @@ const sideDoc = `the issues a relation reaches from this one, a table each besid
 	`one table per element; a relation is a stored one or the inverse name the schema gives one, ` +
 	`the query runs over the unarchived issues it reaches, fields are the columns after id and title, ` +
 	`and details, group_by and expand are refused, a side table being flat`
+
+// showArg is `show` on the list, the gantt and the board, whose Enter opens
+// an issue (doc/design/show-from-a-view.md, V1).
+var showArg = Arg{Name: "show", Tier: Optional, Kind: ShowMap, Doc: showDoc}
+
+const showDoc = `what Enter opens per type: {"epic":{"expand":"children"}} maps a type key to show's arguments ` +
+	`without id, checked as show's own call; the type is the stored issue's, an unlisted one opens a bare show, ` +
+	`and every page opened from there opens by the same map`
+
+const showMatrixDoc = `the list a cell's Enter opens takes it as its own: what Enter opens per type, ` +
+	`a type key mapped to show's arguments without id`
+
+const showShowDoc = `what the pages this one opens are opened by, never this issue: a side table's row, a relation ` +
+	`cell, the page after Create; a type key mapped to show's arguments without id, as a list takes it`
 
 // openArg is how unfolded a nested view is drawn (doc/design/query-rows.md,
 // R4): a call argument and not a layer key, because it is how the view

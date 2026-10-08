@@ -132,14 +132,13 @@ func runView(env *execenv.Env, opts viewOptions, kind string, args []string) err
 		return err
 	}
 
-	renderer, ok := tui.New(env.Out.Raw())
-	if !ok {
-		// The call is still parsed, so that a misspelled argument is reported
-		// as itself rather than hidden behind the missing terminal.
-		if _, err := view.Parse(kind, kwargs); err != nil {
-			return err
-		}
-		return view.ErrNoTerminal
+	// With no terminal the call is still checked, the schema's half included,
+	// so that a misspelled argument or a bad `show` entry is reported as
+	// itself rather than hidden behind the missing terminal: host.View
+	// answers ErrNoTerminal only after its checks.
+	var renderer view.Renderer
+	if r, ok := tui.New(env.Out.Raw()); ok {
+		renderer = r
 	}
 
 	answer, err := host.View(env.Ctx, env.Backend, renderer, kind, kwargs)
