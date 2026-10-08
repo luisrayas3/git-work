@@ -166,12 +166,17 @@ so that no stop answers them two ways depending on the call.
 
 `↑`/`↓` walk within a stop and leave it at its edges, never into the fields' sibling:
 
-- on the fields, `↑` from the first row is the header and `↓` from the last is the box, as before;
+- on the fields, `↑` from the first row is the header and `↓` from the last rings;
 - on the side tables, `↑`/`↓` walk every row of every table, ghosts included, top to bottom;
-  `↑` from the first is the header and `↓` from the last is the box;
-- on the box, `↑` rings (2026-10-08): the box is left by `Tab`/`S-Tab`,
-  because the row drawn above it is not where the person came from.
+  `↑` from the first is the header and `↓` from the last rings;
+- on the box, `↑` and `↓` both ring, and `↑` from the top of the tabs rings too.
 
+**Arrows never cross the box** (2026-10-08, Luis): it is a stop of `Tab`/`S-Tab` alone, both ways.
+Until then `↓` from the foot of either column was the box and `↓` on the box was the tabs,
+and earlier the same day `↑` on the box had already stopped going to the fields' last row,
+because the row drawn above the box is not where the person came from;
+the same holds in the other direction, so the arrows walk within a region
+and `Tab` is the one key that moves between the regions and the box.
 The fields and the side tables are two columns side by side, so from above both are reached the same way.
 The page still opens on the first field row.
 

@@ -114,6 +114,16 @@ func send(p page, spellings ...string) page {
 	return p
 }
 
+// rings sends one key, requires that it answers with the bell, and returns
+// what the page became.
+func rings(t *testing.T, p page, spelling string, msgAndArgs ...any) page {
+	t.Helper()
+	p, cmd := p.Update(press(spelling))
+	require.NotNil(t, cmd, msgAndArgs...)
+	require.Equal(t, bell()(), cmd(), msgAndArgs...)
+	return p
+}
+
 var ansiPattern = regexp.MustCompile(`\x1b\[[0-9;]*[a-zA-Z]`)
 
 // plainView is what the page draws, with the styling taken back off, because

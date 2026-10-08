@@ -92,7 +92,10 @@ The page opens **on the title cell, typing**, when the type is set,
 and on the type cell when it is not:
 a ghost's `Enter` means *I want to add one*, and the title is what is typed next.
 Accepting the title with `Enter` leaves the cursor on it;
-`Tab` and `↓` reach Create.
+`Tab` reaches Create.
+The arrows do not, since 2026-10-08: the description box is a stop of `Tab` and `S-Tab` alone,
+as show's comment box is, so no arrow enters or leaves it,
+and `↓` from the last row, `↑`/`↓` on the box and `↑` on Create ring.
 The hint line names it: *tab: create*.
 
 Changing the type keeps the values of the fields the new type also has

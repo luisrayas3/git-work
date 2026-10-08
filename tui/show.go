@@ -507,14 +507,9 @@ func (p *showPage) key(press tea.KeyPressMsg) (page, tea.Cmd) {
 		p.switchTab(-1)
 
 	case keys.down.matches(press):
-		p.down(here)
+		return p, p.down(here)
 	case keys.up.matches(press):
-		if here.stop == stopBox {
-			// the box is left by Tab and S-Tab, never by up: the row
-			// drawn above it is not where the person came from (2026-10-08)
-			return p, bell()
-		}
-		p.up(here)
+		return p, p.up(here)
 	case keys.left.matches(press):
 		p.sideways(here, -1)
 	case keys.right.matches(press):
@@ -563,55 +558,65 @@ func (p *showPage) key(press tea.KeyPressMsg) (page, tea.Cmd) {
 	return p, nil
 }
 
-// down is within a stop first, and to the next stop at its edge, so that the
-// directions alone walk the whole page. In the box's text it is the text's
-// own key (textKey).
-func (p *showPage) down(here position) {
+// down is within a stop first, and to the next stop at its edge, except
+// that the box is a stop of Tab and S-Tab alone: no arrow enters it or leaves
+// it, so the edge drawn against it rings, and so does the box itself
+// (2026-10-08). In the box's text it is the text's own key (textKey).
+func (p *showPage) down(here position) tea.Cmd {
 	switch here.stop {
 	case stopHeader:
+		if len(p.rows) == 0 {
+			// no table: the next thing down is the box
+			return bell()
+		}
 		p.focusStop(stopFields)
 	case stopFields:
 		if p.row < len(p.rows)-1 {
 			p.row++
-			return
+			return nil
 		}
-		p.focusStop(stopBox)
+		return bell()
 	case stopSide:
-		// the side tables and the fields are two columns: down leaves
-		// either at its foot for the box, never into the other (S5)
+		// the side tables and the fields are two columns: down never leaves
+		// either into the other (S5), nor into the box under both
 		if p.side < len(p.sideItems())-1 {
 			p.side++
-			return
+			return nil
 		}
-		p.focusStop(stopBox)
+		return bell()
 	case stopBox:
-		p.focusStop(stopTabs)
+		return bell()
 	case stopTabs:
 		p.offset++
 	}
+	return nil
 }
 
-func (p *showPage) up(here position) {
+func (p *showPage) up(here position) tea.Cmd {
 	switch here.stop {
 	case stopFields:
 		if p.row > 0 {
 			p.row--
-			return
+			return nil
 		}
 		p.focusStop(stopHeader)
 	case stopSide:
 		if p.side > 0 {
 			p.side--
-			return
+			return nil
 		}
 		p.focusStop(stopHeader)
+	case stopBox:
+		// the row drawn above the box is not where the person came from
+		return bell()
 	case stopTabs:
 		if p.offset > p.tabBarLine() {
 			p.offset--
-			return
+			return nil
 		}
-		p.focusStop(stopBox)
+		return bell()
 	}
+	return nil
 }
 
 // sideways walks the header's cells, and switches the tab everywhere else:
