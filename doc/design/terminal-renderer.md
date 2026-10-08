@@ -324,7 +324,7 @@ A copy names the **short** id in its message, the clipboard still taking the who
 a 64-character hash right-aligned is a hash with its head cut off.
 Every kind builds its line from one helper over `(key, action)` pairs
 (`hints` in `tui/hints.go`), so the wording cannot drift between kinds,
-and the comment box's footer draws its pairs from the same list.
+and the description editor's footer draws its pairs from the same list.
 The keys are spelled the way the **standard family** spells them, lower case:
 the help is where the vim and the emacs spellings live, and three spellings in
 a one-line hint read as noise to all three.
@@ -914,7 +914,10 @@ The page is **four stops**, top to bottom (revised again 2026-09-28, Luis):
 
 The header is three of the four built-in fields,
 which are on every type and are not rows of the table
-(`rank` is the fourth, and stays a row, being an order and not a heading):
+(`rank` is the fourth, and is **not drawn at all**, 2026-10-08, Luis:
+it is an order the drags write, a fractional index nobody reads,
+so it is no row either, even when `fields` names it;
+`git work issue` still reads and sets it, and every drag still writes it):
 the type first, dim, because the list shows it left of the title too;
 the title bold, in the terminal's own foreground —
 a terminal has one size of text, so the title reads as a heading
@@ -930,11 +933,15 @@ on the title an input line,
 and on archived flips it, both ways, in one press:
 an archive is an operation like any other, and the same press undoes it.
 
-The cursor opens **on the comment box**,
-though the box is drawn under the fields,
-because opening an issue to say something about it is the common case,
-and the box is where the typing goes —
-but not typing in it (revised 2026-10-02, Luis):
+The cursor opens **on the first row of the fields table** (revised 2026-10-08, Luis),
+the value cell under it as a list's cell is,
+because every other view opens on a cell
+and the fields are what an opened issue is read for;
+a table with no rows opens on the box.
+It opened on the comment box from 2026-09-28 to 2026-10-08,
+on the reasoning that opening an issue to say something about it is the common case;
+in use it was a page whose cursor sat below what it was opened to read.
+It was never typing on arrival (2026-10-02):
 a page whose every letter is text on arrival has no keys of its own,
 and `Space`, the edit key, is what starts it, as it starts every other edit.
 It opens two lines tall and grows with what is typed, up to a paragraph.
@@ -951,10 +958,15 @@ A newline is `M-Enter`, which every terminal sends as escape, enter,
 and `S-Enter` where the terminal tells it from `Enter`.
 `Tab` and `S-Tab` move between stops, out of the text too,
 and land on the box, never in it.
-A footer line under the text says which keys work it:
+On the box, the cursor **washes it whole**, every line, marked `›` as a row is,
+so the box reads as one cell under the cursor;
+in the text the wash goes and the textarea's own cursor is drawn,
+so on and in are two looks, not one look and a caption.
+Its keys are on the bottom line's left, as every cell's are —
 *space: type · tab: skip* on the box,
-*enter: send · alt+enter: newline · esc: leave* in it,
-the same pairs the status line carries there.
+*enter: send · alt+enter: newline · esc: leave* in it.
+A footer line under the box repeated them until 2026-10-08, Luis:
+the same keys twice, one of them a line between the box and the tabs.
 It held a **Submit comment** button until 2026-10-02,
 reached by `Down` from the text's last line and pressed with `Enter`;
 with `Enter` sending from the text, the button was a second way to do one thing.
@@ -980,7 +992,7 @@ the tab keys of this page, since nothing else on it goes sideways —
 and `C-PgDn` and `C-PgUp` from anywhere, the box included,
 which is the tab key of every browser and editor;
 vim's `gt` and `gT` work outside the box.
-`t` is gone: a letter is a bad universal key on a page that opens in a text box.
+`t` is gone: a letter is a bad universal key on a page with a text box in it.
 
 - **description**, the first tab and the one the page opens on
   (2026-09-28, Luis), is the issue's body, its first comment,

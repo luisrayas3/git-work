@@ -2,6 +2,7 @@ package tui
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
@@ -52,7 +53,9 @@ func TestShowChildrenByTypeAndRelation(t *testing.T) {
 	require.Contains(t, rowOf(page, two), "task two")
 	require.Equal(t, "", rowOf(page, bug), "a subtask is not a task")
 	require.Equal(t, "", rowOf(page, elsewhere))
-	require.Less(t, indexOf(drawn, "rank"), indexOf(drawn, "children · task"), "the sections follow the fields")
+	fields := drawn[strings.Index(drawn, "\n"):] // past the call line, which names status too
+	require.NotEqual(t, -1, indexOf(fields, "status"))
+	require.Less(t, indexOf(fields, "status"), indexOf(fields, "children · task"), "the sections follow the fields")
 	require.Less(t, indexOf(drawn, one[:idWidth]), indexOf(drawn, two[:idWidth]), "the store's order")
 	require.Contains(t, page.call.Args, "children", "the call line is the call")
 

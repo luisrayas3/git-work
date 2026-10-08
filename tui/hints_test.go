@@ -275,9 +275,11 @@ func TestShowHintsNameWhatIsUnderTheCursor(t *testing.T) {
 	open := func(fields ...string) func() page {
 		return func() page { return show(t, repo, id, fields) }
 	}
-	// the page opens on the box; the stops wrap round to the header
-	toHeader := func(p page) page { return send(p, "tab", "tab") }
-	toFields := func(p page) page { return send(p, "shift+tab") }
+	// the page opens on the fields; the header is above them, the box
+	// below
+	toHeader := func(p page) page { return send(p, "shift+tab") }
+	toFields := func(p page) page { return p }
+	toBox := func(p page) page { return send(p, "tab") }
 	// a child's rows come after the fields, so the cursor is put on the
 	// first of them rather than walked there
 	toChildren := func(p page) page {
@@ -292,15 +294,15 @@ func TestShowHintsNameWhatIsUnderTheCursor(t *testing.T) {
 	}
 
 	runHints(t, open("status"), []hintCase{
-		{what: "the comment box", line: "space: type · tab: skip · ? keys"},
-		{what: "typing in it", at: func(p page) page { return send(p, "space") },
+		{what: "the comment box", at: toBox, line: "space: type · tab: skip · ? keys"},
+		{what: "typing in it", at: func(p page) page { return send(toBox(p), "space") },
 			line: "enter: send · alt+enter: newline · esc: leave · ? keys"},
-		// the page opens on the description, which space edits
-		{what: "the tabs", at: func(p page) page { return send(p, "tab") },
+		// the tabs open on the description, which space edits
+		{what: "the tabs", at: func(p page) page { return send(toBox(p), "tab") },
 			line: "space: edit · ←→: tab · ? keys"},
-		{what: "another tab", at: func(p page) page { return send(p, "tab", "right") },
+		{what: "another tab", at: func(p page) page { return send(toBox(p), "tab", "right") },
 			line: "←→: tab · ? keys"},
-		{what: "editing the description", at: func(p page) page { return send(p, "tab", "space") },
+		{what: "editing the description", at: func(p page) page { return send(toBox(p), "tab", "space") },
 			line: "enter: write · alt+enter: newline · esc: leave · ? keys"},
 		{what: "the title", at: toHeader, line: "space: edit · ? keys"},
 		{what: "the type", at: func(p page) page { return send(toHeader(p), "left") },

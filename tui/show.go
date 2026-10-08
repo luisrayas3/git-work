@@ -28,10 +28,11 @@ import (
 //
 // The page is four stops, top to bottom: the header (type, title, archived),
 // the fields table, the comment box, and the tabs — description, comments,
-// log. The cursor opens on the box, because opening an issue to say something
-// about it is the common case, but not typing: space is what puts it in the
-// text, as space is what edits a cell (doc/design/terminal-renderer.md,
-// revised 2026-10-02).
+// log. The cursor opens on the first row of the fields, as every other view
+// opens on a cell, and on the box where the table has no rows; the box is a
+// stop like the table's rows, washed whole while the cursor is on it, and
+// space is what puts the cursor in its text, as space is what edits a cell
+// (doc/design/terminal-renderer.md, revised 2026-10-08).
 type showPage struct {
 	repo *cache.RepoCache
 
@@ -56,7 +57,7 @@ type showPage struct {
 	// editingDesc says the cursor is in that editor, where keys are text.
 	editingDesc bool
 
-	// focus is the stop the cursor is in; it opens on the box.
+	// focus is the stop the cursor is in; it opens on the fields.
 	focus stopKind
 	// typing says the cursor is in the box's text, where keys are text;
 	// space on the box starts it, and enter (sent) or esc ends it.
@@ -160,7 +161,7 @@ func newShowPage(repo *cache.RepoCache, id string, fields []string) (*showPage, 
 	p.call = &view.Call{Kind: view.KindShow, Args: args}
 
 	p.box = newCommentBox(p.width)
-	p.focus, p.cell = stopBox, cellTitle
+	p.focus, p.cell = stopFields, cellTitle
 	return p, nil
 }
 
@@ -210,15 +211,19 @@ func (p *showPage) fieldOrder() []string {
 	return sorted.Keys(p.snapshot.Fields)
 }
 
-// tableRows is every field but the three built-ins, which are the header; a
-// relation is drawn as the issues it names.
+// tableRows is every field but the four built-ins: three are the header, and
+// rank is internal, a fractional index a person never reads; a relation is
+// drawn as the issues it names.
 func (p *showPage) tableRows() []tableRow {
 	typeKey, _ := issue.String(p.snapshot.Fields[schema.TypeKey])
 	known := newKinds(p.repo)
 
 	var out []tableRow
 	for _, key := range p.fieldOrder() {
-		if key == schema.TitleKey || key == schema.TypeKey || key == issue.ArchivedKey {
+		switch key {
+		case schema.TitleKey, schema.TypeKey, issue.ArchivedKey, schema.RankKey:
+			// rank is not drawn even where the call names it: it is an
+			// order the drags write, not a value anyone reads (2026-10-08)
 			continue
 		}
 		if isRelation(known.of(typeKey, key)) {
@@ -954,7 +959,7 @@ func (p *showPage) headerLines(here position) []string {
 }
 
 // body is the part that scrolls, unwindowed: the fields table, the comment
-// box with its footer, the tab strip, and the tab drawn. It says which lines
+// box, the tab strip, and the tab drawn. It says which lines
 // the cursor is on, first to last, or -1 when it is on none of them: a table
 // row is one line, the box is all of its own.
 func (p *showPage) body(here position) (lines []string, from, to int) {
@@ -966,11 +971,11 @@ func (p *showPage) body(here position) (lines []string, from, to int) {
 	}
 
 	boxStart := len(lines)
-	lines = append(lines, p.box.View(p.width)...)
-	lines = append(lines, p.footerLine(here), "")
+	lines = append(lines, p.box.View(p.width, here.stop == stopBox)...)
 	if here.stop == stopBox {
-		from, to = boxStart, len(lines)-2
+		from, to = boxStart, len(lines)-1
 	}
+	lines = append(lines, "")
 
 	lines = append(lines, tabStrip(p.tab, here.stop == stopTabs, p.width)...)
 	switch p.tab {
@@ -988,26 +993,12 @@ func (p *showPage) body(here position) (lines []string, from, to int) {
 // when the cursor moves onto the tabs.
 func (p *showPage) tabBarLine() int {
 	lines, _ := p.fieldLines(position{stop: stopHeader})
-	return len(lines) + len(p.box.View(p.width)) + 2
+	return len(lines) + len(p.box.View(p.width, false)) + 1
 }
 
-// footerLine is under the box's text: the keys that work it, marked while the
-// cursor is on the box, the ones for typing while it is in the text.
-func (p *showPage) footerLine(here position) string {
-	text := hintText(boxHints(here.typing)...)
-	marker, style := " ", styleDim
-	if here.stop == stopBox {
-		marker = "›"
-		if !here.typing {
-			style = styleCell
-		}
-	}
-	return fit(marker+" "+style.Render(text), p.width)
-}
-
-// descFooter is under the description's editor, the keys that work it, the
-// way the comment box's footer is under its text: the editor's keys while
-// the cursor is in it, and the key that gets back in while it is not.
+// descFooter is under the description's editor, the keys that work it: the
+// editor's keys while the cursor is in it, and the key that gets back in
+// while it is not.
 func (p *showPage) descFooter() string {
 	pairs, marker := descHints(), "›"
 	if !p.editingDesc {
@@ -1122,7 +1113,7 @@ func (p *showPage) commentLines() []string {
 // the text being read was, and an unwritten draft is never out of sight.
 func (p *showPage) descriptionLines() []string {
 	if p.desc != nil {
-		return append(p.desc.View(p.width), p.descFooter())
+		return append(p.desc.View(p.width, false), p.descFooter())
 	}
 	if len(p.snapshot.Comments) == 0 {
 		return []string{styleDim.Render(" (no description)")}

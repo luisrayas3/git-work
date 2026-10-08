@@ -390,8 +390,11 @@ The terminal's own copy and paste keys stay the terminal's,
 a paste opens the editor with the text in it, `/` or `C-s` filters.
 Show is a header — type, title, `[ ] archived`, each a cell `Space` edits or flips —
 then the fields table, the comment box, and description/comments/log tabs switched with ←/→;
-it opens on the comment box, not typing: `Enter` there does nothing,
-`Space` puts the cursor in the text, where `Enter` sends, `M-Enter` (or `S-Enter` where the terminal reports it) is a newline
+`rank` is never a row of it, even named in `fields`, because it is an order the drags write and nobody reads (2026-10-08).
+It opens on the first row of the fields (2026-10-08; on the box where there are none).
+On the comment box the cursor washes it whole, its keys on the bottom line like any cell's:
+`Enter` there does nothing,
+`Space` puts the cursor in the text, the wash giving way to the text cursor, where `Enter` sends, `M-Enter` (or `S-Enter` where the terminal reports it) is a newline
 and `Esc` leaves the text keeping the draft (`Tab` skips the box whole).
 `Space` on the description tab edits the description — the issue's first comment —
 in that same editor, `Enter` writing it, an emptied one refused (2026-10-02).
