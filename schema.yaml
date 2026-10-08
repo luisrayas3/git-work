@@ -1,18 +1,21 @@
-# This repository's schema: the jira preset (59fed1c) plus what the tracker
-# needs, applied with `git work schema import schema.yaml` (0740bf3: the tree
-# is for authoring, refs are the runtime truth).
+# This repository's schema: the three types the tracker uses, applied with
+# `git work schema import schema.yaml` (0740bf3: the tree is for authoring,
+# refs are the runtime truth).
 #
-# Beyond the preset: a `decision` type, because fifteen issues are decisions
-# and Jira has no such type; `area` on story, task and decision, which is
-# where the migration (bf6f392, doc/design/store-migration.md) put the labels
-# the tracker used to simulate it with. `phase` came the same way and was
-# archived the same day: the parent story orders the work.
+# It started as the jira preset (59fed1c) and was trimmed on 2026-10-08 to
+# what holds issues, because `git work quickstart` prints every type to an
+# agent. The presets live in code (`git work schema init jira|linear`) and
+# are tested there.
+#
+# `decision` is this repository's own; `area` is where the migration
+# (bf6f392, doc/design/store-migration.md) put the labels the tracker used to
+# simulate it with.
 #
 # `shared` is authoring only. The YAML parser expands every anchor, and the
 # store holds one entity per (type, field) (e7e58f2).
 
 shared:
-  # One workflow for every work type. Jira's four states plus a backlog and a
+  # One workflow for every type. Jira's four states plus a backlog and a
   # cancellation, so that all five categories are exercised; everything keyed
   # on "is this done" reads the category, never the name (D2).
   status: &status
@@ -38,41 +41,6 @@ shared:
       - {id: low,     name: Low}
       - {id: lowest,  name: Lowest}
 
-  assignee: &assignee
-    kind: identity
-    name: Assignee
-    description: Who is doing the work.
-
-  # Freeform, because Jira's labels are: anything typed in becomes a label.
-  labels: &labels
-    kind: multi-enum
-    name: Labels
-    description: Free tags; the preset ships none and anything is accepted.
-    freeform: true
-
-  estimate: &estimate
-    kind: number
-    name: Story points
-    description: The estimate a sprint's capacity is measured in.
-
-  due: &due
-    kind: date
-    name: Due date
-
-  # One side is stored and the inverse is derived (D4): `blocked_by` is what
-  # the other issue reads, never a key an issue writes.
-  blocks: &blocks
-    kind: multi-relation
-    name: Blocks
-    inverse: blocked_by
-
-  sprint: &sprint
-    kind: relation
-    name: Sprint
-    description: The iteration this issue is committed to.
-    inverse: issues
-    target_types: [iteration]
-
   # The tracker's own field, migrated from labels (bf6f392).
   area: &area
     kind: multi-enum
@@ -89,70 +57,27 @@ shared:
       - {id: infra,       name: Infrastructure}
 
 types:
-  initiative:
-    name: Initiative
-    description: A quarter-scale outcome, above epics.
-    fields:
-      status: *status
-      priority: *priority
-      assignee: *assignee
-      labels: *labels
-      due: *due
-      blocks: *blocks
-
-  epic:
-    name: Epic
-    description: A body of work delivered by stories and tasks.
-    fields:
-      status: *status
-      priority: *priority
-      assignee: *assignee
-      labels: *labels
-      estimate: *estimate
-      due: *due
-      parent:
-        kind: relation
-        name: Parent initiative
-        inverse: children
-        target_types: [initiative]
-      blocks: *blocks
-
   story:
     name: Story
-    description: A user-facing change, estimated and sprinted.
+    description: A user-facing change, designed in doc/design before its tasks.
     fields:
       status: *status
       priority: *priority
-      assignee: *assignee
-      labels: *labels
-      estimate: *estimate
-      due: *due
-      parent:
-        kind: relation
-        name: Epic
-        inverse: children
-        target_types: [epic]
-      iteration: *sprint
-      blocks: *blocks
       area: *area
 
+  # The parent's inverse is derived, never stored (D4): `children` is what a
+  # story reads, never a key an issue writes.
   task:
     name: Task
     description: Work that is not a user-facing story.
     fields:
       status: *status
       priority: *priority
-      assignee: *assignee
-      labels: *labels
-      estimate: *estimate
-      due: *due
       parent:
         kind: relation
         name: Parent
         inverse: children
-        target_types: [epic, story]
-      iteration: *sprint
-      blocks: *blocks
+        target_types: [story]
       area: *area
 
   # This repository's own: a call made and its reasoning, closed once recorded.
@@ -162,101 +87,9 @@ types:
     fields:
       status: *status
       priority: *priority
-      assignee: *assignee
-      labels: *labels
-      parent:
-        kind: relation
-        name: Parent
-        inverse: children
-        target_types: [epic, story, task]
-      blocks: *blocks
-      area: *area
-
-  bug:
-    name: Bug
-    description: Something that does not work.
-    fields:
-      status: *status
-      priority: *priority
-      assignee: *assignee
-      labels: *labels
-      estimate: *estimate
-      due: *due
-      parent:
-        kind: relation
-        name: Epic
-        inverse: children
-        target_types: [epic]
-      iteration: *sprint
-      blocks: *blocks
-
-  subtask:
-    name: Sub-task
-    description: One unit of a story or a task; an agent owns one, with one PR.
-    fields:
-      status: *status
-      priority: *priority
-      assignee: *assignee
-      labels: *labels
-      estimate: *estimate
-      due: *due
       parent:
         kind: relation
         name: Parent
         inverse: children
         target_types: [story, task]
-      iteration: *sprint
-      blocks: *blocks
-
-  # An iteration is an issue type, not a namespace (D5): it has a title,
-  # comments for the retro, and dates and capacity as ordinary fields.
-  iteration:
-    name: Sprint
-    description: A time-boxed iteration; Jira's sprint, Linear's cycle.
-    fields:
-      status:
-        kind: enum
-        name: State
-        description: Jira's sprint states.
-        values:
-          - {id: future, name: Future, category: unstarted}
-          - {id: active, name: Active, category: started}
-          - {id: closed, name: Closed, category: completed}
-      start:
-        kind: date
-        name: Start date
-      end:
-        kind: date
-        name: End date
-      capacity:
-        kind: number
-        name: Capacity
-        description: Story points the team commits to, in the unit estimate uses.
-
-  # How much of whom goes to which work in which iteration
-  # (doc/design/allocations.md). An allocation is a plan, not a piece of work,
-  # so it has no status — it is true, or it is archived. It carries the
-  # built-in rank every type has and ignores it: a matrix's order is its
-  # axes'. The two relations take two inverse names
-  # because an inverse is unique within the type that holds it.
-  allocation:
-    name: Allocation
-    description: How much of one person's iteration goes to one piece of work.
-    fields:
-      iteration:
-        kind: relation
-        name: Iteration
-        description: The iteration the effort is spent in.
-        inverse: allocations
-        target_types: [iteration]
-      work:
-        kind: relation
-        name: Work
-        description: The work the effort goes to.
-        inverse: staffing
-        target_types: [epic, story]
-      assignee: *assignee
-      points:
-        kind: number
-        name: Points
-        description: The effort allocated, in the unit estimate uses.
+      area: *area
