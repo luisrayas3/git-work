@@ -322,7 +322,8 @@ func TestGanttGrabUpAndDownWritesARank(t *testing.T) {
 // TestGanttNestsRowsUnderRows: with `expand` the rows are a tree, a parent
 // with no dates of its own draws the envelope of its children's, folded or
 // not; the arrow is the cell after the id, which ← reaches from the first
-// period and space folds, and tab and shift-tab walk the levels.
+// period and space folds, and tab and shift-tab walk the levels, shift-tab
+// onto the parent's arrow.
 func TestGanttNestsRowsUnderRows(t *testing.T) {
 	repo := testRepo(t)
 	withDates(t, repo)
@@ -352,8 +353,9 @@ func TestGanttNestsRowsUnderRows(t *testing.T) {
 	require.Equal(t, one, page.current().id, "tab unfolds and enters")
 	send(page, "down")
 	require.Equal(t, two, page.current().id)
-	send(page, "shift+tab")
+	send(page, "right", "shift+tab")
 	require.Equal(t, story, page.current().id)
+	require.Equal(t, -1, page.col, "shift-tab lands on the parent's arrow")
 }
 
 // TestGanttScrollsSideways: when the periods do not fit the chart scrolls

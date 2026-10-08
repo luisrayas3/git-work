@@ -1259,6 +1259,12 @@ a cursor is never moved by somebody else's write.
 
 `Tab` goes into the first child, unfolding on the way,
 and `Shift-Tab` up to the parent.
+Whatever cell the cursor was on, `Tab` lands on the child's id,
+where a row is read from and `Space` grabs it,
+and `Shift-Tab` on the parent's fold arrow,
+where `Space` folds back what `Tab` opened (2026-10-07).
+The gantt has no id cell, so its `Tab` keeps the period
+and its `Shift-Tab` lands on the arrow.
 On a list `↑` and `↓` move between the rows at the cursor's own level,
 so a level reads as the list it is and `Tab` is the way down;
 on a gantt they move between every row, because the chart reads top to

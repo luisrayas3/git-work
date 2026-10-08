@@ -864,7 +864,8 @@ func (p *ganttPage) intoChild() {
 	}
 }
 
-// toParent is shift-tab: onto the row this one is under.
+// toParent is shift-tab: onto the row this one is under, and onto its arrow
+// cell, where space folds back what tab opened.
 func (p *ganttPage) toParent() {
 	node := p.node()
 	if node == nil || node.level == 0 {
@@ -873,6 +874,7 @@ func (p *ganttPage) toParent() {
 	for at := p.cursor - 1; at >= 0; at-- {
 		if p.nodes[p.order[at]].level < node.level {
 			p.cursor = at
+			p.col = p.minCol()
 			return
 		}
 	}
