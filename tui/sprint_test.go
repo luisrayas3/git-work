@@ -14,7 +14,9 @@ import (
 // per (person, epic) they hold an open story in, its id the epic, its key
 // epic@person, its assignee shaped to the person and its children that
 // person's open stories in it, sorted by the epic's initiative; and a
-// (none) row per person for their stories with no epic, a row with no id.
+// (none) row per person for their stories with no epic, a row with no id,
+// typed as its siblings are, because a level is all keyed rows or none and
+// a row with no id names its type.
 const sprintPairs = `. as $all
 | [$all[] | select(.fields.type == "story" and .fields.status != "done")] as $stories
 | [$stories[] | .fields.assignee | select(. != null)] | unique
@@ -29,7 +31,7 @@ const sprintPairs = `. as $all
          children: [$mine[] | select(.fields.parent == $e.id) | .id]}))
     + ([$mine[] | select(.fields.parent == null) | .id] as $loose
        | if ($loose | length) > 0
-         then [{key: ("none@" + $who), fields: {title: "(none)", assignee: $who}, children: $loose}]
+         then [{key: ("none@" + $who), fields: {title: "(none)", type: "epic", assignee: $who}, children: $loose}]
          else [] end))
 | add`
 

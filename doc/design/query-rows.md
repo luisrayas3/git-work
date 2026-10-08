@@ -87,7 +87,7 @@ a query that writes `.fields.assignee` to the person draws that person,
 and `Space` on that cell edits the epic's stored assignee —
 the current rule for a shaped row, unchanged.
 
-## R2 — a row with no `id` stands for nothing
+## R2 — a row with no `id` stands for nothing, and a level is all keyed rows or none
 
 `id` is optional when `key` is present.
 Such a row draws its `fields` like any other
@@ -96,7 +96,30 @@ and is a row the cursor can stand on:
 and `Space` on its id grabs it, the keyed row's drag (R5) —
 otherwise the ghost's behavior, minus the creator.
 It is how the `(none)` row above exists:
-`{"key": "none@<person>", "fields": {"title": "(none)", "assignee": "<person>"}, "children": […]}`.
+`{"key": "none@<person>", "fields": {"title": "(none)", "type": "epic", "assignee": "<person>"}, "children": […]}`.
+
+**It names its type.**
+There is no issue to read a type off,
+so `fields.type` must be a type the schema knows,
+or the row is refused, naming its key.
+Its fields are drawn and grouped as that type's:
+the `(none)` row's assignee is a person, drawn by name,
+because it is an epic's assignee.
+A row with an id reads its type from its fields, as before.
+
+**A level is all keyed rows or none.**
+A row is keyed when its `key` is not its `id`, or it has no `id`;
+a row keyed by its own id is plain.
+The rows of one level under one parent —
+the roots, across all their groups;
+the children a row lists;
+the children a layer brings under one row —
+are all keyed or all plain.
+A mixed level is refused as a repeated key is,
+naming one key and one id from it:
+the view fails to open, or a refresh says so on the status line.
+A keyed level's order is the view's (R5), a plain level's the ranks',
+and no drop has to reconcile the two.
 
 ## R3 — `children` on a row lists what nests under it
 
@@ -146,6 +169,10 @@ a key it does not know keeping its `(rank, id)` place after the ones it does.
 Nothing persists between invocations; the status line says `order kept for this view`.
 A row keyed by its own id drags and writes `rank` as today,
 and a drop of a keyed row outside its group still rings (Out of scope).
+A level is all keyed rows or none (R2),
+so a drop is held by the view or writes a rank, never both:
+a plain drop fills no rank for a keyed row's issue
+because no keyed row is its sibling.
 
 ## The workflow's call
 
@@ -184,3 +211,10 @@ and no filtering by the parent row.
 1. A repeated key is refused, naming the key (R1).
 2. A keyed row's drag is an order kept by the view instance and never written (R5).
 3. `open` is a call argument (R4), not a layer key.
+4. Two calls of the implementation reversed on review, 2026-10-08 (R2):
+   a level mixing keyed and plain rows was drawn,
+   a plain drop beside a keyed row writing ranks
+   and the view keeping the scope as drawn;
+   it is refused, because one scope with two orders has no drop that keeps both.
+   A row with no id and no type drew a field as the kind every type agreed on;
+   it names its type, because a guess across types is no type.

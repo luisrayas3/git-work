@@ -411,6 +411,71 @@ func nest(repo *cache.RepoCache, items []map[string]any, n *nesting, open map[st
 	return out, failed
 }
 
+// checkLevels refuses a tree a view cannot draw (doc/design/query-rows.md,
+// R2, settled 2026-10-08):
+// a level that mixes keyed rows and plain ones,
+// and a row with no id that names no type the schema knows.
+//
+// A level is the rows under one parent, the roots being one across all
+// their groups. A keyed row — its key is not its id, or it has no id —
+// orders for this view only, and a plain one by the rank it writes, so a
+// level of both has no order a drop could keep. A row keyed by its own id
+// is plain.
+//
+// A row with no id has no issue to read its type off, so it names one, and
+// its fields are drawn and grouped as that type's.
+func checkLevels(repo *cache.RepoCache, tree []nested) error {
+	type level struct{ keyed, plain string }
+	levels := map[string]*level{}
+	var order []string
+	var s *schema.Schema
+	for _, n := range tree {
+		if n.id == "" {
+			fields, _ := n.item["fields"].(map[string]any)
+			typeKey := host.StringOr(fields[schema.TypeKey], "")
+			if typeKey == "" {
+				return fmt.Errorf("row %s has no id and no type: a row that stands for no issue names its type", n.key)
+			}
+			if s == nil {
+				loaded, err := repo.LoadSchema()
+				if err != nil {
+					return err
+				}
+				s = loaded
+			}
+			if _, ok := s.Type(typeKey); !ok {
+				return fmt.Errorf("row %s has no id and type %s, which the schema does not know", n.key, typeKey)
+			}
+		}
+
+		at := levels[n.parent]
+		if at == nil {
+			at = &level{}
+			levels[n.parent] = at
+			order = append(order, n.parent)
+		}
+		if n.key != n.id {
+			if at.keyed == "" {
+				at.keyed = n.key
+			}
+		} else if at.plain == "" {
+			at.plain = n.id
+		}
+	}
+	for _, parent := range order {
+		at := levels[parent]
+		if at.keyed == "" || at.plain == "" {
+			continue
+		}
+		where := "the roots"
+		if parent != "" {
+			where = "the rows under " + parent
+		}
+		return fmt.Errorf("%s mix keyed and plain rows, key %s and id %s: a level is all keyed rows or none", where, at.keyed, at.plain)
+	}
+	return nil
+}
+
 // runLayerQuery narrows one row's candidate children with its layer's query.
 //
 // The program runs over the array of that row's own children, the way the

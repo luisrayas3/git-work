@@ -149,9 +149,13 @@ in Starlark, the same reason `work.schema.import_` does.
   as `"children"` or as a layer that says what that level draws.
   On a list and a gantt a row the query makes may carry a top-level `key`,
   its identity on the screen, so one issue can be drawn twice;
-  its `id` stays the issue it acts on, and may be left out beside a key;
+  its `id` stays the issue it acts on, and may be left out beside a key,
+  where `fields.type` must name a type;
   and a top-level `children`, the ids or rows nested under it
   in place of what the layer's relation reads.
+  A row is keyed when its key is not its id or it has no id;
+  the rows of one level under one parent are all keyed or none,
+  and a keyed row's drag is kept by the view, never written.
   A nested view opens folded; `"open":true` opens every parent,
   a number that many levels from the roots.
 - Starlark mirrors this command line one to one,

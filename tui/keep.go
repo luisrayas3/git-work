@@ -10,6 +10,9 @@ package tui
 // instance, and that order holds across refreshes until the view is quit.
 // A key it does not know keeps its (rank, id) place after the ones it does.
 // Nothing persists between invocations.
+//
+// A level is all keyed rows or none (checkLevels), so a scope is the
+// view's to order or the ranks' to, never both.
 
 // keptSaid is the status line of a drop the view holds.
 const keptSaid = "order kept for this view"
@@ -22,20 +25,6 @@ func keepOrder(rows []treeRow, order []int, at int, kept map[string]int) {
 		kept[rows[order[s]].key] = place
 	}
 	applyKept(rows, kept)
-}
-
-// scopeKept says a drop in the scope of the row at order[at] has to be kept
-// by the view as it is drawn, whatever it also writes: the view holds an
-// order for some row of it already, or some row of it is keyed, whose place
-// no rank written can hold.
-func scopeKept(rows []treeRow, order []int, at int) bool {
-	scope, _ := scopeOf(rows, order, at)
-	for _, s := range scope {
-		if row := rows[order[s]]; row.known || row.keyed() {
-			return true
-		}
-	}
-	return false
 }
 
 // applyKept marks the rows the view holds an order for with their place in

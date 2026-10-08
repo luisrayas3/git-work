@@ -49,7 +49,7 @@ func TestAKeyedRowReordersForThisViewOnly(t *testing.T) {
 
 	// a row with no id drags the same way
 	page = listCall(t, repo, map[string]any{
-		"query": `sort_by(.fields.title) | . + [{key: "none", fields: {title: "(none)"}}]`,
+		"query": `sort_by(.fields.title) | map(. + {key: (.id + "@x")}) + [{key: "none", fields: {title: "(none)", type: "task"}}]`,
 	})
 	cursorTo(t, page, "none")
 	page = send(page, "space", "up", "space").(*listPage)
@@ -82,28 +82,60 @@ func TestAKeyedRowStaysInItsGroup(t *testing.T) {
 	require.Equal(t, "to-do", fieldOf(t, repo, a, "status"))
 }
 
-// TestAPlainDropBesideAKeyedRow: a row keyed by its own id drags and writes
-// its rank as before, and no rank is written for a keyed sibling's issue;
-// the view keeps the scope as it was drawn, since a keyed row's place is
-// one no rank can hold (R5).
-func TestAPlainDropBesideAKeyedRow(t *testing.T) {
+// TestALevelIsAllKeyedRowsOrNone: a keyed row orders for this view only
+// and a plain one by its rank, so a level of both is refused, naming a key
+// and an id from it — the roots across their groups, and a row's listed
+// children; on a refresh the refusal is the status line. A row keyed by its
+// own id is plain (R2, settled 2026-10-08).
+func TestALevelIsAllKeyedRowsOrNone(t *testing.T) {
 	repo := testRepo(t)
-	x := newIssue(t, repo, map[string]any{"title": "x"})
-	y := newIssue(t, repo, map[string]any{"title": "y"})
-	z := newIssue(t, repo, map[string]any{"title": "z"})
+	x := newIssue(t, repo, map[string]any{"title": "x", "status": "to-do"})
+	y := newIssue(t, repo, map[string]any{"title": "y", "status": "to-do"})
+	newIssue(t, repo, map[string]any{"title": "z", "status": "in-progress"})
 
-	page := listCall(t, repo, map[string]any{
-		"query": `sort_by(.fields.title) | map(if .fields.title == "z" then . + {key: "z@x"} else . end)`,
-	})
-	require.Equal(t, []string{x, y, "z@x"}, drawnKeys(page))
+	// the roots, across their groups
+	mixed := `sort_by(.fields.title) | map(if .fields.title == "z" then . + {key: "z@x"} else . end)`
+	_, err := newListPage(repo, call(t, view.KindList, map[string]any{"query": mixed, "group_by": "status"}))
+	require.ErrorContains(t, err, "the roots mix keyed and plain rows, key z@x and id "+x)
+	_, err = newGanttPage(repo, call(t, view.KindGantt, map[string]any{"query": mixed, "start": "due", "stop": "due"}))
+	require.ErrorContains(t, err, "key z@x")
 
+	// a listed children array
+	listed := `map(select(.fields.title == "x")) | map(. + {key: "parent", children: ["` + y + `", {key: "inline", fields: {title: "an inline row", type: "task"}}]})`
+	_, err = newListPage(repo, call(t, view.KindList, map[string]any{"query": listed, "expand": map[string]any{}}))
+	require.ErrorContains(t, err, "the rows under parent mix keyed and plain rows, key inline and id "+y)
+
+	// a row keyed by its own id is plain, and drags writing its rank
+	page := listCall(t, repo, map[string]any{"query": `sort_by(.fields.title) | map(. + {key: .id})`})
 	cursorTo(t, page, y)
-	page = send(page, "space", "down", "space").(*listPage)
+	page = send(page, "space", "up", "space").(*listPage)
 	require.True(t, strings.HasPrefix(page.status, "rank set"), page.status)
-	require.NotEqual(t, "", fieldOf(t, repo, x, "rank"), "the row above is filled")
 	require.NotEqual(t, "", fieldOf(t, repo, y, "rank"))
-	require.Equal(t, "", fieldOf(t, repo, z, "rank"), "the keyed row's issue is not")
-	require.Equal(t, []string{x, "z@x", y}, drawnKeys(page), "the drop reads as it was drawn")
+
+	// a refresh that makes a level mixed says so on the status line
+	page = listCall(t, repo, map[string]any{"query": `map(if .fields.title == "w" then . else . + {key: (.id + "@x")} end)`})
+	require.Empty(t, page.status)
+	newIssue(t, repo, map[string]any{"title": "w"})
+	page.Update(refreshMsg{})
+	require.Contains(t, page.status, "mix keyed and plain rows")
+}
+
+// TestARowWithNoIdNamesItsType: a row that stands for no issue has no issue
+// to read a type off, so it names one the schema knows, or it is refused,
+// naming its key (R2, settled 2026-10-08).
+func TestARowWithNoIdNamesItsType(t *testing.T) {
+	repo := testRepo(t)
+	newIssue(t, repo, map[string]any{"title": "one"})
+
+	_, err := newListPage(repo, call(t, view.KindList, map[string]any{
+		"query": `map(. + {key: (.id + "@x")}) + [{key: "none", fields: {title: "(none)"}}]`,
+	}))
+	require.ErrorContains(t, err, "row none has no id and no type")
+
+	_, err = newListPage(repo, call(t, view.KindList, map[string]any{
+		"query": `map(. + {key: (.id + "@x")}) + [{key: "none", fields: {title: "(none)", type: "nonsense"}}]`,
+	}))
+	require.ErrorContains(t, err, "row none has no id and type nonsense, which the schema does not know")
 }
 
 // TestAGanttKeyedRowReordersForThisViewOnly: the gantt holds a keyed bar's

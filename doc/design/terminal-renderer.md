@@ -546,8 +546,10 @@ on the grounds that every target workflow is a workflow over issues.
 Reversed 2026-10-08 (`query-rows.md`):
 a sprint page by person is over issues and still needs rows that are not,
 so on a list and a gantt a row may carry a `key`, its identity on the screen,
-apart from the `id` of the issue it acts on, which may be left out,
+apart from the `id` of the issue it acts on, which may be left out
+where the row names its type,
 and a `children` listing what nests under it.
+The rows of one level under one parent are all keyed or none.
 The cursor comes back across a re-run on the same **key**, which is the id unless the query gave one.
 
 ## Rank
@@ -624,9 +626,10 @@ It drags as any row does, and the drop writes nothing:
 the view instance holds the scope's order by key, across refreshes, until it is quit,
 a key it does not know keeping its `(rank, id)` place after the ones it does,
 and the status line says `order kept for this view`.
-A plain row dropped in a scope with a keyed row writes its rank as before,
-fills none for the keyed row's issue, and the view keeps the scope as drawn,
-because no rank can hold a keyed row's place.
+A level never mixes keyed and plain rows (settled 2026-10-08):
+the roots across their groups, and the children of one row,
+are all keyed or none, and a mixed level is refused,
+so a scope is the view's to order or the ranks', never both.
 A keyed row carried past the edge of its group rings: moving a share is not writing the issue's field.
 
 ## Board
