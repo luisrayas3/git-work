@@ -8,7 +8,7 @@ and a store holding an archived copy of every issue reads clean.
 
 **Serves:** `df6ff51` (the story).
 
-**Status:** decided 2026-10-07 (Luis); not built.
+**Status:** decided 2026-10-07 (Luis); built 2026-10-07.
 
 ## Problem
 
@@ -114,8 +114,14 @@ which reads the excerpts straight off the cache.
 Each is rewritten to take its issues from the same helper with the same switch,
 so there is one rule and not three.
 A layer spec accepts `include_archive` beside its `query`,
-with the same default,
 because a layer is a query with a scope and takes what a query takes.
+Unlike `query`, it is **inherited**:
+a layer that does not name it takes the layer above's,
+the first layer the call's own,
+and a layer that names it overrides it for itself and every level below.
+`query` differs per layer because the children can be of other types;
+whether the archived show is one choice for the whole view
+(revised 2026-10-07, Luis, on review).
 The picker and show's children take no switch:
 nobody assigns an archived issue on purpose,
 and the opt-in there would be a key with no caller.
@@ -130,9 +136,12 @@ and it reads every operation in the window with `work.issue.log(".", from_=…, 
 whose program selects from the present input,
 so an issue archived during the window would lose its status path,
 its comments and the archive itself from the log.
-It passes `include_archive=True` on those three calls and keeps its own
-`select(.fields.archived != true)` as the default selection,
-because that select is now about the selection and not the input.
+A report includes everything, the archived included:
+it passes `include_archive=True` on every read,
+those three and the two runs of its selection at each end of the window,
+and its default selection is the whole input, `.`
+(revised 2026-10-07, Luis, on review;
+the first draft kept `select(.fields.archived != true)` as the default selection).
 `overview` and `board` filter on status categories, not on `archived`,
 and gain the archived filter for free.
 

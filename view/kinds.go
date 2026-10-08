@@ -201,7 +201,8 @@ const minColumnWidth = 10
 const expandDoc = `the relation nested under a row: "children", or a layer ` +
 	`{"relation":…,"query":…,"include_archive":…,"fields":…,"details":…,"group_by":…,"rank":…,"expand":…}; ` +
 	`a relation is a stored one (parent) or the inverse name of one (children), a layer's query runs over ` +
-	`that row's own unarchived children (the archived too with include_archive), the keys it leaves out ` +
+	`that row's own unarchived children (the archived too with include_archive, which a layer inherits from ` +
+	`the call or the layer above unless it names its own), the keys it leaves out ` +
 	`are the layer above's, and its expand is ` +
 	`the level below: a layer, or a number of further levels this same layer draws, 0 for every one`
 
@@ -267,7 +268,7 @@ func Help(kind string) string {
 			tier += " " + arg.Default
 		}
 
-		fmt.Fprintf(&b, "  %-14s %-32s %-18s %s\n", arg.Name, shape, tier, arg.Doc)
+		fmt.Fprintf(&b, "  %-16s %-32s %-18s %s\n", arg.Name, shape, tier, arg.Doc)
 	}
 	return b.String()
 }

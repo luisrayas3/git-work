@@ -10,9 +10,9 @@ def report(from_="7d", to=None, iteration=None, query=None):
     `from_` carries a trailing underscore because `from` is a reserved word in
     Starlark, the same reason `work.schema.import_` does.
 
-    The set is `query`, a jq program over the issues, run at both ends of the
-    window, so an issue archived during it is reported rather than dropped.
-    The default is every unarchived issue.
+    The set is `query`, a jq program over every issue, the archived included,
+    run at both ends of the window, so an issue archived during it is reported
+    rather than dropped. The default is every issue.
 
     What is said about each issue is this flow's choice, not the tool's: there
     are no field roles, so `status` and `parent` are named here, in the open.
@@ -87,7 +87,7 @@ def report(from_="7d", to=None, iteration=None, query=None):
 
     selector = query
     if selector == None:
-        selector = "map(select(.fields.archived != true))"
+        selector = "."
 
     # Every issue at each end of the window, the archived included, for the
     # before/after comparison and for a parent's title; the selection at each
@@ -97,9 +97,9 @@ def report(from_="7d", to=None, iteration=None, query=None):
     after = by_id(work.issue.list(".", at=window_to, include_archive=True))
 
     picked = {}
-    for item in work.issue.list(selector, at=window_from):
+    for item in work.issue.list(selector, at=window_from, include_archive=True):
         picked[item["id"]] = True
-    for item in work.issue.list(selector, at=window_to):
+    for item in work.issue.list(selector, at=window_to, include_archive=True):
         picked[item["id"]] = True
 
     # Every operation in the window, grouped by the issue it belongs to, the

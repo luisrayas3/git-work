@@ -131,7 +131,8 @@ Two consequences fall out of the replay rather than being added to it:
 - **`archived` is whatever it was then.**
   It is an ordinary field set by an ordinary operation,
   so the replay restores the value that stood at `at`,
-  and the list's default program — `select(.fields.archived != true)` —
+  and the list's input, which leaves out the archived unless
+  `include_archive` brings them back (`include-archive.md`),
   filters on that value with no special case anywhere.
   An issue archived on Wednesday is in Tuesday's list and out of Thursday's.
 
@@ -228,7 +229,7 @@ def report(from_="7d", to=None, iteration=None, query=None)
 
 It resolves the window — an `iteration` id reads that issue's `start` and `end`,
 otherwise `from_`/`to` go down to the plumbing as the strings they are —
-selects the issues with `query` (default: every unarchived issue),
+selects the issues with `query` over every issue, the archived included (default: all of them, `include-archive.md`),
 and for each one asks the plumbing three questions:
 the snapshot at `from`, the snapshot at `to`, and the operations in between.
 Then it compares and prints markdown.

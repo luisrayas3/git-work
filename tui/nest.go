@@ -63,7 +63,9 @@ type nesting struct {
 // above's, so a bare `"expand": "children"` is the uniform tree nesting was
 // before the spec, and a layer that names them draws its own columns under
 // the parent. `group_by` is not inherited: a level is sectioned because that
-// level was asked to be.
+// level was asked to be. `include_archive` is, from the call down, because
+// whether the archived show is one choice for the whole view
+// (doc/design/include-archive.md, I5).
 func newNesting(root nestLayer, spec *view.Layer) (*nesting, error) {
 	n := &nesting{layers: []nestLayer{root}, families: []int{0}}
 	if spec == nil {
@@ -84,11 +86,14 @@ func newNesting(root nestLayer, spec *view.Layer) (*nesting, error) {
 		above := n.layers[len(n.layers)-1]
 		resolved := nestLayer{
 			relation:       layer.Relation,
-			includeArchive: layer.IncludeArchive,
+			includeArchive: above.includeArchive,
 			fields:         layer.Fields,
 			details:        layer.Details,
 			groupBy:        layer.GroupBy,
 			rankKey:        layer.Rank,
+		}
+		if layer.IncludeArchive != nil {
+			resolved.includeArchive = *layer.IncludeArchive
 		}
 		if resolved.fields == nil {
 			resolved.fields = above.fields

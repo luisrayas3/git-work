@@ -1158,8 +1158,9 @@ never at the top, where there is nothing to repeat.
 The root `query` runs over the array of every unarchived issue, as every program does.
 A layer's runs over the array of *that row's own candidate children* —
 every unarchived issue the relation reaches from it,
-the archived too when the layer says `"include_archive": true`
-(its own, not the call's nor the layer above's: `include-archive.md`, I5) —
+the archived too under `"include_archive": true`,
+which a layer inherits from the layer above, the first from the call,
+unless it names its own (`include-archive.md`, I5) —
 so it is written exactly like a view's query and reads as one:
 `map(select(…))` over a smaller array.
 Without one, every unarchived child shows,
