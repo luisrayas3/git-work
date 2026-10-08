@@ -330,77 +330,15 @@ func commit(i *cache.IssueCache, ops []issue.Operation, dryRun bool) ([]issue.Op
 	return ops, nil
 }
 
-// resolveIssueAndItems reads the two arguments add and remove share,
-// resolving each item that names another issue by a prefix.
+// resolveIssueAndItems reads the two arguments add and remove share.
+// An item naming another issue by a prefix or an alias is resolved by the
+// cache's plan, as every relation value is (2086c12).
 func resolveIssueAndItems(repo *cache.RepoCache, id string, items map[string][]issue.Value) (*cache.IssueCache, map[string][]issue.Value, error) {
 	i, err := repo.Issues().ResolvePrefixOrAlias(id)
 	if err != nil {
 		return nil, nil, err
 	}
-
-	kinds := itemKinds(repo, i, items)
-	for key, list := range items {
-		kind, known := kinds[key]
-		for at, item := range list {
-			list[at] = resolveItem(repo, kind, known, item)
-		}
-	}
-
 	return i, items, nil
-}
-
-// itemKinds reads, for each field being written, the kind the schema gives it.
-//
-// A key is absent from the result where nothing is known about it — the issue
-// has no type, the schema has no such type, or the type has no such field —
-// which is the bootstrap state a repository with no config entities is in (E4)
-// and what resolveItem falls back on.
-func itemKinds(repo *cache.RepoCache, i *cache.IssueCache, items map[string][]issue.Value) map[string]schema.Kind {
-	typeKey, ok := issue.String(i.Snapshot().Fields[schema.TypeKey])
-	if !ok || typeKey == "" {
-		return nil
-	}
-
-	s, err := repo.LoadSchema()
-	if err != nil {
-		// A schema that will not compile is a read problem, and a read never
-		// fails on what was written before (D6): the write is checked against
-		// it a moment later, and that is where it is reported.
-		return nil
-	}
-
-	kinds := make(map[string]schema.Kind, len(items))
-	for key := range items {
-		if field, found := s.Field(typeKey, key); found {
-			kinds[key] = field.Kind
-		}
-	}
-	return kinds
-}
-
-// resolveItem turns one item of a list-valued field into what is stored.
-//
-// A relation holds other issues' ids, so a string that is the unambiguous
-// prefix of exactly one issue is stored as that issue's full id. Where the
-// schema says the field is something else — a label, say — nothing is looked
-// up at all, because a label that happens to read like an id prefix is a
-// label and rewriting it would be a silent corruption (bb9e89e).
-//
-// Where the schema knows nothing about the field, the old guess stands: a
-// repository with no types yet still has to be able to write a parent.
-func resolveItem(repo *cache.RepoCache, kind schema.Kind, known bool, item issue.Value) issue.Value {
-	if known && !kind.IsRelation() {
-		return item
-	}
-
-	prefix, ok := issue.String(item)
-	if !ok || len(prefix) < 4 {
-		return item
-	}
-	if target, err := repo.Issues().ResolveExcerptPrefix(prefix); err == nil {
-		return issue.StringValue(target.Id().String())
-	}
-	return item
 }
 
 // splitTitle takes the title out of the fields map,

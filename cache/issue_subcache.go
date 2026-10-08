@@ -3,6 +3,7 @@ package cache
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/git-bug/git-bug/entities/identity"
@@ -62,13 +63,9 @@ func NewRepoCacheIssue(repo repository.ClockedRepo,
 // The type is the one field a create can not do without once a schema exists:
 // without it nothing can say which fields the issue has (D2).
 // With no type entity at all, nothing is checked — the bootstrap state (E4).
-func (c *RepoCacheIssue) checkNew(title string, fields map[string]issue.Value, shapeOnly bool) error {
-	if c.checker == nil {
+func checkNew(checker *schema.Checker, title string, fields map[string]issue.Value, shapeOnly bool) error {
+	if checker == nil {
 		return nil
-	}
-	checker, err := c.checker()
-	if err != nil {
-		return err
 	}
 	if shapeOnly {
 		checker = checker.Shape()
@@ -78,6 +75,13 @@ func (c *RepoCacheIssue) checkNew(title string, fields map[string]issue.Value, s
 	all[schema.TitleKey] = json.RawMessage(issue.StringValue(title))
 
 	return checker.CheckNew(all)
+}
+
+func (c *RepoCacheIssue) liveChecker() (*schema.Checker, error) {
+	if c.checker == nil {
+		return nil, nil
+	}
+	return c.checker()
 }
 
 // CheckNew measures a document against the live schema without writing it,
@@ -119,6 +123,32 @@ func (c *RepoCacheIssue) ResolvePrefixOrAlias(prefix string) (*IssueCache, error
 	i, aliasErr := c.ResolveAlias(prefix)
 	if aliasErr == nil {
 		return i, nil
+	}
+	var multiple *entity.ErrMultipleMatch
+	if errors.As(aliasErr, &multiple) {
+		return nil, aliasErr
+	}
+	return nil, err
+}
+
+// ResolveExcerptPrefixOrAlias is ResolvePrefixOrAlias over the excerpts,
+// which loads no entity: what a relation value is resolved by on every write.
+func (c *RepoCacheIssue) ResolveExcerptPrefixOrAlias(prefix string) (*IssueExcerpt, error) {
+	if prefix == "" {
+		// every id has the empty prefix, so one issue alone would match it
+		return nil, fmt.Errorf("an empty id names no issue")
+	}
+	excerpt, err := c.ResolveExcerptPrefix(prefix)
+	if err == nil {
+		return excerpt, nil
+	}
+
+	// an alias is accepted wherever an id is (483dbe2)
+	excerpt, aliasErr := c.ResolveExcerptMatcher(func(excerpt *IssueExcerpt) bool {
+		return excerpt.HasAlias(prefix)
+	})
+	if aliasErr == nil {
+		return excerpt, nil
 	}
 	var multiple *entity.ErrMultipleMatch
 	if errors.As(aliasErr, &multiple) {
@@ -227,7 +257,12 @@ func (c *RepoCacheIssue) NewRawShape(author identity.Interface, unixTime int64, 
 }
 
 func (c *RepoCacheIssue) newRaw(author identity.Interface, unixTime int64, title string, message string, files []repository.Hash, fields map[string]issue.Value, metadata map[string]string, shapeOnly bool) (*IssueCache, *issue.CreateOperation, error) {
-	if err := c.checkNew(title, fields, shapeOnly); err != nil {
+	checker, err := c.liveChecker()
+	if err != nil {
+		return nil, nil, err
+	}
+	fields = fullIdFields(checker, issueTypeOf(fields), fields)
+	if err := checkNew(checker, title, fields, shapeOnly); err != nil {
 		return nil, nil, err
 	}
 

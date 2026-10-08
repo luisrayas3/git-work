@@ -23,6 +23,9 @@ An id is a hash.
 Wherever a command takes one it also takes an unambiguous prefix,
 or an alias — an external key such as a Jira issue key,
 recorded on the create operation, which is the one part that never changes.
+A relation such as `parent` takes them too,
+and is stored as the full id,
+so a query compares `.fields.parent` with the full id.
 
 Four namespaces, one kind of thing each:
 

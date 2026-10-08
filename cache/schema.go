@@ -92,16 +92,19 @@ func (r schemaResolver) IdentityExists(id string) error {
 }
 
 func (r schemaResolver) IssueType(id string) (string, error) {
-	excerpt, err := r.repo.Issues().ResolveExcerptPrefix(id)
+	excerpt, err := r.repo.Issues().ResolveExcerptPrefixOrAlias(id)
 	if err != nil {
-		// an alias is accepted wherever an id is (483dbe2)
-		aliased, aliasErr := r.repo.Issues().ResolvePrefixOrAlias(id)
-		if aliasErr != nil {
-			return "", err
-		}
-		return issueTypeOf(aliased.Snapshot().Fields), nil
+		return "", err
 	}
 	return issueTypeOf(excerpt.Fields), nil
+}
+
+func (r schemaResolver) IssueId(ref string) (string, error) {
+	excerpt, err := r.repo.Issues().ResolveExcerptPrefixOrAlias(ref)
+	if err != nil {
+		return "", err
+	}
+	return excerpt.Id().String(), nil
 }
 
 // issueTypeOf reads an issue's type field, which is the key to the rest of

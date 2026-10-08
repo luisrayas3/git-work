@@ -227,6 +227,40 @@ func TestIssueAddResolvesOnlyRelations(t *testing.T) {
 	require.JSONEq(t, `["`+prefix+`"]`, string(excerpt.Fields["labels"]))
 }
 
+// TestIssueRelationIsStoredAsTheFullId: a parent named by a prefix or an alias
+// is stored as the full id on new and set, --dry-run prints the full id, and
+// a value naming no issue is refused, named, before anything is written
+// (2086c12).
+func TestIssueRelationIsStoredAsTheFullId(t *testing.T) {
+	env := newTestEnv(t)
+	_, _, err := host.SchemaInit(env.Backend, "jira", false)
+	require.NoError(t, err)
+
+	epic := newTestIssue(t, env, `{"fields":{"title":"epic","type":"epic"},"aliases":{"jira":"PROJ-7"}}`)
+	id := newTestIssue(t, env, `{"fields":{"title":"story","type":"story","parent":"`+epic.Human()+`"}}`)
+
+	excerpt, err := env.Backend.Issues().ResolveExcerpt(id)
+	require.NoError(t, err)
+	require.JSONEq(t, `"`+epic.String()+`"`, string(excerpt.Fields["parent"]))
+
+	require.NoError(t, runIssueSet(env, writeOptions{dryRun: true}, []string{id.Human(), `{"parent":"PROJ-7"}`}))
+	var ops []struct {
+		Value json.RawMessage `json:"value"`
+	}
+	require.NoError(t, json.Unmarshal(env.Out.Bytes(), &ops))
+	require.Len(t, ops, 1)
+	require.JSONEq(t, `"`+epic.String()+`"`, string(ops[0].Value))
+
+	at := commitCount(t, env, id)
+	err = runIssueSet(env, writeOptions{dryRun: true}, []string{id.Human(), `{"parent":"PROJ-99"}`})
+	require.ErrorContains(t, err, `"PROJ-99"`)
+	err = runIssueSet(env, writeOptions{}, []string{id.Human(), `{"parent":"PROJ-99"}`})
+	require.ErrorContains(t, err, `"PROJ-99"`)
+	err = runIssueNew(env, []string{`{"fields":{"title":"s","type":"story","parent":"PROJ-99"}}`})
+	require.ErrorContains(t, err, `"PROJ-99"`)
+	require.Equal(t, at, commitCount(t, env, id))
+}
+
 func TestIssueDryRun(t *testing.T) {
 	env := newTestEnv(t)
 	id := newDefaultIssue(t, env)

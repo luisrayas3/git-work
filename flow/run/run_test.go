@@ -528,6 +528,29 @@ func TestAddRemoveAndArchive(t *testing.T) {
 	require.Equal(t, true, fields["archived"])
 }
 
+// TestRelationIsStoredAsTheFullId: a script naming a parent by its prefix
+// stores the full id, through the same host call the command makes (2086c12).
+func TestRelationIsStoredAsTheFullId(t *testing.T) {
+	repo := testRepo(t)
+	_, _, err := host.SchemaInit(repo, "jira", false)
+	require.NoError(t, err)
+
+	value, _, err := run(t, repo, `def relate():
+    """A parent by prefix."""
+    epic = work.issue.new({"fields": {"title": "epic", "type": "epic"}})
+    story = work.issue.new({"fields": {"title": "story", "type": "story", "parent": epic[:7]}})
+    task = work.issue.new({"fields": {"title": "task", "type": "task"}})
+    work.issue.set(task, parent=story[:7])
+    return [epic, work.issue.get(story)["fields"]["parent"], story, work.issue.get(task)["fields"]["parent"]]
+`, nil)
+	require.NoError(t, err)
+
+	got := value.([]any)
+	require.Equal(t, got[0], got[1])
+	require.Equal(t, got[2], got[3])
+	require.Len(t, got[1], 64)
+}
+
 // TestIncludeArchiveKeyword: work.issue.list and work.issue.log run over the
 // unarchived issues, and include_archive=True brings the archived back, as
 // --include-archive does on the command line (doc/design/include-archive.md).
