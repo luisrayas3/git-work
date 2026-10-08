@@ -74,5 +74,5 @@ jobs:
             dist/*.rpm
             dist/*.apk
             dist/*.pkg.tar.zst
-            dist/*/git-bug
-            dist/*/git-bug.exe
+            dist/*/git-work
+            dist/*/git-work.exe
