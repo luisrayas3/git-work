@@ -92,7 +92,7 @@ func runIssueLog(env *execenv.Env, opts issueLogOptions, args []string) error {
 	case "text":
 		for _, entry := range entries {
 			env.Out.Printf("%s\t%s\t%s\t%s\t%s\n",
-				colors.Cyan(shortId(entry.Issue)),
+				colors.Cyan(shortId(env, entry.Issue)),
 				colors.Cyan(entry.HumanId),
 				colors.Yellow(entry.Type),
 				time.Unix(entry.UnixTime, 0).Format(time.RFC3339),
@@ -106,7 +106,8 @@ func runIssueLog(env *execenv.Env, opts issueLogOptions, args []string) error {
 }
 
 // shortId is the issue column of the text form: one log may span many issues,
-// so every line says which one it is about.
-func shortId(id string) string {
-	return entity.Id(id).Human()
+// so every line says which one it is about, by the id the issue is drawn by
+// (alias-ids.md A5). The operation's own id beside it stays a hash.
+func shortId(env *execenv.Env, id string) string {
+	return env.Backend.IssueHumanId(entity.Id(id))
 }

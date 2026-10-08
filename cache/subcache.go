@@ -58,8 +58,12 @@ type SubCache[EntityT entity.Interface, ExcerptT Excerpt, CacheT CacheEntity] st
 
 	mu       sync.RWMutex
 	excerpts map[entity.Id]ExcerptT
-	cached   map[entity.Id]CacheT
-	lru      lruIdCache
+	// generation counts every change to the excerpts, so that something
+	// derived from all of them can tell whether it is still current
+	// (doc/design/alias-ids.md).
+	generation uint64
+	cached     map[entity.Id]CacheT
+	lru        lruIdCache
 
 	// refs records, per entity, the ref hash its excerpt was built from. It is
 	// what makes the cache verifiable instead of merely trusted: on load, the
@@ -104,6 +108,7 @@ func (sc *SubCache[EntityT, ExcerptT, CacheT]) Typename() string {
 // Load will try to read from the disk the entity cache file
 func (sc *SubCache[EntityT, ExcerptT, CacheT]) Load() error {
 	sc.mu.Lock()
+	sc.generation++
 
 	f, err := sc.repo.LocalStorage().Open(filepath.Join("cache", sc.namespace))
 	if err != nil {
@@ -235,6 +240,7 @@ func (r refreshResult) empty() bool {
 // into the same event a local edit produces (63c68d1).
 func (sc *SubCache[EntityT, ExcerptT, CacheT]) Refresh() error {
 	sc.mu.Lock()
+	sc.generation++
 	res, err := sc.refreshFromRefs()
 	sc.mu.Unlock()
 	if err != nil {
@@ -366,6 +372,7 @@ func (sc *SubCache[EntityT, ExcerptT, CacheT]) Build() <-chan BuildEvent {
 		}
 
 		sc.excerpts = make(map[entity.Id]ExcerptT)
+		sc.generation++
 
 		// one listing, rather than a lookup per entity, to record what each
 		// excerpt was built from
@@ -428,6 +435,7 @@ func (sc *SubCache[EntityT, ExcerptT, CacheT]) SetCacheSize(size int) {
 
 func (sc *SubCache[EntityT, ExcerptT, CacheT]) Close() error {
 	sc.mu.Lock()
+	sc.generation++
 	defer sc.mu.Unlock()
 	sc.excerpts = nil
 	sc.cached = make(map[entity.Id]CacheT)
@@ -484,6 +492,7 @@ func (sc *SubCache[EntityT, ExcerptT, CacheT]) Resolve(id entity.Id) (CacheT, er
 	cached = sc.makeCached(e, sc.entityUpdated)
 
 	sc.mu.Lock()
+	sc.generation++
 	sc.cached[id] = cached
 	sc.lru.Add(id)
 	sc.mu.Unlock()
@@ -495,6 +504,14 @@ func (sc *SubCache[EntityT, ExcerptT, CacheT]) Resolve(id entity.Id) (CacheT, er
 
 // ResolvePrefix retrieve an entity matching an id prefix. It fails if multiple
 // entities match.
+// Generation is a number that changes whenever the excerpts may have, so that
+// an index derived from every excerpt is rebuilt only when it has to be.
+func (sc *SubCache[EntityT, ExcerptT, CacheT]) Generation() uint64 {
+	sc.mu.RLock()
+	defer sc.mu.RUnlock()
+	return sc.generation
+}
+
 func (sc *SubCache[EntityT, ExcerptT, CacheT]) ResolvePrefix(prefix string) (CacheT, error) {
 	return sc.ResolveMatcher(func(excerpt ExcerptT) bool {
 		return excerpt.Id().HasPrefix(prefix)
@@ -565,6 +582,7 @@ func (sc *SubCache[EntityT, ExcerptT, CacheT]) resolveMatcher(f func(ExcerptT) b
 
 func (sc *SubCache[EntityT, ExcerptT, CacheT]) add(e EntityT) (CacheT, error) {
 	sc.mu.Lock()
+	sc.generation++
 	if _, has := sc.cached[e.Id()]; has {
 		sc.mu.Unlock()
 		return *new(CacheT), fmt.Errorf("entity %s already exist in the cache", e.Id())
@@ -602,6 +620,7 @@ func (sc *SubCache[EntityT, ExcerptT, CacheT]) Remove(prefix string) error {
 	defer unlock()
 
 	sc.mu.Lock()
+	sc.generation++
 
 	err = sc.actions.Remove(sc.repo, e.Id())
 	if err != nil {
@@ -630,6 +649,7 @@ func (sc *SubCache[EntityT, ExcerptT, CacheT]) RemoveAll() error {
 	defer unlock()
 
 	sc.mu.Lock()
+	sc.generation++
 
 	err = sc.actions.RemoveAll(sc.repo)
 	if err != nil {
@@ -712,6 +732,7 @@ func (sc *SubCache[EntityT, ExcerptT, CacheT]) MergeAll(remote string) <-chan en
 				cached := sc.makeCached(e, sc.entityUpdated)
 
 				sc.mu.Lock()
+				sc.generation++
 				sc.excerpts[result.Id] = sc.makeExcerpt(cached)
 				// might as well keep them in memory
 				sc.cached[result.Id] = cached
@@ -737,6 +758,7 @@ func (sc *SubCache[EntityT, ExcerptT, CacheT]) MergeAll(remote string) <-chan en
 				cached := sc.makeCached(e, sc.entityUpdated)
 
 				sc.mu.Lock()
+				sc.generation++
 				sc.excerpts[result.Id] = sc.makeExcerpt(cached)
 				// might as well keep them in memory
 				sc.cached[result.Id] = cached
@@ -779,6 +801,7 @@ func (sc *SubCache[EntityT, ExcerptT, CacheT]) notifyObservers(event EntityEvent
 
 func (sc *SubCache[EntityT, ExcerptT, CacheT]) updateExcerpt(id entity.Id) error {
 	sc.mu.Lock()
+	sc.generation++
 	e, ok := sc.cached[id]
 	if !ok {
 		sc.mu.Unlock()
@@ -801,6 +824,7 @@ func (sc *SubCache[EntityT, ExcerptT, CacheT]) updateExcerpt(id entity.Id) error
 // evictIfNeeded will evict an entity from the cache if needed
 func (sc *SubCache[EntityT, ExcerptT, CacheT]) evictIfNeeded() {
 	sc.mu.Lock()
+	sc.generation++
 	defer sc.mu.Unlock()
 	if sc.lru.Len() <= sc.maxLoaded {
 		return

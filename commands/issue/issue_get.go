@@ -82,9 +82,14 @@ func issueTextFormatter(env *execenv.Env, snapshot *issue.Snapshot) error {
 		status = "-"
 	}
 
-	// Header
+	// Header: the drawn id, and the hash beside it when that is an alias, the
+	// one page where a key is mapped to the hash an agent printed (alias-ids.md A5)
+	name := env.Backend.IssueHumanId(snapshot.Id())
+	if name != snapshot.Id().Human() {
+		name += " (" + snapshot.Id().Human() + ")"
+	}
 	env.Out.Printf("%s [%s] %s\n\n",
-		colors.Cyan(snapshot.Id().Human()),
+		colors.Cyan(name),
 		colors.Yellow(status),
 		snapshot.Title(),
 	)

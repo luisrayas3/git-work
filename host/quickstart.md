@@ -26,6 +26,10 @@ recorded on the create operation, which is the one part that never changes.
 A relation such as `parent` takes them too,
 and is stored as the full id,
 so a query compares `.fields.parent` with the full id.
+`human_id` is the id an issue is drawn by:
+the short hash, or its Jira key when the clone sets `git-work.display.id` to `jira`.
+It is accepted back wherever an id is, but it varies with that setting,
+so a program keys on `id`, which never does.
 
 Four namespaces, one kind of thing each:
 

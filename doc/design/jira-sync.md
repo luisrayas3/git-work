@@ -417,7 +417,9 @@ such an issue.
 `jira-id`, `alias:jira` and `jira-comment-id` are set at creation on an
 import and by `SetMetadata` in the step-6 commit on an export, never
 elsewhere. `alias:jira` is never refreshed in v1: after a move the old key
-still resolves locally and in Jira. Local run state — the cursor, the failed
+still resolves locally and in Jira. A consolidated loser keeps it, and the key
+names the copy not stamped `jira-consolidated-into` (`alias-ids.md` A6), which
+is also the copy `git-work.display.id = jira` draws by the key. Local run state — the cursor, the failed
 hits, the creates Jira refused, the per-issue edit lamport at last sync — is
 in `.git/git-work/jira/state.json`, written through a temporary file and a
 rename. Losing it costs a slower run, never a wrong one: the create journal

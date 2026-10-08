@@ -24,6 +24,15 @@ def report(from_="7d", to=None, iteration=None, query=None):
     def short(id):
         return id[:7]
 
+    def name(id):
+        # An issue is named by the id it is drawn by, its human_id, which is
+        # its Jira key when git-work.display.id asks for one (alias-ids.md A9);
+        # an issue neither snapshot has is its short hash.
+        for snapshot in (after, before):
+            if id in snapshot:
+                return snapshot[id]["human_id"]
+        return short(id)
+
     def by_id(items):
         out = {}
         for item in items:
@@ -57,7 +66,7 @@ def report(from_="7d", to=None, iteration=None, query=None):
         # status report is read, not parsed.
         if type(value) == "string":
             if value in after:
-                return "%s %s" % (short(value), show(after[value]["fields"].get("title")))
+                return "%s %s" % (name(value), show(after[value]["fields"].get("title")))
             if len(value) == 64:
                 return short(value)
         return show(value)
@@ -248,7 +257,7 @@ def report(from_="7d", to=None, iteration=None, query=None):
         suffix = ""
         if len(marks) > 0:
             suffix = " — " + ", ".join(marks)
-        block = ["- %s %s%s" % (short(id), show(new_fields.get("title")), suffix)]
+        block = ["- %s %s%s" % (name(id), show(new_fields.get("title")), suffix)]
         for line in lines:
             block.append(line)
 
