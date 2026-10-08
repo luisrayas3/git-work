@@ -149,10 +149,13 @@ func TestSideTableTabTraversal(t *testing.T) {
 		send(page, "down")
 	}
 	require.Equal(t, stopBox, page.current().stop)
-	// up from the box is the fields' last row, as before
+	// up from the box rings and stays: the box is left by Tab and S-Tab
 	send(page, "up")
+	require.Equal(t, stopBox, page.current().stop)
+	send(page, "shift+tab")
+	require.Equal(t, stopSide, page.current().stop, "S-Tab from the box is the side tables")
+	send(page, "shift+tab")
 	require.Equal(t, stopFields, page.current().stop)
-	require.Equal(t, len(page.rows)-1, page.row)
 
 	// on the side: up from the first is the header, down past the last the box
 	send(page, "tab")
