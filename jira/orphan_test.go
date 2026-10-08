@@ -354,3 +354,48 @@ func TestRepointOrder(t *testing.T) {
 	require.Equal(t, order(first), order(second))
 	require.Equal(t, order(first), order(written))
 }
+
+// E35: the archive is last, so a consolidation whose fill and note
+// committed and whose archive did not is retried by the next run: the loser
+// is archived, the note is written once and the fill is not repeated. The
+// interruption is a loser unarchived after its consolidation, the state an
+// interrupted run leaves plus the stamp.
+func TestConsolidateRetriedOnce(t *testing.T) {
+	b, x, y, _ := twoCopies(t)
+	b.set(y, "rank", str("0|aaa:"))
+	_, sum := b.mustSync(jira.Options{})
+	require.Equal(t, 1, sum.Consolidated)
+	b.set(y, "archived", issue.Value("false"))
+
+	lines, sum := b.mustSync(jira.Options{})
+	require.Equal(t, 1, sum.Consolidated, "the scan retries it: %+v", lines)
+	xc := mustIssue(t, b.c, x)
+	require.Equal(t, `true`, field(t, mustIssue(t, b.c, y), "archived"))
+	require.Len(t, notes(xc, jira.NoteConsolidated), 1)
+	ranks := 0
+	for _, op := range xc.Snapshot().Operations {
+		if set, ok := op.(*issue.SetFieldOperation); ok && set.Key == "rank" {
+			ranks++
+		}
+	}
+	require.Equal(t, 1, ranks, "the fill is gap-only")
+	require.Equal(t, `"0|aaa:"`, field(t, xc, "rank"))
+	b.mustSync(jira.Options{})
+	b.still()
+}
+
+// E36: a consolidated loser's create op names the winner, so the excerpt's
+// metadata carries it and a program can drop the losers.
+func TestConsolidatedStamp(t *testing.T) {
+	b, x, y, _ := twoCopies(t)
+	ex, err := b.c.Issues().ResolveExcerpt(y)
+	require.NoError(t, err)
+	require.Empty(t, ex.CreateMetadata[jira.MetaConsolidatedInto])
+	b.mustSync(jira.Options{})
+	ex, err = b.c.Issues().ResolveExcerpt(y)
+	require.NoError(t, err)
+	require.Equal(t, x.String(), ex.CreateMetadata[jira.MetaConsolidatedInto])
+	wx, err := b.c.Issues().ResolveExcerpt(x)
+	require.NoError(t, err)
+	require.Empty(t, wx.CreateMetadata[jira.MetaConsolidatedInto])
+}

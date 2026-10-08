@@ -929,15 +929,21 @@ local can prevent it, because each has yet to see the other's work:
 | both create one pulled local issue | two Jira issues with one property | after the exchange one `jira-id` wins on the create op (`SetMetadata`, first writer); the other Jira issue is reported as a second issue naming it (E24) |
 | both create an identity for one account | two identities with one `jira-account-id` | the lower id is the account's; both export as it; the runner is never re-tagged |
 
-Consolidation holds an invariant of the store, checked every run after the
-losers are consolidated and before the search: **no unarchived issue has a
-relation value naming an issue that is not the `Index`'s winner for its own
-Jira id** (`doc/design/repoint.md`). Each stale value is re-pointed to the
-winner under the shape check, as the pull writes, one commit and one
-`repointed` line per issue, in id order; an issue that refuses is its own
-`failed` line and never fails the consolidation. A refusal, an interrupted
-run, or a loser archived by another clone is therefore repaired by the next
-run on every clone.
+Consolidation holds an invariant of the store, checked every run over every
+issue, after the scan and before the losers are consolidated: **no unarchived
+issue has a relation value naming an issue that is not the `Index`'s winner
+for its own Jira id**, whether that copy is archived yet or not
+(`doc/design/repoint.md`). Each stale value is re-pointed to the winner under
+the shape check, as the pull writes, one commit and one `repointed` line per
+issue, in id order; an issue that refuses is its own `failed` line. A
+refusal, an interrupted run, or a loser archived by another clone is
+therefore repaired by the next run on every clone. A consolidation then
+syncs the loser, fills the winner and notes it once (the note carries
+`jira-consolidated-from`), and archives the loser last, stamping its create
+operation with `jira-consolidated-into`, the winner's id, in the same
+commit: an interruption before the archive is retried whole by the next
+run, and `map(select(.metadata["jira-consolidated-into"] == null))` drops the
+losers from a program's input.
 
 A marker naming its clone was considered and rejected as a guard: it catches
 only what an exchange already made safe, and it would forbid handing the

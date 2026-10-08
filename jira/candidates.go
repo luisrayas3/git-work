@@ -80,7 +80,7 @@ func (e *engine) unexportable(fields map[string]issue.Value) string {
 
 // runIds syncs exactly the issues named, each by the path its links say.
 func (e *engine) runIds() error {
-	if err := stop(e.sweep(e.opts.Ids)); err != nil {
+	if err := stop(e.sweep(e.repo.Issues().AllIds())); err != nil {
 		return err
 	}
 	for _, id := range e.opts.Ids {
@@ -130,6 +130,11 @@ func (e *engine) runAll() error {
 			return err
 		}
 	}
+	// first, so each loser's last sync and fill already see relations
+	// naming winners (repoint.md)
+	if err := stop(e.sweep(sorted.Keys(l.byId))); err != nil {
+		return err
+	}
 	// before the search, so the loser's last writes return its Jira issue
 	// as a hit of this run, and the winner imports them now
 	for _, id := range l.losers {
@@ -141,10 +146,6 @@ func (e *engine) runAll() error {
 		if err := stop(e.consolidate(ic, winner)); err != nil {
 			return err
 		}
-	}
-	// after the losers, so the search's merges find l == r (repoint.md)
-	if err := stop(e.sweep(sorted.Keys(l.byId))); err != nil {
-		return err
 	}
 
 	jql := "project = " + jiraapi.JQLQuote(e.p.Key)
@@ -482,13 +483,13 @@ func (e *engine) repass() error {
 
 // consolidate archives a second local copy of one Jira issue
 // into the copy that reached Jira first:
-// the loser is synced one last time, so what it holds for Jira reaches Jira,
-// then archived;
+// the loser is synced one last time, so what it holds for Jira reaches Jira;
 // the winner takes the loser's local-only values where it has none,
-// and a note names the loser;
-// and every relation naming the loser is pointed at the winner,
-// so the next merge of each finds `l == r`; the sweep makes that hold
-// whatever this call met (repoint.md).
+// and a note names the loser, once;
+// and last the loser is archived and stamped with the winner's id.
+// Archiving last makes it idempotent: a failure before it leaves the loser
+// unarchived, so the next scan retries it, and the fill is gap-only
+// (repoint.md). Relations are the sweep's, which runs before.
 // A loser already archived is consolidated already.
 func (e *engine) consolidate(loser *cache.IssueCache, winner entity.Id) error {
 	id := loser.Id()
@@ -512,30 +513,53 @@ func (e *engine) consolidate(loser *cache.IssueCache, winner entity.Id) error {
 		return e.fail(line, err)
 	}
 	now := e.now()
-	err = loser.Update(func(*issue.Snapshot) ([]issue.Operation, error) {
-		return []issue.Operation{issue.NewSetFieldOp(e.me, now.Unix(), schema.ArchivedKey, issue.MustValue(true))}, nil
-	})
-	if err != nil {
-		return e.fail(line, err)
-	}
 	ls := loser.Snapshot()
 	err = wc.Update(func(snap *issue.Snapshot) ([]issue.Operation, error) {
 		ops, kept := e.fill(snap, ls, now)
 		for _, k := range kept {
 			line.imported(k, ls.Fields[k])
 		}
+		if noted(snap, id) {
+			return ops, nil
+		}
 		text := fmt.Sprintf("Jira sync, %s: %s was also tracked as %s, which reached Jira later; it is archived and its history kept.",
 			now.Format("2006-01-02 15:04 MST"), key, id.Human())
 		note := issue.NewAddCommentOp(e.me, now.Unix(), text, nil)
 		note.SetMetadata(MetaNote, NoteConsolidated)
+		note.SetMetadata(MetaConsolidatedFrom, id.String())
 		return append(ops, note), nil
 	})
 	if err != nil {
 		return e.fail(line, err)
 	}
+	err = loser.Update(func(snap *issue.Snapshot) ([]issue.Operation, error) {
+		return []issue.Operation{
+			issue.NewSetFieldOp(e.me, now.Unix(), schema.ArchivedKey, issue.MustValue(true)),
+			issue.NewSetMetadataOp(e.me, now.Unix(), snap.Operations[0].Id(), map[string]string{MetaConsolidatedInto: winner.String()}),
+		}, nil
+	})
+	if err != nil {
+		return e.fail(line, err)
+	}
 	e.report(line)
-	// R3: the archive and the note stand whatever the re-point meets
-	return e.repoint(e.repo.Issues().AllIds(), id)
+	return nil
+}
+
+// noted reports whether snap already holds the consolidation note naming
+// loser: a consolidation retried after an interruption notes once.
+func noted(snap *issue.Snapshot, loser entity.Id) bool {
+	for _, op := range snap.Operations {
+		if _, ok := op.(*issue.AddCommentOperation); !ok {
+			continue
+		}
+		if n, _ := op.GetMetadata(MetaNote); n != NoteConsolidated {
+			continue
+		}
+		if from, _ := op.GetMetadata(MetaConsolidatedFrom); from == loser.String() {
+			return true
+		}
+	}
+	return false
 }
 
 // fill is the winner's gaps taken from the loser, local-only fields only:
@@ -576,30 +600,25 @@ func (e *engine) fill(winner, loser *issue.Snapshot, now time.Time) (ops []issue
 	return ops, slices.Compact(kept)
 }
 
-// sweep holds repoint.md's invariant over ids: no unarchived issue has a
-// relation naming an issue that is not the Index's winner for its own Jira
-// id. It runs every run, so a re-point that a refusal, an interrupted run or
-// another clone left undone is made by the next one (R1).
-func (e *engine) sweep(ids []entity.Id) error { return e.repoint(ids, "") }
-
-// repoint sets every relation of the unarchived issues among ids that names
-// a consolidated copy — only that one, unless empty — to the copy that won,
-// one commit and one repointed line per issue, in id order (R3, R4). It
-// writes under the shape check, as the pull does: only the target's identity
-// changes, and the old value was Jira's (R2). An issue that refuses is its
-// own failed line; only a run failure is returned.
-func (e *engine) repoint(ids []entity.Id, only entity.Id) error {
+// sweep holds repoint.md's invariant over ids, every issue of the store:
+// no unarchived issue has a relation naming an issue that is not the Index's
+// winner for its own Jira id, archived or not (R1). Each stale value is set
+// to the winner, one commit and one repointed line per issue, in id order
+// (R3, R4), under the shape check, as the pull writes: only the target's
+// identity changes, and the old value was Jira's (R2). An issue that refuses
+// is its own failed line; only a run failure is returned.
+func (e *engine) sweep(ids []entity.Id) error {
 	for _, id := range slices.Sorted(slices.Values(ids)) {
 		ex, err := e.repo.Issues().ResolveExcerpt(id)
 		if err != nil {
 			return err
 		}
-		if isArchived(ex.Fields) || len(e.repointOps(ex.Fields, only, &Line{})) == 0 {
+		if isArchived(ex.Fields) || len(e.repointOps(ex.Fields, &Line{})) == 0 {
 			continue
 		}
 		line := Line{Issue: id, Jira: ex.CreateMetadata[MetaAlias], Action: ActionRepointed}
 		if e.opts.DryRun {
-			e.repointOps(ex.Fields, only, &line)
+			e.repointOps(ex.Fields, &line)
 			line.DryRun = true
 			e.report(line)
 			continue
@@ -610,7 +629,7 @@ func (e *engine) repoint(ids []entity.Id, only entity.Id) error {
 		}
 		var n int
 		err = ic.UpdateShape(func(snap *issue.Snapshot) ([]issue.Operation, error) {
-			ops := e.repointOps(snap.Fields, only, &line)
+			ops := e.repointOps(snap.Fields, &line)
 			n = len(ops)
 			return ops, nil
 		})
@@ -633,7 +652,7 @@ func (e *engine) repoint(ids []entity.Id, only entity.Id) error {
 // fields, a scalar by one SetField, an item by RemoveValue then AddValue;
 // each field changed is on line, and off-schema when the policy refuses its
 // new value.
-func (e *engine) repointOps(fields map[string]issue.Value, only entity.Id, line *Line) []issue.Operation {
+func (e *engine) repointOps(fields map[string]issue.Value, line *Line) []issue.Operation {
 	typ, _ := issue.String(fields[typeKey])
 	now := e.now().Unix()
 	var ops []issue.Operation
@@ -648,7 +667,7 @@ func (e *engine) repointOps(fields map[string]issue.Value, only entity.Id, line 
 			next := make([]issue.Value, 0, len(items))
 			moved := false
 			for _, it := range items {
-				to, ok := e.winnerOf(it, only)
+				to, ok := e.winnerOf(it)
 				if !ok {
 					next = append(next, it)
 					continue
@@ -665,7 +684,7 @@ func (e *engine) repointOps(fields map[string]issue.Value, only entity.Id, line 
 			}
 			line.imported(k, sortedItems(next))
 		} else {
-			to, ok := e.winnerOf(fields[k], only)
+			to, ok := e.winnerOf(fields[k])
 			if !ok {
 				continue
 			}
@@ -684,9 +703,9 @@ func (e *engine) repointOps(fields map[string]issue.Value, only entity.Id, line 
 // names carries a Jira id whose Index winner is another issue. A value
 // naming an issue with no Jira id, the winner itself, or an archived issue
 // with no duplicate is left alone.
-func (e *engine) winnerOf(v issue.Value, only entity.Id) (issue.Value, bool) {
+func (e *engine) winnerOf(v issue.Value) (issue.Value, bool) {
 	s, ok := issue.String(v)
-	if !ok || (only != "" && entity.Id(s) != only) {
+	if !ok {
 		return nil, false
 	}
 	ex, err := e.repo.Issues().ResolveExcerpt(entity.Id(s))
