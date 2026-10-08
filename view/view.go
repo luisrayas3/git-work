@@ -265,6 +265,11 @@ func (a Arg) check(raw json.RawMessage) (json.RawMessage, error) {
 			return nil, fmt.Errorf("is %s, it is a whole number of levels from the roots", strings.TrimSpace(string(raw)))
 		}
 
+	case ShowMap:
+		if _, err := parseShowMap(raw); err != nil {
+			return nil, err
+		}
+
 	case Document:
 		if err := checkDocument(raw); err != nil {
 			return nil, err

@@ -77,10 +77,18 @@ func (c *Call) SideTables() []*Layer {
 
 // CheckSchema checks what a call names against the live schema, where the
 // table alone cannot: `expand`'s layers, whose relations and field keys have
-// to exist, on show a table each. It is called once, in host.View, so that
+// to exist, on show a table each, and `show`'s entries, each checked as
+// show's own call is (show.go). It is called once, in host.View, so that
 // every surface refuses the same call with the same words before anything
 // is drawn.
 func CheckSchema(call *Call, s *schema.Schema) error {
+	if err := checkLayers(call, s); err != nil {
+		return err
+	}
+	return checkShowMap(call, s)
+}
+
+func checkLayers(call *Call, s *schema.Schema) error {
 	if call.Kind == KindShow {
 		tables := call.SideTables()
 		for at, table := range tables {
