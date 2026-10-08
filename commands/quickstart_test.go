@@ -91,6 +91,70 @@ types:
 	require.Contains(t, out, "No field of its own.")
 }
 
+// TestQuickstartNoFlows: with no flow the second live section says so and
+// says what adds one, as the types section does with no schema.
+func TestQuickstartNoFlows(t *testing.T) {
+	env := newQuickstartTestEnv(t)
+
+	out := quickstart(t, env)
+
+	_, section, ok := strings.Cut(out, "## This repository's flows\n\n")
+	require.True(t, ok)
+	require.True(t, strings.HasPrefix(section, "There is no flow in this repository yet."))
+	require.Contains(t, section, "`git work flow import FILE|DIR`")
+	require.NotContains(t, section, "- `")
+}
+
+// TestQuickstartLiveFlows: the flows are how a repository is meant to be
+// looked at, so quickstart names each unarchived one, by name, as the call
+// that runs it and the first line of its docstring.
+func TestQuickstartLiveFlows(t *testing.T) {
+	env := newQuickstartTestEnv(t)
+
+	_, _, err := host.FlowImport(env.Backend, []host.FlowSource{
+		{Origin: "report.star", Script: `def report(since, from_="7d", iteration=None, full=False, limit=20):
+    """What changed since a time, as markdown.
+
+    The rest of the docstring is for flow list.
+    """
+    return None
+`},
+		{Origin: "board.star", Script: `def board():
+    """Kanban of the open work."""
+    return None
+`},
+		{Origin: "gone.star", Script: `def gone():
+    """Archived, so absent."""
+    return None
+`},
+		{Origin: "bare.star", Script: `def bare(x=[1, None, "a"]):
+    return None
+`},
+	}, false, false)
+	require.NoError(t, err)
+	require.NoError(t, host.FlowArchive(env.Backend, "gone"))
+
+	out := quickstart(t, env)
+
+	_, section, ok := strings.Cut(out, "## This repository's flows\n\n")
+	require.True(t, ok)
+	require.Contains(t, section, "`git work flow run NAME [KWARGS]`")
+	require.Contains(t, section, "`git work flow export NAME`")
+
+	var entries []string
+	for _, line := range strings.Split(section, "\n") {
+		if strings.HasPrefix(line, "- ") {
+			entries = append(entries, line)
+		}
+	}
+	require.Equal(t, []string{
+		"- `bare(x=[1, None, \"a\"])`",
+		"- `board()` — Kanban of the open work.",
+		"- `report(since, from_=\"7d\", iteration=None, full=False, limit=20)` — What changed since a time, as markdown.",
+	}, entries)
+	require.NotContains(t, out, "`gone(")
+}
+
 // TestQuickstartNamesRealCommands walks the command tree for every
 // `git work …` the guide spells out.
 //
