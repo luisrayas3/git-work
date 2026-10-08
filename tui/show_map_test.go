@@ -227,7 +227,7 @@ func TestAShowEntryIsCheckedAsShowIs(t *testing.T) {
 	}
 	for _, c := range []struct{ shows, want string }{
 		{`{"epic":{"id":"abc"}}`, "epic takes no id"},
-		{`{"epic":{"colour":"red"}}`, "epic: view show takes no argument colour"},
+		{`{"epic":{"colour":"red"}}`, "epic takes no argument colour, an entry takes fields (defaulted), expand (optional)"},
 		{`{"epic":{"expand":{"relation":"children","group_by":"status"}}}`, "takes no group_by"},
 		{`{"epic":"children"}`, "epic is an object of show arguments"},
 		{`["epic"]`, "is an object of type keys"},

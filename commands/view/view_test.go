@@ -124,7 +124,7 @@ func TestViewChecksShowEntries(t *testing.T) {
 	for _, c := range []struct{ kind, kwargs, want string }{
 		{"list", `{"show":{"saga":{}}}`, "show names type saga, which the schema does not have; the types are initiative, epic"},
 		{"board", `{"columns":"status","show":{"epic":{"id":"abc"}}}`, "show epic takes no id"},
-		{"gantt", `{"start":"due","stop":"due","show":{"epic":{"colour":"red"}}}`, "show epic: view show takes no argument colour"},
+		{"gantt", `{"start":"due","stop":"due","show":{"epic":{"colour":"red"}}}`, "show epic takes no argument colour, an entry takes fields (defaulted), expand (optional)"},
 		{"matrix", `{"rows":"type","columns":"status","show":{"epic":{"expand":"nephews"}}}`, "show epic: view show: expand"},
 		{"show", `{"id":"abc","show":{"epic":{"expand":{"relation":"children","details":["status"]}}}}`, "takes no details"},
 		{"list", `{"show":{"epic":{"expand":{"relation":"children","fields":["colour"]}}}}`, "colour"},

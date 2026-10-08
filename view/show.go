@@ -49,12 +49,40 @@ func parseShowMap(raw json.RawMessage) (map[string]map[string]json.RawMessage, e
 		if _, ok := args["show"]; ok {
 			return nil, fmt.Errorf("%s takes no show: the pages it opens open by this same map", typeKey)
 		}
+		// an unknown argument is named against what an entry takes, which
+		// is show's arguments less id and show, never show's own list
+		for name := range args {
+			if !entryTakes(name) {
+				return nil, fmt.Errorf("%s takes no argument %s, an entry takes %s", typeKey, name, argNames(entryArgs()))
+			}
+		}
 		if _, err := entryCall(args, showIdPlaceholder); err != nil {
 			return nil, fmt.Errorf("%s: %w", typeKey, err)
 		}
 		out[typeKey] = args
 	}
 	return out, nil
+}
+
+// entryArgs is show's argument table less what an entry may not give: the
+// id the row gives, and show, which the pages carry.
+func entryArgs() []Arg {
+	var out []Arg
+	for _, arg := range Kinds[KindShow] {
+		if arg.Name != "id" && arg.Name != "show" {
+			out = append(out, arg)
+		}
+	}
+	return out
+}
+
+func entryTakes(name string) bool {
+	for _, arg := range entryArgs() {
+		if arg.Name == name {
+			return true
+		}
+	}
+	return false
 }
 
 // entryCall is the show call an entry makes for one id, parsed against
