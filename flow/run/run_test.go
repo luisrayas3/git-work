@@ -387,7 +387,7 @@ func TestViewTakesShow(t *testing.T) {
 		{`work.view.list(show={"saga": {}})`, "show names type saga"},
 		{`work.view.board(columns="status", show={"epic": {"id": "abc"}})`, "show epic takes no id"},
 		{`work.view.gantt(start="due", stop="due", show={"epic": {"expand": "nephews"}})`, "show epic: view show: expand"},
-		{`work.view.matrix(rows="type", columns="status", show={"epic": {"children": []}})`, "show epic: view show takes no argument children"},
+		{`work.view.matrix(rows="type", columns="status", show={"epic": {"children": []}})`, "show epic takes no argument children, an entry takes fields (defaulted), expand (optional)"},
 		{`work.view.show(id="abc", show={"epic": {"expand": {"relation": "children", "group_by": "status"}}})`, "takes no group_by"},
 	} {
 		_, _, err = runWith(t, repo, renderer, "def bad():\n    \"\"\"A bad show entry.\"\"\"\n    return "+c.call+"\n", nil)
