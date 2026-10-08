@@ -109,10 +109,11 @@ func newListPage(repo *cache.RepoCache, call *view.Call) (*listPage, error) {
 	}
 
 	root := nestLayer{
-		fields:  call.Strings("fields"),
-		details: call.Strings("details"),
-		groupBy: p.groupBy,
-		rankKey: p.rankKey,
+		fields:         call.Strings("fields"),
+		details:        call.Strings("details"),
+		groupBy:        p.groupBy,
+		rankKey:        p.rankKey,
+		includeArchive: p.includeArchive,
 	}
 	if len(root.fields) == 0 {
 		root.fields = []string{schema.TitleKey}

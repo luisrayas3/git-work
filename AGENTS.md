@@ -144,7 +144,7 @@ The log takes the list's PROGRAM as well as one id;
 an id prefix or alias is tried first, and what does not resolve is a program.
 **A program's input is the unarchived issues** (`df6ff51`, `doc/design/include-archive.md`):
 the list, the log's PROGRAM and every view's `query` run over them,
-so no query carries a `select(.fields.archived != true)`,
+so no query carries an archived filter of its own,
 and `--include-archive` (`include_archive` in a view's KWARGS and in Starlark) brings the archived back;
 with `--at` the input reads the `archived` that stood then,
 and an issue named by id is that issue, archived or not.
@@ -331,7 +331,8 @@ either side of it a name it takes — the derived `children` is read through the
 It is a **layer spec** (2026-10-02, `f4426ff`; `depth` is gone):
 `{"relation":"children","query":…,"include_archive":…,"fields":…,"details":…,"group_by":…,"rank":…,"expand":…}`,
 where a layer's `query` runs over that row's own unarchived children (every one of them without it,
-the archived too with the layer's own `include_archive`, which is not inherited),
+the archived too with `include_archive`, which a layer inherits from the call or the layer above
+unless it names its own, because archive visibility is one choice for the whole view),
 the keys it leaves out are the layer above's,
 and its `expand` is the level below — none means leaves, a layer is the next level,
 and a number is this same layer again for that many more levels, `0` for every level down.

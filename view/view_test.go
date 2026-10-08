@@ -345,8 +345,8 @@ func TestParseIncludeArchive(t *testing.T) {
 
 	call, err = Parse(KindList, kwargs(t, `{"expand":{"relation":"children","include_archive":true,"expand":{"relation":"children"}}}`))
 	require.NoError(t, err)
-	require.True(t, call.Expand().IncludeArchive)
-	require.False(t, call.Expand().Expand.IncludeArchive, "a layer's default, not the layer above's")
+	require.True(t, *call.Expand().IncludeArchive)
+	require.Nil(t, call.Expand().Expand.IncludeArchive, "unnamed, it is the layer above's, resolved by the renderer")
 
 	_, err = Parse(KindList, kwargs(t, `{"expand":{"relation":"children","include_archive":1}}`))
 	require.ErrorContains(t, err, "include_archive is true or false")

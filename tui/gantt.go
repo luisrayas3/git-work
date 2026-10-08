@@ -139,7 +139,7 @@ func newGanttPage(repo *cache.RepoCache, call *view.Call) (*ganttPage, error) {
 		col:            -1,
 		grabbed:        -1,
 	}
-	n, err := newNesting(nestLayer{groupBy: p.groupBy, rankKey: p.rankKey}, call.Expand())
+	n, err := newNesting(nestLayer{groupBy: p.groupBy, rankKey: p.rankKey, includeArchive: p.includeArchive}, call.Expand())
 	if err != nil {
 		return nil, err
 	}

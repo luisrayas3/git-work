@@ -468,8 +468,15 @@ func TestArchivedAreOutOfTheInputUnlessAsked(t *testing.T) {
 	page = list(t, repo, `{`+roots+`,"expand":"children"}`)
 	require.Contains(t, rowOf(page, story), "▸ 1")
 
+	// the call's switch is inherited by a layer that does not name it
 	page = list(t, repo, `{`+roots+`,"include_archive":true,"expand":"children"}`)
-	require.Contains(t, rowOf(page, story), "▸ 1", "the call's switch is the roots', not the layer's")
+	require.Contains(t, rowOf(page, story), "▸ 2", "the call's switch reaches the layers")
+	send(page, "right", "space")
+	require.NotEqual(t, "", rowOf(page, gone))
+
+	// a layer that names it overrides it, either way
+	page = list(t, repo, `{`+roots+`,"include_archive":true,"expand":{"relation":"children","include_archive":false}}`)
+	require.Contains(t, rowOf(page, story), "▸ 1", "explicitly false under a call that is true")
 
 	page = list(t, repo, `{`+roots+`,"expand":{"relation":"children","include_archive":true}}`)
 	require.Contains(t, rowOf(page, story), "▸ 2")
