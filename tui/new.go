@@ -36,7 +36,11 @@ import (
 type newPage struct {
 	repo *cache.RepoCache
 
-	call  *view.Call
+	call *view.Call
+	// shows is the `show` of the view that opened the creator: a relation
+	// cell and the page after Create open by it (show_map.go); a
+	// standalone creator has none, and opens bare shows
+	shows json.RawMessage
 	order []string
 
 	// fields is the draft: the title and the type included, as `issue new`
@@ -480,12 +484,7 @@ func (p *newPage) edit(here position) tea.Cmd {
 }
 
 func (p *newPage) follow(id string) tea.Cmd {
-	shown, err := newShowPage(p.repo, id, nil)
-	if err != nil {
-		p.status = err.Error()
-		return bell()
-	}
-	return func() tea.Msg { return pushMsg{page: shown} }
+	return pushShow(p.repo, p.shows, id, &p.status)
 }
 
 func (p *newPage) copyHere(here position) tea.Cmd {
@@ -648,7 +647,7 @@ func (p *newPage) create() tea.Cmd {
 		return bell()
 	}
 
-	shown, err := newShowPage(p.repo, id.String(), nil)
+	shown, err := showOf(p.repo, p.shows, id.String())
 	if err != nil {
 		p.status = err.Error()
 		return bell()

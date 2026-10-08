@@ -241,6 +241,8 @@ A query that fails on the data is reported in the status line, as a layer's is, 
 
 - **Show's defaults.** `Enter` from a list opens a bare show, with no side table.
   A type's usual tables belong to a flow that calls show.
+  Taken up 2026-10-08 by `show-from-a-view.md`:
+  a view's `show` maps a type to the show its `Enter` opens, still the flow's and not the schema's.
 - **Editing a child's cells in the table.** `←`/`→` are the tab keys, so a cell cannot be reached;
   the child's page is one `Enter` away.
 - **Nesting and sections in the side table**, refused by name (S3).

@@ -835,7 +835,7 @@ func (p *ganttPage) key(press tea.KeyPressMsg) (page, tea.Cmd) {
 	case keys.act.matches(press):
 		if b := p.current(); b != nil {
 			if node := p.node(); node.ghost {
-				return p, openNew(p.repo, p.ghostDoc(b, node))
+				return p, openNew(p.repo, p.call.Raw("show"), p.ghostDoc(b, node))
 			}
 			if b.id == "" {
 				// a row that stands for no issue has nothing to open (R2)
@@ -944,14 +944,9 @@ func (p *ganttPage) toggleAll() {
 	p.rebuild()
 }
 
-// push opens an issue over the chart.
+// push opens an issue over the chart, by the call's `show` (show_map.go).
 func (p *ganttPage) push(id string) tea.Cmd {
-	shown, err := newShowPage(p.repo, id, nil)
-	if err != nil {
-		p.status = err.Error()
-		return bell()
-	}
-	return func() tea.Msg { return pushMsg{page: shown} }
+	return pushShow(p.repo, p.call.Raw("show"), id, &p.status)
 }
 
 func (p *ganttPage) copyId() tea.Cmd {

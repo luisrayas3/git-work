@@ -461,6 +461,19 @@ The side tables are a stop between the fields and the box, reached by `Tab`/`S-T
 and a row is one issue: `Enter` opens it, `Space` grabs it to rank it within its table, copy copies its id, `/` narrows the rows.
 A table over an inverse ends in a ghost prefilled with the stored field set to this issue's id (and the type where one type holds that field);
 a table over a stored relation of the shown issue has none, since that would be a second commit on this issue.
+**What `Enter` opens is the view's `show`** (2026-10-08, `doc/design/show-from-a-view.md`):
+an optional object on the list, the gantt, the board and the matrix,
+a type key mapped to show's KWARGS without `id`,
+`git work view list '{"query":…,"expand":"children","show":{"epic":{"expand":{"relation":"children","fields":["status"]}}}}'`.
+`Enter` on a row, a card or a bar of a listed type opens show with its id and that entry,
+an unlisted type a bare show, and a row with no id rings;
+the type is the stored issue's, never the row's shaped `fields.type`.
+Every page opened from there carries the map —
+a side table's row, a relation cell, the creator and the page after Create, the list a matrix's `Enter` opens —
+so `Esc` back up the stack returns to pages that keep their tables.
+A direct `git work view show` takes `show` for the pages it opens, never for itself.
+Each entry is checked as show's own call before anything draws, refused naming the type:
+a type the schema lacks (naming the types), `id` or `show` in an entry, and whatever show refuses.
 `Esc` (or vim's `q`, emacs's `C-g`) is always back;
 from the first view it parks on the call line, the query formatted under it
 (`query/jq.Format`, a pipe per line; `C-c` copies the whole `git work view …` command), and from there it quits;

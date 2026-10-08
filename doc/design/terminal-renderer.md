@@ -141,11 +141,11 @@ and puts the archived back in its input (`df6ff51`, `include-archive.md`).
 
 | Kind | Required | Defaulted | Optional |
 | --- | --- | --- | --- |
-| `list` | — | `fields` (`["type","title"]`), `include_archive` (false) | `details`, `group_by`, `expand` |
-| `board` | `columns` | `values` (the field's schema order), `card` (`["title"]`), `include_archive` (false) | `group_by` |
-| `gantt` | `start`, `stop` | `label` (title), `scale` (`week`), `from`, `to` (the data's extent), `include_archive` (false) | `progress`, `group_by`, `expand` |
-| `matrix` | `rows`, `columns` | `row_values`, `column_values` (each axis's own order), `include_archive` (false) | `value`, `group_by` |
-| `show` | `id` | `fields` (the type's fields, schema order) | `expand` (a side table per element) |
+| `list` | — | `fields` (`["type","title"]`), `include_archive` (false) | `details`, `group_by`, `expand`, `show` |
+| `board` | `columns` | `values` (the field's schema order), `card` (`["title"]`), `include_archive` (false) | `group_by`, `show` |
+| `gantt` | `start`, `stop` | `label` (title), `scale` (`week`), `from`, `to` (the data's extent), `include_archive` (false) | `progress`, `group_by`, `expand`, `show` |
+| `matrix` | `rows`, `columns` | `row_values`, `column_values` (each axis's own order), `include_archive` (false) | `value`, `group_by`, `show` (for the list `Enter` opens) |
+| `show` | `id` | `fields` (the type's fields, schema order) | `expand` (a side table per element), `show` (for the pages it opens) |
 
 `fields` on a list is an ordered list of field keys,
 shown as columns and **editable in place**;
@@ -655,7 +655,7 @@ Decided with the list's keys in hand, on 2026-09-28 (Luis),
 and built the same day.
 
 **The only edits a board makes are moves.**
-`Enter` on a card opens the issue in `show`,
+`Enter` on a card opens the issue in `show`, by the board's `show` (Show, The show a view opens),
 and nothing on a card is edited in place:
 a card is a summary,
 the page where a field is edited is the one with the field on it,
@@ -763,7 +763,7 @@ Decided with the board's calls in hand, on 2026-09-28 (Luis),
 and built the same day (`565d57a`).
 
 **The only edits a gantt makes are moves**, as on a board.
-`Enter` on a row opens the issue in `show`,
+`Enter` on a row opens the issue in `show`, by the gantt's `show` (Show, The show a view opens),
 copy in every spelling copies the id,
 and a paste has nowhere to go and says so.
 A bar has no cell inside it any more than a card has;
@@ -1110,6 +1110,41 @@ and its children were rows of the fields table under the relation's name,
 links the cursor stood on and `Enter` followed, with the fields after a title joined by `·`.
 Those rows had no columns, so nothing on them could be aligned, edited or copied alone,
 and the entry was a layer spelled a second way.
+
+### The show a view opens
+
+Decided 2026-10-08 (Luis) in `doc/design/show-from-a-view.md`, and only summed up here.
+The list, the gantt, the board and the matrix take **`show`**:
+a type key mapped to show's KWARGS without `id`.
+
+```json
+{"query": "map(select(.fields.type == \"epic\"))", "expand": "children",
+ "show": {"epic": {"expand": {"relation": "children", "fields": ["status", "assignee"]}}}}
+```
+
+`Enter` on a row, a card or a bar opens show with the row's id and its type's entry;
+a type not listed opens a bare show, and a row with no id rings, as it did.
+**The type is the stored issue's**, read from the store,
+never the row's `fields.type`, which a query may shape:
+the page shown is the issue's.
+It applies at every nesting level, the type picking the entry and not the level.
+The tables stay the flow's, not the schema's; the map is how a flow names them
+for the show it cannot otherwise reach.
+
+**The page carries the map**, as its own `show`, and so does every page it opens:
+a side table's row, a relation cell in the fields table,
+the creator a ghost opens, and the page that creator opens after Create.
+So a drill-down from an epic to a story to its tasks reads the same at every step,
+and `Esc` back up the stack returns to pages that still have their tables.
+A matrix's `Enter` opens a list, and that list takes the matrix's `show`,
+which the matrix uses for nothing else.
+A direct `git work view show` takes `show` too, for the pages it opens, never for the shown issue.
+
+Each entry is checked **as show's own call is** — show's argument table, then `view.CheckSchema` —
+in `view.Parse` and `host.View`, before anything draws, refused naming the type:
+a key the schema has no type for (naming the types), `id` (the row's to give),
+`show` (the map is one for the whole stack), and anything show refuses.
+The command checks the schema's half with no terminal too, so an agent's bad map is reported as itself.
 
 ## Nesting
 

@@ -816,6 +816,11 @@ func (p *matrixPage) cellCall() (*view.Call, error) {
 	if p.includeArchive {
 		kwargs["include_archive"] = mustJSON(true)
 	}
+	// the list opens issues by the matrix's map, which the matrix takes
+	// for that alone (doc/design/show-from-a-view.md, V3)
+	if p.call.Has("show") {
+		kwargs["show"] = p.call.Raw("show")
+	}
 	return view.Parse(view.KindList, kwargs)
 }
 

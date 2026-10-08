@@ -162,6 +162,9 @@ in Starlark, the same reason `work.schema.import_` does.
   as `"children"` or as a layer that says what that level draws;
   on `show` it takes the same, or a list of them,
   and draws each as a flat table of the issues it reaches beside the fields.
+  `show` on a list, a gantt, a board or a matrix says what `Enter` opens per type,
+  `{"epic":{"expand":"children"}}`, a type key mapped to show's arguments without `id`;
+  the pages opened from there open by the same map.
   On a list and a gantt a row the query makes may carry a top-level `key`,
   its identity on the screen, so one issue can be drawn twice;
   its `id` stays the issue it acts on, and may be left out beside a key,
