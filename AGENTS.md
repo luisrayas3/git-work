@@ -376,7 +376,7 @@ Within a table the id column is first and the **fold arrow is the cell after it*
 `→` reaches it, `Space` there folds (on the gantt it is `←` from the first period), `Enter` opens the row,
 and `Z` folds or unfolds every parent (`z` is gone).
 **A nested view opens folded**, so the roots and their counts read as a summary;
-`Tab` goes into the first child and `S-Tab` up to the parent,
+`Tab` goes into the first child, onto its id, and `S-Tab` up to the parent, onto its fold arrow (2026-10-07),
 a list's `↑`/`↓` stay on the level, a rank moves a row among its siblings with its subtree,
 and a parent with no dates draws its children's envelope on the gantt
 (2026-09-28, 2026-10-02, `doc/design/terminal-renderer.md`, Gantt and Nesting).

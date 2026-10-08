@@ -595,7 +595,8 @@ func (p *listPage) moveAtLevel(by int) {
 	}
 }
 
-// intoChild is tab: onto the row's first child, unfolding it on the way.
+// intoChild is tab: onto the row's first child, unfolding it on the way,
+// and onto its id, the cell a row is read from.
 func (p *listPage) intoChild() {
 	node := p.node()
 	if node == nil || node.children == 0 {
@@ -608,10 +609,12 @@ func (p *listPage) intoChild() {
 	}
 	if at := p.cursor + 1; at < len(p.order) && p.nodes[p.order[at]].level == node.level+1 {
 		p.cursor = at
+		p.column = 0
 	}
 }
 
-// toParent is shift-tab: onto the row this one is under.
+// toParent is shift-tab: onto the row this one is under, and onto its fold
+// arrow, where space folds back what tab opened.
 func (p *listPage) toParent() {
 	node := p.node()
 	if node == nil || node.level == 0 {
@@ -620,6 +623,7 @@ func (p *listPage) toParent() {
 	for at := p.cursor - 1; at >= 0; at-- {
 		if p.nodes[p.order[at]].level < node.level {
 			p.cursor = at
+			p.column = p.treeCol()
 			return
 		}
 	}

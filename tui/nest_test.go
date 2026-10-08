@@ -101,15 +101,17 @@ func TestListNestsChildrenUnderTheirParent(t *testing.T) {
 	require.Equal(t, story, page.current().id)
 	send(page, "tab")
 	require.Equal(t, one, page.current().id)
+	require.Equal(t, 0, page.column, "tab lands on the child's id")
 	send(page, "down")
 	require.Equal(t, two, page.current().id)
 	send(page, "up", "up")
 	require.Equal(t, one, page.current().id, "the level's first")
-	send(page, "shift+tab")
+	send(page, "right", "right", "shift+tab")
 	require.Equal(t, story, page.current().id)
+	require.Equal(t, page.treeCol(), page.column, "shift-tab lands on the parent's arrow")
 
 	// space on the arrow folds it again; on a leaf's tree cell it rings
-	send(page, "right", "space")
+	send(page, "space")
 	require.Contains(t, plainView(page), "2 issues")
 	require.Contains(t, rowOf(page, story), "▸ 2")
 	require.Equal(t, "", rowOf(page, one))
@@ -234,7 +236,7 @@ func TestListLayerQueryAndFields(t *testing.T) {
 	require.Equal(t, open, page.current().id)
 	require.NotContains(t, topHeader(page), "status", "the top header never follows the cursor")
 	require.Equal(t, []string{"status", "title"}, page.cursorFields(), "the cursor walks the child's own cells")
-	send(page, "right") // the column was on the tree cell; one step in is the first field
+	send(page, "right", "right") // tab lands on the id; past the tree cell is the first field
 	require.Equal(t, "status", page.fieldKey())
 	send(page, "shift+tab")
 	require.NotContains(t, topHeader(page), "status")
@@ -417,7 +419,7 @@ func TestListNestedGrabMovesAmongSiblings(t *testing.T) {
 	require.Less(t, indexOf(drawn, two[:idWidth]), indexOf(drawn, one[:idWidth]))
 
 	// a story moves with its children
-	send(page, "shift+tab", "space", "down")
+	send(page, "shift+tab", "left", "space", "down")
 	require.Equal(t, story, page.current().id)
 	require.Equal(t, 1, page.cursor)
 	drawn = plainView(page)
