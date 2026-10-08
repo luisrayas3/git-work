@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 
@@ -44,9 +45,18 @@ type showPage struct {
 	log      []cmdjson.IssueOperation
 	// rows is the fields table as drawn, rebuilt on every load
 	rows []tableRow
-	// children are the call's sections of issues pointing at this one,
-	// drawn as rows after the fields (show_children.go)
-	children []view.Children
+	// tables are the call's `expand`, a side table each beside the fields
+	// (show_side.go)
+	tables []*sideTable
+	// side is the side column's item under the cursor, kept while the
+	// cursor is elsewhere, as row is; sideTop is the first line its window
+	// draws when it scrolls within itself
+	side, sideTop int
+	// filter narrows the side tables' rows, and filtering is `/` open
+	filter    string
+	filtering *textinput.Model
+	// grab is a side row picked up to move within its table
+	grab *sideGrab
 
 	box *commentBox
 
@@ -97,6 +107,9 @@ const (
 	// stopCreate is new's last stop, the button (new.go); show has no such
 	// stop and never lands on it.
 	stopCreate
+	// stopSide is the side tables, between the fields and the box in the
+	// order of tab, and reached by tab and shift-tab alone (show_side.go)
+	stopSide
 )
 
 // The header's cells: the three built-in fields, which every type has and
@@ -138,9 +151,6 @@ type tableRow struct {
 	first bool
 	// link is the issue this line names, or ""
 	link string
-	// derived marks a row of a children section: the other side of a
-	// relation, which is not a field and so is never edited
-	derived bool
 }
 
 func newShowPage(repo *cache.RepoCache, id string, fields []string) (*showPage, error) {
@@ -182,7 +192,8 @@ func (p *showPage) load() error {
 	}
 	p.log = entries
 
-	p.rows = append(p.tableRows(), p.childRows()...)
+	p.rows = p.tableRows()
+	p.loadSide()
 	return nil
 }
 
@@ -226,6 +237,11 @@ func (p *showPage) tableRows() []tableRow {
 			// order the drags write, not a value anyone reads (2026-10-08)
 			continue
 		}
+		if isRelation(known.of(typeKey, key)) && len(p.order) == 0 && p.drawnBeside(key) {
+			// a stored relation a side table draws is not drawn twice,
+			// unless the call's fields name it (show-side-table.md, S3)
+			continue
+		}
 		if isRelation(known.of(typeKey, key)) {
 			value, _ := decodeValue(p.snapshot.Fields[key])
 			ids := linkIds(value)
@@ -246,6 +262,16 @@ func (p *showPage) tableRows() []tableRow {
 	return out
 }
 
+// drawnBeside says a side table lists the relation of this name.
+func (p *showPage) drawnBeside(key string) bool {
+	for _, table := range p.tables {
+		if table.layer.Relation == key {
+			return true
+		}
+	}
+	return false
+}
+
 // archived is whether the issue is, as its field says.
 func (p *showPage) archived() bool {
 	value, _ := decodeValue(p.snapshot.Fields[issue.ArchivedKey])
@@ -254,17 +280,23 @@ func (p *showPage) archived() bool {
 }
 
 // stops is every step of Tab, top to bottom: the table is one only while it
-// has rows.
+// has rows, and the side tables only where the call asked for some.
 func (p *showPage) stops() []stopKind {
 	out := []stopKind{stopHeader}
 	if len(p.rows) > 0 {
 		out = append(out, stopFields)
+	}
+	if len(p.tables) > 0 {
+		out = append(out, stopSide)
 	}
 	return append(out, stopBox, stopTabs)
 }
 
 func (p *showPage) current() position {
 	if p.focus == stopFields && len(p.rows) == 0 {
+		p.focus = stopBox
+	}
+	if p.focus == stopSide && len(p.tables) == 0 {
 		p.focus = stopBox
 	}
 	return position{stop: p.focus, typing: p.focus == stopBox && p.typing}
@@ -302,7 +334,7 @@ func (p *showPage) field() string {
 	if p.current().stop == stopHeader {
 		return [...]string{schema.TypeKey, schema.TitleKey, issue.ArchivedKey}[p.cell]
 	}
-	if row := p.currentRow(); row != nil && !row.derived {
+	if row := p.currentRow(); row != nil {
 		return row.key
 	}
 	return ""
@@ -365,8 +397,32 @@ func (p *showPage) Update(msg tea.Msg) (page, tea.Cmd) {
 		return p, nil
 
 	case refreshMsg:
+		if p.grab != nil {
+			// a grab holds a placement the store does not have; the drop
+			// and the put-back both read the store again
+			return p, nil
+		}
+		was := p.sideRowAt(p.sideCurrent())
 		if err := p.load(); err != nil {
 			p.status = err.Error()
+		}
+		if was != nil {
+			p.putSideOn(was.id)
+		}
+		return p, nil
+
+	case createdMsg:
+		// a draft the ghost opened was created: it appears in its table,
+		// the cursor on it (doc/design/create.md, C4)
+		if err := p.load(); err != nil {
+			p.status = err.Error()
+			return p, nil
+		}
+		p.status = "created " + human(msg.id)
+		if p.putSideOn(msg.id) {
+			p.focusStop(stopSide)
+		} else {
+			p.status += ", not in this view"
 		}
 		return p, nil
 
@@ -394,6 +450,9 @@ func (p *showPage) Update(msg tea.Msg) (page, tea.Cmd) {
 	if p.editor != nil {
 		return p.updateEditor(msg)
 	}
+	if p.filtering != nil {
+		return p.filterKey(msg)
+	}
 	if box := p.typingIn(); box != nil {
 		return p, box.Update(msg)
 	}
@@ -409,6 +468,10 @@ func (p *showPage) key(press tea.KeyPressMsg) (page, tea.Cmd) {
 		return p, nil
 	case p.editor != nil:
 		return p.updateEditor(press)
+	case p.filtering != nil:
+		return p.filterKey(press)
+	case p.grab != nil:
+		return p.sideGrabKey(press)
 	case p.editingDesc:
 		return p.descKey(press)
 	case p.inText():
@@ -462,6 +525,16 @@ func (p *showPage) key(press tea.KeyPressMsg) (page, tea.Cmd) {
 	case keys.bottom.matches(press):
 		p.offset = 1 << 30 // the view clamps it to the last screenful
 
+	case here.stop == stopSide && keys.act.matches(press):
+		return p, p.sideAct()
+	case here.stop == stopSide && keys.grab.matches(press):
+		return p, p.startSideGrab()
+	case here.stop == stopSide && (keys.copy.matches(press) || keys.copyId.matches(press)):
+		return p, p.sideCopy()
+	case here.stop == stopSide && keys.filter.matches(press):
+		p.startFilter()
+		return p, nil
+
 	case keys.act.matches(press):
 		return p, p.act(here)
 	case keys.edit.matches(press):
@@ -497,6 +570,14 @@ func (p *showPage) down(here position) {
 			return
 		}
 		p.focusStop(stopBox)
+	case stopSide:
+		// the side tables and the fields are two columns: down leaves
+		// either at its foot for the box, never into the other (S5)
+		if p.side < len(p.sideItems())-1 {
+			p.side++
+			return
+		}
+		p.focusStop(stopBox)
 	case stopBox:
 		p.focusStop(stopTabs)
 	case stopTabs:
@@ -509,6 +590,12 @@ func (p *showPage) up(here position) {
 	case stopFields:
 		if p.row > 0 {
 			p.row--
+			return
+		}
+		p.focusStop(stopHeader)
+	case stopSide:
+		if p.side > 0 {
+			p.side--
 			return
 		}
 		p.focusStop(stopHeader)
@@ -700,9 +787,9 @@ func (p *showPage) act(here position) tea.Cmd {
 	if row.link != "" {
 		return p.follow(row.link)
 	}
-	// an empty relation, or a section with no child, is a link to nothing
+	// an empty relation is a link to nothing
 	typeKey, _ := issue.String(p.snapshot.Fields[schema.TypeKey])
-	if kind, _ := fieldKind(p.repo, typeKey, row.key); row.derived || isRelation(kind) {
+	if kind, _ := fieldKind(p.repo, typeKey, row.key); isRelation(kind) {
 		p.status = "no link"
 		return bell()
 	}
@@ -713,7 +800,7 @@ func (p *showPage) act(here position) tea.Cmd {
 // — a value list, a relation's picker on the current value, an input line —
 // and a bool, archived included, flips at once; on the box it puts the cursor
 // in the text, and on the description tab it opens the description's editor.
-// A child's row is not a field, and rings the bell.
+// On a side row it grabs, which key() reads before this.
 func (p *showPage) edit(here position) tea.Cmd {
 	switch here.stop {
 	case stopBox:
@@ -725,10 +812,6 @@ func (p *showPage) edit(here position) tea.Cmd {
 		if p.tab == tabDescription {
 			return p.editDescription()
 		}
-		return bell()
-	}
-	if row := p.currentRow(); here.stop == stopFields && row != nil && row.derived {
-		p.status = "derived: edit the child"
 		return bell()
 	}
 	return p.startEdit(p.field(), nil)
@@ -880,6 +963,10 @@ func (p *showPage) View() string {
 	if p.editor != nil {
 		bottom = p.editor.View(p.width)
 	}
+	if p.filtering != nil {
+		// the side tables' filter, read over the status line as a list's is
+		bottom = append(bottom, fit("/"+p.filtering.View(), p.width))
+	}
 	bottom = append(bottom, p.statusLine())
 
 	room := max(p.height-len(top)-len(bottom), 1)
@@ -965,8 +1052,8 @@ func (p *showPage) headerLines(here position) []string {
 func (p *showPage) body(here position) (lines []string, from, to int) {
 	from, to = -1, -1
 
-	lines, rowLine := p.fieldLines(here)
-	if here.stop == stopFields {
+	lines, rowLine := p.blockLines(here)
+	if rowLine >= 0 {
 		from, to = rowLine, rowLine
 	}
 
@@ -992,8 +1079,62 @@ func (p *showPage) body(here position) (lines []string, from, to int) {
 // tabBarLine is where the tab strip starts in body: what the page scrolls to
 // when the cursor moves onto the tabs.
 func (p *showPage) tabBarLine() int {
-	lines, _ := p.fieldLines(position{stop: stopHeader})
+	lines, _ := p.blockLines(position{stop: stopHeader})
 	return len(lines) + len(p.box.View(p.width, false)) + 1
+}
+
+// blockLines is the fields table and the side tables: beside it when the
+// window holds both, under it when it does not, which the width alone
+// decides (doc/design/show-side-table.md, S4). It says which line the cursor
+// is on, in the fields or in the side column, or -1.
+func (p *showPage) blockLines(here position) ([]string, int) {
+	if len(p.tables) == 0 {
+		return p.fieldLines(here)
+	}
+
+	limit := max(len(p.rows), sideCap)
+	valueWidth := 1
+	for _, row := range p.rows {
+		valueWidth = max(valueWidth, ansi.StringWidth(row.label))
+	}
+	left := 1 + 16 + min(valueWidth, sideValueMax)
+	sideWidth := p.width - left - 3
+
+	if sideWidth >= p.sideNeeds() {
+		fields, fieldLine := tableLines(p.rows, p.row, here.stop == stopFields, left)
+		if len(fields) > 0 {
+			fields = fields[:len(fields)-1] // the blank under the table
+		}
+		side, sideLine := p.sideWindow(sideWidth, limit, here)
+		lines := make([]string, 0, max(len(fields), len(side))+1)
+		for at := 0; at < max(len(fields), len(side)); at++ {
+			l, r := "", ""
+			if at < len(fields) {
+				l = fields[at]
+			}
+			if at < len(side) {
+				r = side[at]
+			}
+			lines = append(lines, pad(l, left)+" "+styleDim.Render("│")+" "+r)
+		}
+		cursor := fieldLine
+		if here.stop == stopSide {
+			cursor = sideLine
+		}
+		return append(lines, ""), cursor
+	}
+
+	// under: the fields, then the side column at the window's width
+	lines, cursor := p.fieldLines(here)
+	if len(lines) == 0 {
+		lines = []string{""}
+	}
+	side, sideLine := p.sideWindow(p.width, limit, here)
+	if here.stop == stopSide && sideLine >= 0 {
+		cursor = len(lines) + sideLine
+	}
+	lines = append(lines, side...)
+	return append(lines, ""), cursor
 }
 
 // descFooter is under the description's editor, the keys that work it: the
@@ -1163,6 +1304,12 @@ func (p *showPage) hintLine() string {
 	if p.editingDesc {
 		return hints(descHints()...)
 	}
+	if p.filtering != nil {
+		return filterHints()
+	}
+	if p.grab != nil {
+		return grabHints(hint{"↑↓", "move"})
+	}
 
 	here := p.current()
 	switch here.stop {
@@ -1180,19 +1327,13 @@ func (p *showPage) hintLine() string {
 			return hints(edit)
 		}
 		return hints()
+	case stopSide:
+		return p.sideHints()
 	}
 
 	row := p.currentRow()
 	if row == nil {
 		return hints()
-	}
-	// a child's row is the other side of a relation: a link, and never a
-	// field, so it is followed and never edited
-	if row.derived {
-		if row.link == "" {
-			return hints()
-		}
-		return hints(hint{"enter", "follow"})
 	}
 
 	var pairs []hint

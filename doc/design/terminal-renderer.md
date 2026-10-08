@@ -145,7 +145,7 @@ and puts the archived back in its input (`df6ff51`, `include-archive.md`).
 | `board` | `columns` | `values` (the field's schema order), `card` (`["title"]`), `rank` (`rank`), `include_archive` (false) | `group_by` |
 | `gantt` | `start`, `stop` | `label` (title), `scale` (`week`), `from`, `to` (the data's extent), `rank` (`rank`), `include_archive` (false) | `progress`, `group_by`, `expand` |
 | `matrix` | `rows`, `columns` | `row_values`, `column_values` (each axis's own order), `include_archive` (false) | `value`, `group_by` |
-| `show` | `id` | `fields` (the type's fields, schema order) | `children` |
+| `show` | `id` | `fields` (the type's fields, schema order) | `expand` (a side table per element) |
 
 `fields` on a list is an ordered list of field keys,
 shown as columns and **editable in place**;
@@ -923,7 +923,7 @@ because `git work view show '{"id":"abc1234"}'` is a thing to want on its own
 and because `Enter` from any kind opens it, and the edits a board and a gantt do not make are made here.
 It takes `id`, and `fields` to narrow and order what it prints;
 by default it prints the type's fields in schema order.
-`children` adds the issues that point at it (Children, below).
+`expand` draws the issues a relation reaches from it in side tables beside the fields (Side tables, below).
 
 The page is **four stops**, top to bottom (revised again 2026-09-28, Luis):
 
@@ -1065,87 +1065,38 @@ Actions injected into views (deferred, below) lost their place on `show` with th
 a view invocation that names, say, *Comment and close*
 needs a key or a row of its own, decided with them.
 
-### Children
+### Side tables
 
-Asked for 2026-09-29 (Luis): show can list the issues that point **at** the shown one —
-a story's tasks, whose `parent` names it —
-given "a type and a relation to find the shown item".
-The relation is stored on the child, never on the shown issue
-(`schema.yaml`, D4), so the shown issue's fields cannot say it;
-the call has to name the child's side.
+Decided 2026-10-08 (Luis) in `doc/design/show-side-table.md`, and only summed up here.
+Show takes **`expand`**, exactly what the list's and the gantt's `expand` takes —
+a relation, stored on the shown issue (`blocks`) or the inverse the schema declares (`children`, read through every `parent`),
+or a layer — **or a list of them**, and draws each as a flat table beside the fields:
 
 ```json
 {"id": "abc1234",
- "children": [{"type": "task", "relation": "parent", "fields": ["status"]},
-              {"relation": "blocked_by"}]}
+ "expand": [{"relation": "children", "fields": ["status"]}, "blocks"]}
 ```
 
-`children` is a **list**, because a story has tasks *and* subtasks,
-and an issue is blocked by some and blocks others:
-one entry is one section, drawn in the list's order.
-An entry is an object rather than a `type/relation` string,
-because it has three parts and a string would grow a grammar:
+It is the list's argument because it is the list's object,
+the issues one relation reaches from one row, narrowed and drawn as a table;
+the parser and the schema check are the same,
+and `details`, `group_by` and a nested `expand` are refused, a side table being flat.
+The heading is the relation as given, then a header, `id`, `title` and the layer's `fields`.
+The tables stand beside the fields when the window holds both and under them when it does not, the width alone deciding;
+past the taller of the fields and 12 lines the column scrolls by itself, its heading kept on top.
+They are one stop between the fields and the box, reached by `Tab`/`S-Tab` only,
+`←`/`→` staying the tab keys there as everywhere but the header;
+a row is one issue: `Enter` opens it, `Space` grabs it to rank it within its table,
+copy copies its id, `/` narrows the rows.
+A table over an inverse ends in a ghost that creates an issue already pointing at this one;
+a stored relation of the shown issue has none, since that would be a second commit on this issue.
 
-- **`relation`** (required) is the relation field on the child
-  whose value is the shown issue's id.
-  It may instead be the name the schema's `inverse` gives the other side —
-  `children` for `parent`, `blocked_by` for `blocks` —
-  which is how `expand` reads a derived side (Nesting, below),
-  so the word a list's `expand` takes is a word show takes too.
-  A key that is a field of the type is that field, and has to be a relation;
-  only a key that is not is read as an inverse.
-- **`type`** narrows the children to one type.
-  Left out, every type whose relation matches counts:
-  `{"relation":"children"}` alone is everything whose `parent` is this issue.
-  It is optional because the explicit form is the one asked for
-  and the other costs nothing: the lookup is the one `expand` already does.
-- **`fields`** are drawn after each child's title, joined by `·`,
-  a person by name and a relation as the issue it names.
-  Status is what one wants there, and it is a key the call names,
-  not a default, because there are **no field roles** (`d56e6f1`):
-  nothing can tell which field is the status.
-
-The shape is checked by the table (`view.Parse`), which has no store;
-the names are checked against the live schema in `host.View`,
-before a renderer is chosen, so the command, a flow and the gui refuse
-the same call with the same words, and before anything is drawn.
-An unknown type names the types; a relation no type has, or a field that is not one,
-names every relation of the types in question with its inverse;
-a `fields` key no child type has is refused too.
-
-**A section is rows of the fields table**, after the stored fields,
-not a fourth tab and not a panel of its own.
-The other side of a relation is drawn the way a relation is:
-the key column holds the section's name, on its first line,
-and every child is a line of its own, its short id and title, a link.
-That makes each child a place the cursor stands, `Enter` follows,
-and copy copies the id, through the table's own handling —
-a tab is a scrolled text the cursor does not stand in,
-and links in it would need a second cursor.
-It is also where Jira puts *Child issues*: in the issue's body, with its fields,
-not behind a tab.
-The rows are derived, never stored, so they are **not a field**:
-nothing edits them: `Space` on them rings the bell, and so does `Enter` on an empty section.
-To reparent a task, open it and edit its `parent`.
-
-A section is named by the relation from the shown issue's side:
-the inverse, when the schema gives one — a story's tasks are its `children` —
-else the stored key behind an arrow (`← parent`);
-a named type follows it (`children · task`),
-so two sections of one relation and two types read apart.
-A section with no child is drawn as `(none)`,
-because a section that is not drawn reads as one that was never asked for.
-Children come in the store's order and leave out the archived,
-as `expand` has them.
-
-It is **live** as the rest of the page is:
-the sections are recomputed on every load,
-which the ref watcher's refresh and the page's own writes both do,
-so a task created elsewhere with this story as its parent appears.
-
-Only the call carries `children`.
-`Enter` on a list row, and following a link, open a bare show, as before:
-the options are the call's, and a page reached by a link was not called with any.
+It replaces **`children`** (2026-09-29), removed with no alias:
+an entry named the child's type and the relation on it,
+and its children were rows of the fields table under the relation's name,
+links the cursor stood on and `Enter` followed, with the fields after a title joined by `·`.
+Those rows had no columns, so nothing on them could be aligned, edited or copied alone,
+and the entry was a layer spelled a second way.
 
 ## Nesting
 
@@ -1214,7 +1165,7 @@ off the whole store and in the store's order,
 and `expand=blocks` the targets of the row's own `blocks`.
 A rank orders a layer's rows by `(rank, id)`.
 A layer's relation, and every field key it names, are checked against the
-schema before anything draws, the way show's `children` are.
+schema before anything draws, the way show's side tables are.
 
 **A nested layer is its own table** (Luis, 2026-10-07).
 The rows under an opened parent are drawn as a table of their own:

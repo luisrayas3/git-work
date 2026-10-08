@@ -236,8 +236,8 @@ func (a Arg) check(raw json.RawMessage) (json.RawMessage, error) {
 			}
 		}
 
-	case ChildRelations:
-		if _, err := parseChildren(raw); err != nil {
+	case SideTables:
+		if _, err := parseSideTables(raw); err != nil {
 			return nil, err
 		}
 
