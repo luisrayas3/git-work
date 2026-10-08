@@ -509,6 +509,11 @@ func (p *showPage) key(press tea.KeyPressMsg) (page, tea.Cmd) {
 	case keys.down.matches(press):
 		p.down(here)
 	case keys.up.matches(press):
+		if here.stop == stopBox {
+			// the box is left by Tab and S-Tab, never by up: the row
+			// drawn above it is not where the person came from (2026-10-08)
+			return p, bell()
+		}
 		p.up(here)
 	case keys.left.matches(press):
 		p.sideways(here, -1)
@@ -600,14 +605,6 @@ func (p *showPage) up(here position) {
 			return
 		}
 		p.focusStop(stopHeader)
-	case stopBox:
-		// to the last row of the table, or to the header when there is none
-		if len(p.rows) == 0 {
-			p.focusStop(stopHeader)
-			return
-		}
-		p.row = len(p.rows) - 1
-		p.focusStop(stopFields)
 	case stopTabs:
 		if p.offset > p.tabBarLine() {
 			p.offset--

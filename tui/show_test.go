@@ -205,14 +205,18 @@ func TestShowFieldsAreATable(t *testing.T) {
 	page = send(page, "j").(*showPage)
 	require.Equal(t, stopBox, page.current().stop, "down from the last row is the box")
 	require.False(t, page.inText(), "and not typing in it")
-	page = send(page, "up").(*showPage)
-	require.Equal(t, "priority", page.field(), "up from the box is the last row")
+	updated, cmd := page.Update(press("up"))
+	page = updated.(*showPage)
+	require.NotNil(t, cmd, "up from the box rings")
+	require.Equal(t, stopBox, page.current().stop, "and stays on the box")
+	page = send(page, "shift+tab").(*showPage)
+	require.Equal(t, stopFields, page.current().stop, "S-Tab leaves it for the fields")
 	page = send(page, "k", "k").(*showPage)
 	require.Equal(t, stopHeader, page.current().stop, "up from the first row is the header")
 	require.Equal(t, "title", page.field())
 
 	// alt+c copies the id from anywhere outside the text
-	updated, cmd := page.Update(press("alt+c"))
+	updated, cmd = page.Update(press("alt+c"))
 	require.NotNil(t, cmd)
 	require.Contains(t, plainView(updated), "copied "+id[:7])
 }

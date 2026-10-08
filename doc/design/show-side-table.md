@@ -169,10 +169,10 @@ so that no stop answers them two ways depending on the call.
 - on the fields, `↑` from the first row is the header and `↓` from the last is the box, as before;
 - on the side tables, `↑`/`↓` walk every row of every table, ghosts included, top to bottom;
   `↑` from the first is the header and `↓` from the last is the box;
-- on the box, `↑` is the fields' last row (the header when there are none), as before.
+- on the box, `↑` rings (2026-10-08): the box is left by `Tab`/`S-Tab`,
+  because the row drawn above it is not where the person came from.
 
-The fields and the side tables are two columns side by side, so from above and below both are reached the same way,
-and which one `↑` from the box lands on is the one it always did.
+The fields and the side tables are two columns side by side, so from above both are reached the same way.
 The page still opens on the first field row.
 
 **In a side table a row is one issue, and the cursor is a row** —
