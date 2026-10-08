@@ -77,6 +77,9 @@ type RepoCache struct {
 	// the user identity's id, if known
 	muUserIdentity sync.RWMutex
 	userIdentityId entity.Id
+
+	// how an issue's id is drawn (display.go)
+	display display
 }
 
 // NewRepoCache create or open a cache on top of a raw repository.

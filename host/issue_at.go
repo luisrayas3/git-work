@@ -29,6 +29,8 @@ func IssueGetAt(repo *cache.RepoCache, id string, at time.Time) (*cmdjson.IssueS
 	}
 
 	out := cmdjson.NewIssueSnapshot(snap)
+	// the id it is drawn by, which follows git-work.display.id (alias-ids.md A4)
+	out.HumanId = repo.IssueHumanId(snap.Id())
 	return &out, nil
 }
 
@@ -108,7 +110,10 @@ func IssueListInputAt(repo *cache.RepoCache, at time.Time, includeArchive bool) 
 		if snap == nil || !includeArchive && isArchived(snap.Fields) {
 			continue
 		}
-		out = append(out, cmdjson.NewIssueExcerptAt(snap, excerpt.CreateLamportTime))
+		j := cmdjson.NewIssueExcerptAt(snap, excerpt.CreateLamportTime)
+		// the alias drawn is the present one: an id names one issue at every time (A4)
+		j.HumanId = repo.IssueHumanId(snap.Id())
+		out = append(out, j)
 	}
 
 	return jq.Input(out)

@@ -132,7 +132,7 @@ type IssueExcerpt struct {
 func NewIssueExcerpt(backend *cache.RepoCache, excerpt *cache.IssueExcerpt) (IssueExcerpt, error) {
 	out := IssueExcerpt{
 		Id:         excerpt.Id().String(),
-		HumanId:    excerpt.Id().Human(),
+		HumanId:    backend.IssueHumanId(excerpt.Id()), // alias-ids.md A4
 		CreateTime: NewTime(excerpt.CreateTime(), excerpt.CreateLamportTime),
 		EditTime:   NewTime(excerpt.EditTime(), excerpt.EditLamportTime),
 		Fields:     fieldsJSON(excerpt.Fields),

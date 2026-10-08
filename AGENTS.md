@@ -177,6 +177,15 @@ and one that names no issue, or more than one, is refused, named.
 The choke point is the cache's write path (`cache/full_id.go`, `schema.FullIdValue`).
 The kind is the schema's, so with no type defined a `set` stores the value as given,
 and only an `add`/`remove` item of four hex digits or more naming one issue is still taken for one.
+An alias two copies of one Jira issue share names the copy not stamped `jira-consolidated-into` (`fd6c808`).
+**`git config git-work.display.id jira`** draws an issue by its Jira key wherever an id is drawn
+(2026-10-08, `fd6c808`, `doc/design/alias-ids.md`):
+the text forms, every view's id column, links, pickers and messages, copy, and the report's markdown,
+with `issue get --format text` showing both, `PROJ-9 (3f9a1c2)`.
+An issue with no key, or one whose key would not resolve back to it, is its short hash, drawn dim in a view.
+It is carried by `human_id`, which follows the setting in JSON and Starlark too;
+`id` is the hash whatever it says, and is what a program compares and stores.
+`hash` or no value is the default, and `git -c git-work.display.id=hash work …` overrides it for one command.
 A `remove` of an item the issue holds verbatim removes it verbatim,
 so a prefix stored before that day can still be taken away.
 
@@ -467,6 +476,7 @@ The Jira sync, one bound clone against one Jira Cloud project
 | Review the first mapping | `git work jira schema > jira.yaml` (warnings on stderr; `-v` adds the info notes) · edit · `git work schema import jira.yaml [--dry-run]` |
 | Sync | `git work jira sync [ID...] [--dry-run] [--full] [--accept-deletes] [--adopt DURATION]` · `--format text` |
 | Cron | `git work jira sync` every minute, `git work jira sync --full --adopt 7d` nightly |
+| Read in keys | `git config git-work.display.id jira`: every drawn id is the Jira key where the issue has one; `human_id` carries it, `id` stays the hash (`alias-ids.md`) |
 
 `sync` refuses until one type carries a Jira alias, derives and imports the
 schema itself after that, prints one JSON object per line (schema changes,
