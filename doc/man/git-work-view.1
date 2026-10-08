@@ -10,12 +10,13 @@ git-work-view - Draw the issues
 
 
 .SH DESCRIPTION
-Draw the issues: a list, a board, a gantt chart, or one issue.
+Draw the issues: a list, a board, a gantt chart, a matrix, or one issue, or
+create one in a form.
 
 .PP
 A view takes one JSON object of keyword arguments and nothing else. Every kind
-but \fBshow\fR takes a \fBquery\fR, the jq program its issues come from, so a kanban
-with no flow at all is one command:
+but \fBshow\fR and \fBnew\fR takes a \fBquery\fR, the jq program its issues come from, so
+a kanban with no flow at all is one command:
 
 .PP
 git work view board '{"query":"map(select(.fields.status != \\"done\\"))","columns":"status"}'
