@@ -4,7 +4,8 @@
 read `PROJ-12` where git-work draws `3f9a1c2`,
 and from then on every screen and every text form names an issue by its
 Jira key when it has one,
-while every id a program reads or writes stays the hash it always was.
+while every `id` a program compares, stores or is handed by a writer
+stays the hash it always was.
 
 **Serves:** story `fd6c808`.
 It extends `cli-convention.md` ("Any `ID` position accepts an alias")
@@ -12,7 +13,7 @@ from the way in to the way out,
 and follows the precedent `host.UserName` set for people:
 store one thing, draw another (`terminal-renderer.md`, Show; `host/user.go`).
 
-**Status:** proposed 2026-10-08, not reviewed.
+**Status:** approved 2026-10-08 (Luis), its open questions settled below.
 
 ## Problem
 
@@ -76,7 +77,7 @@ A later Linear binding sets `git-work.display.id linear` and nothing in this des
 One namespace, not an ordered list:
 one clone is bound to one tracker (AGENTS.md, "one team, one repository, one Jira project"),
 and an issue with aliases in two systems is a case nobody has;
-a list is a compatible extension if one ever does (Open questions).
+a list was considered and declined on review: one value is the simplest thing to build and to explain (2026-10-08).
 
 ## A3 — What is drawn: an alias only when it names exactly that issue
 
@@ -99,12 +100,17 @@ anything drawn as an id is something a person can paste back.
 It costs one alias index per store load, a count of issues per alias,
 which the excerpts already carry (`cache.IssueExcerpt.Aliases`).
 
-**The hash is not marked.**
-Next to `PROJ-12`, `3f9a1c2` is visibly not a Jira key —
-lowercase hex with no dash, against a project key, a dash and a number —
-so a person sees which issues have not reached Jira without a glyph,
-and a glyph would cost a cell on every row.
-Whether to dim it anyway is an open question.
+**A fallen-back hash is drawn dim** (2026-10-08, on review), wherever there is styling to draw it with:
+when the setting names a namespace and an issue is drawn by its hash,
+the terminal renderer draws that id faint,
+so the issues that have not reached Jira stand out at no width cost —
+cheap, and it says exactly what is true: this issue has no name in the namespace asked for.
+The shapes differ as well (lowercase hex with no dash, against a project key, a dash and a number),
+which is all plain text has: `--format text` and the report's markdown carry no dimming.
+The renderer needs no second rule to know which is which:
+with a namespace set, a `human_id` that is a prefix of the row's `id` is a fallback,
+since A3 never draws an alias that a prefix could be confused with.
+With the setting off nothing is dim, because nothing fell back.
 
 **A key is never cut.**
 A hash prefix may be shortened because every prefix still names the issue;
@@ -196,7 +202,7 @@ In scope, every place a person reads an issue named:
 | show's call line, its lead | the short hash | A3 |
 | the `report` flow's markdown | `short(id)` in the flow | the excerpt's `human_id` (A9) |
 
-`issue get --format text` is the one place both are drawn,
+`issue get --format text` is the one place both are drawn (kept on review, 2026-10-08),
 because it is the one page about a single issue
 and the place a person goes to map a key to the hash an agent printed.
 
@@ -241,22 +247,18 @@ and the moment it does, the survivor becomes the key on every open view.
 ## A7 — Copy copies what is drawn
 
 `M-c`/`Y` copies the issue's id, today the full hash (`copyId`, `tui/list.go`).
-With an alias drawn, it copies the alias,
+Both keys, and every other copy of an issue's id, copy what is shown (2026-10-08, on review):
+with an alias drawn, the alias,
 because the point of drawing `PROJ-12` is that `PROJ-12` is the name a person carries elsewhere —
 into Jira, a chat, a commit message —
 and A3 guarantees it is accepted back at every id position.
 Where the hash is drawn the full hash is copied, as today.
 `C-c` on the id column copies the drawn cell, which is now the same thing.
 
-One id position does not accept it today:
-a relation value is checked with the alias accepted (`cache.schemaResolver.IssueType`)
-but stored as written, which is why relation values must be full ids.
-A pasted key would therefore pass the check and store a value no relation index resolves.
-So **a relation value written as an id prefix or an alias is stored as the full id it resolves to**,
-in `host` before the operation is planned, on every writer,
-the Jira pull aside (it writes ids it resolved itself).
-This is the fix that makes "any `ID` position accepts an alias" true of field values as well as arguments,
-and it is worth doing whether or not the setting is on.
+Every id position accepts it, field values included:
+since `9527e14c` (2086c12) a relation value written as an id prefix or an alias
+is stored as the full id it resolves to, on every write, the Jira pull's included,
+so a pasted key never reaches the store as a key.
 
 ## A8 — Order stays on the hash
 
@@ -293,16 +295,10 @@ Its markdown is the most likely thing to be pasted where people talk in keys.
 - **The GUI**, which does not exist yet and will read `human_id` like the terminal does.
 - **Jira keys as entity ids.** The entity id stays the hash; that was settled with aliases (`483dbe2`).
 
-## Open questions
+## Settled on review (2026-10-08, Luis)
 
-1. **`human_id` or a new key?** A4 changes what an existing JSON key holds on a clone with the setting on.
-   It is the smallest change and moves every reader at once,
-   but it is the one decision here that touches the plumbing; a reviewer may prefer
-   `human_id` frozen and every renderer resolving the alias itself.
-2. **Dim the hash?** A3 relies on the shapes being different;
-   a faint hash would say "not in Jira yet" more loudly at no width cost.
-3. **An ordered list of namespaces** (`git-work.display.id = jira linear`),
-   for a store holding issues from two systems. Not needed by one-team-one-tracker.
-4. **`issue get --format text` showing both** — useful, or noise against "every render follows"?
-5. **Copy:** should `Y` stay the full hash and `M-c` take the drawn id, so both are a key away,
-   or is one id, the drawn one, the simpler rule?
+1. **`human_id` carries the setting** (A4): "`human_id` by definition is this".
+2. **A fallen-back hash is dim** where styling exists (A3); plain text has none.
+3. **One namespace**, not a list (A2): the simplest implementation.
+4. **`issue get --format text` shows both**, `PROJ-9 (3f9a1c2)` (A5).
+5. **Copy copies what is shown**, on `M-c`, `Y` and every other copy of an id (A7).
