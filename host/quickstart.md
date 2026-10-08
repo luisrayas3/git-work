@@ -7,8 +7,8 @@ and where to find everything else.
 ## What this is
 
 git-work is a project tracker stored in the git repository itself.
-It is a fork of `git-bug`, grown into project management
-with Jira as a sync backend.
+It began as a hard fork of git-bug, whose storage engine it keeps,
+and is a project tracker with Jira as a first-class sync backend.
 It installs as a git subcommand,
 so every command below starts `git work`.
 
@@ -145,9 +145,11 @@ in Starlark, the same reason `work.schema.import_` does.
   `git work flow list` lists them with their arguments and
   `git work flow run NAME` runs one,
   taking its arguments as one JSON object.
-- Views are interactive and need a terminal.
+- Views are interactive and need a terminal;
+  there is no browser interface.
   An agent reads the data with `git work issue list 'PROGRAM'` instead.
-  There are five kinds — `list`, `show`, `board`, `gantt` and `matrix` —
+  There are six kinds — `list`, `show`, `board`, `gantt`, `matrix`
+  and `new`, the form that creates an issue —
   each a `git work view KIND KWARGS` command
   taking one JSON object of keyword arguments.
   `git work view list --help` is the argument table,
@@ -176,6 +178,10 @@ in Starlark, the same reason `work.schema.import_` does.
   and a keyed row's drag is kept by the view, never written.
   A nested view opens folded; `"open":true` opens every parent,
   a number that many levels from the roots.
+  `git work view new '{"doc":{…}}'` opens the creator on an `issue new` document,
+  every value still editable, and prints the id it creates;
+  in a list, a gantt or a board the dim `+ (new)` row at the foot of a group
+  opens it prefilled with that group's values.
 - Starlark mirrors this command line one to one,
   because both go through the same code.
   `work` is the only predeclared name:
@@ -185,10 +191,15 @@ in Starlark, the same reason `work.schema.import_` does.
   `git work schema import` is `work.schema.import_(doc)`
   because `import` is a Starlark keyword,
   and this page is `work.quickstart()`.
+  `print()` is a flow's standard output,
+  and `work.stderr(*values)` writes one line to standard error.
 - Sync: `git work pull` and `git work push` carry every namespace
   over the git remote, `git work sync` does both in one run,
   and `git work jira sync` (or `git work sync --jira`) syncs a bound clone
   with a Jira project, where Jira is canonical.
+  Pushing publishes the tracker, so do it only when asked to.
+  Two local copies of one Jira issue are consolidated into one,
+  the other archived with `metadata["jira-consolidated-into"]` naming the survivor.
 - `git work user me` is the identity you write as.
   It is settled from git's `user.name` and `user.email` on the first write,
   so there is nothing to set up.

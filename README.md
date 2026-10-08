@@ -1,258 +1,177 @@
-> **This is `git-work`**,
-> a fork of [git-bug](https://github.com/git-bug/git-bug) at `e1c21a42`
-> becoming a project-management tool with Jira as a first-class sync backend.
-> The command is `git work`.
-> Its command line and the conventions it follows are [AGENTS.md](./AGENTS.md)
-> and [the command-line map](./doc/design/cli-convention.md).
-> The text below is upstream's: it describes git-bug, not this fork.
+# git-work
 
-<div align="center">
+`git-work` is a project tracker that lives in your git repository,
+with Jira as a first-class sync backend.
 
-<img width="150px" src="https://cdn.rawgit.com/git-bug/git-bug/trunk/misc/logo/logo-alpha-flat-bg.svg">
+- **Stored in git.** Issues, the schema, saved views and identities are
+  ordinary refs (`refs/work-issues/*`, `refs/work-schema/*`,
+  `refs/work-flows/*`, `refs/work-users/*`). No server, no database,
+  nothing added to your working tree.
+- **Distributed and offline.** Every issue is a log of operations that
+  merges without conflicts, so two clones editing the same issue both
+  keep their edits. `git work push` and `git work pull` go over your
+  normal git remote.
+- **Jira as a peer.** `git work jira sync` keeps a clone and a Jira Cloud
+  project in step in both directions, field by field, with Jira
+  canonical on a conflict.
+- **Agent-first plumbing.** `git work issue` reads and writes JSON, and
+  every listing is a [jq](https://jqlang.org) program over the issues.
+- **A real terminal UI.** Lists, boards, gantt charts, allocation
+  matrices and an issue page, all live and editable from the keyboard.
+- **Scriptable.** Saved views and workflows are *flows*: Starlark
+  functions stored in the repository that call the same API the command
+  line does.
+- **A schema you choose.** Types, fields and their values are
+  configuration, with presets that mirror Jira's and Linear's models.
 
-# git-bug
+`git-work` is a hard fork of [git-bug](https://github.com/git-bug/git-bug).
+It keeps git-bug's distributed entity engine, unmodified, and replaces
+everything built on it: the issue model, the schema, the command line,
+the views and the Jira bridge.
 
-[![Build Status][ci/badge]][ci/url]
-[![Backers on Open Collective][backers/badge]][oc]
-[![Sponsors on Open Collective][sponsors/badge]][oc]
-[![GPL v3 License][license/badge]][license/url]
-[![GoDoc][godoc/badge]][godoc/url]
-[![Go Report Card][report-card/badge]][report-card/url]
-[![Matrix][matrix/badge]][matrix/url]
+## Install
 
-[Issues] - [Documentation][doc] - [Discussions][discuss]
+`git-work` is a single Go binary. It needs `git` on your `PATH` and Go
+(see `go.mod`) to build:
 
-</div>
-
-`git-bug` is a bug tracker that:
-
-- **is fully embedded in git**: you only need your git repository to have a bug tracker
-- **is distributed**: use your normal git remote to collaborate, push and pull your bugs!
-- **works offline**: in a plane or under the sea? Keep reading and writing bugs!
-- **prevents vendor lock-in**: your usual service is down or went bad? You already have a full backup.
-- **is fast**: listing bugs or opening them is a matter of milliseconds
-- **doesn't pollute your project**: no files are added in your project
-- **integrates with your tooling**: use the UI you like (CLI, terminal, web) or integrate with your existing tools through the CLI or the GraphQL API
-- **bridges to other bug trackers**: use [bridges](#bridges) to import and export to other trackers.
-
-## Installation
-
-See [`INSTALLATION.md`][doc/install] for the complete guide, including how to build from source and verify your install.
-
-## Workflows
-
-There are multiple ways to use `git-bug`. See [the workflow documentation][doc/usage/workflows] for the details.
-
-<details><summary>Native workflow</summary>
-<p align="center">
-    <img src="doc/assets/native-workflow.png" alt="Native workflow">
-</p>
-
-This is the pure `git-bug` experience. In a similar fashion as with code, use `git bug push` and `git bug pull` to push and pull your bugs between git remotes and collaborate with your teammate.
-
-</details>
-
-<details><summary>Bridge workflow</summary>
-<p align="center">
-    <img src="doc/assets/bridge-workflow.png" alt="Bridge workflow">
-</p>
-
-As `git-bug` has bridges with other bug-trackers, you can use it as your personal local remote interface. Sync with `git bug bridge pull` and `git bug bridge push`, work from your terminal, integrate into your editor, it's up to you. And it works offline!
-
-</details>
-
-<details><summary>Web UI workflow (WIP)</summary>
-<p align="center">
-    <img src="doc/assets/webui-workflow.png" alt="Web UI workflow">
-</p>
-
-Often, projects need to have their bug-tracker public and accept editions from anyone facing a problem. To support this workflow, `git-bug` aims to have the web UI accept external OAuth authentication and act as a public portal. However the web UI is not up to speed for that yet. Contributions are very much welcome!
-
-</details>
-
-## CLI usage
-
-Create a new identity:
-
-```shell
-git bug user create
+```sh
+git clone https://github.com/luisrayas3/git-work
+cd git-work
+go build -o git-work .
 ```
 
-Create a new bug:
+Put `git-work` anywhere on your `PATH`; git then dispatches
+`git work <command>` to it. `make install` builds and installs into
+`$GOPATH/bin` instead. Shell completions are in
+[`misc/completion`](misc/completion), man pages in [`doc/man`](doc/man).
+[`INSTALLATION.md`](INSTALLATION.md) has the details.
 
-```shell
-git bug add
+## Getting started
+
+Pick a schema, either a preset or your own file:
+
+```sh
+git work schema init jira          # or: linear
+git work schema                    # print it as YAML
+git work schema export > schema.yaml   # edit, then: git work schema import schema.yaml
 ```
 
-Your favorite editor will open to write a title and a message.
+Create, change and read issues. Writers print the id they created and
+nothing else; an id prefix or a Jira key works wherever an id does:
 
-You can push your new entry to a remote:
-
-```shell
-git bug push [<remote>]
+```sh
+id=$(git work issue new '{"fields":{"title":"Rebuild the index on pull","type":"task","status":"to-do"},"body":"Why this is worth doing."}')
+git work issue set $id '{"status":"in-progress","priority":"high"}'
+echo "Started on it." | git work issue comment new $id -
+git work issue get $id --format text
 ```
 
-And pull for updates:
+List with jq. The bare `git work issue` prints one line per issue for a
+human; `git work issue list` prints JSON for a program:
 
-```shell
-git bug pull [<remote>]
+```sh
+git work issue 'map(select(.fields.status != "done"))'
+git work issue list 'map(select(.fields.type == "task")) | group_by(.fields.status)'
 ```
 
-List existing bugs:
+The past is readable too: `--at 7d` shows the issues as they stood a week
+ago, and `git work issue log --from 2026-09-21` lists what changed since.
 
-```shell
-git bug ls
+Your identity comes from git's `user.name` and `user.email` on your first
+write, so there is nothing to set up. Share the tracker with
+`git work push` and `git work pull`, or `git work sync` for both.
+
+For an AI agent, `git work quickstart` prints the whole model and this
+repository's types as one markdown page.
+
+## Views
+
+Views draw in the terminal and write their edits straight back. Each is
+one command taking one JSON object of arguments:
+
+```sh
+# a kanban, a column per status
+git work view board '{"query":"map(select(.fields.status != \"done\"))","columns":"status"}'
+
+# a list grouped by status, stories with their tasks folded under them
+git work view list '{"fields":["status","priority","title"],"group_by":"status","expand":"children"}'
+
+# dated work on a week chart
+git work view gantt '{"start":"due","stop":"due","query":"map(select(.fields.due != null))"}'
+
+# one issue, with its children in a side table
+git work view show '{"id":"<id>","expand":{"relation":"children","fields":["status"]}}'
+
+# create an issue in a form
+git work view new
 ```
 
-Filter and sort bugs using a [query][doc/usage/query]:
+`Enter` opens, `Space` edits, a drag reorders or moves a card between
+columns, `/` filters and `?` lists every key, in standard, vim and emacs
+bindings. `git work view <kind> --help` lists each kind's arguments.
 
-```shell
-git bug ls "status:open sort:edit"
+## Flows
+
+A flow is a Starlark function stored under `refs/work-flows`, so it
+travels with the repository. Its name is the command, its docstring the
+help, its parameters the arguments. A script reaches everything through
+one name, `work`, which mirrors the command line one to one:
+`git work issue get ID` is `work.issue.get(id)`, and
+`git work view board ...` is `work.view.board(...)`.
+
+```sh
+git work flow import flows/                 # upsert every .star in a directory
+git work flow                               # what is installed
+git work flow run report '{"from_":"7d"}'   # what changed this week, as markdown
 ```
 
-Search for bugs by text content:
+This repository's own flows are in [`flows/`](flows): `overview`,
+`board` and `report`.
 
-```shell
-git bug ls "foo bar" baz
+## Jira
+
+Bind one clone to one Jira Cloud project, review the mapping once, then
+sync, from cron if you like:
+
+```sh
+git config git-work.jira.url https://<site>.atlassian.net
+git config git-work.jira.project KEY
+git config git-work.jira.email you@example.com
+export JIRA_API_TOKEN=...            # or store it with git credential
+
+git work jira schema > jira.yaml     # review the derived schema
+git work schema import jira.yaml
+git work jira sync
 ```
 
-You can now use commands like `show`, `comment`, `open` or `close` to display and modify bugs. For more details about each command, you can run `git bug <command> --help` or read the [command's documentation][doc/cli].
+`git config git-work.display.id jira` then draws every issue by its Jira
+key. The design, including conflicts, deletes and duplicate copies, is
+[`doc/design/jira-sync.md`](doc/design/jira-sync.md).
 
-## Interactive terminal UI
+## Documentation
 
-An interactive terminal UI is available using the command `git bug termui` to browse and edit bugs.
+- [`AGENTS.md`](AGENTS.md): the full command reference and the
+  project's conventions. It is written for coding agents and is the most
+  complete guide there is.
+- [`doc/md`](doc/md/git-work.md): every command and flag, generated from
+  the binary.
+- [`doc/design`](doc/design): one design document per feature, recording
+  each decision and its reasoning.
+- [`doc/design/data-model.md`](doc/design/data-model.md): the
+  distributed entity engine inherited from git-bug.
 
-![Termui recording](doc/assets/tui-recording.gif)
+## Status
 
-## Web UI
+`git-work` is young and changes quickly. It tracks its own work in its
+own store: clone this repository, run `git work pull`, then
+`git work flow run overview`.
 
-You can launch a rich Web UI with `git bug webui`. Browse, search and filter issues, open new ones, comment, and edit titles, labels and status. It also doubles as a code browser for your repository, with a file tree, syntax-highlighted files, commit history and diffs.
-
-<p align="center">
-  <img src="doc/assets/web-screenshot-comments.png" alt="An issue with its comments and timeline" width="880">
-</p>
-
-<p align="center">
-  <img src="doc/assets/web-screenshot-code.png" alt="Browsing the repository code" width="880">
-</p>
-
-The web UI is packed inside the same go binary and served by a local http server. It talks to the backend through a GraphQL API, whose schema is available [here][gql-schema].
-
-## Bridges
-
-`git-bug` can import from and export to Github, Gitlab, Jira and Launchpad. See the [feature matrix][doc/feature-matrix] for what each bridge supports, and the [bridge documentation][doc/usage/bridges] for the full guide.
-
-Interactively configure a new bridge:
-
-```shell
-git bug bridge new
-```
-
-Or manually:
-
-```shell
-git bug bridge new \
-    --name=<bridge> \
-    --target=github \
-    --url=https://github.com/git-bug/git-bug \
-    --login=<login> \
-    --token=<token>
-```
-
-Import bugs:
-
-```shell
-git bug bridge pull [<name>]
-```
-
-Export modifications:
-
-```shell
-git bug bridge push [<name>]
-```
-
-Delete a bridge:
-
-```shell
-git bug bridge rm [<name>]
-```
-
-## Internals
-
-Interested in how it works? Have a look at the [data model][doc/design/model] and the [internal bird-view][doc/design/arch].
-
-The on-disk format is formally specified in the [git-bug spec][spec], covering the DAG entity format, identities and the bug entity. Read that if you want to write another implementation or a tool that reads git-bug data directly.
-
-Or maybe you want to [make your own distributed data-structure in git](entity/dag/example_test.go)?
-
-See also all the [docs][doc].
-
-## Misc
-
-- [Bash, Zsh, fish, powershell completion](misc/completion)
-- [ManPages](doc/man)
-
-## Planned features
-
-The [feature matrix][doc/feature-matrix] gives a good overview of what is planned, without being exhaustive.
-
-Additional planned features:
-
-- webUI that can be used as a public portal to accept user's input
-- inflatable raptor
-
-## Contribute
-
-PRs accepted. Drop by the [Matrix room][matrix/url] for a chat, look at the [feature matrix][doc/feature-matrix] or browse the [issues] and [discussions][discuss] to see what is worked on or discussed.
-
-See [`CONTRIBUTING.md`][contrib] to get a development environment going, build the project and run the tests. To work on the web UI, have a look at [its dedicated README](webui/README.md).
-
-## Contributors :heart:
-
-This project exists thanks to all the people who contribute.
-
-<a href="https://github.com/git-bug/git-bug/graphs/contributors"><img src="https://opencollective.com/git-bug/contributors.svg?width=890&button=false" /></a>
-
-## Backers & sponsors
-
-Thank you to all our backers and sponsors! 🙏 [[Become a backer or sponsor][oc]]
-
-<a href="https://opencollective.com/git-bug"><img src="https://opencollective.com/git-bug/backers.svg?width=890&button=false" alt="Backers"></a>
-
-<a href="https://opencollective.com/git-bug"><img src="https://opencollective.com/git-bug/sponsors.svg?width=890&button=false" alt="Sponsors"></a>
+The git-bug commands it inherited, `git work bug`, `bridge`, `termui`
+and `label`, still read git-bug's frozen `refs/issues/*` and are being
+removed. Nothing written through them reaches the tracker. `git work
+migrate` stays, to import an existing git-bug repository.
 
 ## License
 
-Unless otherwise stated, this project is released under the [GPLv3][license/url] or later license © Michael Muré.
-
-The git-bug logo by [Viktor Teplov][gh/vandesign] is released under the [Creative Commons Attribution 4.0 International (CC BY 4.0)][license/logo] license © Viktor Teplov.
-
-[backers/badge]: https://opencollective.com/git-bug/backers/badge.svg
-[ci/badge]: https://github.com/git-bug/git-bug/actions/workflows/trunk.yml/badge.svg
-[ci/url]: https://github.com/git-bug/git-bug/actions/workflows/trunk.yml
-[contrib]: ./CONTRIBUTING.md
-[discuss]: https://github.com/git-bug/git-bug/discussions
-[doc]: ./doc
-[doc/cli]: ./doc/md/git-work.md
-[doc/design/arch]: ./doc/design/architecture.md
-[doc/design/model]: ./doc/design/data-model.md
-[doc/feature-matrix]: ./doc/feature-matrix.md
-[doc/install]: ./INSTALLATION.md
-[doc/usage/bridges]: ./doc/usage/third-party.md
-[doc/usage/query]: ./doc/usage/query-language.md
-[doc/usage/workflows]: ./doc/usage/workflows.md
-[gh/vandesign]: https://github.com/vandesign
-[godoc/badge]: https://godoc.org/github.com/git-bug/git-bug?status.svg
-[godoc/url]: https://godoc.org/github.com/git-bug/git-bug
-[gql-schema]: ./api/graphql/schema
-[issues]: https://github.com/git-bug/git-bug/issues
-[license/badge]: https://img.shields.io/badge/License-GPLv3+-blue.svg
-[license/logo]: ./misc/logo/LICENSE
-[license/url]: ./LICENSE
-[matrix/badge]: https://img.shields.io/badge/chat%20on%20matrix-%23238636
-[matrix/url]: https://matrix.to/#/#git-bug:matrix.org
-[oc]: https://opencollective.com/git-bug
-[report-card/badge]: https://goreportcard.com/badge/github.com/git-bug/git-bug
-[report-card/url]: https://goreportcard.com/report/github.com/git-bug/git-bug
-[spec]: https://github.com/git-bug/spec
-[sponsors/badge]: https://opencollective.com/git-bug/sponsors/badge.svg
+GPLv3 or later, like git-bug, from which this project is forked
+(© Michael Muré and the git-bug contributors). See [`LICENSE`](LICENSE).

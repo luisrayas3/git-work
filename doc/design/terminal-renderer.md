@@ -29,11 +29,10 @@ which is now the short form and points here.
 ## There is no `tui` command
 
 The terminal renderer is not a surface with a command of its own.
-It sits behind `git work view KIND [KWARGS] [--gui]`
-and behind `git work flow run NAME` whenever the flow calls `work.view.*`,
-which is the same rule the GUI follows (`8b06191`):
-two backends of one capability,
-never a capability on one surface and not the other.
+It sits behind `git work view KIND [KWARGS]`
+and behind `git work flow run NAME` whenever the flow calls `work.view.*`.
+It was planned as one of two backends, the GUI the other (`8b06191`);
+the GUI was dropped on 2026-10-08, so it is the only one.
 
 The framework is **Bubble Tea v2**,
 `charm.land/bubbletea/v2` with `bubbles/v2` and `lipgloss/v2`,
@@ -64,9 +63,8 @@ the view functions validate against it,
 a backend knows what it may be handed,
 and the command line's help is generated from it.
 
-`--gui` posts the same KWARGS object to the `gui` process (`8b06191`);
-until that process exists it is an error.
-No TTY and no `--gui` is an error too.
+No TTY is an error; `--gui`, which was to post the same object to a `gui` process,
+left with the GUI (2026-10-08).
 An agent that wants the data does not open a view —
 it runs `git work issue list PROGRAM`, which is where the data lives.
 `flow run` keeps its `--format`, for what the flow itself returns.

@@ -1,9 +1,10 @@
 # Agent guide for git-work
 
-This repository is a **fork of [git-bug](https://github.com/git-bug/git-bug)**
+This repository is **git-work**, a **hard fork of [git-bug](https://github.com/git-bug/git-bug)**
 (forked at `e1c21a42`),
-evolving into a project-management tool
+grown into a project-management tool
 with **Jira as a first-class sync backend**.
+The README is git-work's own; git-bug is named as the origin and nothing more.
 
 We **dogfood**:
 this project's own tasks live in its own store
@@ -62,16 +63,18 @@ do not add core batch commits.
 Requires **Go 1.26** (native, or `nix shell nixpkgs#go`).
 
 ```sh
-# CLI-only build; skips the webui (no pnpm), which sits behind a build tag.
 go build -o git-work .
 
 # Already symlinked onto PATH so `git work <cmd>` dispatches:
 #   ~/.local/bin/git-work -> ~/ws/git-work/git-work
 # After code changes, re-run the build above; the symlink tracks it.
 
-# The React webui and its pnpm toolchain are being removed (938434e); until then
-# `make build` still needs pnpm. The Go-only GUI replaces it (867db1a).
+# `make install` stamps the version and installs git-work into $GOPATH/bin.
 ```
+
+There is **no GUI** (decided 2026-10-08):
+the terminal renderer is the only interactive surface,
+and the React webui, the GraphQL API that served it, pnpm and the JS toolchain are gone (`938434e`).
 
 ## Operating the tracker
 
@@ -231,7 +234,7 @@ It runs in-process over the same host API a command reaches (`52a2797`):
 | Action | Command |
 | --- | --- |
 | List | `git work flow list` (name, description, arguments) · `--format text` · the bare `git work flow` is one line each, the name and the description's first line |
-| Run | `git work flow run <name>\|- [KWARGS\|-]` (`-` as the name runs the script on standard input without importing it; `print()` is stdout, a returned value is printed as JSON after it) · `--gui` (errors until the gui process exists) |
+| Run | `git work flow run <name>\|- [KWARGS\|-]` (`-` as the name runs the script on standard input without importing it; `print()` is stdout, a returned value is printed as JSON after it) |
 | Import | `git work flow import FILE\|DIR\|-…` `[--prune] [--dry-run]` → prints the id of each flow it creates |
 | Show / export | `git work flow export <name>` prints the script, verbatim (`> FILE`) · `git work flow export --all DIR` |
 | History | `git work flow log [<name>]` · `--format text` (one JSON object per operation) |
@@ -270,16 +273,16 @@ one KWARGS object, the same one the Starlark call takes,
 nothing on standard input and nothing printed
 (design in `doc/design/terminal-renderer.md`).
 Every kind renders in the terminal (`84dfbde`; the gantt and nesting `565d57a`; the matrix `3289ec1`),
-and `--gui` errors until the gui process exists (`8b06191`):
+and only there: with no terminal a view is an error, there being no GUI (2026-10-08):
 
 | Action | Command |
 | --- | --- |
-| List | `git work view list [KWARGS\|-] [--gui]` (nothing required) |
-| Show | `git work view show [KWARGS\|-] [--gui]` (`id` required) |
-| Board | `git work view board [KWARGS\|-] [--gui]` (`columns` required) |
-| Gantt | `git work view gantt [KWARGS\|-] [--gui]` (`start` and `stop` required) |
-| Matrix | `git work view matrix [KWARGS\|-] [--gui]` (`rows` and `columns` required) |
-| New | `git work view new [KWARGS\|-] [--gui]` (nothing required; `doc` is the `issue new` document to open on) → prints the created id, or nothing |
+| List | `git work view list [KWARGS\|-]` (nothing required) |
+| Show | `git work view show [KWARGS\|-]` (`id` required) |
+| Board | `git work view board [KWARGS\|-]` (`columns` required) |
+| Gantt | `git work view gantt [KWARGS\|-]` (`start` and `stop` required) |
+| Matrix | `git work view matrix [KWARGS\|-]` (`rows` and `columns` required) |
+| New | `git work view new [KWARGS\|-]` (nothing required; `doc` is the `issue new` document to open on) → prints the created id, or nothing |
 
 `new` is the interactive `issue new` (2026-10-07, `doc/design/create.md`):
 show's page over an issue that does not exist yet —
@@ -558,7 +561,7 @@ Gotchas, hardened from use:
 - Nothing holds the store open: readers take no lock at all,
   and a writer takes a short flock on `.git/git-work/write.lock`
   across one read-modify-commit and releases it at the commit (`d35de2e`).
-  `termui`, `webui` and the view renderer hold nothing while they are open,
+  `termui` and the view renderer hold nothing while they are open,
   so any number of commands run alongside them.
   The kernel drops the lock when the process dies,
   so there is no such thing as a stale one to remove;
@@ -577,14 +580,14 @@ Gotchas, hardened from use:
   with no ruleset in sight, 2026-10-02).
   `PushRefs` then pushes the refs the rejection lists N at a time,
   silently, so a first push of a large store takes minutes, not forever.
-- `termui` and `webui` need a real TTY; a human runs them, not the agent.
-  Both read the frozen `refs/issues/*` copy, not the tracker.
+- `termui` needs a real TTY; a human runs it, not the agent.
+  It reads the frozen `refs/issues/*` copy, not the tracker.
 
-## Direction (decided 2026-09-17, narrowed 2026-09-28)
+## Direction (decided 2026-09-17, narrowed 2026-09-28 and 2026-10-08)
 
 This repository tracks two stories,
-a board (`2298f37`) and a gantt (`00a63d9`),
-each in the terminal first and then in the GUI.
+a board (`2298f37`) and a gantt (`00a63d9`), in the terminal.
+The GUI half of each was dropped on 2026-10-08, with the GUI.
 
 Settled calls (details live in the referenced issues):
 
@@ -652,9 +655,8 @@ Settled calls (details live in the referenced issues):
   host, so a saved view is a flow that *calls* a view rather than returning a
   spec. **The command is the spec**: a view's input is one KWARGS object, the
   same object the Starlark call takes, so nothing is read from standard input
-  and nothing is printed — `--gui` posts that object to the gui, and no TTY
-  and no `--gui` is an error, because an agent wanting data runs `git work
-  issue PROGRAM`. Items are a jq `query` the view owns and re-runs on a
+  and nothing is printed — no TTY is an error, because an agent wanting data
+  runs `git work issue PROGRAM`. Items are a jq `query` the view owns and re-runs on a
   watcher change and after its own writes; there is no provider function, no
   static list and no `pick`. Actions injected into views are the deferred
   direction, in place of the `on_change`/`on_select` sketch; the renderer is
@@ -688,9 +690,10 @@ Settled calls (details live in the referenced issues):
   This repo dogfoods the `jira` preset with no Jira instance behind it, because
   an unverified preset exercised daily beats one exercised never (`59fed1c`).
 - Surfaces are **Go only**: no JS toolchain in the repo (`867db1a`, 2026-09-21).
-  `git work gui` is server-rendered HTML plus htmx, live over Server-Sent
-  Events from the ref watcher, reading the cache in-process; the React webui,
-  pnpm and (recommended) GraphQL leave (938434e, 8b06191).
+  The **terminal is the only interactive surface** (2026-10-08):
+  the planned `git work gui` (htmx over Server-Sent Events, `867db1a`) is dropped
+  because the terminal renderer leaves it no user,
+  and the React webui, pnpm and the GraphQL API are gone (`938434e`).
   The terminal renderer is Bubble Tea v2 behind `view` and `flow run`,
   not a `tui` command (`84dfbde`).
 

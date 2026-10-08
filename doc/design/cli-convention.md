@@ -126,10 +126,9 @@ is `terminal-renderer.md`; this document is the command line it is reached by.
   so `git work view board '{"columns":"status"}'` is that call spelled for the shell.
   Nothing is read from standard input and nothing is printed:
   the input already is the serialization,
-  which is what `--gui` posts to the `gui` process (`8b06191`),
   so `git work view` has no `--format`
   and `{"view", "bindings", "items"}` is gone.
-  No TTY and no `--gui` is an error;
+  No TTY is an error, the terminal being the only renderer (no GUI, 2026-10-08);
   an agent that wants the data runs `git work issue list PROGRAM`, where the data is.
   Every kind but `show` takes `query`, a jq program the view runs, re-runs on a
   ref-watcher change and after its own writes, which is what keeps a view live.
@@ -168,7 +167,7 @@ git work schema rm KEY | --id ID                # --id is an id or unique prefix
 
 git work flow list [--format json|text]         # names, descriptions, arguments
 git work flow [--format text|json]              # list's human form: name and description
-git work flow run NAME|- [KWARGS|-] [--gui]      # - runs the script on stdin without importing it
+git work flow run NAME|- [KWARGS|-]              # - runs the script on stdin without importing it
 git work flow import FILE|DIR|-... [--prune] [--dry-run]   # one def per file; its name is the flow's
 git work flow export NAME > FILE
 git work flow export --all DIR
@@ -176,10 +175,12 @@ git work flow log [NAME]
 git work flow archive NAME
 git work flow rm NAME
 
-git work view list  [KWARGS|-] [--gui]          # requires nothing
-git work view board [KWARGS|-] [--gui]          # requires columns
-git work view gantt [KWARGS|-] [--gui]          # requires start and stop
-git work view show  [KWARGS|-] [--gui]          # requires id
+git work view list   [KWARGS|-]                 # requires nothing
+git work view board  [KWARGS|-]                 # requires columns
+git work view gantt  [KWARGS|-]                 # requires start and stop
+git work view matrix [KWARGS|-]                 # requires rows and columns
+git work view show   [KWARGS|-]                 # requires id
+git work view new    [KWARGS|-]                 # requires nothing; prints the created id
                                                 # git work view KIND --help is the whole argument list
 
 git work push
@@ -191,7 +192,6 @@ git work user list [--format json|text]
 git work user [--format text|json]              # list's human form: id and name
 git work user me                                # the identity this repository writes as
 git work user new | adopt ID
-git work gui [--port N] [--no-browser]          # every flow as a page, every view as a renderer
 git work quickstart                             # the model and this repository's types, markdown, for an agent
 git work version
 git work completion SHELL
