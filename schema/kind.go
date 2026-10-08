@@ -34,6 +34,10 @@ const (
 	// KindMultiIdentity is a set of identity ids, like reviewers.
 	KindMultiIdentity Kind = "multi-identity"
 	// KindRank is a LexoRank-style string, ordered by (rank, id) (441dcbb).
+	//
+	// It is the built-in `rank`'s kind and no other field's: the order a
+	// view draws and a drag writes is internal, so no field of a type's own
+	// takes it, and ParseKind refuses it (configurable-schema.md D9).
 	KindRank Kind = "rank"
 	// KindRelation is the entity id of one other issue: parent, iteration.
 	KindRelation Kind = "relation"
@@ -41,7 +45,8 @@ const (
 	KindMultiRelation Kind = "multi-relation"
 )
 
-// Kinds is every kind, in the order D2's table lists them.
+// Kinds is every kind a configured field takes, in the order D2's table
+// lists them. KindRank is not one: it is the built-in `rank`'s alone (D9).
 var Kinds = []Kind{
 	KindText,
 	KindEnum,
@@ -52,7 +57,6 @@ var Kinds = []Kind{
 	KindIdentity,
 	KindMultiEnum,
 	KindMultiIdentity,
-	KindRank,
 	KindRelation,
 	KindMultiRelation,
 }
@@ -69,7 +73,21 @@ func ParseKind(s string) (Kind, error) {
 	if s == "" {
 		return "", fmt.Errorf("kind is missing; valid kinds: %s", KindList())
 	}
+	if Kind(s) == KindRank {
+		return "", fmt.Errorf("kind rank is the built-in rank's alone: the order every view draws "+
+			"and every drag writes is internal, so no other field takes it (2026-10-08); valid kinds: %s", KindList())
+	}
 	return "", fmt.Errorf("unknown kind %q; valid kinds: %s", s, KindList())
+}
+
+// parseFieldKind is ParseKind for one field key: a built-in's own kind is
+// accepted on that built-in, which is how `rank` is written in a file that
+// overrides its name, and everything else is ParseKind's to judge.
+func parseFieldKind(fieldKey, s string) (Kind, error) {
+	if builtinKind, ok := BuiltinKind(fieldKey); ok && Kind(s) == builtinKind {
+		return builtinKind, nil
+	}
+	return ParseKind(s)
 }
 
 // KindList names every kind, for an error message.

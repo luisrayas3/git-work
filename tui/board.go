@@ -33,7 +33,6 @@ type boardPage struct {
 	values         []string
 	cardKeys       []string
 	groupBy        string
-	rankKey        string
 	// colWidth is the narrowest a column goes before the board scrolls
 	// sideways instead (`column_width`, view/kinds.go, which is the
 	// authority on its default).
@@ -122,7 +121,6 @@ func newBoardPage(repo *cache.RepoCache, call *view.Call) (*boardPage, error) {
 		values:         call.Strings("values"),
 		cardKeys:       call.Strings("card"),
 		groupBy:        call.String("group_by"),
-		rankKey:        call.String("rank"),
 		colWidth:       call.Int("column_width"),
 		width:          80,
 		height:         24,
@@ -212,7 +210,7 @@ func (p *boardPage) newCard(item map[string]any, known *kinds) card {
 			c.group = value
 		}
 	}
-	c.rank = plainValue(fields[p.rankKey])
+	c.rank = plainValue(fields[schema.RankKey])
 
 	var text strings.Builder
 	text.WriteString(c.human)
@@ -303,7 +301,7 @@ func (p *boardPage) resolveColumns() []column {
 
 // arrange rebuilds the lanes: the filter, then the groups in the order they
 // first appear with the ungrouped last, then each card into its column, in
-// the query's order or by (rank, id) where a rank is bound.
+// (rank, id), the unranked keeping the query's order at the end.
 func (p *boardPage) arrange() {
 	at := make(map[string]int, len(p.columns))
 	for index, column := range p.columns {
@@ -914,10 +912,10 @@ func (p *boardPage) drop() tea.Cmd {
 		p.putCursorOn(c.id)
 		return bell()
 	}
-	fields[p.rankKey] = issue.StringValue(key)
+	fields[schema.RankKey] = issue.StringValue(key)
 
 	id := c.id
-	if err := writeFills(p.repo, above, p.rankKey); err != nil {
+	if err := writeFills(p.repo, above); err != nil {
 		p.status = err.Error()
 		p.arrange()
 		p.putCursorOn(id)

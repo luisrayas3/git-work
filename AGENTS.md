@@ -312,9 +312,9 @@ and on a relation, drawn as the issue it names, opens that issue at once
 (a `multi-relation` cell on a list, the first);
 `Space` on a cell edits it, a column that is not a field of the row's type ringing the bell,
 and on a list's id grabs the row to move it
-(`rank` is built in on every type and is the argument's default, so a drag
-always has somewhere to go, and `(rank, id)` orders every view, the issues
-with no rank keeping the query's order at the end);
+(`rank` is built in on every type and internal, no view argument and no layer key,
+so a drag always has somewhere to go, and `(rank, id)` orders every view, the issues
+with no rank keeping the query's order at the end; 2026-10-08, because nothing named a second order);
 a drop that writes a rank first gives one to every unranked row drawn above
 it in the same scope — the same group, parent or board stack — one commit
 each, so that the drop reads as it was drawn (`rank set · 2 ranked`).
@@ -373,7 +373,7 @@ and the row labels stay put while the columns scroll sideways
 `expand` nests the list and the gantt along a relation,
 either side of it a name it takes — the derived `children` is read through the stored `parent`.
 It is a **layer spec** (2026-10-02, `f4426ff`; `depth` is gone):
-`{"relation":"children","query":…,"include_archive":…,"fields":…,"details":…,"group_by":…,"rank":…,"expand":…}`,
+`{"relation":"children","query":…,"include_archive":…,"fields":…,"details":…,"group_by":…,"expand":…}`,
 where a layer's `query` runs over that row's own unarchived children (every one of them without it,
 the archived too with `include_archive`, which a layer inherits from the call or the layer above
 unless it names its own, because archive visibility is one choice for the whole view),
@@ -392,7 +392,7 @@ it names its type in `fields.type`, a type the schema knows, and is drawn and gr
 The rows of one level under one parent — the roots across their groups, a row's children — are all keyed or none
 (a row keyed by its own id is plain); a mixed level is refused naming a key and an id from it (2026-10-08).
 A top-level `children`, ids or rows and rows all the way down, is that row's children
-in place of what the layer's relation reads for it; the layer below still applies its fields, details, group_by, rank and query,
+in place of what the layer's relation reads for it; the layer below still applies its fields, details, group_by and query,
 and its `relation` is needed only where a row above lists none (`{}` is a layer).
 A key shows once, so an issue reached twice through the store shows once and one keyed twice shows twice.
 The board and the matrix ignore `key` and `children`, drop a row with no id, and draw an issue once.
@@ -436,7 +436,7 @@ Show's `expand` draws a **side table** per element beside the fields, under them
 `git work view show '{"id":"<story>","expand":{"relation":"children","fields":["status"]}}'`.
 It takes what the list's `expand` takes — a relation, stored on the shown issue (`blocks`) or the inverse the schema declares (`children`), or a layer — or a list of them,
 read by the same parser and the same check before anything draws;
-`query`, `include_archive`, `fields` (the columns after id and title) and `rank` are a layer's,
+`query`, `include_archive` and `fields` (the columns after id and title) are a layer's,
 and `details`, `group_by` and a nested `expand` are refused, a side table being flat.
 The heading is the relation as given; past the taller of the fields and 12 lines the column scrolls by itself, its heading kept on top.
 The side tables are a stop between the fields and the box, reached by `Tab`/`S-Tab` only — `←`/`→` stay the tab keys there too —
@@ -594,6 +594,8 @@ Settled calls (details live in the referenced issues):
   since 2026-10-02 (`e524644`), because Jira's Rank and Linear's `sortOrder`
   put an order on every issue. It is null until a drag writes one, and a null
   rank sorts after every set rank, the unranked keeping the query's order.
+  It is internal (2026-10-08): no view argument, no layer key, and kind `rank`
+  is the built-in's alone, because nothing ever named a second order.
 - Schema and flows are **config entities** of three shapes, `type`, `field`
   and `flow`, under `refs/work-schema` (types and fields) and
   `refs/work-flows`, so the entity boundary is the merge unit. A config entity

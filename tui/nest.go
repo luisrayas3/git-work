@@ -17,7 +17,7 @@ import (
 // (doc/design/terminal-renderer.md, Nesting).
 //
 // `expand` is a layer spec: a relation, the list's own arguments for the rows
-// that relation brings — `query`, `fields`, `details`, `group_by`, `rank` —
+// that relation brings — `query`, `fields`, `details`, `group_by` —
 // and an `expand` of its own for the level below. The call's own arguments
 // are level 0, the spec's first layer level 1, and a level the spec does not
 // describe is leaves. The query selects the roots; a matched issue that is
@@ -46,7 +46,6 @@ type nestLayer struct {
 	fields         []string
 	details        []string
 	groupBy        string
-	rankKey        string
 }
 
 // nesting is `expand` resolved: a layer per level, and whether the last of
@@ -63,7 +62,7 @@ type nesting struct {
 
 // newNesting resolves the root's own arguments and the spec's layers.
 //
-// A layer that names no `fields`, `details` or `rank` takes the layer
+// A layer that names no `fields` or `details` takes the layer
 // above's, so a bare `"expand": "children"` is the uniform tree nesting was
 // before the spec, and a layer that names them draws its own columns under
 // the parent. `group_by` is not inherited: a level is sectioned because that
@@ -94,7 +93,6 @@ func newNesting(root nestLayer, spec *view.Layer) (*nesting, error) {
 			fields:         layer.Fields,
 			details:        layer.Details,
 			groupBy:        layer.GroupBy,
-			rankKey:        layer.Rank,
 		}
 		if layer.IncludeArchive != nil {
 			resolved.includeArchive = *layer.IncludeArchive
@@ -104,9 +102,6 @@ func newNesting(root nestLayer, spec *view.Layer) (*nesting, error) {
 		}
 		if resolved.details == nil {
 			resolved.details = above.details
-		}
-		if resolved.rankKey == "" {
-			resolved.rankKey = above.rankKey
 		}
 		if layer.Query != "" {
 			program, err := jq.Compile(layer.Query)

@@ -50,7 +50,6 @@ const sideFieldMax = 24
 type sideTable struct {
 	layer   *view.Layer
 	program *jq.Program
-	rankKey string
 	// ghost is the draft the table's ghost opens, nil where there is none:
 	// a table over a stored relation of the shown issue, or an inverse whose
 	// types disagree on the stored key (S6)
@@ -104,10 +103,7 @@ func newShowView(repo *cache.RepoCache, call *view.Call) (*showPage, error) {
 	}
 	shownType, _ := issue.String(p.snapshot.Fields[schema.TypeKey])
 	for _, layer := range layers {
-		table := &sideTable{layer: layer, rankKey: layer.Rank}
-		if table.rankKey == "" {
-			table.rankKey = schema.RankKey
-		}
+		table := &sideTable{layer: layer}
 		if layer.Query != "" {
 			program, err := jq.Compile(layer.Query)
 			if err != nil {
@@ -223,7 +219,7 @@ func (p *showPage) loadSide() {
 			}
 			rows = append(rows, sideRow{
 				id:    id,
-				rank:  host.StringOr(fields[table.rankKey], ""),
+				rank:  host.StringOr(fields[schema.RankKey], ""),
 				cells: cells,
 				text:  strings.ToLower(id + " " + strings.Join(cells, " ")),
 			})
@@ -411,15 +407,15 @@ func (p *showPage) sideDrop() tea.Cmd {
 	}
 	above, key, err := fillRanks(ids, ranks, at)
 	if err == nil {
-		err = writeFills(p.repo, above, table.rankKey)
+		err = writeFills(p.repo, above)
 	}
 	if err == nil {
-		_, err = host.IssueSet(p.repo, grab.id, map[string]issue.Value{table.rankKey: issue.StringValue(key)}, false)
+		_, err = host.IssueSet(p.repo, grab.id, map[string]issue.Value{schema.RankKey: issue.StringValue(key)}, false)
 	}
 	if err != nil {
 		p.status = err.Error()
 	} else {
-		p.status = saidAnd(table.rankKey+" set", above)
+		p.status = saidAnd("rank set", above)
 	}
 	if err := p.load(); err != nil {
 		p.status = err.Error()

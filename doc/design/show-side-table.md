@@ -99,12 +99,16 @@ there is no `type` key, because a list's layer has none.
 ## S3 — The layer keys a flat table takes
 
 `relation` is required, as it is for a layer with no row above to list its children.
-`query`, `include_archive`, `fields` and `rank` behave as on a layer:
+`query`, `include_archive` and `fields` behave as on a layer:
 
 - **`query`** is a jq program over the shown issue's candidates, the unarchived issues the relation reaches;
 - **`include_archive`** brings the archived candidates back;
 - **`fields`** are the columns after `id` and `title`, checked against the types the relation can reach;
-- **`rank`** is the field the rows are ordered and dragged by, the built-in `rank` by default.
+
+The rows are ordered and dragged by the built-in `rank`, always:
+`rank` was a layer key here too until 2026-10-08,
+when it left every view as internal (`terminal-renderer.md`, Rank),
+and naming it now is an unknown key.
 
 `details`, `group_by` and a nested `expand` (a layer or a number) are **refused by name**:
 a side column is too narrow for a second line, a section or a tree.
@@ -178,7 +182,7 @@ the cells are not walked, `←`/`→` being the tab keys:
   On the ghost it opens the creator (S6); on `(none)` it rings.
 - `Space` **grabs the row**, as `Space` on a list's id does; `↑`/`↓` carry it within its table,
   `Space` or `Enter` drops it, `Esc` puts it back.
-  The drop writes the layer's `rank`, one commit, the unranked rows above it in the table ranked first —
+  The drop writes the built-in `rank`, one commit, the unranked rows above it in the table ranked first —
   the Rank section's rule for one scope.
   A row cannot leave its table: a carry past its edge stops there, and `←`/`→` ring while a row is grabbed,
   because which relation reaches a row is not an order.
@@ -229,7 +233,7 @@ The shape — a name, a layer, or a list of them, and the refused keys — is ch
 the names by `view.CheckSchema` in `host.View`, the same check every layer gets,
 before a renderer is chosen, so every surface refuses the same call with the same words before anything draws:
 a relation no type has, as a field or an inverse (naming the relations);
-a `fields` or `rank` key no type the relation reaches has;
+a `fields` key no type the relation reaches has;
 a `query` that does not compile.
 A query that fails on the data is reported in the status line, as a layer's is, and its table is left unnarrowed.
 

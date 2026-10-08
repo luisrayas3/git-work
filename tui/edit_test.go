@@ -158,15 +158,14 @@ func TestPasteOpensTheEditor(t *testing.T) {
 	require.Contains(t, plainView(updated), `status: no value "sideways"`)
 }
 
-// TestGrabNeedsNoBinding: `rank` is built in on every type and is the
-// argument's own default (D8), so space on the id of a list nobody
-// configured grabs the row.
+// TestGrabNeedsNoBinding: `rank` is built in on every type and is the one
+// order a view draws (D8), so space on the id of a list nobody configured
+// grabs the row.
 func TestGrabNeedsNoBinding(t *testing.T) {
 	repo := testRepo(t)
 	newIssue(t, repo, map[string]any{"title": "one"})
 
 	page := list(t, repo, "")
-	require.Equal(t, "rank", page.rankKey)
 	page = send(page, "space").(*listPage)
 
 	require.GreaterOrEqual(t, page.grabbed, 0)
@@ -181,8 +180,8 @@ func TestGrabAndDropWritesARankBetweenTheNeighbours(t *testing.T) {
 	second := newIssue(t, repo, map[string]any{"title": "second", "rank": "b"})
 	third := newIssue(t, repo, map[string]any{"title": "third", "rank": "c"})
 
-	page := list(t, repo, `{"rank":"rank","fields":["title","rank"]}`)
-	// a bound rank orders the rows, whatever the query's own order was
+	page := list(t, repo, `{"fields":["title","status"]}`)
+	// the rank orders the rows, whatever the query's own order was
 	require.Equal(t, first, page.currentId())
 
 	page = send(page, "space").(*listPage)
@@ -212,7 +211,7 @@ func TestGrabCanBePutBack(t *testing.T) {
 	first := newIssue(t, repo, map[string]any{"title": "first", "rank": "a"})
 	newIssue(t, repo, map[string]any{"title": "second", "rank": "b"})
 
-	page := list(t, repo, `{"rank":"rank"}`)
+	page := list(t, repo, "")
 	page = send(page, "space", "j", "esc").(*listPage)
 
 	require.Equal(t, -1, page.grabbed)

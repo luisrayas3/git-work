@@ -295,7 +295,8 @@ a half-applied reorder of fields is still a valid order.
 
 D1 said "ordinal" for values and "rank" for types.
 Both are `ordinal`;
-`rank` is the issue field kind from `441dcbb`.
+`rank` is the issue field kind from `441dcbb`,
+since 2026-10-08 the built-in `rank`'s alone (`configurable-schema.md` D9).
 
 ### E6 — Structural rules on the operation, semantic rules in `Update`
 

@@ -40,9 +40,6 @@ type Layer struct {
 	Fields  []string `json:"fields,omitempty"`
 	Details []string `json:"details,omitempty"`
 	GroupBy string   `json:"group_by,omitempty"`
-	// Rank is the field the layer's rows are ordered and dragged by; unnamed,
-	// it is the built-in `rank`, which every type has.
-	Rank string `json:"rank,omitempty"`
 	// Expand is the layer below; nil, this layer's rows are leaves.
 	Expand *Layer `json:"expand,omitempty"`
 	// Repeat is the integer form of `expand`: the level below is this layer
@@ -57,7 +54,11 @@ type Layer struct {
 }
 
 // layerKeys are the keys a layer takes, in the order an error names them.
-var layerKeys = []string{"relation", "query", "include_archive", "fields", "details", "group_by", "rank", "expand"}
+//
+// `rank` is not one of them: rows are drawn and dragged in the order of the
+// built-in `rank`, always, an implementation detail no call names
+// (Luis, 2026-10-08).
+var layerKeys = []string{"relation", "query", "include_archive", "fields", "details", "group_by", "expand"}
 
 // parseExpand reads the `expand` argument: a relation name, or a layer.
 //
@@ -125,7 +126,7 @@ func parseLayer(raw json.RawMessage, at int) (*Layer, error) {
 	for _, key := range []struct {
 		name  string
 		value *string
-	}{{"query", &layer.Query}, {"group_by", &layer.GroupBy}, {"rank", &layer.Rank}} {
+	}{{"query", &layer.Query}, {"group_by", &layer.GroupBy}} {
 		raw, ok := object[key.name]
 		if !ok || isNull(raw) {
 			continue
@@ -279,10 +280,8 @@ func checkExpand(s *schema.Schema, root *Layer) error {
 // keysOf is every field key one layer names.
 func keysOf(layer *Layer) []string {
 	keys := append(append([]string(nil), layer.Fields...), layer.Details...)
-	for _, key := range []string{layer.GroupBy, layer.Rank} {
-		if key != "" {
-			keys = append(keys, key)
-		}
+	if layer.GroupBy != "" {
+		keys = append(keys, layer.GroupBy)
 	}
 	return keys
 }

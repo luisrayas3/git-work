@@ -135,6 +135,35 @@ types:
 	require.NoError(t, doc.Validate([]string{"epic"}))
 }
 
+// TestRankIsTheBuiltinsKindAlone: the order is internal, so kind rank is the
+// built-in rank's and no other field's; an override of the built-in still
+// writes it, and a field of a type's own is refused, saying why (D9).
+func TestRankIsTheBuiltinsKindAlone(t *testing.T) {
+	doc, err := ParseDocument([]byte(`
+types:
+  epic:
+    fields:
+      order: {kind: rank}
+`))
+	require.NoError(t, err)
+	err = doc.Validate(nil)
+	require.ErrorContains(t, err, "field epic/order: kind rank is the built-in rank's alone")
+	require.ErrorContains(t, err, "valid kinds: text,")
+	require.NotContains(t, KindList(), "rank")
+
+	doc, err = ParseDocument([]byte(`
+types:
+  epic:
+    fields:
+      rank: {kind: rank, name: Order}
+`))
+	require.NoError(t, err)
+	require.NoError(t, doc.Validate(nil), "the built-in's own override")
+
+	_, err = ParseKind("rank")
+	require.ErrorContains(t, err, "internal")
+}
+
 func TestDocumentMarshal(t *testing.T) {
 	doc, err := ParseDocument([]byte(sampleDocument))
 	require.NoError(t, err)

@@ -8,7 +8,7 @@ Draw a gantt.
 
 KWARGS is a JSON object of this view's arguments, read from standard
 input when it is "-":
-  query            query                            defaulted          the jq program the issues come from, over every unarchived issue; the default is all of them, last edited first
+  query            query                            defaulted          the jq program the rows come from, over every unarchived issue; the default is all of them, last edited first; a row may add a key, its identity on screen (unique, not starting with +), with or without the id of the issue it acts on, and children, the ids or rows nested under it
   include_archive  bool                             defaulted          include the archived issues in the input the query runs over; false by default
   start            field key                        required           the date field a bar starts at
   stop             field key                        required           the date field a bar ends at
@@ -18,8 +18,8 @@ input when it is "-":
   to               string                           defaulted          the last date shown; the data's own extent by default
   progress         field key                        optional           the number field, 0 to 1, a bar is filled to
   group_by         field key                        optional           the field whose value starts a new row group; the rows with no value at all are the last group, (none)
-  expand           relation or layer                optional           the relation nested under a row: "children", or a layer {"relation":…,"query":…,"include_archive":…,"fields":…,"details":…,"group_by":…,"rank":…,"expand":…}; a relation is a stored one (parent) or the inverse name of one (children), a layer's query runs over that row's own unarchived children (the archived too with include_archive, which a layer inherits from the call or the layer above unless it names its own), the keys it leaves out are the layer above's, and its expand is the level below: a layer, or a number of further levels this same layer draws, 0 for every one
-  rank             field key                        defaulted "rank"   the rank field rows are ordered and dragged by
+  expand           relation or layer                optional           the relation nested under a row: "children", or a layer {"relation":…,"query":…,"include_archive":…,"fields":…,"details":…,"group_by":…,"expand":…}; a relation is a stored one (parent) or the inverse name of one (children), a row's own top-level children (ids or rows) replace it for that row, so a layer needs one only where a row above lists none; a layer's query runs over that row's own unarchived children (the archived too with include_archive, which a layer inherits from the call or the layer above unless it names its own), the keys it leaves out are the layer above's, and its expand is the level below: a layer, or a number of further levels this same layer draws, 0 for every one
+  open             bool or levels                   optional           how unfolded a nested view opens: true every parent, a number that many levels from the roots, false or absent folded
 
 An `optional` argument has no default: name it and the view does that
 thing, leave it out and it does not.

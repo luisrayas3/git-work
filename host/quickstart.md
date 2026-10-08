@@ -191,11 +191,12 @@ A field's kind says what its value has to be:
 - `identity`, `multi-identity` — the id of an identity, as `git work user` lists them.
 - `relation`, `multi-relation` — the id of another issue,
   of a type the field's target types allow.
-- `rank` — a fractional index for manual order; leave it to a view to write.
 
-`title` (text), `type` (enum), `archived` (bool) and `rank` (rank)
+`title` (text), `type` (enum), `archived` (bool) and `rank`
 are built in fields on every type and cannot be removed.
-A `rank` starts null and stays null until a view's drag writes one.
+`rank` is internal: a fractional index for manual order,
+of a kind no other field takes, null until a view's drag writes one;
+every view orders by it and no view argument names it.
 
 ## Examples
 

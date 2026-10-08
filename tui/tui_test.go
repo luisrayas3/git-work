@@ -225,7 +225,7 @@ func TestTheCommandIsOneShellWord(t *testing.T) {
 	require.NoError(t, json.Unmarshal([]byte(`{"query":"map(select(.fields.title == \"it's\"))"}`), &values))
 	call, err := view.Parse(view.KindList, values)
 	require.NoError(t, err)
-	require.Equal(t, `git work view list '{"fields":["type","title"],"query":"map(select(.fields.title == \"it'\''s\"))","rank":"rank"}'`, command(call))
+	require.Equal(t, `git work view list '{"fields":["type","title"],"query":"map(select(.fields.title == \"it'\''s\"))"}'`, command(call))
 }
 
 // TestALinkIsTheIssueItNames: a relation cell is the short id and title of

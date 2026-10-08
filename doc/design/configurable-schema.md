@@ -231,7 +231,7 @@ Field kinds, fixed as `bb9e89e` specifies, plus the additions this design settle
 | `identity` | assignee | `entity.Id` of an identity |
 | `multi-enum` | labels, components, fix versions | list of value ids |
 | `multi-identity` | reviewers, watchers | list of identity ids |
-| `rank` | board and backlog order | LexoRank-style string (`441dcbb`) |
+| `rank` | the built-in `rank` alone (D9) | LexoRank-style string (`441dcbb`) |
 | `relation` | parent, iteration, and any cardinality-one link | `entity.Id` of an issue (D4, D5) |
 | `multi-relation` | blocks, relates-to | list of issue ids (D4) |
 
@@ -460,6 +460,36 @@ was rejected: a drag of one issue should not rewrite a backlog of three
 hundred, and the rows below the drop point need no key to stay put.
 The order-preserving renumber the `rank` package describes
 remains the answer to keys that have grown long, which is another problem.
+
+### D9 — `rank` is internal, and its kind is the built-in's alone (2026-10-08)
+
+Luis, 2026-10-08: **the rank is an implementation detail.**
+Every view orders by the built-in `rank` and every drag writes it;
+no view takes a `rank` argument and no layer a `rank` key
+(`terminal-renderer.md`, Rank).
+The argument existed because a second ordering field was to be a field like any other,
+and nothing ever passed anything but the default.
+
+The kind went the same way, as a choice:
+**`rank` is no longer a kind a configured field takes.**
+`schema import` refuses `kind: rank` on any field but the built-in,
+saying the order is internal and listing the kinds that remain;
+`ParseKind` is where, so the store's compile says the same of an entity that holds one.
+Nothing else needed it:
+the presets and `schema.yaml` define no field of kind rank
+(they carried `rank` on every type before D8, and those entities are the built-in's overrides now);
+the Jira mapping leaves Jira's Rank unmapped, a warning in `jira schema`,
+and when it is mapped it maps onto the built-in, which is what Jira's Rank is, one per issue;
+Linear's `sortOrder` is the same, and has no bridge yet.
+A field of kind rank of a type's own would be an order no view can draw,
+since a view draws only the built-in's.
+
+The constant stays in code as the built-in's own kind:
+a file that overrides `rank`'s name writes `kind: rank` on it, as one overriding `title` writes `text`,
+and that is accepted for that key alone.
+Making the built-in `text` instead was rejected:
+the override would then say `kind: text` of a LexoRank string,
+and a value kind is what a bridge reads to know how to carry it.
 
 ## Order of work
 
