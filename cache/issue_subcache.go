@@ -100,12 +100,50 @@ func (c *RepoCacheIssue) CheckNew(fields map[string]issue.Value) error {
 	return checker.CheckNew(rawValues(fields))
 }
 
+// ConsolidatedIntoMetadata is the create-op metadata key the Jira sync
+// stamps on a consolidated loser: the id of the copy it was consolidated into
+// (doc/design/jira-sync.md JS25, doc/design/repoint.md).
+//
+// It lives here because alias resolution reads it (doc/design/alias-ids.md A6):
+// both copies keep the alias, which is immutable, and only the survivor is
+// what the alias names.
+const ConsolidatedIntoMetadata = "jira-consolidated-into"
+
 // ResolveAlias retrieves the issue carrying the given external id under any
-// alias:<name> key of its create operation. It fails if several match.
+// alias:<name> key of its create operation.
+//
+// A consolidated loser keeps the alias it shares with its survivor, so the
+// copies not stamped ConsolidatedIntoMetadata are matched first, and the alias
+// is ambiguous only when more than one of them carries it, the window before a
+// sync consolidates them. When every carrier is stamped, which a local `rm` of
+// the survivor can leave, they are matched as they are (alias-ids.md A6).
 func (c *RepoCacheIssue) ResolveAlias(alias string) (*IssueCache, error) {
-	return c.ResolveMatcher(func(excerpt *IssueExcerpt) bool {
-		return excerpt.HasAlias(alias)
+	id, err := c.aliasId(alias)
+	if err != nil {
+		return nil, err
+	}
+	return c.Resolve(id)
+}
+
+// ResolveExcerptAlias is ResolveAlias over the excerpts, which loads no entity.
+func (c *RepoCacheIssue) ResolveExcerptAlias(alias string) (*IssueExcerpt, error) {
+	id, err := c.aliasId(alias)
+	if err != nil {
+		return nil, err
+	}
+	return c.ResolveExcerpt(id)
+}
+
+func (c *RepoCacheIssue) aliasId(alias string) (entity.Id, error) {
+	id, err := c.resolveMatcher(func(excerpt *IssueExcerpt) bool {
+		return excerpt.HasAlias(alias) && !excerpt.Consolidated()
 	})
+	if entity.IsErrNotFound(err) {
+		return c.resolveMatcher(func(excerpt *IssueExcerpt) bool {
+			return excerpt.HasAlias(alias)
+		})
+	}
+	return id, err
 }
 
 // ResolvePrefixOrAlias resolves an id prefix, and falls back to an alias when
@@ -144,9 +182,7 @@ func (c *RepoCacheIssue) ResolveExcerptPrefixOrAlias(prefix string) (*IssueExcer
 	}
 
 	// an alias is accepted wherever an id is (483dbe2)
-	excerpt, aliasErr := c.ResolveExcerptMatcher(func(excerpt *IssueExcerpt) bool {
-		return excerpt.HasAlias(prefix)
-	})
+	excerpt, aliasErr := c.ResolveExcerptAlias(prefix)
 	if aliasErr == nil {
 		return excerpt, nil
 	}

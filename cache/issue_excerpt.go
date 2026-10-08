@@ -115,6 +115,12 @@ func (e *IssueExcerpt) Aliases() map[string]string {
 	return aliases
 }
 
+// Consolidated reports whether the Jira sync consolidated this copy into
+// another (ConsolidatedIntoMetadata).
+func (e *IssueExcerpt) Consolidated() bool {
+	return e.CreateMetadata[ConsolidatedIntoMetadata] != ""
+}
+
 // HasAlias reports whether any of the issue's aliases is that external id.
 func (e *IssueExcerpt) HasAlias(alias string) bool {
 	if alias == "" {
