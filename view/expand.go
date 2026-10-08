@@ -23,6 +23,10 @@ type Layer struct {
 	// Query is a jq program over the array of the row's candidate children,
 	// every unarchived one; empty, they are all this layer's rows.
 	Query string `json:"query,omitempty"`
+	// IncludeArchive brings the archived children back among the candidates,
+	// as the call's own `include_archive` does for `query`; false by default,
+	// like it, and not the layer above's (doc/design/include-archive.md, I5).
+	IncludeArchive bool `json:"include_archive,omitempty"`
 	// Fields, Details and GroupBy are the layer's columns, its dim second
 	// line and the field its rows are sectioned by. Fields and Details that
 	// are not named are the layer above's: a layer that says nothing draws
@@ -47,7 +51,7 @@ type Layer struct {
 }
 
 // layerKeys are the keys a layer takes, in the order an error names them.
-var layerKeys = []string{"relation", "query", "fields", "details", "group_by", "rank", "expand"}
+var layerKeys = []string{"relation", "query", "include_archive", "fields", "details", "group_by", "rank", "expand"}
 
 // parseExpand reads the `expand` argument: a relation name, or a layer.
 //
@@ -127,6 +131,12 @@ func parseLayer(raw json.RawMessage, at int) (*Layer, error) {
 			return nil, fmt.Errorf("%s%s is empty", where, key.name)
 		}
 		*key.value = s
+	}
+
+	if raw, ok := object["include_archive"]; ok && !isNull(raw) {
+		if err := json.Unmarshal(raw, &layer.IncludeArchive); err != nil {
+			return nil, fmt.Errorf("%sinclude_archive is true or false, not %s", where, jsonKind(raw))
+		}
 	}
 
 	for _, key := range []struct {

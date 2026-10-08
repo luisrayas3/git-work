@@ -89,11 +89,12 @@ def report(from_="7d", to=None, iteration=None, query=None):
     if selector == None:
         selector = "map(select(.fields.archived != true))"
 
-    # Every issue at each end of the window, for the before/after comparison
-    # and for a parent's title; the selection at each end, so that an issue
-    # that left the selection during the window is still reported.
-    before = by_id(work.issue.list(".", at=window_from))
-    after = by_id(work.issue.list(".", at=window_to))
+    # Every issue at each end of the window, the archived included, for the
+    # before/after comparison and for a parent's title; the selection at each
+    # end, so that an issue that left the selection during the window is still
+    # reported.
+    before = by_id(work.issue.list(".", at=window_from, include_archive=True))
+    after = by_id(work.issue.list(".", at=window_to, include_archive=True))
 
     picked = {}
     for item in work.issue.list(selector, at=window_from):
@@ -101,9 +102,11 @@ def report(from_="7d", to=None, iteration=None, query=None):
     for item in work.issue.list(selector, at=window_to):
         picked[item["id"]] = True
 
-    # Every operation in the window, grouped by the issue it belongs to.
+    # Every operation in the window, grouped by the issue it belongs to, the
+    # archived included: an issue archived during the window keeps its
+    # operations, the archive among them.
     operations = {}
-    for entry in work.issue.log(".", from_=window_from, to=window_to):
+    for entry in work.issue.log(".", from_=window_from, to=window_to, include_archive=True):
         operations.setdefault(entry["issue"], []).append(entry)
 
     # Which statuses mean closed, read from the schema's categories and never

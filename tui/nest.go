@@ -37,10 +37,12 @@ type nestLayer struct {
 	// program is the layer's `query`, run over the array of a row's candidate
 	// children; nil is every one of them.
 	program *jq.Program
-	fields  []string
-	details []string
-	groupBy string
-	rankKey string
+	// includeArchive brings the archived children back among the candidates.
+	includeArchive bool
+	fields         []string
+	details        []string
+	groupBy        string
+	rankKey        string
 }
 
 // nesting is `expand` resolved: a layer per level, and whether the last of
@@ -81,11 +83,12 @@ func newNesting(root nestLayer, spec *view.Layer) (*nesting, error) {
 		n.families = append(n.families, family)
 		above := n.layers[len(n.layers)-1]
 		resolved := nestLayer{
-			relation: layer.Relation,
-			fields:   layer.Fields,
-			details:  layer.Details,
-			groupBy:  layer.GroupBy,
-			rankKey:  layer.Rank,
+			relation:       layer.Relation,
+			includeArchive: layer.IncludeArchive,
+			fields:         layer.Fields,
+			details:        layer.Details,
+			groupBy:        layer.GroupBy,
+			rankKey:        layer.Rank,
 		}
 		if resolved.fields == nil {
 			resolved.fields = above.fields
@@ -189,15 +192,32 @@ func nest(repo *cache.RepoCache, items []map[string]any, n *nesting, open map[st
 		return out, nil
 	}
 
-	all, order := allIssues(repo)
-
-	indexes := map[string]map[string][]string{}
-	byRelation := func(relation string) map[string][]string {
-		if got, ok := indexes[relation]; ok {
+	// the issues a layer's children are read from: the unarchived, or every
+	// one where the layer says include_archive, each read once
+	type issueSet struct {
+		all   map[string]map[string]any
+		order []string
+	}
+	sets := map[bool]*issueSet{}
+	source := func(includeArchive bool) *issueSet {
+		if got, ok := sets[includeArchive]; ok {
 			return got
 		}
-		got := childrenIndex(repo, all, order, relation)
-		indexes[relation] = got
+		all, order := allIssues(repo, includeArchive)
+		got := &issueSet{all: all, order: order}
+		sets[includeArchive] = got
+		return got
+	}
+
+	indexes := map[string]map[string][]string{}
+	byRelation := func(relation string, includeArchive bool) map[string][]string {
+		key := strconv.FormatBool(includeArchive) + "\x00" + relation
+		if got, ok := indexes[key]; ok {
+			return got
+		}
+		set := source(includeArchive)
+		got := childrenIndex(repo, set.all, set.order, relation)
+		indexes[key] = got
 		return got
 	}
 
@@ -212,7 +232,12 @@ func nest(repo *cache.RepoCache, items []map[string]any, n *nesting, open map[st
 		if item, ok := shaped[id]; ok {
 			return item
 		}
-		return all[id]
+		for _, includeArchive := range []bool{false, true} {
+			if set, ok := sets[includeArchive]; ok && set.all[id] != nil {
+				return set.all[id]
+			}
+		}
+		return nil
 	}
 
 	var failed error
@@ -227,8 +252,9 @@ func nest(repo *cache.RepoCache, items []map[string]any, n *nesting, open map[st
 			return got
 		}
 
+		all := source(layer.includeArchive).all
 		var candidates []string
-		for _, kid := range byRelation(layer.relation)[id] {
+		for _, kid := range byRelation(layer.relation, layer.includeArchive)[id] {
 			if all[kid] != nil {
 				candidates = append(candidates, kid)
 			}
@@ -356,10 +382,14 @@ func runLayerQuery(program *jq.Program, candidates []string, all map[string]map[
 	return ids, shapes, nil
 }
 
-// allIssues is the store as the default program sees it, less the archived,
-// by id and in creation order.
-func allIssues(repo *cache.RepoCache) (map[string]map[string]any, []string) {
-	input, err := host.IssueListInput(repo)
+// allIssues is the store as a program's input is, by id and in creation
+// order: the unarchived, unless includeArchive brings the archived back.
+//
+// It is the one source the nesting, show's children and a relation's picker
+// read, so that the three leave the archived out by the input's own rule
+// (doc/design/include-archive.md, I5).
+func allIssues(repo *cache.RepoCache, includeArchive bool) (map[string]map[string]any, []string) {
+	input, err := host.IssueListInput(repo, includeArchive)
 	if err != nil {
 		return nil, nil
 	}
@@ -369,10 +399,6 @@ func allIssues(repo *cache.RepoCache) (map[string]map[string]any, []string) {
 	all := make(map[string]map[string]any, len(items))
 	order := make([]string, 0, len(items))
 	for _, item := range items {
-		fields, _ := item["fields"].(map[string]any)
-		if archived, _ := fields[schema.ArchivedKey].(bool); archived {
-			continue
-		}
 		id := host.StringOr(item["id"], "")
 		all[id] = item
 		order = append(order, id)

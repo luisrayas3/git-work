@@ -281,6 +281,16 @@ func TestIssueArchive(t *testing.T) {
 	// the default list leaves it out
 	require.NoError(t, runIssueList(env, issueListOptions{format: "json"}, nil))
 	require.JSONEq(t, `[]`, env.Out.String())
+
+	// and so does any program, because the input does
+	env.Out.Reset()
+	require.NoError(t, runIssueList(env, issueListOptions{format: "json"}, []string{`map(.id)`}))
+	require.JSONEq(t, `[]`, env.Out.String())
+
+	// --include-archive brings it back
+	env.Out.Reset()
+	require.NoError(t, runIssueList(env, issueListOptions{format: "json", includeArchive: true}, []string{`map(.id)`}))
+	require.JSONEq(t, `["`+id.String()+`"]`, env.Out.String())
 }
 
 func TestIssueGet(t *testing.T) {

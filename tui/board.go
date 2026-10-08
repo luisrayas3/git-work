@@ -25,13 +25,15 @@ import (
 type boardPage struct {
 	repo *cache.RepoCache
 
-	call       *view.Call
-	query      string
-	columnsKey string
-	values     []string
-	cardKeys   []string
-	groupBy    string
-	rankKey    string
+	call  *view.Call
+	query string
+	// includeArchive brings the archived back into the input query runs over.
+	includeArchive bool
+	columnsKey     string
+	values         []string
+	cardKeys       []string
+	groupBy        string
+	rankKey        string
 	// colWidth is the narrowest a column goes before the board scrolls
 	// sideways instead (`column_width`, view/kinds.go, which is the
 	// authority on its default).
@@ -107,18 +109,19 @@ func (p *boardPage) Call() (*view.Call, string, string) {
 
 func newBoardPage(repo *cache.RepoCache, call *view.Call) (*boardPage, error) {
 	p := &boardPage{
-		repo:       repo,
-		call:       call,
-		query:      call.String("query"),
-		columnsKey: call.String("columns"),
-		values:     call.Strings("values"),
-		cardKeys:   call.Strings("card"),
-		groupBy:    call.String("group_by"),
-		rankKey:    call.String("rank"),
-		colWidth:   call.Int("column_width"),
-		width:      80,
-		height:     24,
-		grabbed:    -1,
+		repo:           repo,
+		call:           call,
+		includeArchive: call.Bool("include_archive"),
+		query:          call.String("query"),
+		columnsKey:     call.String("columns"),
+		values:         call.Strings("values"),
+		cardKeys:       call.Strings("card"),
+		groupBy:        call.String("group_by"),
+		rankKey:        call.String("rank"),
+		colWidth:       call.Int("column_width"),
+		width:          80,
+		height:         24,
+		grabbed:        -1,
 	}
 	if len(p.cardKeys) == 0 {
 		p.cardKeys = []string{schema.TitleKey}
@@ -135,7 +138,7 @@ func newBoardPage(repo *cache.RepoCache, call *view.Call) (*boardPage, error) {
 func (p *boardPage) load() error {
 	was := p.currentId()
 
-	values, err := host.IssueList(p.repo, p.query)
+	values, err := host.IssueList(p.repo, p.query, p.includeArchive)
 	if err != nil {
 		return err
 	}

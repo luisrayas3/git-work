@@ -127,14 +127,17 @@ func newModule(path string, members ...member) *starlarkstruct.Module {
 	return module
 }
 
-// work.issue.list(program, at=None) — `git work issue [PROGRAM] [--at TIME]`.
+// work.issue.list(program, at=None, include_archive=False) —
+// `git work issue [PROGRAM] [--at TIME] [--include-archive]`.
 //
 // One value comes back as itself, which is the array a program usually
 // returns; several come back as a list, which is what a stream is.
 func (r *runtime) issueList(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 	var program string
 	var atArg starlark.Value
-	if err := starlark.UnpackArgs(b.Name(), args, kwargs, "program?", &program, "at?", &atArg); err != nil {
+	var includeArchive bool
+	if err := starlark.UnpackArgs(b.Name(), args, kwargs,
+		"program?", &program, "at?", &atArg, "include_archive?", &includeArchive); err != nil {
 		return nil, err
 	}
 
@@ -143,7 +146,7 @@ func (r *runtime) issueList(thread *starlark.Thread, b *starlark.Builtin, args s
 		return nil, err
 	}
 
-	values, err := host.IssueListAt(r.repo, program, at)
+	values, err := host.IssueListAt(r.repo, program, at, includeArchive)
 	if err != nil {
 		return nil, err
 	}
@@ -198,7 +201,8 @@ func (r *runtime) issueGet(thread *starlark.Thread, b *starlark.Builtin, args st
 	return reencode(b, document)
 }
 
-// work.issue.log(id, from_=None, to=None) — `git work issue log [ID|PROGRAM]`.
+// work.issue.log(id, from_=None, to=None, include_archive=False) —
+// `git work issue log [ID|PROGRAM] [--include-archive]`.
 //
 // `from` is a reserved word in Starlark, so the keyword is `from_`, the same
 // trailing underscore `work.schema.import_` carries (doc/design/report.md).
@@ -207,8 +211,9 @@ func (r *runtime) issueGet(thread *starlark.Thread, b *starlark.Builtin, args st
 func (r *runtime) issueLog(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 	var id string
 	var fromArg, toArg starlark.Value
+	var includeArchive bool
 	if err := starlark.UnpackArgs(b.Name(), args, kwargs,
-		"id?", &id, "from_?", &fromArg, "to?", &toArg); err != nil {
+		"id?", &id, "from_?", &fromArg, "to?", &toArg, "include_archive?", &includeArchive); err != nil {
 		return nil, err
 	}
 
@@ -221,7 +226,7 @@ func (r *runtime) issueLog(thread *starlark.Thread, b *starlark.Builtin, args st
 		return nil, err
 	}
 
-	entries, err := host.IssueLogBetween(r.repo, id, from, to)
+	entries, err := host.IssueLogBetween(r.repo, id, from, to, includeArchive)
 	if err != nil {
 		return nil, err
 	}

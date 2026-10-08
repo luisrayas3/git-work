@@ -1,6 +1,7 @@
 package host
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -30,8 +31,10 @@ type IssueDocument struct {
 //
 // An empty program is the default one,
 // so that `git work issue` and `work.issue.list()` mean the same thing.
-func IssueList(repo *cache.RepoCache, program string) ([]any, error) {
-	return IssueListAt(repo, program, time.Time{})
+// The input is the unarchived issues unless includeArchive brings the
+// archived back (doc/design/include-archive.md).
+func IssueList(repo *cache.RepoCache, program string, includeArchive bool) ([]any, error) {
+	return IssueListAt(repo, program, time.Time{}, includeArchive)
 }
 
 // defaultProgram is the listing you get when you name no program.
@@ -43,24 +46,39 @@ func defaultProgram() string {
 	return view.DefaultQuery
 }
 
-// IssueListInput is the array a program runs over: every issue as an excerpt,
-// oldest first, so that a program that does not sort still reads the same twice.
-func IssueListInput(repo *cache.RepoCache) (any, error) {
+// IssueListInput is the array a program runs over: every unarchived issue as
+// an excerpt, oldest first, so that a program that does not sort still reads
+// the same twice. includeArchive brings the archived back.
+//
+// It is the one home of that rule: every program — the list, the log's
+// PROGRAM form, a view's query, a layer's — reads its issues from here, so no
+// query has to remember a filter (doc/design/include-archive.md, I1).
+func IssueListInput(repo *cache.RepoCache, includeArchive bool) (any, error) {
 	excerpts, err := sortedExcerpts(repo)
 	if err != nil {
 		return nil, err
 	}
 
-	out := make([]cmdjson.IssueExcerpt, len(excerpts))
-	for i, excerpt := range excerpts {
+	out := make([]cmdjson.IssueExcerpt, 0, len(excerpts))
+	for _, excerpt := range excerpts {
+		if !includeArchive && isArchived(excerpt.Fields) {
+			continue
+		}
 		j, err := cmdjson.NewIssueExcerpt(repo, excerpt)
 		if err != nil {
 			return nil, err
 		}
-		out[i] = j
+		out = append(out, j)
 	}
 
 	return jq.Input(out)
+}
+
+// isArchived reads the built-in `archived` off a fields map.
+func isArchived(fields map[string]issue.Value) bool {
+	var archived bool
+	_ = json.Unmarshal(fields[issue.ArchivedKey], &archived)
+	return archived
 }
 
 // IssueItems reads what a jq program emitted as a list of issues, and reports
@@ -130,7 +148,7 @@ func IssueSnapshot(repo *cache.RepoCache, id string) (*issue.Snapshot, error) {
 
 // IssueLog returns the operations an issue is made of, oldest first.
 func IssueLog(repo *cache.RepoCache, id string) ([]cmdjson.IssueOperation, error) {
-	return IssueLogBetween(repo, id, time.Time{}, time.Time{})
+	return IssueLogBetween(repo, id, time.Time{}, time.Time{}, false)
 }
 
 // IssueNew creates an issue from a document and returns its id.

@@ -121,13 +121,13 @@ built to the map in `doc/design/cli-convention.md` (`e8d6426`):
 
 | Action | Command |
 | --- | --- |
-| List | `git work issue [PROGRAM] [--at TIME]` · `--format text`; PROGRAM is a jq program over the array of excerpts, the default being unarchived, last edited first |
+| List | `git work issue [PROGRAM] [--at TIME] [--include-archive]` · `--format text`; PROGRAM is a jq program over the array of unarchived excerpts (the archived too with `--include-archive`), the default being all of them, last edited first |
 | Create | `git work issue new DOC\|-` → prints the new id |
 | Show | `git work issue get <id> [--at TIME]` · `--format text` |
 | Set fields | `git work issue set <id> '{"status":"done","estimate":3}'` (`null` clears; one commit whatever the number of keys) |
 | Add / remove items | `git work issue add <id> '{"labels":["area:core"]}'` · `git work issue remove <id> …` (set semantics; relations of many cardinality too) |
 | Comment | `git work issue comment new <id> BODY\|-` → prints the comment id · `comment edit <comment-id> BODY\|-` |
-| History | `git work issue log [<id>\|PROGRAM] [--from TIME] [--to TIME]` · `--format text`; each entry names its issue |
+| History | `git work issue log [<id>\|PROGRAM] [--from TIME] [--to TIME] [--include-archive]` · `--format text`; each entry names its issue |
 | Archive / remove | `git work issue archive <id>` (an operation, replicated) · `git work issue rm <id>` (the local ref only) |
 
 Everything in is JSON, everything out is JSON unless `--format text` is asked for,
@@ -142,8 +142,15 @@ so an operation pulled late still lands in the window it was written in
 (`doc/design/report.md`).
 The log takes the list's PROGRAM as well as one id;
 an id prefix or alias is tried first, and what does not resolve is a program.
+**A program's input is the unarchived issues** (`df6ff51`, `doc/design/include-archive.md`):
+the list, the log's PROGRAM and every view's `query` run over them,
+so no query carries a `select(.fields.archived != true)`,
+and `--include-archive` (`include_archive` in a view's KWARGS and in Starlark) brings the archived back;
+with `--at` the input reads the `archived` that stood then,
+and an issue named by id is that issue, archived or not.
 In Starlark these are `work.issue.get(id, at=…)`,
-`work.issue.list(program, at=…)` and `work.issue.log(id_or_program, from_=…, to=…)` —
+`work.issue.list(program, at=…, include_archive=False)` and
+`work.issue.log(id_or_program, from_=…, to=…, include_archive=False)` —
 `from_` with a trailing underscore, like `import_`, because `from` is a reserved word.
 `--dry-run` on `set`, `add`, `remove` and `archive`
 prints the operations they would commit and writes nothing.
@@ -322,8 +329,9 @@ and the row labels stay put while the columns scroll sideways
 `expand` nests the list and the gantt along a relation,
 either side of it a name it takes — the derived `children` is read through the stored `parent`.
 It is a **layer spec** (2026-10-02, `f4426ff`; `depth` is gone):
-`{"relation":"children","query":…,"fields":…,"details":…,"group_by":…,"rank":…,"expand":…}`,
-where a layer's `query` runs over that row's own unarchived children (every one of them without it),
+`{"relation":"children","query":…,"include_archive":…,"fields":…,"details":…,"group_by":…,"rank":…,"expand":…}`,
+where a layer's `query` runs over that row's own unarchived children (every one of them without it,
+the archived too with the layer's own `include_archive`, which is not inherited),
 the keys it leaves out are the layer above's,
 and its `expand` is the level below — none means leaves, a layer is the next level,
 and a number is this same layer again for that many more levels, `0` for every level down.

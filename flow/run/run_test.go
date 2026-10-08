@@ -528,6 +528,28 @@ func TestAddRemoveAndArchive(t *testing.T) {
 	require.Equal(t, true, fields["archived"])
 }
 
+// TestIncludeArchiveKeyword: work.issue.list and work.issue.log run over the
+// unarchived issues, and include_archive=True brings the archived back, as
+// --include-archive does on the command line (doc/design/include-archive.md).
+func TestIncludeArchiveKeyword(t *testing.T) {
+	repo := testRepo(t)
+
+	value, _, err := run(t, repo, `def counts():
+    """List and log, with and without the archived."""
+    work.issue.new({"fields": {"title": "kept"}})
+    gone = work.issue.new({"fields": {"title": "gone"}})
+    work.issue.archive(gone)
+    return [
+        len(work.issue.list(".")),
+        len(work.issue.list(".", include_archive=True)),
+        len(work.issue.log(".")),
+        len(work.issue.log(".", include_archive=True)),
+    ]
+`, nil)
+	require.NoError(t, err)
+	require.Equal(t, []any{1.0, 2.0, 1.0, 3.0}, value)
+}
+
 func TestFlowListAndExport(t *testing.T) {
 	repo := testRepo(t)
 	importFlow(t, repo, `def inner(n=1):

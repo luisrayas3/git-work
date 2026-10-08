@@ -31,16 +31,18 @@ import (
 type ganttPage struct {
 	repo *cache.RepoCache
 
-	call        *view.Call
-	query       string
-	startKey    string
-	stopKey     string
-	labelKey    string
-	scale       string
-	from, to    string
-	progressKey string
-	groupBy     string
-	rankKey     string
+	call  *view.Call
+	query string
+	// includeArchive brings the archived back into the input query runs over.
+	includeArchive bool
+	startKey       string
+	stopKey        string
+	labelKey       string
+	scale          string
+	from, to       string
+	progressKey    string
+	groupBy        string
+	rankKey        string
 	// nest is `expand` resolved: the layer per level, level 0 being the
 	// call's own group_by and rank (nest.go).
 	nest *nesting
@@ -118,23 +120,24 @@ func (p *ganttPage) Call() (*view.Call, string, string) {
 
 func newGanttPage(repo *cache.RepoCache, call *view.Call) (*ganttPage, error) {
 	p := &ganttPage{
-		repo:        repo,
-		call:        call,
-		query:       call.String("query"),
-		startKey:    call.String("start"),
-		stopKey:     call.String("stop"),
-		labelKey:    call.String("label"),
-		scale:       call.String("scale"),
-		from:        call.String("from"),
-		to:          call.String("to"),
-		progressKey: call.String("progress"),
-		groupBy:     call.String("group_by"),
-		rankKey:     call.String("rank"),
-		open:        map[string]bool{},
-		width:       80,
-		height:      24,
-		col:         -1,
-		grabbed:     -1,
+		repo:           repo,
+		call:           call,
+		includeArchive: call.Bool("include_archive"),
+		query:          call.String("query"),
+		startKey:       call.String("start"),
+		stopKey:        call.String("stop"),
+		labelKey:       call.String("label"),
+		scale:          call.String("scale"),
+		from:           call.String("from"),
+		to:             call.String("to"),
+		progressKey:    call.String("progress"),
+		groupBy:        call.String("group_by"),
+		rankKey:        call.String("rank"),
+		open:           map[string]bool{},
+		width:          80,
+		height:         24,
+		col:            -1,
+		grabbed:        -1,
 	}
 	n, err := newNesting(nestLayer{groupBy: p.groupBy, rankKey: p.rankKey}, call.Expand())
 	if err != nil {
@@ -161,7 +164,7 @@ func newGanttPage(repo *cache.RepoCache, call *view.Call) (*ganttPage, error) {
 // load re-runs the query and rebuilds the chart, keeping the cursor on the
 // issue it was on and on the same period, wherever both are now.
 func (p *ganttPage) load() error {
-	values, err := host.IssueList(p.repo, p.query)
+	values, err := host.IssueList(p.repo, p.query, p.includeArchive)
 	if err != nil {
 		return err
 	}

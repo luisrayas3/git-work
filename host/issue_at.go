@@ -60,13 +60,14 @@ func IssueSnapshotAt(repo *cache.RepoCache, id string, at time.Time) (*issue.Sna
 	return snap, nil
 }
 
-// IssueListAt runs a jq program over the issues as they stood at `at`.
-func IssueListAt(repo *cache.RepoCache, program string, at time.Time) ([]any, error) {
+// IssueListAt runs a jq program over the issues as they stood at `at`,
+// the archived included only when includeArchive says so.
+func IssueListAt(repo *cache.RepoCache, program string, at time.Time, includeArchive bool) ([]any, error) {
 	if program == "" {
 		program = defaultProgram()
 	}
 
-	input, err := IssueListInputAt(repo, at)
+	input, err := IssueListInputAt(repo, at, includeArchive)
 	if err != nil {
 		return nil, err
 	}
@@ -79,15 +80,17 @@ func IssueListAt(repo *cache.RepoCache, program string, at time.Time) ([]any, er
 // written for the present reads the past unchanged.
 //
 // An issue created after `at` is simply absent, and `archived` is whatever it
-// was then, so the default program's `select(.fields.archived != true)`
-// filters on the value that stood at the time, with no special case here.
+// was then, so the input leaves out what was archived at the time, with no
+// special case here: an issue archived on Wednesday is in Tuesday's input and
+// out of Thursday's, and includeArchive is every issue that existed then
+// (doc/design/include-archive.md, I4).
 //
 // This is linear in the store's operations: every issue is read and replayed
 // once, in memory, with no index. Fine for the hundreds of issues this tool is
 // built for, a full pass per call beyond that (doc/design/report.md).
-func IssueListInputAt(repo *cache.RepoCache, at time.Time) (any, error) {
+func IssueListInputAt(repo *cache.RepoCache, at time.Time, includeArchive bool) (any, error) {
 	if at.IsZero() {
-		return IssueListInput(repo)
+		return IssueListInput(repo, includeArchive)
 	}
 
 	excerpts, err := sortedExcerpts(repo)
@@ -102,7 +105,7 @@ func IssueListInputAt(repo *cache.RepoCache, at time.Time) (any, error) {
 			return nil, err
 		}
 		snap := issue.SnapshotAt(i.Snapshot().Operations, at)
-		if snap == nil {
+		if snap == nil || !includeArchive && isArchived(snap.Fields) {
 			continue
 		}
 		out = append(out, cmdjson.NewIssueExcerptAt(snap, excerpt.CreateLamportTime))
@@ -116,13 +119,14 @@ func IssueListInputAt(repo *cache.RepoCache, at time.Time) (any, error) {
 //
 // The argument is one issue — an id prefix or an alias — or a jq program over
 // the same array the list runs on, and an empty one is the default program.
-// Which it is, is decided by trying: see selectIssues.
+// Which it is, is decided by trying: see selectIssues. includeArchive acts on
+// the program form alone: one issue named by id is that issue, archived or not.
 //
 // The order is each operation's own time, then the issue's id, then the
 // operation's place in its own issue, so that two operations written in the
 // same second still print in a fixed order.
-func IssueLogBetween(repo *cache.RepoCache, idOrProgram string, from, to time.Time) ([]cmdjson.IssueOperation, error) {
-	issues, err := selectIssues(repo, idOrProgram)
+func IssueLogBetween(repo *cache.RepoCache, idOrProgram string, from, to time.Time, includeArchive bool) ([]cmdjson.IssueOperation, error) {
+	issues, err := selectIssues(repo, idOrProgram, includeArchive)
 	if err != nil {
 		return nil, err
 	}
@@ -160,7 +164,7 @@ func IssueLogBetween(repo *cache.RepoCache, idOrProgram string, from, to time.Ti
 // a bare hex word parses as nothing. What does not resolve is compiled as a
 // program, and when that fails too the error names both attempts, so a
 // mistyped id reads as a mistyped id (doc/design/report.md).
-func selectIssues(repo *cache.RepoCache, idOrProgram string) ([]*cache.IssueCache, error) {
+func selectIssues(repo *cache.RepoCache, idOrProgram string, includeArchive bool) ([]*cache.IssueCache, error) {
 	if idOrProgram != "" {
 		i, resolveErr := repo.Issues().ResolvePrefixOrAlias(idOrProgram)
 		if resolveErr == nil {
@@ -172,7 +176,7 @@ func selectIssues(repo *cache.RepoCache, idOrProgram string) ([]*cache.IssueCach
 		}
 	}
 
-	values, err := IssueList(repo, idOrProgram)
+	values, err := IssueList(repo, idOrProgram, includeArchive)
 	if err != nil {
 		return nil, err
 	}

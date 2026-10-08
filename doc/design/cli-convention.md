@@ -75,7 +75,9 @@ is `terminal-renderer.md`; this document is the command line it is reached by.
   `archive` is an operation and reaches every clone.
 - **The list is a jq program** (`3c9c24d`) over the array of excerpts,
   the same JSON `--format json` prints.
-  The default program is mine and unarchived; `.` is everything.
+  Its input is the unarchived issues, the archived too with `--include-archive`,
+  and the default program is that input, last edited first;
+  `.` is the whole input (`df6ff51`, `include-archive.md`).
 - **Views are a module, not a surface** (revised 2026-09-24).
   A view is an atomic capability, and **flows call views; views never call flows**.
   `work.view.board(columns="status")` renders:
@@ -114,7 +116,7 @@ is `terminal-renderer.md`; this document is the command line it is reached by.
 ## Map
 
 ```
-git work issue [PROGRAM] [--at TIME] [--format json|text]
+git work issue [PROGRAM] [--at TIME] [--include-archive] [--format json|text]
 git work issue new DOC|-                        # prints the id
 git work issue get ID [--at TIME]               # the issue as it stood then, replayed
 git work issue set ID FIELDS|- [--dry-run]      # {"key": value, ...}; null clears; one SetField per key, one commit
@@ -122,7 +124,7 @@ git work issue add ID ITEMS|- [--dry-run]       # {"key": [item, ...], ...}; set
 git work issue remove ID ITEMS|- [--dry-run]
 git work issue comment new ISSUE_ID BODY|-      # prints the comment id
 git work issue comment edit COMMENT_ID BODY|-
-git work issue log [ID|PROGRAM] [--from TIME] [--to TIME]  # half-open [from, to); each entry names its issue
+git work issue log [ID|PROGRAM] [--from TIME] [--to TIME] [--include-archive]  # half-open [from, to); each entry names its issue
 git work issue archive ID                       # first class on every tree; = set ID '{"archived":true}'
 git work issue rm ID
 
@@ -182,10 +184,10 @@ git work view board '{"query":"map(select(.fields.status != \"done\"))","columns
 
 `work` is the only predeclared name, and the whole SDK hangs off it:
 
-`work.issue.list(program, at=None)`, `work.issue.new(doc)`, `work.issue.get(id, at=None)`,
+`work.issue.list(program, at=None, include_archive=False)`, `work.issue.new(doc)`, `work.issue.get(id, at=None)`,
 `work.issue.set(id, **fields)`, `work.issue.add(id, **items)`, `work.issue.remove(id, **items)`,
 `work.issue.comment.new(id, body)`, `work.issue.comment.edit(id, body)`,
-`work.issue.log(id, from_=None, to=None)`, `work.issue.archive(id)`, `work.issue.rm(id)`;
+`work.issue.log(id, from_=None, to=None, include_archive=False)`, `work.issue.archive(id)`, `work.issue.rm(id)`;
 `from` is a reserved word in Starlark, so that keyword carries the same
 trailing underscore `work.schema.import_` does;
 `work.schema.export()`, `work.schema.import_(doc, prune=False, dry_run=False)`,

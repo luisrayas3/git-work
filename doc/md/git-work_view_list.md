@@ -8,11 +8,12 @@ Draw a list.
 
 KWARGS is a JSON object of this view's arguments, read from standard
 input when it is "-":
-  query          query                            defaulted          the jq program the issues come from; the default is every unarchived issue, last edited first
+  query          query                            defaulted          the jq program the issues come from, over every unarchived issue; the default is all of them, last edited first
+  include_archive bool                             defaulted          include the archived issues in the input the query runs over; false by default
   fields         field keys                       defaulted ["type","title"] the fields shown as columns, in order
   details        field keys                       optional           the fields shown on a dim second line under each row
   group_by       field key                        optional           the field whose value starts a new section; the rows with no value at all are the last section, (none)
-  expand         relation or layer                optional           the relation nested under a row: "children", or a layer {"relation":…,"query":…,"fields":…,"details":…,"group_by":…,"rank":…,"expand":…}; a relation is a stored one (parent) or the inverse name of one (children), a layer's query runs over that row's own unarchived children, the keys it leaves out are the layer above's, and its expand is the level below: a layer, or a number of further levels this same layer draws, 0 for every one
+  expand         relation or layer                optional           the relation nested under a row: "children", or a layer {"relation":…,"query":…,"include_archive":…,"fields":…,"details":…,"group_by":…,"rank":…,"expand":…}; a relation is a stored one (parent) or the inverse name of one (children), a layer's query runs over that row's own unarchived children (the archived too with include_archive), the keys it leaves out are the layer above's, and its expand is the level below: a layer, or a number of further levels this same layer draws, 0 for every one
   rank           field key                        defaulted "rank"   the rank field rows are ordered and dragged by
 
 An `optional` argument has no default: name it and the view does that

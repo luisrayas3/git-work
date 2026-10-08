@@ -12,6 +12,7 @@ import (
 
 	"github.com/git-bug/git-bug/cache"
 	"github.com/git-bug/git-bug/entities/issue"
+	"github.com/git-bug/git-bug/entity"
 	"github.com/git-bug/git-bug/host"
 	"github.com/git-bug/git-bug/schema"
 )
@@ -189,9 +190,11 @@ func identityChoices(repo *cache.RepoCache) ([]choice, error) {
 // relationChoices are the issues a relation may name: those of its
 // target_types, or every issue where it names none, last edited first as a
 // list is, each drawn as a link is — short id and title — and then (none),
-// which clears it. The issue itself is left out, and so is an archived one,
-// unless it is the value already there: the picker opens on what the cell
-// showed, whatever it is.
+// which clears it. The issue itself is left out, and the candidates are the
+// unarchived, read from the same helper the nesting and show's children read
+// (doc/design/include-archive.md, I5); an archived issue is listed only when
+// it is the value already there: the picker opens on what the cell showed,
+// whatever it is.
 func relationChoices(repo *cache.RepoCache, issueId, typeKey, fieldKey, current string) ([]choice, error) {
 	s, err := repo.LoadSchema()
 	if err != nil {
@@ -211,25 +214,26 @@ func relationChoices(repo *cache.RepoCache, issueId, typeKey, fieldKey, current 
 		edited      int64
 	}
 	var found []candidate
-	for _, id := range repo.Issues().AllIds() {
-		if id.String() == issueId {
+	all, order := allIssues(repo, false)
+	for _, id := range order {
+		if id == issueId {
 			continue
 		}
-		excerpt, err := repo.Issues().ResolveExcerpt(id)
-		if err != nil {
-			return nil, err
+		fields, _ := all[id]["fields"].(map[string]any)
+		targetType := host.StringOr(fields[schema.TypeKey], "")
+		if id != current && len(allowed) > 0 && !allowed[targetType] {
+			continue
 		}
-		targetType, _ := issue.String(excerpt.Fields[schema.TypeKey])
-		archived, _ := decodeValue(excerpt.Fields[issue.ArchivedKey])
-		if id.String() != current {
-			if len(allowed) > 0 && !allowed[targetType] {
-				continue
-			}
-			if archived == true {
-				continue
-			}
+		edit, _ := all[id]["edit_time"].(map[string]any)
+		edited, _ := edit["timestamp"].(float64)
+		found = append(found, candidate{id: id, typeKey: targetType, edited: int64(edited)})
+	}
+	// the value already there is listed even when the input leaves it out
+	if current != "" && current != issueId && all[current] == nil {
+		if excerpt, err := repo.Issues().ResolveExcerpt(entity.Id(current)); err == nil {
+			targetType, _ := issue.String(excerpt.Fields[schema.TypeKey])
+			found = append(found, candidate{id: current, typeKey: targetType, edited: excerpt.EditUnixTime})
 		}
-		found = append(found, candidate{id: id.String(), typeKey: targetType, edited: excerpt.EditUnixTime})
 	}
 	sort.Slice(found, func(i, j int) bool {
 		if found[i].edited != found[j].edited {
