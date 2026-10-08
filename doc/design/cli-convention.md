@@ -130,7 +130,7 @@ git work schema [--format yaml|json]
 git work schema init [PRESET]
 git work schema import FILE|- [--prune] [--dry-run]
 git work schema export [--format yaml|json]
-git work schema log [KEY | --id ID]             # a key is every entity holding it, the current first
+git work schema log [KEY | --id ID]             # a key is every entity that held it, archived too
 git work schema archive KEY | --id ID           # a key two entities hold is refused, naming both ids
 git work schema rm KEY | --id ID                # --id is an id or unique prefix, never read as a key
 

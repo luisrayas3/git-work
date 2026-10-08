@@ -8,7 +8,7 @@ and a store where every schema command warns can be made quiet.
 **Serves:** `6555e36` (the story); amends E7 in `config-entity.md`
 and the schema rows of `cli-convention.md`.
 
-**Status:** decided 2026-10-07 (Luis); not built.
+**Status:** decided 2026-10-07 (Luis); built 2026-10-07.
 
 ## Problem
 
@@ -77,8 +77,11 @@ and the refusal names them:
 
 ```
 Error: task/status is defined twice: 3e11a08 (current) and db9cdb7;
-name one with --id
+name one by id
 ```
+
+"By id" rather than `--id`, because the same refusal reaches a script,
+where the id is the `id=` keyword (2026-10-07).
 
 Resolving the key to the winner and writing to it silently
 was rejected:
@@ -88,11 +91,15 @@ and a write that lands on the winner by default
 is the edit lost without a word that E7 warns of.
 
 `schema log KEY`, which reads,
-prints the operations of every entity holding the key,
+prints the operations of every entity that ever held the key,
+archived included,
 winner first then by creation,
 each operation already naming its `entity`,
 so a reader sees the whole history of the key
-and the two ids to choose between.
+and the two ids to choose between;
+a key held only by archived entities is read, not not-found
+(2026-10-07).
+The refusal above is unchanged by this: it counts unarchived holders only.
 
 The misleading message is fixed on the way:
 `ResolveSchemaKey` returns the multiple-match error when any shape
@@ -180,7 +187,7 @@ In `commands/schema/schema_test.go`:
   and names the ids; a `ResolveSchemaId(prefix)` over `ResolvePrefix`.
 - `host.SchemaArchive`, `SchemaRm`, `SchemaLog` take a
   `host.SchemaRef{Key, Id string}` with exactly one set;
-  `SchemaLog` by key returns every holder.
+  `SchemaLog` by key returns every holder, archived included.
 - `commands/schema`: the `--id` flag on `archive`, `rm` and `log`;
   `cobra.MaximumNArgs(1)` with the usage check;
   `KeyCompletion` unchanged.

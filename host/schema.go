@@ -277,7 +277,9 @@ func applySchemaChange(repo *cache.RepoCache, change schema.Change) (entity.Id, 
 	}
 }
 
-// orphanedFields names the fields an archived type leaves behind.
+// orphanedFields names the live fields that archiving a type left attached
+// to no live type: a field is keyed <type>/<field>, so once no unarchived
+// entity holds the type key, every live field under it has none.
 //
 // Nothing is refused and nothing else is archived: a multi-entity change is
 // not atomic here (AGENTS.md), so the honest thing is to name what is left.
@@ -285,7 +287,6 @@ func orphanedFields(repo *cache.RepoCache, shape config.Shape, key string) []str
 	if shape != config.ShapeType {
 		return nil
 	}
-	// archiving one of two holders of a key leaves the type live
 	if _, err := repo.Schema().CurrentExcerpt(config.ShapeType, key); err == nil {
 		return nil
 	}
@@ -295,7 +296,7 @@ func orphanedFields(repo *cache.RepoCache, shape config.Shape, key string) []str
 		typeKey, _, ok := config.SplitFieldKey(fieldKey)
 		if ok && typeKey == key {
 			warnings = append(warnings, fmt.Sprintf(
-				"field %s is still live on the archived type %s", fieldKey, key))
+				"field %s is attached to no live type", fieldKey))
 		}
 	}
 	return warnings

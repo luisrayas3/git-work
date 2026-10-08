@@ -21,8 +21,9 @@ func newSchemaLogCommand(env *execenv.Env) *cobra.Command {
 		Short: "Print the schema's history",
 		Long: `Print the schema's history: every operation of every type and field entity,
 one JSON object per line, oldest first within each entity. With a KEY, only
-the operations of the entities holding it: one in the ordinary case, and every
-one, the current first, when two clones defined the key before exchanging.
+the operations of every entity that ever held it, archived included, the
+current first and the rest by creation: one in the ordinary case, and two when
+two clones defined the key before exchanging.
 With --id ID, a full id or a unique prefix, only that entity's, archived or
 not; an ID is never read as a key.
 

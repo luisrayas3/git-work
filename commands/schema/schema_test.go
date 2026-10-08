@@ -329,7 +329,7 @@ func TestSchemaArchiveAndRm(t *testing.T) {
 	// archiving a type says what it leaves behind
 	env.Err.Reset()
 	require.NoError(t, runSchemaArchive(env, archiveOptions{}, []string{"bug"}))
-	require.Contains(t, env.Err.String(), "still live on the archived type bug")
+	require.Contains(t, env.Err.String(), "field bug/status is attached to no live type")
 
 	// rm is local, and prints nothing
 	before := len(env.Backend.Schema().AllIds())
@@ -367,7 +367,7 @@ func TestSchemaDuplicatedKeyIsRefusedByKey(t *testing.T) {
 		runSchemaRm(env, rmOptions{}, []string{"task/status"}),
 	} {
 		require.ErrorContains(t, err, "task/status is defined twice: "+winner.Human()+" (current) and "+loser.Human())
-		require.ErrorContains(t, err, "--id")
+		require.ErrorContains(t, err, "name one by id")
 	}
 	require.Len(t, env.Backend.Schema().AllDuplicates(), 1, "nothing was written")
 
@@ -375,8 +375,15 @@ func TestSchemaDuplicatedKeyIsRefusedByKey(t *testing.T) {
 	require.Contains(t, env.Err.String(), "git work schema archive --id "+loser.Human())
 
 	// log by key reads every holder, the winner first
+	require.Equal(t, []string{winner.String(), loser.String()}, logEntities(t, env, "task/status"))
+}
+
+// logEntities is the entities `schema log KEY` prints, in order.
+func logEntities(t *testing.T, env *execenv.Env, key string) []string {
+	t.Helper()
+
 	env.Out.Reset()
-	require.NoError(t, runSchemaLog(env, logOptions{format: "json"}, []string{"task/status"}))
+	require.NoError(t, runSchemaLog(env, logOptions{format: "json"}, []string{key}))
 	var entities []string
 	for _, line := range strings.Split(strings.TrimSpace(env.Out.String()), "\n") {
 		var entry map[string]interface{}
@@ -386,7 +393,44 @@ func TestSchemaDuplicatedKeyIsRefusedByKey(t *testing.T) {
 			entities = append(entities, id)
 		}
 	}
-	require.Equal(t, []string{winner.String(), loser.String()}, entities)
+	return entities
+}
+
+func TestSchemaLogByKeyIncludesArchived(t *testing.T) {
+	env := newTestEnv(t)
+	winner, loser := duplicateStatus(t, env)
+
+	// archiving the winner makes the loser current: it is printed first,
+	// and the archived former winner after it
+	require.NoError(t, runSchemaArchive(env, archiveOptions{id: winner.String()}, nil))
+	require.Equal(t, []string{loser.String(), winner.String()}, logEntities(t, env, "task/status"))
+
+	// a key held only by archived entities is still read by log
+	require.NoError(t, runSchemaArchive(env, archiveOptions{id: loser.String()}, nil))
+	require.Equal(t, []string{winner.String(), loser.String()}, logEntities(t, env, "task/status"))
+
+	// and stays not-found for a writer by key
+	require.Error(t, runSchemaArchive(env, archiveOptions{}, []string{"task/status"}))
+}
+
+func TestSchemaArchiveTypeOrphansFieldsOnlyWhenNoneIsLive(t *testing.T) {
+	env := newTestEnv(t)
+	initJira(t, env)
+
+	first, err := env.Backend.Schema().Current(config.ShapeType, "bug")
+	require.NoError(t, err)
+	second, _, err := env.Backend.Schema().New(config.ShapeType, "bug", nil)
+	require.NoError(t, err)
+
+	// archiving one of two holders leaves the type live
+	env.Err.Reset()
+	require.NoError(t, runSchemaArchive(env, archiveOptions{id: second.Id().String()}, nil))
+	require.NotContains(t, env.Err.String(), "attached to no live type")
+
+	// archiving the other leaves bug/status attached to none
+	env.Err.Reset()
+	require.NoError(t, runSchemaArchive(env, archiveOptions{id: first.Id().String()}, nil))
+	require.Contains(t, env.Err.String(), "field bug/status is attached to no live type")
 }
 
 func TestSchemaArchiveByIdTheLoser(t *testing.T) {
