@@ -418,7 +418,7 @@ Two local copies of one Jira issue, an adoption whose original later arrives
 or two clones importing one issue, are consolidated into the copy that
 reached Jira first, whatever either has archived:
 the other is synced once more, archived, its local-only values carried over,
-and every relation naming it pointed at the survivor.
+and every relation naming it is pointed at the survivor, every run.
 There is no `work.jira.*` in Starlark yet (v2), a known gap in the 1:1 rule.
 
 Gotchas, hardened from use:

@@ -857,12 +857,13 @@ run touched, left pending, skipped or failed on, then a summary.
 ```json
 {"schema":[{"action":"update","shape":"field","key":"task/status","id":"…","set":{"alias_jira/wont-do":"10005","values/wont-do":{…}}}]}
 {"issue":"0a4390dd…","jira":"PROJ-12","action":"updated","imported":{"status":"done","body":"First line of the new descrip…"},"exported":{"priority":"high"},"comments":{"imported":1,"exported":0,"edited":0,"tombstoned":0},"conflicts":[{"key":"assignee","local":"a3a2829…","jira":"5b10ac8d…"}],"pending":[{"key":"status","reason":"no transition from In Progress to In Review"}]}
-{"summary":{"imported":3,"created":1,"updated":7,"linked":0,"gone":0,"adopted":0,"consolidated":0,"orphans":0,"conflicts":1,"pending":1,"off_schema":0,"failed":0,"skipped":0,"unchanged":212,"cursor":"2026-09-28T21:02:00Z"}}
+{"summary":{"imported":3,"created":1,"updated":7,"linked":0,"gone":0,"adopted":0,"consolidated":0,"repointed":0,"orphans":0,"conflicts":1,"pending":1,"off_schema":0,"failed":0,"skipped":0,"unchanged":212,"cursor":"2026-09-28T21:02:00Z"}}
 ```
 
 `action` is `imported` (new locally), `created` (new in Jira), `updated`,
 `pending` (nothing moved; what waits is in `pending`), `linked`, `gone`,
 `consolidated` (a second local copy, archived into the one that reached Jira first),
+`repointed` (relations that named such a copy, pointed at the survivor; `imported` lists the fields, `doc/design/repoint.md`),
 `skipped` (refused or waiting, reported: a person may look) or `failed` (with
 `"error"`). An issue with nothing to do is not a line but counted in
 `unchanged`. The body appears in `imported`/`exported` as its first line, at
@@ -927,6 +928,16 @@ local can prevent it, because each has yet to see the other's work:
 | both import one new Jira issue | two local issues with one `jira-id` | the copy that reached Jira first, then the lower entity id, is the `Index`'s; the other is consolidated into it, whatever either has archived |
 | both create one pulled local issue | two Jira issues with one property | after the exchange one `jira-id` wins on the create op (`SetMetadata`, first writer); the other Jira issue is reported as a second issue naming it (E24) |
 | both create an identity for one account | two identities with one `jira-account-id` | the lower id is the account's; both export as it; the runner is never re-tagged |
+
+Consolidation holds an invariant of the store, checked every run after the
+losers are consolidated and before the search: **no unarchived issue has a
+relation value naming an issue that is not the `Index`'s winner for its own
+Jira id** (`doc/design/repoint.md`). Each stale value is re-pointed to the
+winner under the shape check, as the pull writes, one commit and one
+`repointed` line per issue, in id order; an issue that refuses is its own
+`failed` line and never fails the consolidation. A refusal, an interrupted
+run, or a loser archived by another clone is therefore repaired by the next
+run on every clone.
 
 A marker naming its clone was considered and rejected as a guard: it catches
 only what an exchange already made safe, and it would forbid handing the

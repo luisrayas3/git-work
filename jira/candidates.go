@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"slices"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/git-bug/git-bug/cache"
@@ -79,6 +80,9 @@ func (e *engine) unexportable(fields map[string]issue.Value) string {
 
 // runIds syncs exactly the issues named, each by the path its links say.
 func (e *engine) runIds() error {
+	if err := stop(e.sweep(e.opts.Ids)); err != nil {
+		return err
+	}
 	for _, id := range e.opts.Ids {
 		ic, err := e.repo.Issues().Resolve(id)
 		if err != nil {
@@ -137,6 +141,10 @@ func (e *engine) runAll() error {
 		if err := stop(e.consolidate(ic, winner)); err != nil {
 			return err
 		}
+	}
+	// after the losers, so the search's merges find l == r (repoint.md)
+	if err := stop(e.sweep(sorted.Keys(l.byId))); err != nil {
+		return err
 	}
 
 	jql := "project = " + jiraapi.JQLQuote(e.p.Key)
@@ -479,7 +487,8 @@ func (e *engine) repass() error {
 // the winner takes the loser's local-only values where it has none,
 // and a note names the loser;
 // and every relation naming the loser is pointed at the winner,
-// so the next merge of each finds `l == r`.
+// so the next merge of each finds `l == r`; the sweep makes that hold
+// whatever this call met (repoint.md).
 // A loser already archived is consolidated already.
 func (e *engine) consolidate(loser *cache.IssueCache, winner entity.Id) error {
 	id := loser.Id()
@@ -524,11 +533,9 @@ func (e *engine) consolidate(loser *cache.IssueCache, winner entity.Id) error {
 	if err != nil {
 		return e.fail(line, err)
 	}
-	if err := e.repoint(id, winner, now); err != nil {
-		return e.fail(line, err)
-	}
 	e.report(line)
-	return nil
+	// R3: the archive and the note stand whatever the re-point meets
+	return e.repoint(e.repo.Issues().AllIds(), id)
 }
 
 // fill is the winner's gaps taken from the loser, local-only fields only:
@@ -569,40 +576,130 @@ func (e *engine) fill(winner, loser *issue.Snapshot, now time.Time) (ops []issue
 	return ops, slices.Compact(kept)
 }
 
-// repoint sets every relation that names the loser to the winner,
-// one commit per issue.
-func (e *engine) repoint(loser, winner entity.Id, now time.Time) error {
-	from, to := issue.StringValue(loser.String()), issue.StringValue(winner.String())
-	for _, id := range e.repo.Issues().AllIds() {
+// sweep holds repoint.md's invariant over ids: no unarchived issue has a
+// relation naming an issue that is not the Index's winner for its own Jira
+// id. It runs every run, so a re-point that a refusal, an interrupted run or
+// another clone left undone is made by the next one (R1).
+func (e *engine) sweep(ids []entity.Id) error { return e.repoint(ids, "") }
+
+// repoint sets every relation of the unarchived issues among ids that names
+// a consolidated copy — only that one, unless empty — to the copy that won,
+// one commit and one repointed line per issue, in id order (R3, R4). It
+// writes under the shape check, as the pull does: only the target's identity
+// changes, and the old value was Jira's (R2). An issue that refuses is its
+// own failed line; only a run failure is returned.
+func (e *engine) repoint(ids []entity.Id, only entity.Id) error {
+	for _, id := range slices.Sorted(slices.Values(ids)) {
 		ex, err := e.repo.Issues().ResolveExcerpt(id)
 		if err != nil {
 			return err
 		}
-		typ, _ := issue.String(ex.Fields[typeKey])
-		var ops []issue.Operation
-		for _, k := range sorted.Keys(ex.Fields) {
-			f, ok := e.schema.Field(typ, k)
-			switch {
-			case !ok || !f.Kind.IsRelation():
-			case f.Kind.IsMulti():
-				if _, has := setOf(ex.Fields[k])[string(from)]; has {
-					ops = append(ops, issue.NewRemoveValueOp(e.me, now.Unix(), k, from),
-						issue.NewAddValueOp(e.me, now.Unix(), k, to))
-				}
-			case same(ex.Fields[k], from):
-				ops = append(ops, issue.NewSetFieldOp(e.me, now.Unix(), k, to))
-			}
+		if isArchived(ex.Fields) || len(e.repointOps(ex.Fields, only, &Line{})) == 0 {
+			continue
 		}
-		if len(ops) == 0 {
+		line := Line{Issue: id, Jira: ex.CreateMetadata[MetaAlias], Action: ActionRepointed}
+		if e.opts.DryRun {
+			e.repointOps(ex.Fields, only, &line)
+			line.DryRun = true
+			e.report(line)
 			continue
 		}
 		ic, err := e.repo.Issues().Resolve(id)
 		if err != nil {
 			return err
 		}
-		if err := ic.Update(func(*issue.Snapshot) ([]issue.Operation, error) { return ops, nil }); err != nil {
-			return err
+		var n int
+		err = ic.UpdateShape(func(snap *issue.Snapshot) ([]issue.Operation, error) {
+			ops := e.repointOps(snap.Fields, only, &line)
+			n = len(ops)
+			return ops, nil
+		})
+		if err != nil {
+			keys := sorted.Keys(line.Imported)
+			line.Imported, line.OffSchema = nil, nil
+			if err := stop(e.fail(line, fmt.Errorf("re-pointing %s: %w", strings.Join(keys, ", "), err))); err != nil {
+				return err
+			}
+			continue
+		}
+		if n > 0 {
+			e.report(line)
 		}
 	}
 	return nil
+}
+
+// repointOps are the operations re-pointing the stale relation values of
+// fields, a scalar by one SetField, an item by RemoveValue then AddValue;
+// each field changed is on line, and off-schema when the policy refuses its
+// new value.
+func (e *engine) repointOps(fields map[string]issue.Value, only entity.Id, line *Line) []issue.Operation {
+	typ, _ := issue.String(fields[typeKey])
+	now := e.now().Unix()
+	var ops []issue.Operation
+	for _, k := range sorted.Keys(fields) {
+		f, ok := e.schema.Field(typ, k)
+		if !ok || !f.Kind.IsRelation() {
+			continue
+		}
+		var check error
+		if f.Kind.IsMulti() {
+			items, _ := issue.Items(fields[k])
+			next := make([]issue.Value, 0, len(items))
+			moved := false
+			for _, it := range items {
+				to, ok := e.winnerOf(it, only)
+				if !ok {
+					next = append(next, it)
+					continue
+				}
+				moved = true
+				next = append(next, to)
+				ops = append(ops, issue.NewRemoveValueOp(e.me, now, k, it), issue.NewAddValueOp(e.me, now, k, to))
+				if err := e.checker.CheckItems(typ, map[string][]json.RawMessage{k: {json.RawMessage(to)}}); err != nil && check == nil {
+					check = err
+				}
+			}
+			if !moved {
+				continue
+			}
+			line.imported(k, sortedItems(next))
+		} else {
+			to, ok := e.winnerOf(fields[k], only)
+			if !ok {
+				continue
+			}
+			ops = append(ops, issue.NewSetFieldOp(e.me, now, k, to))
+			line.imported(k, to)
+			check = e.checker.CheckFields(typ, map[string]json.RawMessage{k: json.RawMessage(to)})
+		}
+		if check != nil {
+			line.OffSchema = append(line.OffSchema, Skip{Key: k, Reason: check.Error()})
+		}
+	}
+	return ops
+}
+
+// winnerOf is the issue a relation value names instead, when the issue it
+// names carries a Jira id whose Index winner is another issue. A value
+// naming an issue with no Jira id, the winner itself, or an archived issue
+// with no duplicate is left alone.
+func (e *engine) winnerOf(v issue.Value, only entity.Id) (issue.Value, bool) {
+	s, ok := issue.String(v)
+	if !ok || (only != "" && entity.Id(s) != only) {
+		return nil, false
+	}
+	ex, err := e.repo.Issues().ResolveExcerpt(entity.Id(s))
+	if err != nil {
+		return nil, false
+	}
+	jid := ex.CreateMetadata[MetaId]
+	if jid == "" {
+		return nil, false
+	}
+	winner, ok := e.ix.Issue(jid)
+	if !ok || winner == ex.Id() {
+		return nil, false
+	}
+	return issue.StringValue(winner.String()), true
 }
