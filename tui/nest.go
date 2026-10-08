@@ -534,6 +534,11 @@ type treeRow struct {
 	// ghost marks the `+` row at the foot of a scope, which opens the
 	// creator and is never a rank sibling (ghost.go).
 	ghost bool
+	// known says the view keeps an order for this row, kept its place in
+	// it: a keyed row's drop is held by the view instance and never written
+	// (keep.go).
+	known bool
+	kept  int
 }
 
 // tie is what breaks a tie between two equal ranks: the issue's id, or the
@@ -612,8 +617,7 @@ func arrange(rows []treeRow, members []int) []int {
 	}
 
 	sort.SliceStable(members, func(i, j int) bool {
-		left, right := rows[members[i]], rows[members[j]]
-		return lessByRank(left.rank, left.tie(), right.rank, right.tie())
+		return lessInScope(rows[members[i]], rows[members[j]])
 	})
 	if !rows[members[0]].grouped {
 		return members

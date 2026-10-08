@@ -108,6 +108,37 @@ func (k *kinds) of(typeKey, fieldKey string) schema.Kind {
 		return kind
 	}
 	kind, _ := fieldKind(k.repo, typeKey, fieldKey)
+	if typeKey == "" {
+		kind = untypedKind(k.repo, fieldKey, kind)
+	}
 	k.known[pair] = kind
 	return kind
+}
+
+// untypedKind is how a row with no type draws a field: as the kind every
+// type that has the field gives it, where they agree, so that a row a query
+// made of nothing — `{"key":…,"fields":{"assignee":…}}` — draws a person
+// by name and groups with the issues it stands beside
+// (doc/design/query-rows.md, R2). Where they disagree it is the fallback,
+// the field drawn as its plain value.
+func untypedKind(repo *cache.RepoCache, fieldKey string, fallback schema.Kind) schema.Kind {
+	s, err := repo.LoadSchema()
+	if err != nil {
+		return fallback
+	}
+	var found schema.Kind
+	for _, typeKey := range s.TypeKeys() {
+		field, ok := s.Field(typeKey, fieldKey)
+		if !ok {
+			continue
+		}
+		if found != "" && found != field.Kind {
+			return fallback
+		}
+		found = field.Kind
+	}
+	if found == "" {
+		return fallback
+	}
+	return found
 }

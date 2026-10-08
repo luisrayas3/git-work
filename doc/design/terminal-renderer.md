@@ -617,6 +617,18 @@ the same answer `Space` gives on such a cell.
 A nested child stays among its siblings:
 only a root crosses, because a child's place is under its parent.
 
+**A keyed row reorders for the view only** (2026-10-08, `query-rows.md`, R5).
+A row whose `key` is not its `id`, or that has no `id`, stands for a share of an issue,
+so writing the issue's rank would reorder every row standing for it.
+It drags as any row does, and the drop writes nothing:
+the view instance holds the scope's order by key, across refreshes, until it is quit,
+a key it does not know keeping its `(rank, id)` place after the ones it does,
+and the status line says `order kept for this view`.
+A plain row dropped in a scope with a keyed row writes its rank as before,
+fills none for the keyed row's issue, and the view keeps the scope as drawn,
+because no rank can hold a keyed row's place.
+A keyed row carried past the edge of its group rings: moving a share is not writing the issue's field.
+
 ## Board
 
 `board` is a list with a second axis:
