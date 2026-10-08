@@ -79,25 +79,41 @@ func fillRanks(ids, ranks []string, at int) (above []rankFill, key string, err e
 	return above, key, nil
 }
 
-// scopeFills is fillRanks over a tree: the siblings of the row at order[at],
-// which is its group and its nesting level, in the order they are drawn.
-func scopeFills(rows []treeRow, order []int, at int) (above []rankFill, key string, err error) {
-	var scope []int
+// scopeOf is the siblings of the row at order[at] — its group and its
+// nesting level under its parent — as positions in order, in the order they
+// are drawn, and where the row itself is among them.
+func scopeOf(rows []treeRow, order []int, at int) (scope []int, me int) {
 	for i := siblingAt(rows, order, at, -1); i >= 0; i = siblingAt(rows, order, i, -1) {
 		scope = append(scope, i)
 	}
 	slices.Reverse(scope)
-	me := len(scope)
+	me = len(scope)
 	scope = append(scope, at)
 	for i := siblingAt(rows, order, at, 1); i >= 0; i = siblingAt(rows, order, i, 1) {
 		scope = append(scope, i)
 	}
+	return scope, me
+}
 
-	ids := make([]string, len(scope))
-	ranks := make([]string, len(scope))
+// scopeFills is fillRanks over a tree: the siblings of the row at order[at],
+// which is its group and its nesting level, in the order they are drawn.
+//
+// A keyed sibling is left out (doc/design/query-rows.md, R5): it stands for
+// a share of an issue or for none, so its issue's rank is never written for
+// it, and the rank it shows is the issue's, which orders nothing here.
+func scopeFills(rows []treeRow, order []int, at int) (above []rankFill, key string, err error) {
+	scope, me := scopeOf(rows, order, at)
+
+	var ids, ranks []string
 	for i, s := range scope {
-		ids[i] = rows[order[s]].id
-		ranks[i] = rows[order[s]].rank
+		row := rows[order[s]]
+		if i == me {
+			me = len(ids)
+		} else if row.keyed() {
+			continue
+		}
+		ids = append(ids, row.id)
+		ranks = append(ranks, row.rank)
 	}
 	return fillRanks(ids, ranks, me)
 }

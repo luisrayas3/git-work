@@ -307,6 +307,10 @@ with no rank keeping the query's order at the end);
 a drop that writes a rank first gives one to every unranked row drawn above
 it in the same scope — the same group, parent or board stack — one commit
 each, so that the drop reads as it was drawn (`rank set · 2 ranked`).
+A row whose `key` is not its `id`, or that has none, stands for a share of an issue (2026-10-08, `query-rows.md`, R5):
+it drags all the same, but the drop writes nothing — the view holds the scope's order by key until it is quit,
+across refreshes, a key it does not know keeping its `(rank, id)` place after the ones it does
+(`order kept for this view`) — no fill is written for its issue, and carried past the edge of its group it rings.
 A grabbed row carried past the edge of its group enters the next one —
 on a list, on a gantt, and across a board's swimlanes — and the drop writes
 the `group_by` field to that group's value with the rank, one commit

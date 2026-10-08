@@ -45,6 +45,9 @@ type listPage struct {
 	// opening is the call's `open`, levels to unfold the first tree to, -1
 	// for every one; it is spent on the first build (R4).
 	opening int
+	// kept is the order the person dragged keyed rows into, by key, which
+	// this view holds until it is quit and never writes (keep.go, R5).
+	kept map[string]int
 
 	rows []listRow
 	// nodes is the tree the rows sit in, one per row: level, parent, group,
@@ -110,6 +113,7 @@ func newListPage(repo *cache.RepoCache, call *view.Call) (*listPage, error) {
 		rankKey:        call.String("rank"),
 		open:           map[string]bool{},
 		opening:        call.OpenLevels(),
+		kept:           map[string]int{},
 		width:          80,
 		height:         24,
 		grabbed:        -1,
@@ -396,6 +400,7 @@ func (p *listPage) newRow(n nested, known *kinds) (listRow, treeRow) {
 // order they first appear with the ungrouped last, then the rank, each
 // subtree under its root (treeOrder).
 func (p *listPage) reorder() {
+	applyKept(p.nodes, p.kept)
 	p.order = treeOrder(p.nodes, p.filter)
 	p.clamp()
 }
@@ -962,6 +967,12 @@ func (p *listPage) dragBy(by int) tea.Cmd {
 	}
 
 	row := &p.rows[p.grabbed]
+	if p.nodes[p.grabbed].keyed() {
+		// a share of an issue moved to another group would write the
+		// issue's field, which is not what moving a share means (R5)
+		p.status = "stays in its group"
+		return bell()
+	}
 	if refusal := crossRefusal(p.repo, row.typeKey, p.groupBy); refusal != "" {
 		p.status = refusal
 		return bell()
@@ -984,7 +995,23 @@ func (p *listPage) dragBy(by int) tea.Cmd {
 func (p *listPage) drop() tea.Cmd {
 	row := &p.rows[p.grabbed]
 	group := p.nodes[p.grabbed].group
+	keyed := p.nodes[p.grabbed].keyed()
 	p.grabbed = -1
+
+	// a keyed row's drop writes nothing: the view holds the order (R5)
+	if keyed {
+		p.crossed = nil
+		keepOrder(p.nodes, p.order, p.cursor, p.kept)
+		p.status = keptSaid
+		p.reorder()
+		p.putCursorOn(row.key)
+		return nil
+	}
+	// a scope the view already holds an order for keeps it as drawn, the
+	// write below then being the store's half of the same drop
+	if scopeKept(p.nodes, p.order, p.cursor) {
+		keepOrder(p.nodes, p.order, p.cursor, p.kept)
+	}
 
 	above, key, err := scopeFills(p.nodes, p.order, p.cursor)
 	if err != nil {

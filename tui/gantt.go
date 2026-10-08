@@ -54,6 +54,9 @@ type ganttPage struct {
 	// opening is the call's `open`, levels to unfold the first tree to, -1
 	// for every one; it is spent on the first build (R4).
 	opening int
+	// kept is the order the person dragged keyed rows into, by key, which
+	// this view holds until it is quit and never writes (keep.go, R5).
+	kept map[string]int
 
 	bars  []bar
 	nodes []treeRow
@@ -140,6 +143,7 @@ func newGanttPage(repo *cache.RepoCache, call *view.Call) (*ganttPage, error) {
 		rankKey:        call.String("rank"),
 		open:           map[string]bool{},
 		opening:        call.OpenLevels(),
+		kept:           map[string]int{},
 		width:          80,
 		height:         24,
 		col:            -1,
@@ -297,6 +301,7 @@ func (p *ganttPage) newBar(n nested, known *kinds) (bar, treeRow) {
 }
 
 func (p *ganttPage) reorder() {
+	applyKept(p.nodes, p.kept)
 	p.order = treeOrder(p.nodes, p.filter)
 	p.clamp()
 }
@@ -1043,6 +1048,12 @@ func (p *ganttPage) dragBy(by int) tea.Cmd {
 	}
 
 	b := &p.bars[p.grabbed]
+	if p.nodes[p.grabbed].keyed() {
+		// a share of an issue moved to another group would write the
+		// issue's field, which is not what moving a share means (R5)
+		p.status = "stays in its group"
+		return bell()
+	}
 	if refusal := crossRefusal(p.repo, b.typeKey, p.groupBy); refusal != "" {
 		p.status = refusal
 		return bell()
@@ -1126,6 +1137,7 @@ func (p *ganttPage) dragAlong(by int) tea.Cmd {
 // its own commit, so that the drop reads as it was drawn (rank.go).
 func (p *ganttPage) drop() tea.Cmd {
 	b := &p.bars[p.grabbed]
+	keyed := p.nodes[p.grabbed].keyed()
 	into := p.crossed
 	if into != nil && p.nodes[p.grabbed].group == p.grabGroup {
 		into = nil // carried out of its group and back into it
@@ -1145,7 +1157,16 @@ func (p *ganttPage) drop() tea.Cmd {
 	rankKey := p.layer(p.nodes[p.order[p.cursor]].level).rankKey
 	// a row in another group has new neighbours, so a crossing is a reorder
 	// even where the cursor did not move
-	if p.cursor != p.grabFrom.cursor || into != nil {
+	reordered := p.cursor != p.grabFrom.cursor || into != nil
+	if reordered && (keyed || scopeKept(p.nodes, p.order, p.cursor)) {
+		// a keyed row's place is the view's to hold, never the issue's
+		// rank to write (R5); a scope held already keeps what is drawn
+		keepOrder(p.nodes, p.order, p.cursor, p.kept)
+		if len(fields) == 0 {
+			said = keptSaid
+		}
+	}
+	if reordered && !keyed {
 		fills, key, err := scopeFills(p.nodes, p.order, p.cursor)
 		if err != nil {
 			p.status = err.Error()
@@ -1165,6 +1186,9 @@ func (p *ganttPage) drop() tea.Cmd {
 	if len(fields) == 0 {
 		p.putBack(b)
 		p.status = ""
+		if keyed && reordered {
+			p.status = keptSaid
+		}
 		return nil
 	}
 
