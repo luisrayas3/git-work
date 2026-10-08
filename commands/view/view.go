@@ -32,11 +32,12 @@ func NewViewCommand(env *execenv.Env) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "view",
 		Short: "Draw the issues",
-		Long: `Draw the issues: a list, a board, a gantt chart, or one issue.
+		Long: `Draw the issues: a list, a board, a gantt chart, a matrix, or one issue, or
+create one in a form.
 
 A view takes one JSON object of keyword arguments and nothing else. Every kind
-but ` + "`show`" + ` takes a ` + "`query`" + `, the jq program its issues come from, so a kanban
-with no flow at all is one command:
+but ` + "`show`" + ` and ` + "`new`" + ` takes a ` + "`query`" + `, the jq program its issues come from, so
+a kanban with no flow at all is one command:
 
   git work view board '{"query":"map(select(.fields.status != \"done\"))","columns":"status"}'
 
