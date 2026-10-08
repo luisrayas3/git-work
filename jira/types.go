@@ -23,9 +23,15 @@ const (
 	MetaSync      = "jira-sync"       // create op or NoOp: the Base as JSON
 	MetaCreate    = "jira-create"     // NoOp before a POST /issue: its time on Jira's clock (JS15)
 	MetaCommentId = "jira-comment-id" // add-comment op: the Jira comment id (I3)
-	MetaNote      = "jira-note"       // add-comment op of a note: conflict | deleted
-	MetaAccountId = "jira-account-id" // identity, immutable: the Jira accountId
-	PropertyKey   = "git-work"        // Jira issue and comment property
+	MetaNote      = "jira-note"       // add-comment op of a note: conflict | deleted | consolidated
+	// MetaConsolidatedInto is on a consolidated loser's create op: the
+	// winner's id, so a program can drop losers (repoint.md).
+	MetaConsolidatedInto = "jira-consolidated-into"
+	// MetaConsolidatedFrom is on a consolidation note: the loser's id, so a
+	// consolidation retried after an interruption notes once (repoint.md).
+	MetaConsolidatedFrom = "jira-consolidated-from"
+	MetaAccountId        = "jira-account-id" // identity, immutable: the Jira accountId
+	PropertyKey          = "git-work"        // Jira issue and comment property
 )
 
 // Level grades a Note.

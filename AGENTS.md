@@ -148,6 +148,8 @@ so no query carries an archived filter of its own,
 and `--include-archive` (`include_archive` in a view's KWARGS and in Starlark) brings the archived back;
 with `--at` the input reads the `archived` that stood then,
 and an issue named by id is that issue, archived or not.
+With the archived brought back, a copy archived by Jira consolidation is stamped in its `metadata`,
+so `map(select(.metadata["jira-consolidated-into"] == null))` drops it.
 In Starlark these are `work.issue.get(id, at=…)`,
 `work.issue.list(program, at=…, include_archive=False)` and
 `work.issue.log(id_or_program, from_=…, to=…, include_archive=False)` —
@@ -417,8 +419,11 @@ and imports it (`7d`; `0` takes every one).
 Two local copies of one Jira issue, an adoption whose original later arrives
 or two clones importing one issue, are consolidated into the copy that
 reached Jira first, whatever either has archived:
-the other is synced once more, archived, its local-only values carried over,
-and every relation naming it is pointed at the survivor, every run.
+the other is synced once more, its local-only values carried over,
+and archived last, its create operation stamped `jira-consolidated-into`
+with the survivor's id;
+every relation naming it is pointed at the survivor, every run,
+before any consolidation (`doc/design/repoint.md`).
 There is no `work.jira.*` in Starlark yet (v2), a known gap in the 1:1 rule.
 
 Gotchas, hardened from use:
