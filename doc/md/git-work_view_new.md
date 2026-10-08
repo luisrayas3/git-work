@@ -24,7 +24,6 @@ git-work view new [KWARGS|-] [flags]
 ### Options
 
 ```
-      --gui    Draw the view in the browser
   -h, --help   help for new
 ```
 

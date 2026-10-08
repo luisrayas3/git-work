@@ -30,7 +30,7 @@ func TestReportNamesIssuesByHumanId(t *testing.T) {
 
 	importFlows(t, env, flowImportOptions{}, filepath.Join("..", "..", "flows", "report.star"))
 	env.Out.Reset()
-	require.NoError(t, runFlowRun(env, flowRunOptions{}, []string{"report", `{"from_":"1d"}`}))
+	require.NoError(t, runFlowRun(env, []string{"report", `{"from_":"1d"}`}))
 
 	out := env.Out.String()
 	require.Contains(t, out, "- PROJ-9 keyed")

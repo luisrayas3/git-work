@@ -28,10 +28,6 @@ import (
 	"github.com/git-bug/git-bug/view"
 )
 
-type viewOptions struct {
-	gui bool
-}
-
 func NewViewCommand(env *execenv.Env) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "view",
@@ -56,8 +52,6 @@ are written through the same path a command writes through.`,
 }
 
 func newViewKindCommand(env *execenv.Env, kind string) *cobra.Command {
-	options := viewOptions{}
-
 	cmd := &cobra.Command{
 		Use:   kind + " [KWARGS|-]",
 		Short: kindShort(kind),
@@ -67,14 +61,9 @@ func newViewKindCommand(env *execenv.Env, kind string) *cobra.Command {
 		// so it needs the identity every writer needs.
 		PreRunE: execenv.LoadBackendEnsureUser(env),
 		RunE: execenv.CloseBackend(env, func(cmd *cobra.Command, args []string) error {
-			return runView(env, options, kind, args)
+			return runView(env, kind, args)
 		}),
 	}
-
-	flags := cmd.Flags()
-	flags.SortFlags = false
-
-	flags.BoolVar(&options.gui, "gui", false, "Draw the view in the browser")
 
 	return cmd
 }
@@ -122,11 +111,7 @@ func hasOptionalArg(kind string) bool {
 	return false
 }
 
-func runView(env *execenv.Env, opts viewOptions, kind string, args []string) error {
-	if opts.gui {
-		return view.ErrNoGui
-	}
-
+func runView(env *execenv.Env, kind string, args []string) error {
 	kwargs, err := readKwargs(env, args)
 	if err != nil {
 		return err
