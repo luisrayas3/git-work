@@ -131,7 +131,7 @@ a row is taken as the query shaped it, its own `key` and `children` included,
 so a query can build every level of the tree itself.
 
 The layer below still applies to them:
-its `fields`, `details`, `group_by` and `rank`,
+its `fields`, `details` and `group_by`,
 and its `query`, which narrows listed children as it narrows a relation's.
 A layer's `relation` becomes optional:
 it is required only where some row at the level above does not list its children.

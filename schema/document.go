@@ -346,7 +346,7 @@ func (d *Document) validateType(problems *Problems, typeKey string, t TypeDoc, k
 			continue
 		}
 
-		kind, err := ParseKind(field.Kind)
+		kind, err := parseFieldKind(fieldKey, field.Kind)
 		if err != nil {
 			problems.add("%s: %v", where, err)
 			continue

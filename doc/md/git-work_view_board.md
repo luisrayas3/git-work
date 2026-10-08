@@ -15,7 +15,6 @@ input when it is "-":
   card             field keys                       defaulted ["title"] the fields shown on a card
   column_width     int, at least 10                 defaulted 32       the narrowest a column goes before the board scrolls sideways; when every column fits they share the width
   group_by         field key                        optional           the field whose value starts a new swimlane; the cards with no value at all are the last swimlane, (none)
-  rank             field key                        defaulted "rank"   the rank field rows are ordered and dragged by
 
 An `optional` argument has no default: name it and the view does that
 thing, leave it out and it does not.

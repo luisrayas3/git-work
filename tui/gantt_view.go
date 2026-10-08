@@ -481,9 +481,9 @@ func (p *ganttPage) statusLine() string {
 
 // hintLine is what the keys do where the cursor is (hints.go).
 //
-// A bar with no dates has nothing to shift — dragAlong refuses it — so space
-// is named there only where a bound rank still gives the grab something to
-// do, and the grabbed line drops the shift for the same reason.
+// A bar with no dates has nothing to shift — dragAlong refuses it — but the
+// rank still gives its grab a reorder, so space is named on it, and the
+// grabbed line drops the shift.
 func (p *ganttPage) hintLine() string {
 	switch {
 	case p.filtering != nil:

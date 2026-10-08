@@ -273,6 +273,19 @@ func TestViewErrorsReachTheScript(t *testing.T) {
 `, nil)
 	require.ErrorContains(t, err, "colour")
 
+	// rank is internal: no argument, no layer key (Luis, 2026-10-08)
+	_, _, err = runWith(t, repo, renderer, `def bad():
+    """An order to draw by, which is not a view's to choose."""
+    return work.view.board(columns="status", rank="rank")
+`, nil)
+	require.ErrorContains(t, err, "rank")
+
+	_, _, err = runWith(t, repo, renderer, `def bad():
+    """A layer ordered by a field of its own."""
+    return work.view.list(expand={"relation": "children", "rank": "rank"})
+`, nil)
+	require.ErrorContains(t, err, "takes no key rank")
+
 	require.Empty(t, renderer.calls, "nothing was drawn")
 }
 

@@ -52,6 +52,23 @@ func TestViewChecksTheCallBeforeTheSurface(t *testing.T) {
 	require.Contains(t, err.Error(), "JSON object")
 }
 
+// TestViewRefusesRank: rank is internal, the order every view draws and every
+// drag writes, so the command refuses it as an argument and as a layer key,
+// before the missing terminal (Luis, 2026-10-08).
+func TestViewRefusesRank(t *testing.T) {
+	env := execenv.NewTestEnv(t)
+
+	err := runView(env, viewOptions{}, "list", []string{`{"rank":"rank"}`})
+	require.Error(t, err)
+	require.NotErrorIs(t, err, view.ErrNoTerminal)
+	require.Contains(t, err.Error(), "rank")
+
+	err = runView(env, viewOptions{}, "gantt", []string{`{"start":"a","stop":"b","expand":{"relation":"children","rank":"rank"}}`})
+	require.Error(t, err)
+	require.NotErrorIs(t, err, view.ErrNoTerminal)
+	require.Contains(t, err.Error(), "takes no key rank")
+}
+
 func TestViewKwargsFromStdin(t *testing.T) {
 	env := execenv.NewTestEnv(t)
 	_, err := env.In.(*execenv.TestIn).WriteString(`{"columns":"status"}`)

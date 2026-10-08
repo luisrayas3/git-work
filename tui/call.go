@@ -51,11 +51,9 @@ func callParts(call *view.Call, lead, leadArg string) (head []string, query stri
 			continue
 		}
 		defaulted := arg.Default != "" && bytes.Equal(compactJSON(raw), compactJSON(json.RawMessage(arg.Default)))
-		if defaulted && (arg.Name == "rank" || arg.Name == "column_width") {
-			// the built-in rank is every view's order (D8), and the order
-			// of the rows on the screen already says it; a board's default
-			// column width is the board as drawn. Either one somebody named
-			// is a choice, and shows like any other
+		if defaulted && arg.Name == "column_width" {
+			// a board's default column width is the board as drawn; one
+			// somebody named is a choice, and shows like any other
 			continue
 		}
 		if arg.Name == "query" {

@@ -42,9 +42,8 @@ type ganttPage struct {
 	from, to       string
 	progressKey    string
 	groupBy        string
-	rankKey        string
 	// nest is `expand` resolved: the layer per level, level 0 being the
-	// call's own group_by and rank (nest.go).
+	// call's own group_by (nest.go).
 	nest *nesting
 
 	items []map[string]any
@@ -143,7 +142,6 @@ func newGanttPage(repo *cache.RepoCache, call *view.Call) (*ganttPage, error) {
 		to:             call.String("to"),
 		progressKey:    call.String("progress"),
 		groupBy:        call.String("group_by"),
-		rankKey:        call.String("rank"),
 		open:           map[string]bool{},
 		opening:        call.OpenLevels(),
 		kept:           map[string]int{},
@@ -152,7 +150,7 @@ func newGanttPage(repo *cache.RepoCache, call *view.Call) (*ganttPage, error) {
 		col:            -1,
 		grabbed:        -1,
 	}
-	n, err := newNesting(nestLayer{groupBy: p.groupBy, rankKey: p.rankKey, includeArchive: p.includeArchive}, call.Expand())
+	n, err := newNesting(nestLayer{groupBy: p.groupBy, includeArchive: p.includeArchive}, call.Expand())
 	if err != nil {
 		return nil, err
 	}
@@ -303,7 +301,7 @@ func (p *ganttPage) newBar(n nested, known *kinds) (bar, treeRow) {
 			node.group = value
 		}
 	}
-	node.rank = plainValue(fields[layer.rankKey])
+	node.rank = plainValue(fields[schema.RankKey])
 	node.text = strings.ToLower(b.human + " " + b.label)
 
 	return b, node
@@ -1163,7 +1161,6 @@ func (p *ganttPage) drop() tea.Cmd {
 	}
 	said := "moved"
 	var above []rankFill
-	rankKey := p.layer(p.nodes[p.order[p.cursor]].level).rankKey
 	// a row in another group has new neighbours, so a crossing is a reorder
 	// even where the cursor did not move
 	reordered := p.cursor != p.grabFrom.cursor || into != nil
@@ -1183,7 +1180,7 @@ func (p *ganttPage) drop() tea.Cmd {
 			return bell()
 		}
 		above = fills
-		fields[rankKey] = issue.StringValue(key)
+		fields[schema.RankKey] = issue.StringValue(key)
 		if len(fields) == 1 {
 			said = "rank set"
 		}
@@ -1202,7 +1199,7 @@ func (p *ganttPage) drop() tea.Cmd {
 	}
 
 	id := b.id
-	if err := writeFills(p.repo, above, rankKey); err != nil {
+	if err := writeFills(p.repo, above); err != nil {
 		p.status = err.Error()
 		p.putBack(b)
 		return bell()

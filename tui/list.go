@@ -31,10 +31,9 @@ type listPage struct {
 	// includeArchive brings the archived back into the input query runs over.
 	includeArchive bool
 	// nest is `expand` resolved: the layer per level, level 0 being the
-	// call's own fields, details, group_by and rank.
+	// call's own fields, details and group_by.
 	nest    *nesting
 	groupBy string
-	rankKey string
 
 	// items is what the query returned last, kept so that folding a row
 	// rebuilds the tree without asking the store again
@@ -57,7 +56,7 @@ type listPage struct {
 	// rank, and the text the filter searches.
 	nodes []treeRow
 	// order indexes rows in the order they are drawn: filtered, grouped, and
-	// sorted within a group by (rank, id) where a rank is bound.
+	// sorted within a group by (rank, id).
 	order []int
 
 	cursor int
@@ -113,7 +112,6 @@ func newListPage(repo *cache.RepoCache, call *view.Call) (*listPage, error) {
 		includeArchive: call.Bool("include_archive"),
 		query:          call.String("query"),
 		groupBy:        call.String("group_by"),
-		rankKey:        call.String("rank"),
 		open:           map[string]bool{},
 		opening:        call.OpenLevels(),
 		kept:           map[string]int{},
@@ -126,7 +124,6 @@ func newListPage(repo *cache.RepoCache, call *view.Call) (*listPage, error) {
 		fields:         call.Strings("fields"),
 		details:        call.Strings("details"),
 		groupBy:        p.groupBy,
-		rankKey:        p.rankKey,
 		includeArchive: p.includeArchive,
 	}
 	if len(root.fields) == 0 {
@@ -392,7 +389,7 @@ func (p *listPage) newRow(n nested, known *kinds) (listRow, treeRow) {
 			node.group = value
 		}
 	}
-	node.rank = plainValue(fields[layer.rankKey])
+	node.rank = plainValue(fields[schema.RankKey])
 
 	var text strings.Builder
 	text.WriteString(row.human)
@@ -919,8 +916,8 @@ func (p *listPage) writeFields(id string, fields map[string]issue.Value, said st
 
 // startGrab picks the row under the cursor up, to drop it somewhere else.
 //
-// It needs no binding: `rank` is a field of every type and the argument's
-// own default (D8), so a move always has somewhere to be written.
+// It needs no binding: `rank` is built in on every type (D8) and is the
+// one order a view draws, so a move always has somewhere to be written.
 func (p *listPage) startGrab() (page, tea.Cmd) {
 	if p.current() == nil {
 		return p, nil
@@ -1023,16 +1020,15 @@ func (p *listPage) drop() tea.Cmd {
 		return nil
 	}
 
-	rankKey := p.layer(p.nodes[p.order[p.cursor]].level).rankKey
-	fields := map[string]issue.Value{rankKey: issue.StringValue(key)}
-	said := rankKey + " set"
+	fields := map[string]issue.Value{schema.RankKey: issue.StringValue(key)}
+	said := "rank set"
 	if p.crossed != nil && group != p.grabGroup {
 		fields[p.groupBy] = p.crossed.value
 		said = "moved to " + p.crossed.group
 	}
 	p.crossed = nil
 
-	if err := writeFills(p.repo, above, rankKey); err != nil {
+	if err := writeFills(p.repo, above); err != nil {
 		p.status = err.Error()
 		p.reorder()
 		return bell()

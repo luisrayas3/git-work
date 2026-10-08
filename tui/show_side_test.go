@@ -361,9 +361,9 @@ func TestSideTableRefusesBeforeDrawing(t *testing.T) {
 	story := newTyped(t, repo, "story", map[string]any{"title": "the story"})
 
 	for kwargs, says := range map[string]string{
-		`{"relation":"nephews"}`:                             "task/parent (inverse children)",
-		`{"relation":"children","fields":["colour"]}`:        "colour",
-		`[ "children", {"relation":"blocks","rank":"nope"}]`: "table 2 names field nope",
+		`{"relation":"nephews"}`:                                 "task/parent (inverse children)",
+		`{"relation":"children","fields":["colour"]}`:            "colour",
+		`[ "children", {"relation":"blocks","fields":["nope"]}]`: "table 2 names field nope",
 	} {
 		_, err := host.View(t.Context(), repo, nil, view.KindShow, map[string]json.RawMessage{
 			"id":     mustJSON(story),

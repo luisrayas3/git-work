@@ -141,9 +141,9 @@ and puts the archived back in its input (`df6ff51`, `include-archive.md`).
 
 | Kind | Required | Defaulted | Optional |
 | --- | --- | --- | --- |
-| `list` | — | `fields` (`["type","title"]`), `rank` (`rank`), `include_archive` (false) | `details`, `group_by`, `expand` |
-| `board` | `columns` | `values` (the field's schema order), `card` (`["title"]`), `rank` (`rank`), `include_archive` (false) | `group_by` |
-| `gantt` | `start`, `stop` | `label` (title), `scale` (`week`), `from`, `to` (the data's extent), `rank` (`rank`), `include_archive` (false) | `progress`, `group_by`, `expand` |
+| `list` | — | `fields` (`["type","title"]`), `include_archive` (false) | `details`, `group_by`, `expand` |
+| `board` | `columns` | `values` (the field's schema order), `card` (`["title"]`), `include_archive` (false) | `group_by` |
+| `gantt` | `start`, `stop` | `label` (title), `scale` (`week`), `from`, `to` (the data's extent), `include_archive` (false) | `progress`, `group_by`, `expand` |
 | `matrix` | `rows`, `columns` | `row_values`, `column_values` (each axis's own order), `include_archive` (false) | `value`, `group_by` |
 | `show` | `id` | `fields` (the type's fields, schema order) | `expand` (a side table per element) |
 
@@ -164,7 +164,7 @@ the way `values` orders a board's columns.
 
 `sort_by` and `card_title` are gone.
 Order is the query's order — jq sorts, and it sorts better than a binding would —
-among the issues that have no rank; see `rank`, below.
+among the issues that have no rank; see Rank, below.
 `card_title` was `card` with one element before it had a name.
 Gantt's `end` is renamed `stop` (Luis, 2026-09-24).
 
@@ -554,11 +554,20 @@ The cursor comes back across a re-run on the same **key**, which is the id unles
 
 ## Rank
 
-The `rank` binding names a field of kind `rank` (`441dcbb`),
-and it **defaults to the built-in `rank`**
-every type carries (`configurable-schema.md` D8, 2026-10-02),
-so every list, board and gantt is draggable with nothing bound at all.
-It stays an argument because a second ordering field is a field like any other.
+Every list, board, gantt and side table orders by,
+and every drag writes, **the built-in `rank`**
+every type carries (`441dcbb`; `configurable-schema.md` D8, 2026-10-02),
+so every one of them is draggable with nothing bound at all.
+
+**`rank` is internal** (Luis, 2026-10-08):
+no kind takes it as an argument and no layer as a key,
+and naming it is refused like any unknown name.
+It was an argument, defaulted to the built-in,
+because a second ordering field was to be a field like any other;
+nothing ever passed anything but the default,
+and an order is an implementation detail of a drag,
+not something a view describes.
+The kind `rank` went with it (`configurable-schema.md` D9).
 
 The order rule, within each group, column or nesting level,
 is `(rank, id)`: the issues that have a rank first, in that order,
@@ -658,7 +667,7 @@ so `Space` always grabs;
 `←` and `→` carry the card into the neighbouring column, empty or not,
 and the drop writes the `columns` field — `null` when dropped in `(none)`.
 `↑` and `↓` need an order to write and always have one,
-the built-in `rank` being the argument's default (Rank, above);
+the built-in `rank` (Rank, above);
 past the end of a stack they carry the card into the swimlane above or
 below, in the column it is in, and the drop writes `group_by` too.
 The drop is one `set` with up to two keys, which is one commit:
@@ -735,8 +744,7 @@ so the help prints it and `Parse` enforces it from the one place.
 `card` is not spelled on the call line, as `fields` is not:
 the cards are on the screen.
 A `column_width` left at its default is not spelled there either,
-for the same reason the built-in `rank` is not —
-the board as drawn already says it —
+because the board as drawn already says it,
 and one somebody chose shows like any other argument.
 
 ## Gantt
@@ -789,7 +797,7 @@ and growing is the move a one-period bar needs most:
 shifting it is two moves, one on each edge.
 A start never passes its stop.
 The cursor moves with what moved, so it stays on the edge it is dragging.
-`↑` and `↓` reorder, as on a board, with the same always-bound rank.
+`↑` and `↓` reorder, as on a board, by the same built-in rank.
 The drop is one `set` with up to three keys, which is one commit:
 each date that moved, and the rank when the row moved.
 A bar dropped where it was picked up writes nothing;
@@ -1110,7 +1118,7 @@ A layer is an object:
 ```json
 {"relation": "children",
  "query": "map(select(.fields.status != \"done\"))",
- "fields": ["status", "title"], "details": [], "group_by": "", "rank": "rank",
+ "fields": ["status", "title"], "details": [], "group_by": "",
  "expand": {"relation": "blocks"}}
 ```
 
@@ -1163,7 +1171,7 @@ and the derived side of a stored relation resolves through it
 so `expand=children` reads every issue whose `parent` names the row,
 off the whole store and in the store's order,
 and `expand=blocks` the targets of the row's own `blocks`.
-A rank orders a layer's rows by `(rank, id)`.
+The built-in rank orders a layer's rows by `(rank, id)`; a layer takes no `rank` key (2026-10-08).
 A layer's relation, and every field key it names, are checked against the
 schema before anything draws, the way show's side tables are.
 
@@ -1268,7 +1276,7 @@ folded or not (Gantt above).
 The chart's own arguments — `start`, `stop`, `label`, `progress` — are the
 chart's, not a layer's: one chart has one time axis,
 and a level that measured something else would not be the same chart.
-A layer's `query`, `rank` and `group_by` apply there as they do on a list.
+A layer's `query` and `group_by` apply there as they do on a list.
 
 Not now, and listed so the next reader does not take them for oversights:
 reparenting a row by dragging it out of its parent,

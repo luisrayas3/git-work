@@ -132,7 +132,8 @@ with no number named, the matrix counts,
 which is the right answer for *how many issues per status per assignee*
 and needs no field to exist at all.
 
-There is no `rank` argument: the axes own the order, and there is nothing to drag.
+There is no `rank` argument: the axes own the order, and there is nothing to drag
+(and since 2026-10-08 no kind takes one: the rank is internal, `terminal-renderer.md`, Rank).
 There is no `totals` switch: the totals are always drawn (A7).
 
 ## A5 — The order of an axis

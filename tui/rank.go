@@ -8,6 +8,7 @@ import (
 	"github.com/git-bug/git-bug/entities/issue"
 	"github.com/git-bug/git-bug/host"
 	"github.com/git-bug/git-bug/rank"
+	"github.com/git-bug/git-bug/schema"
 )
 
 // The drop's arithmetic, shared by the three kinds that drag a row:
@@ -114,9 +115,12 @@ func scopeFills(rows []treeRow, order []int, at int) (above []rankFill, key stri
 // writeFills writes the keys of the rows drawn above the drop point, one
 // `set` per issue, before the dropped row's own write. A failure halfway
 // stops there: the rows already written keep the order they were drawn in.
-func writeFills(repo *cache.RepoCache, above []rankFill, rankKey string) error {
+//
+// The key is always the built-in `rank`: the order is internal, and no view
+// names another field to order by (Luis, 2026-10-08).
+func writeFills(repo *cache.RepoCache, above []rankFill) error {
 	for _, fill := range above {
-		fields := map[string]issue.Value{rankKey: issue.StringValue(fill.key)}
+		fields := map[string]issue.Value{schema.RankKey: issue.StringValue(fill.key)}
 		if _, err := host.IssueSet(repo, fill.id, fields, false); err != nil {
 			return err
 		}

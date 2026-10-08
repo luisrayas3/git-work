@@ -26,8 +26,8 @@ func TestParseAppliesTheDefaults(t *testing.T) {
 	// an optional argument nobody asked for is simply absent
 	require.False(t, call.Has("group_by"))
 	require.Nil(t, call.Expand())
-	// the manual order is the built-in rank until another field is named
-	require.Equal(t, "rank", call.String("rank"))
+	// the manual order is the built-in rank, which no call names
+	require.False(t, call.Has("rank"))
 }
 
 func TestParseKeepsWhatWasGiven(t *testing.T) {
@@ -36,8 +36,7 @@ func TestParseKeepsWhatWasGiven(t *testing.T) {
 		"fields": ["title", "status", "assignee"],
 		"details": ["labels"],
 		"group_by": "status",
-		"expand": "children",
-		"rank": "rank"
+		"expand": "children"
 	}`))
 	require.NoError(t, err)
 
@@ -46,7 +45,32 @@ func TestParseKeepsWhatWasGiven(t *testing.T) {
 	require.Equal(t, []string{"labels"}, call.Strings("details"))
 	require.Equal(t, "status", call.String("group_by"))
 	require.Equal(t, "children", call.Expand().Relation)
-	require.True(t, call.Has("rank"))
+}
+
+// TestRankIsNoArgument: rank is internal, the built-in order every view draws
+// and every drag writes, so no kind takes it as an argument and no layer
+// takes it as a key; naming it is refused like any unknown name
+// (Luis, 2026-10-08).
+func TestRankIsNoArgument(t *testing.T) {
+	for kind, doc := range map[string]string{
+		KindList:   `{"rank":"rank"}`,
+		KindBoard:  `{"columns":"status","rank":"rank"}`,
+		KindGantt:  `{"start":"a","stop":"b","rank":"rank"}`,
+		KindMatrix: `{"rows":"work","columns":"iteration","rank":"rank"}`,
+		KindShow:   `{"id":"abc","rank":"rank"}`,
+	} {
+		_, err := Parse(kind, kwargs(t, doc))
+		require.ErrorContains(t, err, "rank", kind)
+	}
+
+	for kind, doc := range map[string]string{
+		KindList:  `{"expand":{"relation":"children","rank":"rank"}}`,
+		KindGantt: `{"start":"a","stop":"b","expand":{"relation":"children","rank":"rank"}}`,
+		KindShow:  `{"id":"abc","expand":{"relation":"children","rank":"rank"}}`,
+	} {
+		_, err := Parse(kind, kwargs(t, doc))
+		require.ErrorContains(t, err, "takes no key rank", kind)
+	}
 }
 
 func TestParseUnknownKeyNamesTheArguments(t *testing.T) {
@@ -148,7 +172,7 @@ func TestParseSideTables(t *testing.T) {
 	require.Equal(t, "children", call.SideTables()[0].Relation)
 	require.Nil(t, call.Expand(), "show's expand is no list's spec")
 
-	call, err = Parse(KindShow, kwargs(t, `{"id":"abc","expand":[{"relation":"children","query":"map(.)","fields":["status"],"rank":"rank","include_archive":true},"blocks"]}`))
+	call, err = Parse(KindShow, kwargs(t, `{"id":"abc","expand":[{"relation":"children","query":"map(.)","fields":["status"],"include_archive":true},"blocks"]}`))
 	require.NoError(t, err)
 	tables := call.SideTables()
 	require.Len(t, tables, 2)
@@ -250,7 +274,6 @@ func TestParseExpandIsALayerSpec(t *testing.T) {
 		"fields": ["status", "title"],
 		"details": ["labels"],
 		"group_by": "assignee",
-		"rank": "order",
 		"expand": 0
 	}}`))
 	require.NoError(t, err)
@@ -260,7 +283,6 @@ func TestParseExpandIsALayerSpec(t *testing.T) {
 	require.Equal(t, []string{"status", "title"}, layer.Fields)
 	require.Equal(t, []string{"labels"}, layer.Details)
 	require.Equal(t, "assignee", layer.GroupBy)
-	require.Equal(t, "order", layer.Rank)
 
 	layers, forever := layer.Layers()
 	require.Len(t, layers, 1)

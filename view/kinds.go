@@ -123,7 +123,6 @@ var Kinds = map[string][]Arg{
 			Doc: "the field whose value starts a new section; the rows with no value at all are the last section, (none)"},
 		{Name: "expand", Tier: Optional, Kind: ExpandSpec, Doc: expandDoc},
 		openArg,
-		rankArg,
 	},
 	KindBoard: {
 		queryArg,
@@ -138,7 +137,6 @@ var Kinds = map[string][]Arg{
 			Doc: "the narrowest a column goes before the board scrolls sideways; when every column fits they share the width"},
 		{Name: "group_by", Tier: Optional, Kind: FieldKey,
 			Doc: "the field whose value starts a new swimlane; the cards with no value at all are the last swimlane, (none)"},
-		rankArg,
 	},
 	KindGantt: {
 		rowsQueryArg,
@@ -162,7 +160,6 @@ var Kinds = map[string][]Arg{
 			Doc: "the field whose value starts a new row group; the rows with no value at all are the last group, (none)"},
 		{Name: "expand", Tier: Optional, Kind: ExpandSpec, Doc: expandDoc},
 		openArg,
-		rankArg,
 	},
 	// matrix is the two-axis summary: rows of one field by columns of
 	// another, a sum in each cell (doc/design/allocations.md). It reads any
@@ -220,7 +217,7 @@ const minColumnWidth = 10
 // a layer's query is over that row's own children and not over the store,
 // and a layer carries the level below it.
 const expandDoc = `the relation nested under a row: "children", or a layer ` +
-	`{"relation":…,"query":…,"include_archive":…,"fields":…,"details":…,"group_by":…,"rank":…,"expand":…}; ` +
+	`{"relation":…,"query":…,"include_archive":…,"fields":…,"details":…,"group_by":…,"expand":…}; ` +
 	`a relation is a stored one (parent) or the inverse name of one (children), a row's own top-level ` +
 	`children (ids or rows) replace it for that row, so a layer needs one only where a row above lists none; ` +
 	`a layer's query runs over ` +
@@ -233,7 +230,7 @@ const expandDoc = `the relation nested under a row: "children", or a layer ` +
 // the fields rather than nested under a row (doc/design/show-side-table.md).
 const sideDoc = `the issues a relation reaches from this one, a table each beside the fields ` +
 	`(under them in a narrow window): what a list's expand takes, a relation name ("children", "blocks") ` +
-	`or a layer {"relation":…,"query":…,"include_archive":…,"fields":…,"rank":…}, or a list of them, ` +
+	`or a layer {"relation":…,"query":…,"include_archive":…,"fields":…}, or a list of them, ` +
 	`one table per element; a relation is a stored one or the inverse name the schema gives one, ` +
 	`the query runs over the unarchived issues it reaches, fields are the columns after id and title, ` +
 	`and details, group_by and expand are refused, a side table being flat`
@@ -244,16 +241,6 @@ const sideDoc = `the issues a relation reaches from this one, a table each besid
 var openArg = Arg{
 	Name: "open", Tier: Optional, Kind: OpenLevels,
 	Doc: "how unfolded a nested view opens: true every parent, a number that many levels from the roots, false or absent folded",
-}
-
-// rankArg is the manual order every kind that draws a row of issues takes.
-//
-// It defaults to the built-in `rank` (D8), so a grab always has somewhere
-// to write and no view has to bind it; it stays an argument because a second
-// ordering field is a field like any other.
-var rankArg = Arg{
-	Name: "rank", Tier: Defaulted, Kind: FieldKey, Default: `"rank"`,
-	Doc: "the rank field rows are ordered and dragged by",
 }
 
 // queryArg is the same row on every kind that draws more than one issue,

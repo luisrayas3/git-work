@@ -51,7 +51,7 @@ func parseSideTables(raw json.RawMessage) ([]*Layer, error) {
 			refused = append(refused, "expand")
 		}
 		if len(refused) > 0 {
-			return nil, fmt.Errorf("%stakes no %s: a side table is flat, it takes relation, query, include_archive, fields and rank",
+			return nil, fmt.Errorf("%stakes no %s: a side table is flat, it takes relation, query, include_archive and fields",
 				where, strings.Join(refused, " or "))
 		}
 		if layer.Relation == "" {
