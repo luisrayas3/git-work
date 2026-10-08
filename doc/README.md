@@ -3,11 +3,11 @@
 ## Using git-work
 
 - [`README.md`](../README.md): what git-work is and a first session.
-- [`AGENTS.md`](../AGENTS.md): the complete command reference and conventions.
 - [The command reference](./md/git-work.md), generated from the binary
   (or `man git-work`, from [`man`](./man)).
-- `git work quickstart`: the model and this repository's types on one page,
-  for an AI agent.
+- `git work quickstart`: the model, every command, and this repository's
+  types and flows on one page, written for an AI agent and complete for anyone.
+- [`AGENTS.md`](../AGENTS.md): the architecture and conventions, for working on git-work itself.
 - [The command-line map](./design/cli-convention.md): the shape every command follows.
 
 ## Design

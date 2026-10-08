@@ -3,7 +3,7 @@
 The target `git work` command line,
 decided 2026-09-23 as the map to build toward,
 and the rules every command follows.
-The tables in `AGENTS.md` describe what the current binary verifies;
+`git work quickstart` describes what the current binary does;
 this document is where it is going.
 Decisions are recorded on `e8d6426` (plumbing), `b511c63` (flows),
 `52a2797` (views), `84dfbde` and `8b06191` (renderers), `3556569` (schema)

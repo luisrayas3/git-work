@@ -34,9 +34,9 @@ reachable from our code. That last one is `make secure` locally.
 The command reference in `doc/md`, the man pages in `doc/man` and the shell
 completions in `misc/completion` are generated from the command tree and
 committed. If you add or change a command, run `go generate` and commit the
-result. If it changes a command an agent uses, update `AGENTS.md` and
-`host/quickstart.md` in the same change; a test checks that every command the
-quickstart names exists.
+result. If it changes how git-work is used, update `host/quickstart.md`, the
+static half of `git work quickstart`, in the same change; a test checks that
+every command it names exists.
 
 ## Design first
 
