@@ -21,6 +21,9 @@ const (
 	// ActionConsolidated is a second local copy of one Jira issue,
 	// archived into the copy that reached Jira first.
 	ActionConsolidated = "consolidated"
+	// ActionRepointed is an issue whose relations named a consolidated copy,
+	// pointed at the copy that won: a local write the person did not make.
+	ActionRepointed = "repointed"
 )
 
 // Line is one JSON line of the report: exactly one of Schema, Issue and
@@ -61,6 +64,7 @@ type Summary struct {
 	Gone         int       `json:"gone"`
 	Adopted      int       `json:"adopted"`      // imports past the --adopt bound
 	Consolidated int       `json:"consolidated"` // second copies archived
+	Repointed    int       `json:"repointed"`    // issues whose relations were pointed at the winner
 	Orphans      int       `json:"orphans"`      // hits still skipped for an absent entity
 	Conflicts    int       `json:"conflicts"`
 	Pending      int       `json:"pending"`
@@ -81,6 +85,8 @@ func (s *Summary) count(l Line) {
 		}
 	case ActionConsolidated:
 		s.Consolidated++
+	case ActionRepointed:
+		s.Repointed++
 	case ActionCreated:
 		s.Created++
 	case ActionUpdated:

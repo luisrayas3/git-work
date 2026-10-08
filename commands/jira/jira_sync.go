@@ -132,8 +132,8 @@ func textLine(l jira.Line) string {
 		if !s.Cursor.IsZero() {
 			cursor = s.Cursor.Format("2006-01-02T15:04:05Z07:00")
 		}
-		return fmt.Sprintf("summary: %d imported, %d created, %d updated, %d linked, %d gone, %d adopted, %d consolidated, %d orphans, %d conflicts, %d pending, %d off-schema, %d failed, %d skipped, %d unchanged; cursor %s",
-			s.Imported, s.Created, s.Updated, s.Linked, s.Gone, s.Adopted, s.Consolidated, s.Orphans, s.Conflicts, s.Pending, s.OffSchema, s.Failed, s.Skipped, s.Unchanged, cursor)
+		return fmt.Sprintf("summary: %d imported, %d created, %d updated, %d linked, %d gone, %d adopted, %d consolidated, %d repointed, %d orphans, %d conflicts, %d pending, %d off-schema, %d failed, %d skipped, %d unchanged; cursor %s",
+			s.Imported, s.Created, s.Updated, s.Linked, s.Gone, s.Adopted, s.Consolidated, s.Repointed, s.Orphans, s.Conflicts, s.Pending, s.OffSchema, s.Failed, s.Skipped, s.Unchanged, cursor)
 	case l.Schema != nil:
 		keys := make([]string, len(l.Schema))
 		for i, c := range l.Schema {
