@@ -8,8 +8,10 @@ import (
 	"github.com/charmbracelet/x/ansi"
 )
 
-// idWidth is the short id's column: the same seven characters every other
-// surface prints, so an id read here is an id that can be typed there.
+// idWidth is the narrowest id column: the seven characters of a short hash,
+// the same every other surface prints, so an id read here is an id that can
+// be typed there. A column holding a Jira key is as wide as the widest key,
+// because a key is never cut (doc/design/alias-ids.md A3).
 const idWidth = 7
 
 // indentWidth is what one level of nesting moves a child table right by:
@@ -141,11 +143,12 @@ type listBody struct {
 // sticky, which is how window knows not to pin a copy of a line that is
 // already drawn.
 func (p *listPage) body() listBody {
-	widths := p.widths()
+	ids := p.idWidths()
+	widths := p.widths(ids)
 	tree := p.treeRoom()
 	heads := groupHeads(p.nodes, p.order)
 
-	body := listBody{header: p.tableHeader(0, widths, tree)}
+	body := listBody{header: p.tableHeader(0, widths, ids, tree)}
 	add := func(line string, under int) {
 		body.lines = append(body.lines, line)
 		body.sticky = append(body.sticky, under)
@@ -160,7 +163,7 @@ func (p *listPage) body() listBody {
 		if node.level > 0 {
 			if at > 0 && p.nodes[p.order[at-1]].key == node.parent {
 				tableHeader[node.parent] = len(body.lines)
-				add(p.tableHeader(node.level, widths, tree), len(body.lines))
+				add(p.tableHeader(node.level, widths, ids, tree), len(body.lines))
 			}
 			under = tableHeader[node.parent]
 		}
@@ -181,8 +184,8 @@ func (p *listPage) body() listBody {
 		if at == p.cursor {
 			body.cursorLine = len(body.lines)
 		}
-		add(p.rowLine(row, node, widths, tree, at == p.cursor, index == p.grabbed), under)
-		for _, line := range p.detailLines(row, node, tree) {
+		add(p.rowLine(row, node, widths, ids, tree, at == p.cursor, index == p.grabbed), under)
+		for _, line := range p.detailLines(row, node, ids, tree) {
 			add(line, under)
 		}
 	}
@@ -193,8 +196,8 @@ func (p *listPage) body() listBody {
 // tableHeader is the header line of the tables at one level: the id, the
 // tree cell and the layer's fields, each over its column, at the level's
 // indent. Level 0 is the top table's, the page's fixed header.
-func (p *listPage) tableHeader(level int, widths [][]int, tree int) string {
-	cells := []string{indent(level) + " " + pad("id", idWidth)}
+func (p *listPage) tableHeader(level int, widths [][]int, ids []int, tree int) string {
+	cells := []string{indent(level) + " " + pad("id", ids[p.nest.family(level)])}
 	if tree > 0 {
 		cells = append(cells, pad("", tree))
 	}
@@ -227,7 +230,7 @@ func (p *listPage) groupLine(node *treeRow) string {
 // others, and the one the cursor starts on. A cell that links other issues
 // is underlined, because enter follows it. The tree cell is the one after
 // the id: the fold arrow and the count of what a fold is hiding (treeCell).
-func (p *listPage) rowLine(row *listRow, node *treeRow, widths [][]int, tree int, under bool, grabbed bool) string {
+func (p *listPage) rowLine(row *listRow, node *treeRow, widths [][]int, ids []int, tree int, under bool, grabbed bool) string {
 	// every piece is styled on its own, the wash included: a style ends in
 	// a reset, and a reset inside the row would end the wash with it
 	wash := lipgloss.NewStyle()
@@ -255,14 +258,15 @@ func (p *listPage) rowLine(row *listRow, node *treeRow, widths [][]int, tree int
 	}
 	used := len(margin) + 1
 
-	id := pad(row.human, idWidth)
+	idw := ids[p.nest.family(node.level)]
+	id := pad(row.human, idw)
 	if under && p.column == 0 {
 		id = styleCell.Render(id)
 	} else {
-		id = wash.Faint(true).Render(id)
+		id = idStyle(p.repo, wash, row.id, row.human).Render(id)
 	}
 	parts = append(parts, id)
-	used += idWidth
+	used += idw
 
 	if tree > 0 {
 		cell := pad(treeCell(*node), tree)
@@ -304,7 +308,7 @@ func (p *listPage) rowLine(row *listRow, node *treeRow, widths [][]int, tree int
 // detailLines are the dim second line under a row, one per detail field of
 // the row's own layer, so that what a row is about can be read without
 // opening it. They start under the row's first field, in its table.
-func (p *listPage) detailLines(row *listRow, node *treeRow, tree int) []string {
+func (p *listPage) detailLines(row *listRow, node *treeRow, ids []int, tree int) []string {
 	details := p.layer(node.level).details
 	if len(details) == 0 {
 		return nil
@@ -322,14 +326,14 @@ func (p *listPage) detailLines(row *listRow, node *treeRow, tree int) []string {
 		return nil
 	}
 
-	margin := strings.Repeat(" ", fieldsStart(node.level, tree))
+	margin := strings.Repeat(" ", fieldsStart(node.level, ids[p.nest.family(node.level)], tree))
 	return []string{styleDim.Render(fit(margin+strings.Join(parts, "  "), p.width))}
 }
 
 // fieldsStart is the column a table's first field starts in: the indent,
 // the marker, the id, the tree cell and the spaces between them.
-func fieldsStart(level, tree int) int {
-	start := indentWidth*level + 1 + idWidth + 1
+func fieldsStart(level, idw, tree int) int {
+	start := indentWidth*level + 1 + idw + 1
 	if tree > 0 {
 		start += tree + 1
 	}
@@ -343,22 +347,38 @@ func (p *listPage) treeRoom() int {
 	return treeWidth(p.nodes, p.nest.expanded())
 }
 
+// idWidths is the id column of every layer family: the widest id its rows
+// draw, at least idWidth, measured over every row of the family, hidden or
+// drawn, so that folding moves nothing. A Jira key is never cut, because a
+// cut key is another issue's (doc/design/alias-ids.md A3).
+func (p *listPage) idWidths() []int {
+	out := make([]int, len(p.nest.layers))
+	for family := range out {
+		out[family] = idWidth
+	}
+	for index := range p.rows {
+		family := p.nest.family(p.nodes[index].level)
+		out[family] = max(out[family], ansi.StringWidth(p.rows[index].human))
+	}
+	return out
+}
+
 // widths sizes every layer's columns, one set per layer family: the rows of
 // one layer are measured against each other, wherever in the tree they are
 // drawn and whether or not a fold hides them, so that every table of that
 // layer has the same columns at the same widths and unfolding moves nothing.
-func (p *listPage) widths() [][]int {
+func (p *listPage) widths(ids []int) [][]int {
 	tree := p.treeRoom()
 	out := make([][]int, len(p.nest.layers))
 	for family := range out {
-		out[family] = p.widthsOf(family, tree)
+		out[family] = p.widthsOf(family, ids[family], tree)
 	}
 	return out
 }
 
 // widthsOf sizes one layer family's columns to what is in them, and then to
 // the window at the deepest indent the family is drawn at.
-func (p *listPage) widthsOf(family, tree int) []int {
+func (p *listPage) widthsOf(family, idw, tree int) []int {
 	fields := p.nest.layers[family].fields
 	widths := make([]int, len(fields))
 	for at, key := range fields {
@@ -383,7 +403,7 @@ func (p *listPage) widthsOf(family, tree int) []int {
 	// the widest column gives way first, so that a long title shrinks before
 	// a short status disappears; a column is never capped below that, so a
 	// wide window shows a whole title.
-	budget := p.width - fieldsStart(deepest, tree) - len(fields) + 1
+	budget := p.width - fieldsStart(deepest, idw, tree) - len(fields) + 1
 	for budget > 0 && sum(widths) > budget {
 		widest := 0
 		for at := range widths {

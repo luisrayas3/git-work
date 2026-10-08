@@ -75,14 +75,6 @@ func (c *RepoCache) IssueHumanId(id entity.Id) string {
 	return id.Human()
 }
 
-// IsFallbackId says whether a drawn id is a hash standing in for an alias:
-// a namespace is set and the drawn id is a prefix of the issue's id, which an
-// alias never is, because A3 does not draw an alias a prefix could be read as.
-// A renderer with styling draws such an id dim (alias-ids.md A3).
-func (c *RepoCache) IsFallbackId(id, human string) bool {
-	return c.DisplayNamespace() != "" && human != "" && strings.HasPrefix(id, human)
-}
-
 // drawnAliases is, for every issue an alias in the namespace may be drawn
 // for, that alias: the issue ResolvePrefixOrAlias would answer for it.
 //

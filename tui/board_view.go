@@ -186,7 +186,7 @@ func (p *boardPage) cardLines(c *card, width int, under, grabbed bool) []string 
 	if under {
 		id = styleCell.Render(id)
 	} else {
-		id = wash.Faint(true).Render(id)
+		id = idStyle(p.repo, wash, c.id, c.human).Render(id)
 	}
 	lines := []string{marker + id}
 

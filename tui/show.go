@@ -176,7 +176,7 @@ func newShowPage(repo *cache.RepoCache, id string, fields []string) (*showPage, 
 }
 
 func (p *showPage) Call() (*view.Call, string, string) {
-	return p.call, p.snapshot.Id().Human(), "id"
+	return p.call, humanOf(p.repo, p.snapshot.Id().String()), "id"
 }
 
 func (p *showPage) load() error {
@@ -541,9 +541,10 @@ func (p *showPage) key(press tea.KeyPressMsg) (page, tea.Cmd) {
 		return p, p.edit(here)
 
 	case keys.copyId.matches(press):
-		// the clipboard gets the whole id, the message the short one
-		p.status = "copied " + p.snapshot.Id().Human()
-		return p, setClipboard(p.id)
+		// what is shown: an alias as drawn, a hash whole (alias-ids.md A7)
+		drawn := humanOf(p.repo, p.snapshot.Id().String())
+		p.status = "copied " + drawn
+		return p, setClipboard(copyOf(p.snapshot.Id().String(), drawn))
 	case keys.copy.matches(press):
 		return p, p.copyHere(here)
 	case keys.paste.matches(press):
@@ -840,8 +841,9 @@ func (p *showPage) copyHere(here position) tea.Cmd {
 		row := p.currentRow()
 		what, value = row.key, plain(p.snapshot.Fields[row.key])
 		if row.link != "" {
-			// a link copies the id it names, which is what a command takes
-			value = row.link
+			// a link copies the id it names, which is what a command takes,
+			// as it is shown (alias-ids.md A7)
+			value = copyOf(row.link, humanOf(p.repo, row.link))
 		}
 	case stopTabs:
 		if p.tab != tabDescription {
@@ -997,7 +999,7 @@ func (p *showPage) View() string {
 
 // topLines is what never scrolls: the call, and the header under it.
 func (p *showPage) topLines(here position) []string {
-	lines := []string{callLine(p.call, p.snapshot.Id().Human(), "id", p.width), ""}
+	lines := []string{callLine(p.call, humanOf(p.repo, p.snapshot.Id().String()), "id", p.width), ""}
 	lines = append(lines, p.headerLines(here)...)
 	return append(lines, "")
 }

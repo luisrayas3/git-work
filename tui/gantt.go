@@ -959,9 +959,9 @@ func (p *ganttPage) copyId() tea.Cmd {
 	if b == nil || b.id == "" {
 		return bell()
 	}
-	// the clipboard gets the whole id, the message the short one (copyId)
+	// what is shown: an alias as drawn, a hash whole (copyOf)
 	p.status = "copied " + b.human
-	return setClipboard(b.id)
+	return setClipboard(copyOf(b.id, b.human))
 }
 
 func (p *ganttPage) startFilter() {
