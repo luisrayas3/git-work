@@ -71,7 +71,6 @@ git remote you are already using to collaborate with other people.
 	addCmdWithGroup(newLabelCommand(env), entityGroup)
 
 	addCmdWithGroup(newTermUICommand(env), uiGroup)
-	addCmdWithGroup(newWebUICommand(env), uiGroup)
 
 	addCmdWithGroup(newSyncCommand(env), remoteGroup)
 	addCmdWithGroup(newPullCommand(env), remoteGroup)
