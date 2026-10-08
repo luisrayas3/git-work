@@ -113,6 +113,8 @@ The store is an operation log, so the past is readable.
 - `git work issue log ID --from TIME --to TIME`
   prints the operations written in the window, which is half-open,
   `[from, to)`.
+  The cut is each operation's own clock time,
+  so an operation pulled late still lands in the window it was written in.
   The log also takes the list's program in place of an id,
   and then every selected issue's operations come back,
   each entry naming the issue it belongs to.
@@ -136,38 +138,91 @@ in Starlark, the same reason `work.schema.import_` does.
 
 ## Where everything else is
 
-- The schema is the authority
-  on what a type's fields and available values are:
-  `git work schema` prints it as YAML, `--format json` as JSON.
-  The live section below summarizes it.
 - Any command explains itself: `git work issue set --help`, and so on down the tree.
-- Flows are the porcelain, one Starlark function each:
-  `git work flow list` lists them with their arguments and
-  `git work flow run NAME` runs one,
-  taking its arguments as one JSON object.
-- Views are interactive and need a terminal;
-  there is no browser interface.
-  An agent reads the data with `git work issue list 'PROGRAM'` instead.
-  There are six kinds — `list`, `show`, `board`, `gantt`, `matrix`
-  and `new`, the form that creates an issue —
-  each a `git work view KIND KWARGS` command
-  taking one JSON object of keyword arguments.
-  `git work view list --help` is the argument table,
-  and it is the reference for `work.view.list(**kwargs)` too,
-  because both parse against the same table.
-  A `required` argument has to be named,
-  a `defaulted` one has a value already,
-  and an `optional` one is off until it is named.
-  Most kinds take a `query`, the same jq program the listing takes;
-  `group_by` sections the rows by a field, the ones with no value last;
-  and `expand` nests the issues one relation reaches under each row,
+- The schema is the authority on what a type's fields and values are;
+  the live section at the end of this page summarizes it.
+- The flows are how this repository is meant to be looked at;
+  the live section lists them too.
+
+## The schema
+
+Types and fields are entities under `refs/work-schema`,
+so they merge like issues do.
+
+- `git work schema` prints the schema as YAML, `--format json` as JSON.
+- `git work schema init [jira|linear]` creates a preset's types and fields,
+  and refuses once any field exists.
+- `git work schema export > FILE` and `git work schema import FILE`
+  round-trip it. Import is an upsert that writes only what differs,
+  `--prune` archives what the file leaves out,
+  and `--dry-run` prints what it would do.
+- A field's key is `TYPE/FIELD`: every field belongs to one type,
+  so `task/status` and `epic/status` are two fields with two value lists.
+  In the file, YAML anchors share a definition between types.
+- `git work schema log [KEY]` is a key's history,
+  and `git work schema archive KEY` removes it, replicated.
+
+Every issue write is checked against the schema, as above;
+with no type defined nothing is checked.
+
+## Flows and Starlark
+
+A flow is one Starlark function stored under `refs/work-flows`:
+its name is the flow's name, its docstring the description,
+its parameters the arguments.
+
+- `git work flow list` lists them, with their arguments.
+- `git work flow run NAME [KWARGS]` runs one;
+  KWARGS is one JSON object of its arguments, the signature's defaults filling the rest,
+  and an unknown key is refused naming the parameters.
+  `git work flow run - < FILE` runs a script without storing it.
+- `git work flow import FILE|DIR` stores flows: an upsert keyed on the function's name,
+  so the file's name never matters, `--prune` archives the flows not given,
+  and a file that is not exactly one `def` aborts the whole import.
+- `git work flow export NAME` prints a flow's source; `--all DIR` writes every one.
+
+A script reaches one predeclared name, `work`,
+which mirrors this command line one to one, because both go through the same code:
+`git work issue get ID` is `work.issue.get(id)`,
+`git work issue list PROGRAM --at TIME` is `work.issue.list(program, at=…)`,
+`git work view board KWARGS` is `work.view.board(**kwargs)`,
+and this page is `work.quickstart()`.
+Two names change because they are Starlark keywords:
+`git work schema import` is `work.schema.import_(doc)`,
+and `--from` is `from_=`.
+The bare `git work issue` is the human form of `list` and has no Starlark name.
+`print()` is a flow's standard output, a returned value is printed as JSON after it,
+and `work.stderr(*values)` writes one line to standard error.
+A flow writes through the same path a command does, schema check included.
+
+## Views
+
+Views are interactive and need a terminal; there is no browser interface.
+An agent reads the data with `git work issue list 'PROGRAM'` instead,
+and opens a view only for a human to look at.
+
+There are six kinds — `list`, `show`, `board`, `gantt`, `matrix`
+and `new`, the form that creates an issue —
+each a `git work view KIND KWARGS` command
+taking one JSON object of keyword arguments (`-` reads it from standard input).
+`git work view list --help` is the argument table,
+and it is the reference for `work.view.list(**kwargs)` too,
+because both parse against the same table.
+A `required` argument has to be named,
+a `defaulted` one has a value already,
+and an `optional` one is off until it is named.
+
+- Most kinds take a `query`, the same jq program the listing takes,
+  re-run whenever the store changes, so a view stays live.
+- `group_by` sections the rows by a field, the ones with no value last.
+- `expand` nests the issues one relation reaches under each row,
   as `"children"` or as a layer that says what that level draws;
   on `show` it takes the same, or a list of them,
   and draws each as a flat table of the issues it reaches beside the fields.
-  `show` on a list, a gantt, a board or a matrix says what `Enter` opens per type,
+- `show` on a list, a gantt, a board or a matrix says what `Enter` opens per type,
   `{"epic":{"expand":"children"}}`, a type key mapped to show's arguments without `id`;
   the pages opened from there open by the same map.
-  On a list and a gantt a row the query makes may carry a top-level `key`,
+- On a list and a gantt a row the query makes may carry a top-level `key`,
   its identity on the screen, so one issue can be drawn twice;
   its `id` stays the issue it acts on, and may be left out beside a key,
   where `fields.type` must name a type;
@@ -176,33 +231,43 @@ in Starlark, the same reason `work.schema.import_` does.
   A row is keyed when its key is not its id or it has no id;
   the rows of one level under one parent are all keyed or none,
   and a keyed row's drag is kept by the view, never written.
-  A nested view opens folded; `"open":true` opens every parent,
+- A nested view opens folded; `"open":true` opens every parent,
   a number that many levels from the roots.
-  `git work view new '{"doc":{…}}'` opens the creator on an `issue new` document,
+- `git work view new '{"doc":{…}}'` opens the creator on an `issue new` document,
   every value still editable, and prints the id it creates;
   in a list, a gantt or a board the dim `+ (new)` row at the foot of a group
   opens it prefilled with that group's values.
-- Starlark mirrors this command line one to one,
-  because both go through the same code.
-  `work` is the only predeclared name:
-  `git work issue get ID` is `work.issue.get(id)`,
-  `git work issue list` is `work.issue.list()`
-  (the bare `git work issue` is its human form, and has no Starlark name),
-  `git work schema import` is `work.schema.import_(doc)`
-  because `import` is a Starlark keyword,
-  and this page is `work.quickstart()`.
-  `print()` is a flow's standard output,
-  and `work.stderr(*values)` writes one line to standard error.
-- Sync: `git work pull` and `git work push` carry every namespace
-  over the git remote, `git work sync` does both in one run,
-  and `git work jira sync` (or `git work sync --jira`) syncs a bound clone
-  with a Jira project, where Jira is canonical.
+
+In a view `Enter` opens, `Space` edits or grabs a row to move it,
+`/` filters, `Esc` goes back and `C-q` quits;
+`?` lists every key, in standard, vim and emacs bindings.
+
+## Sync and Jira
+
+- `git work pull` and `git work push` carry every namespace over the git remote,
+  and `git work sync` does both in one run.
   Pushing publishes the tracker, so do it only when asked to.
-  Two local copies of one Jira issue are consolidated into one,
+- `git work jira sync` (or `git work sync --jira`) syncs one bound clone
+  with one Jira Cloud project, both ways, field by field;
+  Jira wins a field edited on both sides and says so in a comment.
+  A clone is bound by `git config git-work.jira.url`, `git-work.jira.project`
+  and `git-work.jira.email`, with the token in `JIRA_API_TOKEN` or git's credential store.
+  `git work jira schema` prints the schema the project maps to, to review and import first.
+  The sync never pushes, prints one JSON object per line,
+  and exits 1 when an issue failed; run it from cron, it has no daemon.
+  Bind one clone per project.
+- Two local copies of one Jira issue are consolidated into one,
   the other archived with `metadata["jira-consolidated-into"]` naming the survivor.
+
+## Practicalities
+
 - `git work user me` is the identity you write as.
   It is settled from git's `user.name` and `user.email` on the first write,
   so there is nothing to set up.
+- `git` must be on the `PATH`: config and remotes go through it.
+- Readers take no lock. A writer holds a short lock across one commit;
+  `timed out after 5s waiting for the write lock (held by pid N)`
+  means another writer really is running.
 
 ## Basic types
 
