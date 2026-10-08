@@ -168,7 +168,7 @@ func NewIssueExcerpt(backend *cache.RepoCache, excerpt *cache.IssueExcerpt) (Iss
 }
 
 // NewIssueExcerptAt builds the same excerpt from a snapshot replayed at a past
-// time, so that a jq program written for `git work issue` reads `--at` unchanged.
+// time, so that a jq program written for `git work issue list` reads `--at` unchanged.
 //
 // It is built here rather than from a cache.IssueExcerpt because the cache
 // holds the present only (doc/design/report.md). createLamport is the create

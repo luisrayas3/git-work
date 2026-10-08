@@ -33,8 +33,8 @@ without importing it: one function, the same shape import takes.
 KWARGS is a JSON object of the flow's arguments, given as the argument or on
 standard input as "-" (not when the script is). Defaults in the signature fill
 what the object omits, an unknown key is an error naming the arguments, and an
-argument with no default that nobody named is an error too. ` + "`git work flow`" + `
-lists them.
+argument with no default that nobody named is an error too.
+` + "`git work flow list`" + ` lists them.
 
 print() writes to standard output, so a flow that renders text prints it. A
 flow that returns a value prints it as JSON after that; one that returns

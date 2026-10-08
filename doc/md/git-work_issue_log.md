@@ -49,5 +49,5 @@ git work issue log --from 7d --format text
 
 ### SEE ALSO
 
-* [git-work issue](git-work_issue.md)	 - List issues
+* [git-work issue](git-work_issue.md)	 - List issues, one line each
 

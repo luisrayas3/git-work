@@ -9,6 +9,7 @@ import (
 
 	"github.com/git-bug/git-bug/commands/bug/testenv"
 	"github.com/git-bug/git-bug/commands/cmdjson"
+	"github.com/git-bug/git-bug/commands/execenv"
 )
 
 // TestUserMeIsTheRowUserPrints pins `me` to the listing it narrows:
@@ -37,6 +38,42 @@ func TestUserMeIsTheRowUserPrints(t *testing.T) {
 
 	// and it is one document, not the list's array of one
 	require.True(t, strings.HasPrefix(strings.TrimSpace(env.Out.String()), "{"))
+}
+
+// TestUserListForms runs both list forms from argv (2026-10-08):
+// `user list` is the plumbing, JSON by default,
+// and the bare `user` its human form, text by default.
+func TestUserListForms(t *testing.T) {
+	env, userID := testenv.NewTestEnvAndUser(t)
+
+	run := func(args ...string) string {
+		t.Helper()
+		env.Out.Reset()
+		require.NoError(t, execenv.ExecuteTest(t, env, NewUserCommand(env), args...))
+		return env.Out.String()
+	}
+
+	env.Out.Reset()
+	require.NoError(t, runUser(env, userOptions{format: "json"}))
+	asJSON := env.Out.String()
+	env.Out.Reset()
+	require.NoError(t, runUser(env, userOptions{format: "text"}))
+	asText := env.Out.String()
+	require.Contains(t, asText, userID.Human())
+
+	require.JSONEq(t, asJSON, run("list"))
+	require.Equal(t, asText, run())
+	require.JSONEq(t, asJSON, run("--format", "json"))
+	require.Equal(t, asText, run("list", "--format", "text"))
+
+	// `me` keeps its own default, JSON
+	var me cmdjson.Identity
+	require.NoError(t, json.Unmarshal([]byte(run("me")), &me))
+	require.Equal(t, userID.String(), me.Id)
+
+	// neither form takes an argument
+	require.Error(t, execenv.ExecuteTest(t, env, NewUserCommand(env), "someone"))
+	require.Error(t, execenv.ExecuteTest(t, env, NewUserCommand(env), "list", "someone"))
 }
 
 func TestUserMeRefusesAnUnknownFormat(t *testing.T) {

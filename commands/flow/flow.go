@@ -8,8 +8,9 @@
 // The refs are the runtime source of truth and the `.star` files in a tree are
 // authoring files, so `import` is the only way from one to the other (E1).
 //
-// This tree is the entity's surface — list, get, run, import, export, log,
-// archive and rm, to the map in doc/design/cli-convention.md —
+// This tree is the entity's surface — list, run, import, export, log,
+// archive and rm, to the map in doc/design/cli-convention.md,
+// the bare noun being the human form of list —
 // and it reaches the store through package `host`, as a script does;
 // `flow/run` is the Starlark runtime `run` calls.
 package flowcmd
@@ -38,19 +39,65 @@ type flowListOptions struct {
 	format string
 }
 
+// NewFlowCommand is the bare `git work flow`: the human form of `flow list`,
+// one line per flow, with --format json still there
+// (decided 2026-10-08, doc/design/cli-convention.md).
+// It has no Starlark name; work.flow.list() mirrors `flow list`.
 func NewFlowCommand(env *execenv.Env) *cobra.Command {
 	options := flowListOptions{}
 
 	cmd := &cobra.Command{
 		Use:   "flow",
-		Short: "List the flows",
-		Long: `List the flows: their names, descriptions and arguments.
+		Short: "List the flows, one line each",
+		Long: `List the flows, one line per flow: the name and the first line
+of its description.
 
-A flow is one Starlark function stored in refs/work-flows. Its name is the
+This is the human form of ` + "`git work flow list`" + `, which prints the same flows
+as JSON, their arguments included, and is the form to script against;
+--format json prints that here too.
+
+` + flowListAbout,
+		Args:    cobra.NoArgs,
+		PreRunE: execenv.LoadBackend(env),
+		RunE: execenv.CloseBackend(env, func(cmd *cobra.Command, args []string) error {
+			return runFlowList(env, options)
+		}),
+	}
+
+	flags := cmd.Flags()
+	flags.SortFlags = false
+
+	execenv.AddFormatFlag(cmd, &options.format, "text", "json")
+
+	cmd.AddCommand(newFlowArchiveCommand(env))
+	cmd.AddCommand(newFlowExportCommand(env))
+	cmd.AddCommand(newFlowImportCommand(env))
+	cmd.AddCommand(newFlowListCommand(env))
+	cmd.AddCommand(newFlowLogCommand(env))
+	cmd.AddCommand(newFlowRmCommand(env))
+	cmd.AddCommand(newFlowRunCommand(env))
+
+	return cmd
+}
+
+const flowListAbout = `A flow is one Starlark function stored in refs/work-flows. Its name is the
 flow's name, its docstring the description and its parameters the arguments
-` + "`git work flow run`" + ` takes.
+` + "`git work flow run`" + ` takes.`
 
---format text prints one line per flow, the name and its description.`,
+// newFlowListCommand is `git work flow list`, the plumbing:
+// JSON by default, and what work.flow.list() returns.
+func newFlowListCommand(env *execenv.Env) *cobra.Command {
+	options := flowListOptions{}
+
+	cmd := &cobra.Command{
+		Use:   "list",
+		Short: "List the flows, JSON out",
+		Long: `List the flows: their names, descriptions and arguments, as JSON.
+
+` + flowListAbout + `
+
+--format text prints one line per flow, the name and its summary line, which
+is what the bare ` + "`git work flow`" + ` prints.`,
 		Args:    cobra.NoArgs,
 		PreRunE: execenv.LoadBackend(env),
 		RunE: execenv.CloseBackend(env, func(cmd *cobra.Command, args []string) error {
@@ -62,13 +109,6 @@ flow's name, its docstring the description and its parameters the arguments
 	flags.SortFlags = false
 
 	execenv.AddFormatFlag(cmd, &options.format, "json", "text")
-
-	cmd.AddCommand(newFlowArchiveCommand(env))
-	cmd.AddCommand(newFlowExportCommand(env))
-	cmd.AddCommand(newFlowImportCommand(env))
-	cmd.AddCommand(newFlowLogCommand(env))
-	cmd.AddCommand(newFlowRmCommand(env))
-	cmd.AddCommand(newFlowRunCommand(env))
 
 	return cmd
 }
@@ -86,8 +126,11 @@ func runFlowList(env *execenv.Env, opts flowListOptions) error {
 	case "json":
 		return env.Out.PrintJSON(entries)
 	case "text":
+		// One line per flow: a docstring's first line is its summary,
+		// and the rest is for `flow list` or `flow export`.
 		for _, entry := range entries {
-			env.Out.Printf("%s\t%s\n", entry.Name, entry.Description)
+			summary, _, _ := strings.Cut(entry.Description, "\n")
+			env.Out.Printf("%s\t%s\n", entry.Name, strings.TrimSpace(summary))
 		}
 		return nil
 	default:

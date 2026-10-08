@@ -19,5 +19,5 @@ git-work flow rm NAME [flags]
 
 ### SEE ALSO
 
-* [git-work flow](git-work_flow.md)	 - List the flows
+* [git-work flow](git-work_flow.md)	 - List the flows, one line each
 

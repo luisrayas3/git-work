@@ -2,7 +2,7 @@
 .TH "GIT-WORK" "1" "Apr 2019" "Generated from git-work's source code" ""
 
 .SH NAME
-git-work-issue - List issues
+git-work-issue - List issues, one line each
 
 
 .SH SYNOPSIS
@@ -10,18 +10,24 @@ git-work-issue - List issues
 
 
 .SH DESCRIPTION
+The human form of \fBgit work issue list\fR: the same program, input and
+flags, printed one line per issue (id, status, title) unless --format json
+is asked for. \fBgit work issue list\fR is the plumbing, JSON by default, and
+the form to script against.
+
+.PP
 Run a jq program over the issues and print what it emits.
 
 .PP
 The program's input is the array of unarchived issue excerpts, the same JSON
-this command prints: one object per issue, with an id, times, an author and a
-fields map. --include-archive brings the archived back into the input.
-With no program, the list is every issue of the input, last edited first.
+\fBgit work issue list\fR prints: one object per issue, with an id, times, an
+author and a fields map. --include-archive brings the archived back into the
+input. With no program, the list is every issue of the input, last edited first.
 
 .PP
-Each emitted value is printed as JSON, one per line when there are several.
---format text prints one line per issue when the program returned issues, and
-falls back to JSON when it returned anything else.
+--format json prints each emitted value as JSON, one per line when there are
+several. --format text prints one line per issue when the program returned
+issues, and falls back to JSON when it returned anything else.
 
 .PP
 --at TIME runs the program over the issues as they stood at that moment,
@@ -39,8 +45,8 @@ then, so the input leaves out what was archived at the time.
 	include the archived issues in the program's input
 
 .PP
-\fB-f\fP, \fB--format\fP="json"
-	Select the output formatting style. Valid values are [json,text]
+\fB-f\fP, \fB--format\fP="text"
+	Select the output formatting style. Valid values are [text,json]
 
 .PP
 \fB-h\fP, \fB--help\fP[=false]
@@ -49,23 +55,17 @@ then, so the input leaves out what was archived at the time.
 
 .SH EXAMPLE
 .EX
-Every issue, in the input's own order:
-git work issue .
+What is not done:
+git work issue 'map(select(.fields.status != "done"))'
 
-The titles of the issues of one epic:
-git work issue 'map(select(.fields.parent == "6a1b2c3")) | map(.fields.title)'
-
-A kanban of what is not done:
-git work view board '{"query":"map(select(.fields.status != \\"done\\"))","columns":"status"}'
+The same, as JSON:
+git work issue list 'map(select(.fields.status != "done"))'
 
 What was open a week ago:
 git work issue 'map(select(.fields.status != "done"))' --at 7d
-
-The archived issues:
-git work issue 'map(select(.fields.archived))' --include-archive
 
 .EE
 
 
 .SH SEE ALSO
-\fBgit-work(1)\fP, \fBgit-work-issue-add(1)\fP, \fBgit-work-issue-archive(1)\fP, \fBgit-work-issue-comment(1)\fP, \fBgit-work-issue-get(1)\fP, \fBgit-work-issue-log(1)\fP, \fBgit-work-issue-new(1)\fP, \fBgit-work-issue-remove(1)\fP, \fBgit-work-issue-rm(1)\fP, \fBgit-work-issue-set(1)\fP
+\fBgit-work(1)\fP, \fBgit-work-issue-add(1)\fP, \fBgit-work-issue-archive(1)\fP, \fBgit-work-issue-comment(1)\fP, \fBgit-work-issue-get(1)\fP, \fBgit-work-issue-list(1)\fP, \fBgit-work-issue-log(1)\fP, \fBgit-work-issue-new(1)\fP, \fBgit-work-issue-remove(1)\fP, \fBgit-work-issue-rm(1)\fP, \fBgit-work-issue-set(1)\fP

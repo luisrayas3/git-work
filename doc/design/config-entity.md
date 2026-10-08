@@ -515,7 +515,9 @@ taking the same arguments and returning the JSON the command prints.
 Every module hangs off one predeclared global named `work`,
 after the binary itself (Luis, 2026-09-24),
 so `git work issue set ID '{"status":"done"}'` is `work.issue.set(id, status="done")`
-and `git work issue PROGRAM` is `work.issue.list(program)`,
+and `git work issue list PROGRAM` is `work.issue.list(program)`
+(the bare `git work issue PROGRAM` is its human form, with no Starlark name,
+`cli-convention.md`, 2026-10-08),
 which also leaves `issue` and `flow` free as local names in a script.
 `import` is a reserved word in Starlark,
 so `git work schema import` is the one verb that can not keep its name
@@ -595,7 +597,7 @@ so the input already is the serialization
 and `{"view", "bindings", "items"}` has nothing left to do.
 `--gui` posts that same object to the `gui` process (`8b06191`);
 no TTY and no `--gui` is an error,
-because an agent that wants the data runs `git work issue PROGRAM`.
+because an agent that wants the data runs `git work issue list PROGRAM`.
 What package `view` keeps is the kinds table, the argument contract,
 which the view functions, every backend and the help all read,
 so a backend that lacks a kind fails naming itself
@@ -614,8 +616,9 @@ nesting, rank and the sequencing are `terminal-renderer.md` (`84dfbde`).
 
 `work.user.me()` is the current identity,
 and the command line spells it `git work user me`,
-the explicit form of the bare `git work user`,
-which is `work.user.list()`, every identity the store knows,
+beside `git work user list`,
+which is `work.user.list()`, every identity the store knows
+(the bare `git work user` is that list's human form, 2026-10-08),
 so the only script-only name left is `work.stderr`,
 whose shell form is a redirection rather than a command.
 

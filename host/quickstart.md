@@ -48,6 +48,10 @@ so it is eventually consistent, not transactional.
 `git work issue` is plumbing, written for an agent.
 JSON goes in and JSON comes out;
 `--format text` on a reader prints it for a human instead.
+The one exception is the bare noun:
+`git work issue`, `git work flow` and `git work user` alone
+are the human form of their `list`, one line per row,
+so an agent lists with `git work issue list` and reads JSON.
 A document argument is read from standard input when it is `-`.
 A writer prints an id or nothing at all, and diagnostics go to stderr.
 
@@ -80,12 +84,14 @@ an enum value naming the values the field accepts,
 a relation naming the types it may point at.
 
 The listing is a jq program.
-`git work issue 'PROGRAM'` runs PROGRAM
+`git work issue list 'PROGRAM'` runs PROGRAM
 over the array of every unarchived issue as an excerpt
 (`id`, `human_id`, `create_time`, `edit_time`, `fields`, `author`,
 `actors`, `participants`, `comments` (a count) and `metadata`)
-and prints what it emits.
+and prints what it emits, as JSON.
 With no program the default is all of them, last edited first.
+The bare `git work issue 'PROGRAM'` takes the same program and flags
+and prints one line per issue (id, status, title), for a human.
 `--include-archive` puts the archived issues back in the input;
 a view takes it as `"include_archive": true`,
 and `work.issue.list` and `work.issue.log` as `include_archive=True`.
@@ -96,7 +102,7 @@ The store is an operation log, so the past is readable.
 
 - `git work issue get ID --at TIME` prints the issue as it stood then,
   replayed from its operations.
-  `git work issue 'PROGRAM' --at TIME` runs the program over the issues
+  `git work issue list 'PROGRAM' --at TIME` runs the program over the issues
   as they stood then;
   an issue created after TIME is absent,
   and `archived` is the value it had at the time.
@@ -132,11 +138,11 @@ in Starlark, the same reason `work.schema.import_` does.
   The live section below summarizes it.
 - Any command explains itself: `git work issue set --help`, and so on down the tree.
 - Flows are the porcelain, one Starlark function each:
-  `git work flow` lists them with their arguments and
+  `git work flow list` lists them with their arguments and
   `git work flow run NAME` runs one,
   taking its arguments as one JSON object.
 - Views are interactive and need a terminal.
-  An agent reads the data with `git work issue 'PROGRAM'` instead.
+  An agent reads the data with `git work issue list 'PROGRAM'` instead.
   There are five kinds — `list`, `show`, `board`, `gantt` and `matrix` —
   each a `git work view KIND KWARGS` command
   taking one JSON object of keyword arguments.
@@ -167,6 +173,8 @@ in Starlark, the same reason `work.schema.import_` does.
   because both go through the same code.
   `work` is the only predeclared name:
   `git work issue get ID` is `work.issue.get(id)`,
+  `git work issue list` is `work.issue.list()`
+  (the bare `git work issue` is its human form, and has no Starlark name),
   `git work schema import` is `work.schema.import_(doc)`
   because `import` is a Starlark keyword,
   and this page is `work.quickstart()`.
@@ -188,7 +196,7 @@ A field's kind says what its value has to be:
 - `bool` — `true` or `false`.
 - `number` — a number.
 - `date` — an RFC 3339 string, `"2026-10-02"` or a full timestamp.
-- `identity`, `multi-identity` — the id of an identity, as `git work user` lists them.
+- `identity`, `multi-identity` — the id of an identity, as `git work user list` lists them.
 - `relation`, `multi-relation` — the id of another issue,
   of a type the field's target types allow.
 
@@ -224,11 +232,11 @@ EOF
 Everything still open, grouped by type:
 
 ```sh
-git work issue 'map(select(.fields.status != "done")) | group_by(.fields.type)'
+git work issue list 'map(select(.fields.status != "done")) | group_by(.fields.type)'
 ```
 
-One story's tasks:
+One story's tasks, one line each for a human (`issue list` for the JSON):
 
 ```sh
-git work issue 'map(select(.fields.parent == "<story id>"))' --format text
+git work issue 'map(select(.fields.parent == "<story id>"))'
 ```

@@ -1,19 +1,24 @@
 ## git-work issue
 
-List issues
+List issues, one line each
 
 ### Synopsis
+
+The human form of `git work issue list`: the same program, input and
+flags, printed one line per issue (id, status, title) unless --format json
+is asked for. `git work issue list` is the plumbing, JSON by default, and
+the form to script against.
 
 Run a jq program over the issues and print what it emits.
 
 The program's input is the array of unarchived issue excerpts, the same JSON
-this command prints: one object per issue, with an id, times, an author and a
-fields map. --include-archive brings the archived back into the input.
-With no program, the list is every issue of the input, last edited first.
+`git work issue list` prints: one object per issue, with an id, times, an
+author and a fields map. --include-archive brings the archived back into the
+input. With no program, the list is every issue of the input, last edited first.
 
-Each emitted value is printed as JSON, one per line when there are several.
---format text prints one line per issue when the program returned issues, and
-falls back to JSON when it returned anything else.
+--format json prints each emitted value as JSON, one per line when there are
+several. --format text prints one line per issue when the program returned
+issues, and falls back to JSON when it returned anything else.
 
 --at TIME runs the program over the issues as they stood at that moment,
 replayed from their operations: TIME is a date (2026-09-21), an RFC 3339 time, or a duration back from now (7d, 2w, 12h).
@@ -27,20 +32,14 @@ git-work issue [PROGRAM] [flags]
 ### Examples
 
 ```
-Every issue, in the input's own order:
-git work issue .
+What is not done:
+git work issue 'map(select(.fields.status != "done"))'
 
-The titles of the issues of one epic:
-git work issue 'map(select(.fields.parent == "6a1b2c3")) | map(.fields.title)'
-
-A kanban of what is not done:
-git work view board '{"query":"map(select(.fields.status != \"done\"))","columns":"status"}'
+The same, as JSON:
+git work issue list 'map(select(.fields.status != "done"))'
 
 What was open a week ago:
 git work issue 'map(select(.fields.status != "done"))' --at 7d
-
-The archived issues:
-git work issue 'map(select(.fields.archived))' --include-archive
 
 ```
 
@@ -49,7 +48,7 @@ git work issue 'map(select(.fields.archived))' --include-archive
 ```
       --at string         the issues as they stood at TIME
       --include-archive   include the archived issues in the program's input
-  -f, --format string     Select the output formatting style. Valid values are [json,text] (default "json")
+  -f, --format string     Select the output formatting style. Valid values are [text,json] (default "text")
   -h, --help              help for issue
 ```
 
@@ -60,6 +59,7 @@ git work issue 'map(select(.fields.archived))' --include-archive
 * [git-work issue archive](git-work_issue_archive.md)	 - Archive an issue
 * [git-work issue comment](git-work_issue_comment.md)	 - Write an issue's comments
 * [git-work issue get](git-work_issue_get.md)	 - Print one issue whole
+* [git-work issue list](git-work_issue_list.md)	 - Run a jq program over the issues, JSON out
 * [git-work issue log](git-work_issue_log.md)	 - Print the history of one issue or of many
 * [git-work issue new](git-work_issue_new.md)	 - Create a new issue from a JSON document
 * [git-work issue remove](git-work_issue_remove.md)	 - Remove items from list-valued fields of an issue

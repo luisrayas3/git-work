@@ -13,7 +13,7 @@ import (
 
 // newUserMeCommand is `git work user me`, the identity this repository writes as.
 //
-// It is the row the bare `git work user` prints for that one identity,
+// It is the row `git work user list` prints for that one identity,
 // in the same two formats,
 // and it is the command side of `work.user.me()`:
 // both are one call to `host.UserMe`,

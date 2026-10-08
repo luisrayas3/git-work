@@ -2,7 +2,7 @@
 .TH "GIT-WORK" "1" "Apr 2019" "Generated from git-work's source code" ""
 
 .SH NAME
-git-work-flow - List the flows
+git-work-flow - List the flows, one line each
 
 
 .SH SYNOPSIS
@@ -10,20 +10,23 @@ git-work-flow - List the flows
 
 
 .SH DESCRIPTION
-List the flows: their names, descriptions and arguments.
+List the flows, one line per flow: the name and the first line
+of its description.
+
+.PP
+This is the human form of \fBgit work flow list\fR, which prints the same flows
+as JSON, their arguments included, and is the form to script against;
+--format json prints that here too.
 
 .PP
 A flow is one Starlark function stored in refs/work-flows. Its name is the
 flow's name, its docstring the description and its parameters the arguments
 \fBgit work flow run\fR takes.
 
-.PP
---format text prints one line per flow, the name and its description.
-
 
 .SH OPTIONS
-\fB-f\fP, \fB--format\fP="json"
-	Select the output formatting style. Valid values are [json,text]
+\fB-f\fP, \fB--format\fP="text"
+	Select the output formatting style. Valid values are [text,json]
 
 .PP
 \fB-h\fP, \fB--help\fP[=false]
@@ -31,4 +34,4 @@ flow's name, its docstring the description and its parameters the arguments
 
 
 .SH SEE ALSO
-\fBgit-work(1)\fP, \fBgit-work-flow-archive(1)\fP, \fBgit-work-flow-export(1)\fP, \fBgit-work-flow-import(1)\fP, \fBgit-work-flow-log(1)\fP, \fBgit-work-flow-rm(1)\fP, \fBgit-work-flow-run(1)\fP
+\fBgit-work(1)\fP, \fBgit-work-flow-archive(1)\fP, \fBgit-work-flow-export(1)\fP, \fBgit-work-flow-import(1)\fP, \fBgit-work-flow-list(1)\fP, \fBgit-work-flow-log(1)\fP, \fBgit-work-flow-rm(1)\fP, \fBgit-work-flow-run(1)\fP

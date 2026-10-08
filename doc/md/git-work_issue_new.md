@@ -33,5 +33,5 @@ echo "$doc" | git work issue new -
 
 ### SEE ALSO
 
-* [git-work issue](git-work_issue.md)	 - List issues
+* [git-work issue](git-work_issue.md)	 - List issues, one line each
 
