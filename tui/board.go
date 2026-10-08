@@ -605,7 +605,7 @@ func (p *boardPage) key(press tea.KeyPressMsg) (page, tea.Cmd) {
 	case keys.act.matches(press):
 		if c := p.current(); c != nil {
 			if c.ghost {
-				return p, openNew(p.repo, p.ghostDoc(c))
+				return p, openNew(p.repo, p.call.Raw("show"), p.ghostDoc(c))
 			}
 			return p, p.push(c.id)
 		}
@@ -689,14 +689,9 @@ func (p *boardPage) cardsPerPage() int {
 	return max(p.height/4, 1)
 }
 
-// push opens an issue over the board.
+// push opens an issue over the board, by the call's `show` (show_map.go).
 func (p *boardPage) push(id string) tea.Cmd {
-	shown, err := newShowPage(p.repo, id, nil)
-	if err != nil {
-		p.status = err.Error()
-		return bell()
-	}
-	return func() tea.Msg { return pushMsg{page: shown} }
+	return pushShow(p.repo, p.call.Raw("show"), id, &p.status)
 }
 
 func (p *boardPage) copyId() tea.Cmd {

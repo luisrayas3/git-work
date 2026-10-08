@@ -75,8 +75,9 @@ func groupPrefill(repo *cache.RepoCache, typeKey, groupBy, group string, raw any
 	return value, true
 }
 
-// openNew opens the creator over the view, on a draft.
-func openNew(repo *cache.RepoCache, doc host.IssueDocument) tea.Cmd {
+// openNew opens the creator over the view, on a draft, carrying the view's
+// `show` for the pages the creator opens (show_map.go).
+func openNew(repo *cache.RepoCache, shows json.RawMessage, doc host.IssueDocument) tea.Cmd {
 	raw, err := json.Marshal(doc)
 	if err != nil {
 		return nil
@@ -89,6 +90,7 @@ func openNew(repo *cache.RepoCache, doc host.IssueDocument) tea.Cmd {
 	if err != nil {
 		return func() tea.Msg { return statusMsg(err.Error()) }
 	}
+	created.shows = shows
 	return func() tea.Msg { return pushMsg{page: created} }
 }
 

@@ -818,14 +818,10 @@ func (p *showPage) edit(here position) tea.Cmd {
 	return p.startEdit(p.field(), nil)
 }
 
-// follow opens the issue a link names, over this one.
+// follow opens the issue a link names, over this one, by the call's `show`:
+// the map this page was opened by, or a direct call's (show_map.go).
 func (p *showPage) follow(id string) tea.Cmd {
-	shown, err := newShowPage(p.repo, id, nil)
-	if err != nil {
-		p.status = err.Error()
-		return bell()
-	}
-	return func() tea.Msg { return pushMsg{page: shown} }
+	return pushShow(p.repo, p.call.Raw("show"), id, &p.status)
 }
 
 func (p *showPage) copyHere(here position) tea.Cmd {

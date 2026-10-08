@@ -85,12 +85,17 @@ type sideGrab struct {
 }
 
 // newShowView is the show page a call describes, `expand` included: the
-// entry point from the command and from a flow, where a list's enter opens a
-// bare page with newShowPage.
+// entry point from the command and from a flow, and from every Enter that
+// opens an issue by a view's `show` (show_map.go).
 func newShowView(repo *cache.RepoCache, call *view.Call) (*showPage, error) {
 	p, err := newShowPage(repo, call.String("id"), call.Strings("fields"))
 	if err != nil {
 		return nil, err
+	}
+	// the map the pages this one opens are opened by, never this page's
+	// (doc/design/show-from-a-view.md, V3)
+	if call.Has("show") {
+		p.call.Args["show"] = call.Raw("show")
 	}
 	layers := call.SideTables()
 	if len(layers) == 0 {
@@ -302,7 +307,7 @@ func (p *showPage) sideAct() tea.Cmd {
 	case item == nil:
 		return bell()
 	case item.ghost:
-		return openNew(p.repo, cloneDoc(*p.tables[item.table].ghost))
+		return openNew(p.repo, p.call.Raw("show"), cloneDoc(*p.tables[item.table].ghost))
 	case item.row < 0:
 		p.status = "no issue"
 		return bell()
