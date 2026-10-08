@@ -543,9 +543,9 @@ once the view owns the query,
 a callable that returns items and a list that does not
 are two spellings of something the view already does.
 
-jq is enough because it is the program `git work issue` takes,
+jq is enough because it is the program `git work issue list` takes,
 `.` is the whole array,
-and a view is then exactly a saved `git work issue` invocation with a drawing attached.
+and a view is then exactly a saved `git work issue list` invocation with a drawing attached.
 What was given up here was rows that are not issues,
 on the grounds that every target workflow is a workflow over issues.
 Reversed 2026-10-08 (`query-rows.md`):
@@ -950,7 +950,7 @@ which are on every type and are not rows of the table
 (`rank` is the fourth, and is **not drawn at all**, 2026-10-08, Luis:
 it is an order the drags write, a fractional index nobody reads,
 so it is no row either, even when `fields` names it;
-`git work issue` still reads and sets it, and every drag still writes it):
+`git work issue list` still reads it, `git work issue set` sets it, and every drag still writes it):
 the type first, dim, because the list shows it left of the title too;
 the title bold, in the terminal's own foreground —
 a terminal has one size of text, so the title reads as a heading

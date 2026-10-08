@@ -63,7 +63,7 @@ const (
 	Enum ValueKind = "enum"
 	// Id is an issue id: a prefix or an alias, as everywhere else.
 	Id ValueKind = "id"
-	// Query is a jq program over the array `git work issue` prints.
+	// Query is a jq program over the array `git work issue list` prints.
 	Query ValueKind = "query"
 	// ExpandSpec is `expand`: a relation name, or a layer of one carrying
 	// the list's own arguments and an `expand` of its own (expand.go).
