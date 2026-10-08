@@ -1279,7 +1279,16 @@ A layer's `query`, `rank` and `group_by` apply there as they do on a list.
 Not now, and listed so the next reader does not take them for oversights:
 reparenting a row by dragging it out of its parent,
 numbers rolled up from children onto a folded parent,
-and creating a child from the tree (`111e8e9`, with create in general).
+and creating a child from the tree (`111e8e9`; create in general is the `new` kind,
+decided 2026-10-07 in `doc/design/create.md`, and the child ghost is `b9a9b62` there).
+
+## Creating from a view
+
+Decided 2026-10-07 in `doc/design/create.md`, and only pointed at from here:
+`new` is a view kind, show's page over a draft that Create commits as `issue new` would;
+the ghost is a `+ (new)` row at the foot of each group, column and lane that opens it
+prefilled with the fields a drop there would write;
+and a ghost is never a rank sibling, so the Rank section above holds with one more row on the screen.
 
 ## Deferred
 
