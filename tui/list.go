@@ -48,6 +48,9 @@ type listPage struct {
 	// kept is the order the person dragged keyed rows into, by key, which
 	// this view holds until it is quit and never writes (keep.go, R5).
 	kept map[string]int
+	// refused is what checkLevels said of the last tree built, which load
+	// returns: a tree the view cannot draw is refused, as a repeated key is.
+	refused error
 
 	rows []listRow
 	// nodes is the tree the rows sit in, one per row: level, parent, group,
@@ -205,6 +208,11 @@ func (p *listPage) load() error {
 		return err
 	}
 	p.rebuild()
+	if err := p.refused; err != nil {
+		p.items = nil
+		p.rebuild()
+		return err
+	}
 	return nil
 }
 
@@ -224,6 +232,7 @@ func (p *listPage) rebuild() {
 		if err != nil {
 			p.status = err.Error()
 		}
+		p.refused = checkLevels(p.repo, tree)
 		p.rows = make([]listRow, 0, len(tree))
 		p.nodes = make([]treeRow, 0, len(tree))
 		for _, n := range tree {
@@ -1007,12 +1016,6 @@ func (p *listPage) drop() tea.Cmd {
 		p.putCursorOn(row.key)
 		return nil
 	}
-	// a scope the view already holds an order for keeps it as drawn, the
-	// write below then being the store's half of the same drop
-	if scopeKept(p.nodes, p.order, p.cursor) {
-		keepOrder(p.nodes, p.order, p.cursor, p.kept)
-	}
-
 	above, key, err := scopeFills(p.nodes, p.order, p.cursor)
 	if err != nil {
 		p.status = err.Error()

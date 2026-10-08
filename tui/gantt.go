@@ -57,6 +57,9 @@ type ganttPage struct {
 	// kept is the order the person dragged keyed rows into, by key, which
 	// this view holds until it is quit and never writes (keep.go, R5).
 	kept map[string]int
+	// refused is what checkLevels said of the last tree built, which load
+	// returns: a tree the view cannot draw is refused, as a repeated key is.
+	refused error
 
 	bars  []bar
 	nodes []treeRow
@@ -184,6 +187,11 @@ func (p *ganttPage) load() error {
 		return err
 	}
 	p.rebuild()
+	if err := p.refused; err != nil {
+		p.items = nil
+		p.rebuild()
+		return err
+	}
 	return nil
 }
 
@@ -199,6 +207,7 @@ func (p *ganttPage) rebuild() {
 		if err != nil {
 			p.status = err.Error()
 		}
+		p.refused = checkLevels(p.repo, tree)
 		p.bars = make([]bar, 0, len(tree))
 		p.nodes = make([]treeRow, 0, len(tree))
 		for _, n := range tree {
@@ -1158,9 +1167,9 @@ func (p *ganttPage) drop() tea.Cmd {
 	// a row in another group has new neighbours, so a crossing is a reorder
 	// even where the cursor did not move
 	reordered := p.cursor != p.grabFrom.cursor || into != nil
-	if reordered && (keyed || scopeKept(p.nodes, p.order, p.cursor)) {
+	if reordered && keyed {
 		// a keyed row's place is the view's to hold, never the issue's
-		// rank to write (R5); a scope held already keeps what is drawn
+		// rank to write (R5)
 		keepOrder(p.nodes, p.order, p.cursor, p.kept)
 		if len(fields) == 0 {
 			said = keptSaid

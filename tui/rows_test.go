@@ -139,7 +139,7 @@ func TestARowWithNoIdStandsForNothing(t *testing.T) {
 
 	page := listCall(t, repo, map[string]any{
 		"fields": []string{"title", "status"},
-		"query":  `. + [{key: "none", fields: {title: "(none)"}}]`,
+		"query":  `map(. + {key: (.id + "@x")}) + [{key: "none", fields: {title: "(none)", type: "task"}}]`,
 	})
 	require.Contains(t, plainView(page), "(none)")
 	cursorTo(t, page, "none")
@@ -165,7 +165,7 @@ func TestARowWithNoIdStandsForNothing(t *testing.T) {
 
 	// the gantt draws it too, and opens nothing on it
 	g, err := newGanttPage(repo, call(t, view.KindGantt, map[string]any{
-		"query": `. + [{key: "none", fields: {title: "(none)"}}]`, "start": "due", "stop": "due",
+		"query": `map(. + {key: (.id + "@x")}) + [{key: "none", fields: {title: "(none)", type: "task"}}]`, "start": "due", "stop": "due",
 	}))
 	require.NoError(t, err)
 	for at, index := range g.order {
@@ -246,10 +246,10 @@ func TestAListedChildIsTheRowsOwn(t *testing.T) {
 	// a layer with a relation reads the store for a row that lists nothing,
 	// and the listed children of one that does
 	page = listCall(t, repo, map[string]any{
-		"query":  `map(select(.fields.type == "epic")) | map(. , . + {key: "listed", children: [{key: "inline", fields: {title: "an inline row"}}]})`,
+		"query":  `map(select(.fields.type == "epic")) | map(. + {key: (.id + "@store")}, . + {key: "listed", children: [{key: "inline", fields: {title: "an inline row", type: "story"}}]})`,
 		"expand": "children",
 	})
-	require.Equal(t, 3, nodeOf(t, page, epic).children)
+	require.Equal(t, 3, nodeOf(t, page, epic+"@store").children)
 	require.Equal(t, 1, nodeOf(t, page, "listed").children)
 	require.Equal(t, "listed", nodeOf(t, page, "inline").parent)
 	require.Equal(t, "", nodeOf(t, page, "inline").id)

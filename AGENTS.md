@@ -310,7 +310,8 @@ each, so that the drop reads as it was drawn (`rank set · 2 ranked`).
 A row whose `key` is not its `id`, or that has none, stands for a share of an issue (2026-10-08, `query-rows.md`, R5):
 it drags all the same, but the drop writes nothing — the view holds the scope's order by key until it is quit,
 across refreshes, a key it does not know keeping its `(rank, id)` place after the ones it does
-(`order kept for this view`) — no fill is written for its issue, and carried past the edge of its group it rings.
+(`order kept for this view`) — and carried past the edge of its group it rings.
+A level is all such rows or none, so a scope is the view's to order or the ranks', never both.
 A grabbed row carried past the edge of its group enters the next one —
 on a list, on a gantt, and across a board's swimlanes — and the drop writes
 the `group_by` field to that group's value with the rank, one commit
@@ -375,7 +376,10 @@ drawing order, siblings, parents, folds and the cursor across a refresh —
 while its `id` stays what `Enter`, `Space`, copy, a rank and a link act on,
 so `{"id":"<epic>","key":"<epic>@<person>",…}` draws one epic once per person.
 A key given twice is refused naming it, and none starts with `+`, the ghost's.
-`id` may be left out beside a key: such a row draws and is reached, `Enter` and `Space` on a cell ring, copy copies nothing.
+`id` may be left out beside a key: such a row draws and is reached, `Enter` and `Space` on a cell ring, copy copies nothing;
+it names its type in `fields.type`, a type the schema knows, and is drawn and grouped as one, else it is refused naming its key.
+The rows of one level under one parent — the roots across their groups, a row's children — are all keyed or none
+(a row keyed by its own id is plain); a mixed level is refused naming a key and an id from it (2026-10-08).
 A top-level `children`, ids or rows and rows all the way down, is that row's children
 in place of what the layer's relation reads for it; the layer below still applies its fields, details, group_by, rank and query,
 and its `relation` is needed only where a row above lists none (`{}` is a layer).

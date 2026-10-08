@@ -97,23 +97,16 @@ func scopeOf(rows []treeRow, order []int, at int) (scope []int, me int) {
 
 // scopeFills is fillRanks over a tree: the siblings of the row at order[at],
 // which is its group and its nesting level, in the order they are drawn.
-//
-// A keyed sibling is left out (doc/design/query-rows.md, R5): it stands for
-// a share of an issue or for none, so its issue's rank is never written for
-// it, and the rank it shows is the issue's, which orders nothing here.
+// The scope is plain: a level is all keyed rows or none (checkLevels), and
+// a keyed level's drop is the view's to hold (keep.go).
 func scopeFills(rows []treeRow, order []int, at int) (above []rankFill, key string, err error) {
 	scope, me := scopeOf(rows, order, at)
 
-	var ids, ranks []string
+	ids := make([]string, len(scope))
+	ranks := make([]string, len(scope))
 	for i, s := range scope {
-		row := rows[order[s]]
-		if i == me {
-			me = len(ids)
-		} else if row.keyed() {
-			continue
-		}
-		ids = append(ids, row.id)
-		ranks = append(ranks, row.rank)
+		ids[i] = rows[order[s]].id
+		ranks[i] = rows[order[s]].rank
 	}
 	return fillRanks(ids, ranks, me)
 }
