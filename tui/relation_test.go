@@ -57,7 +57,6 @@ func TestChangeARelationPicksFromItsTargetTypes(t *testing.T) {
 	id := newIssue(t, repo, map[string]any{"title": "the task", "parent": north})
 
 	page := show(t, repo, id, []string{"parent"})
-	page = send(page, "shift+tab").(*showPage)
 	require.Contains(t, plainView(page), "enter: go to · space: change")
 
 	page = send(page, "space").(*showPage)
@@ -89,7 +88,6 @@ func TestEnterOnARelationGoesToIt(t *testing.T) {
 	id := newIssue(t, repo, map[string]any{"title": "the task", "parent": story})
 
 	page := show(t, repo, id, []string{"parent"})
-	page = send(page, "shift+tab").(*showPage)
 	updated, cmd := page.Update(press("enter"))
 	require.NotNil(t, cmd)
 	require.Equal(t, story, cmd().(pushMsg).page.(*showPage).id)
@@ -134,7 +132,6 @@ func TestChangeARelationToNoneClearsIt(t *testing.T) {
 	require.Equal(t, "", page.editor.picker.items[page.editor.picker.cursor].value, "opens on (none)")
 
 	shown := show(t, repo, id, []string{"parent"})
-	shown = send(shown, "shift+tab").(*showPage)
 	_, cmd := shown.Update(press("enter"))
 	require.NotNil(t, cmd, "the bell")
 	require.Contains(t, plainView(shown), "no link")
@@ -150,7 +147,7 @@ func TestAMultiRelationGoesToEachAndSaysWhereToChangeIt(t *testing.T) {
 	id := newIssue(t, repo, map[string]any{"title": "the task", "blocks": []any{one, two}})
 
 	page := show(t, repo, id, []string{"blocks"})
-	page = send(page, "shift+tab", "down").(*showPage)
+	page = send(page, "down").(*showPage)
 	_, cmd := page.Update(press("enter"))
 	require.NotNil(t, cmd)
 	require.Equal(t, two, cmd().(pushMsg).page.(*showPage).id, "the line's own issue")
@@ -198,7 +195,7 @@ func TestThePickerLeavesTheArchivedOut(t *testing.T) {
 	}
 
 	page := show(t, repo, id, []string{"parent"})
-	page = send(page, "shift+tab", "space").(*showPage)
+	page = send(page, "space").(*showPage)
 	require.NotNil(t, page.editor)
 	picker := page.editor.picker
 	require.ElementsMatch(t, []string{north, ""}, pickerValues(picker))

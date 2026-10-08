@@ -39,8 +39,8 @@ func TestShowDrawsTheIssue(t *testing.T) {
 	require.Contains(t, drawn, "task  write the renderer  [ ] archived")
 	// a field row opens its line with the key, which is where type would be
 	require.NotContains(t, drawn, "\n type ")
-	require.Less(t, indexOf(drawn, "estimate"), indexOf(drawn, "space: type"), "the box is under the fields")
-	require.Less(t, indexOf(drawn, "space: type"), indexOf(drawn, "comments"), "and the tabs under the box")
+	require.Less(t, indexOf(drawn, "estimate"), indexOf(drawn, "add a comment"), "the box is under the fields")
+	require.Less(t, indexOf(drawn, "add a comment"), indexOf(drawn, "comments"), "and the tabs under the box")
 
 	// the body is the first comment, which an issue always has, and the
 	// description tab is where it is read
@@ -107,8 +107,8 @@ func TestShowHasThreeTabs(t *testing.T) {
 	require.Contains(t, drawn, "the body")
 	require.NotContains(t, drawn, "a later word")
 
-	// box → tabs
-	page = send(page, "tab").(*showPage)
+	// fields → box → tabs
+	page = send(page, "tab", "tab").(*showPage)
 	require.Equal(t, stopTabs, page.current().stop)
 
 	page = send(page, "right").(*showPage)
@@ -139,7 +139,7 @@ func TestShowHasThreeTabs(t *testing.T) {
 	// and in the box's text, where letters and arrows are text, ctrl+pgdown
 	// still
 	page = show(t, repo, id, nil)
-	page = send(page, "space", "t", "ctrl+pgdown").(*showPage)
+	page = send(page, "tab", "space", "t", "ctrl+pgdown").(*showPage)
 	require.Equal(t, "t", page.box.draft())
 	require.Equal(t, tabComments, page.tab)
 }
@@ -164,7 +164,7 @@ func TestShowWrapsProse(t *testing.T) {
 	require.Contains(t, drawn, "end", "the description's last word is drawn")
 	require.NotContains(t, drawn, "…", "nothing is cut")
 
-	page = send(page, "tab", "tab", "tab", "right").(*showPage)
+	page = send(page, "tab", "tab", "right").(*showPage)
 	require.Equal(t, tabComments, page.tab)
 	drawn = plainView(page)
 	require.Contains(t, drawn, "said word")
@@ -197,7 +197,6 @@ func TestShowFieldsAreATable(t *testing.T) {
 	page := show(t, repo, id, []string{"status", "priority"})
 	require.NotContains(t, plainView(page), "value", "no column headers")
 
-	page = send(page, "shift+tab").(*showPage)
 	require.Equal(t, stopFields, page.current().stop)
 	require.Equal(t, "status", page.field())
 
@@ -230,7 +229,6 @@ func TestShowFollowsALink(t *testing.T) {
 	require.Contains(t, drawn, story[:7]+" the story")
 	require.NotContains(t, drawn, story)
 
-	page = send(page, "shift+tab").(*showPage)
 	_, cmd := page.Update(press("enter"))
 	require.NotNil(t, cmd)
 	require.Equal(t, story, cmd().(pushMsg).page.(*showPage).id)
@@ -243,7 +241,6 @@ func TestShowEditsTheFieldUnderTheCursor(t *testing.T) {
 	id := newIssue(t, repo, map[string]any{"title": "one", "status": "to-do"})
 
 	page := show(t, repo, id, []string{"status"})
-	page = send(page, "shift+tab").(*showPage)
 	require.Equal(t, "status", page.field())
 
 	page = send(page, "enter").(*showPage)
@@ -283,7 +280,7 @@ func TestArchivedIsAHeaderCellThatFlips(t *testing.T) {
 	id := newIssue(t, repo, map[string]any{"title": "one"})
 
 	page := show(t, repo, id, nil)
-	page = send(page, "shift+tab", "shift+tab", "l", "l").(*showPage)
+	page = send(page, "shift+tab", "l", "l").(*showPage)
 	require.Equal(t, "archived", page.field())
 	require.Contains(t, plainView(page), "one  [ ] archived")
 
@@ -304,17 +301,81 @@ func TestArchivedIsAHeaderCellThatFlips(t *testing.T) {
 	require.Contains(t, plainView(page), "unarchived")
 }
 
-// TestShowOpensOnTheCommentBox: the cursor is on the box on arrival, not
-// typing in it; space puts it in the text, where space is a space, and enter
-// sends.
-func TestShowOpensOnTheCommentBox(t *testing.T) {
+// TestShowOpensOnTheFields: the cursor is on the first row of the fields on
+// arrival, as every other view opens on a cell (2026-10-08); a page whose
+// table has no rows opens on the box.
+func TestShowOpensOnTheFields(t *testing.T) {
+	repo := testRepo(t)
+	id := newIssue(t, repo, map[string]any{"title": "one", "status": "to-do", "priority": "high"})
+
+	page := show(t, repo, id, []string{"priority", "status"})
+	require.Equal(t, stopFields, page.current().stop)
+	require.Equal(t, "priority", page.field(), "the first row")
+	require.False(t, page.inText())
+
+	page = show(t, repo, id, []string{"rank"})
+	require.Empty(t, page.rows)
+	require.Equal(t, stopBox, page.current().stop, "no rows, so the box")
+}
+
+// TestShowDrawsNoRank: rank is built in on every type, and internal: an
+// order the drags write, which nobody reads. Show draws no row for it, by
+// default or when the call names it, and it is still there to query.
+func TestShowDrawsNoRank(t *testing.T) {
+	repo := testRepo(t)
+	id := newIssue(t, repo, map[string]any{"title": "one", "status": "to-do", "rank": "a"})
+
+	for _, fields := range [][]string{nil, {"rank", "status"}} {
+		page := show(t, repo, id, fields)
+		for _, row := range page.rows {
+			require.NotEqual(t, "rank", row.key, "with fields %v", fields)
+		}
+		require.NotContains(t, plainView(page), "rank", "with fields %v", fields)
+	}
+	require.Equal(t, "a", fieldOf(t, repo, id, "rank"), "still stored")
+}
+
+// TestTheCommentBoxHasNoFooter: the box's keys are on the bottom line and
+// nowhere else; on the box the cursor washes it whole, a cell, and in its
+// text there is no wash and the textarea's own cursor.
+func TestTheCommentBoxHasNoFooter(t *testing.T) {
 	repo := testRepo(t)
 	id := newIssue(t, repo, map[string]any{"title": "one"})
 
 	page := show(t, repo, id, nil)
+	require.Equal(t, 0, strings.Count(plainView(page), "space: type"), "off the box, no box keys at all")
+	off := page.box.View(page.width, false)
+
+	page = send(page, "tab").(*showPage)
+	require.Equal(t, stopBox, page.current().stop)
+	drawn := plainView(page)
+	require.Equal(t, 1, strings.Count(drawn, "space: type"), "once, on the bottom line")
+	require.True(t, strings.HasPrefix(lastLine(drawn), "space: type · tab: skip"))
+
+	on := page.box.View(page.width, true)
+	require.Len(t, on, len(off), "the wash adds no line")
+	for at := range on {
+		require.NotEqual(t, off[at], on[at], "every line of the box is washed")
+		require.True(t, strings.HasPrefix(ansiPattern.ReplaceAllString(on[at], ""), "›"), "and marked, as a row is")
+	}
+
+	page = send(page, "space").(*showPage)
+	require.True(t, page.inText())
+	typing := page.box.View(page.width, true)
+	require.False(t, strings.HasPrefix(ansiPattern.ReplaceAllString(typing[0], ""), "›"), "in the text, no wash")
+	require.Equal(t, 1, strings.Count(plainView(page), "enter: send"), "the typing keys, once")
+}
+
+// TestSpaceOnTheBoxTypes: on the box, not typing in it; space puts the
+// cursor in the text, where space is a space, and enter sends.
+func TestSpaceOnTheBoxTypes(t *testing.T) {
+	repo := testRepo(t)
+	id := newIssue(t, repo, map[string]any{"title": "one"})
+
+	page := show(t, repo, id, nil)
+	page = send(page, "tab").(*showPage)
 	require.Equal(t, stopBox, page.current().stop)
 	require.False(t, page.inText())
-	require.Contains(t, plainView(page), "space: type")
 
 	page = send(page, "x", "enter").(*showPage)
 	require.Empty(t, page.box.draft(), "a letter on the box is not text, and enter does nothing")
@@ -345,7 +406,7 @@ func TestTheBoxIsOneStop(t *testing.T) {
 	id := newIssue(t, repo, map[string]any{"title": "one"})
 
 	page := show(t, repo, id, nil)
-	page = send(page, "tab").(*showPage)
+	page = send(page, "tab", "tab").(*showPage)
 	require.Equal(t, stopTabs, page.current().stop)
 	page = send(page, "shift+tab").(*showPage)
 	require.Equal(t, stopBox, page.current().stop)
@@ -375,7 +436,7 @@ func TestSpaceOnTheDescriptionTabEditsIt(t *testing.T) {
 	id := newIssue(t, repo, map[string]any{"title": "one"})
 
 	page := show(t, repo, id, nil)
-	page = send(page, "tab").(*showPage)
+	page = send(page, "tab", "tab").(*showPage)
 	require.Equal(t, stopTabs, page.current().stop)
 	require.Equal(t, tabDescription, page.tab)
 	require.Contains(t, plainView(page), "space: edit", "the tab says the key")
@@ -410,7 +471,7 @@ func TestTheDescriptionEditorKeepsADraft(t *testing.T) {
 	id := newIssue(t, repo, map[string]any{"title": "one"})
 
 	page := show(t, repo, id, nil)
-	page = send(page, "tab", "space").(*showPage)
+	page = send(page, "tab", "tab", "space").(*showPage)
 	page.desc.area.SetValue("half a thought")
 
 	updated, cmd := page.Update(press("esc"))
@@ -449,7 +510,7 @@ func TestShowKeepsADraft(t *testing.T) {
 	id := newIssue(t, repo, map[string]any{"title": "one"})
 
 	page := show(t, repo, id, nil)
-	page = send(page, "space").(*showPage)
+	page = send(page, "tab", "space").(*showPage)
 	page.box.area.SetValue("half a thought")
 
 	updated, cmd := page.Update(press("esc"))
@@ -509,8 +570,8 @@ func TestTheCommentBoxGrows(t *testing.T) {
 	id := newIssue(t, repo, map[string]any{"title": "one"})
 
 	page := show(t, repo, id, nil)
-	require.Len(t, page.box.View(page.width), commentMinHeight)
+	require.Len(t, page.box.View(page.width, false), commentMinHeight)
 
-	page = send(page, "space", "a", "alt+enter", "b", "alt+enter", "c", "alt+enter", "d").(*showPage)
-	require.Len(t, page.box.View(page.width), 4)
+	page = send(page, "tab", "space", "a", "alt+enter", "b", "alt+enter", "c", "alt+enter", "d").(*showPage)
+	require.Len(t, page.box.View(page.width, false), 4)
 }

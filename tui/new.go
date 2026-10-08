@@ -746,8 +746,8 @@ func (p *newPage) headerLines(here position) []string {
 	return []string{fit(head, p.width), fit(rule, p.width)}
 }
 
-// bodyLines is the part that scrolls: the fields table, the description box
-// with its footer, and the Create button. It says which lines the cursor is
+// bodyLines is the part that scrolls: the fields table, the description box,
+// and the Create button. It says which lines the cursor is
 // on, or -1 when it is on none.
 func (p *newPage) bodyLines(here position) (lines []string, from, to int) {
 	from, to = -1, -1
@@ -758,30 +758,17 @@ func (p *newPage) bodyLines(here position) (lines []string, from, to int) {
 	}
 
 	boxStart := len(lines)
-	lines = append(lines, p.body.View(p.width)...)
-	lines = append(lines, p.footerLine(here), "")
+	lines = append(lines, p.body.View(p.width, here.stop == stopBox)...)
 	if here.stop == stopBox {
-		from, to = boxStart, len(lines)-2
+		from, to = boxStart, len(lines)-1
 	}
+	lines = append(lines, "")
 
 	lines = append(lines, p.createLine(here))
 	if here.stop == stopCreate {
 		from, to = len(lines)-1, len(lines)-1
 	}
 	return lines, from, to
-}
-
-// footerLine is under the box's text: the keys that work it.
-func (p *newPage) footerLine(here position) string {
-	text := hintText(draftBoxHints(here.typing)...)
-	marker, style := " ", styleDim
-	if here.stop == stopBox {
-		marker = "›"
-		if !here.typing {
-			style = styleCell
-		}
-	}
-	return fit(marker+" "+style.Render(text), p.width)
 }
 
 // createLine is the button: the one way a draft becomes an issue.

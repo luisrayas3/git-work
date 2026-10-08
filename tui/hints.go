@@ -109,8 +109,9 @@ func grabHints(moves ...hint) string {
 	return hints(append(moves, hint{"space", "drop"}, hint{"esc", "put back"})...)
 }
 
-// boxHints are the comment box's keys on show, in the status line and in the
-// footer under the text, which is one list so the two never disagree.
+// boxHints are the comment box's keys on show, in the status line, the one
+// place they are drawn: the footer under the text that repeated them is gone
+// (2026-10-08).
 func boxHints(typing bool) []hint {
 	if typing {
 		return []hint{{"enter", "send"}, {"alt+enter", "newline"}, {"esc", "leave"}}
@@ -119,7 +120,7 @@ func boxHints(typing bool) []hint {
 }
 
 // descHints are the description editor's keys on show, in the status line
-// and in the footer under it, which is one list the way the box's is.
+// and in the footer under it, which is one list so the two never disagree.
 //
 // They are the box's keys, except that what enter does is write and not
 // send: the description is one text being rewritten, not one more comment.

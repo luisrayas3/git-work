@@ -3,6 +3,7 @@ package tui
 import (
 	"context"
 	"encoding/json"
+	"strings"
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
@@ -302,4 +303,20 @@ func TestNewFieldsNarrowTheRows(t *testing.T) {
 	require.Len(t, page.rows, 2)
 	require.Equal(t, "estimate", page.rows[0].key)
 	require.Equal(t, "status", page.rows[1].key)
+}
+
+// TestNewDescriptionBoxHasNoFooter: the box's keys are on the bottom line
+// alone, as on show, and rank is no row of the draft (2026-10-08).
+func TestNewDescriptionBoxHasNoFooter(t *testing.T) {
+	repo := testRepo(t)
+
+	page := newView(t, repo, `{"doc":{"fields":{"type":"task","title":"one"}}}`)
+	page.editor = nil
+	page.focusStop(stopBox)
+	drawn := plainView(page)
+	require.Equal(t, 1, strings.Count(drawn, "space: type"), "once, on the bottom line")
+	require.True(t, strings.HasPrefix(lastLine(drawn), "space: type · tab: skip"))
+	for _, row := range page.rows {
+		require.NotEqual(t, "rank", row.key)
+	}
 }

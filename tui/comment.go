@@ -6,6 +6,7 @@ import (
 	"charm.land/bubbles/v2/textarea"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
 )
 
 // commentBox is where a comment is written, on `show`, under the title.
@@ -78,9 +79,20 @@ func (c *commentBox) resize(width int) {
 	c.area.SetWidth(max(width-2, 20))
 }
 
-func (c *commentBox) View(width int) []string {
+// View is the box's lines. On says the cursor is on the box as a whole, not
+// in its text: then every line has the light wash a row under the cursor
+// has, marked as a row is, so that the box reads as one cell; in the text
+// it is the textarea's own, with its cursor, and no wash (2026-10-08).
+func (c *commentBox) View(width int, on bool) []string {
 	lines := make([]string, 0, commentMaxHeight)
 	for _, line := range strings.Split(c.area.View(), "\n") {
+		if on && !c.area.Focused() {
+			wash := styleRow()
+			if c.area.Value() == "" {
+				wash = wash.Faint(true)
+			}
+			line = styleRow().Render("›") + wash.Render(pad(ansi.Strip(line), max(width-1, 0)))
+		}
 		lines = append(lines, fit(line, width))
 	}
 	return lines

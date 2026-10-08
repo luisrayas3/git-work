@@ -79,6 +79,8 @@ The same stops, top to bottom, and one more:
 3. the **description box**, the comment box over the body:
    `Space` enters it, `Enter` in the text accepts it into the draft
    and leaves it, `M-Enter` is a newline, `Esc` leaves it keeping the text.
+   Washed whole while the cursor is on it, its keys on the bottom line alone,
+   as show's box is (2026-10-08).
    An empty description is allowed on a draft, because `issue new` allows one.
 4. **Create**, the last stop, a button:
    `Enter` on it commits the draft.
