@@ -39,7 +39,7 @@ type listPage struct {
 	// items is what the query returned last, kept so that folding a row
 	// rebuilds the tree without asking the store again
 	items []map[string]any
-	// open is the parents folded open, by id, across every rebuild: a tree
+	// open is the parents folded open, by key, across every rebuild: a tree
 	// opens folded, so what is remembered is what was opened.
 	open map[string]bool
 
@@ -76,8 +76,11 @@ type listPage struct {
 	status string
 }
 
-// listRow is one issue, as the query handed it over.
+// listRow is one row, as the query handed it over: key is its identity on
+// the screen, id the issue it acts on, "" where it stands for none
+// (doc/design/query-rows.md).
 type listRow struct {
+	key     string
 	id      string
 	human   string
 	typeKey string
@@ -188,7 +191,11 @@ func (p *listPage) load() error {
 	// A query that returned something other than issues draws nothing: the
 	// list is a list of issues, and inventing rows out of whatever came back
 	// would be worse than an empty one.
-	p.items, _ = host.IssueItems(values)
+	p.items, _ = host.ViewRows(values)
+	if err := host.CheckRowKeys(p.items); err != nil {
+		p.items = nil
+		return err
+	}
 	p.rebuild()
 	return nil
 }
@@ -201,7 +208,7 @@ func (p *listPage) load() error {
 // the screen: the cursor is never put somewhere else because something
 // closed over it.
 func (p *listPage) rebuild() {
-	was := p.currentId()
+	was := p.currentKey()
 
 	known := newKinds(p.repo)
 	build := func() {
@@ -255,7 +262,7 @@ func (p *listPage) addGhosts() {
 	}
 	for _, group := range groups {
 		row := listRow{
-			id:      ghostId(group),
+			key:     ghostId(group),
 			human:   ghostPrefix,
 			typeKey: sharedType(types[group]),
 			fields:  map[string]any{},
@@ -265,7 +272,7 @@ func (p *listPage) addGhosts() {
 		if len(layer.fields) > 0 {
 			row.cells[layer.fields[0]] = ghostLabel
 		}
-		node := treeRow{id: row.id, group: group, grouped: layer.groupBy != "", ghost: true}
+		node := treeRow{key: row.key, group: group, grouped: layer.groupBy != "", ghost: true}
 		p.rows = append(p.rows, row)
 		p.nodes = append(p.nodes, node)
 	}
@@ -320,6 +327,7 @@ func (p *listPage) newRow(n nested, known *kinds) (listRow, treeRow) {
 	}
 
 	row := listRow{
+		key:     n.key,
 		id:      n.id,
 		human:   host.StringOr(n.item["human_id"], ""),
 		typeKey: host.StringOr(fields[schema.TypeKey], ""),
@@ -346,6 +354,7 @@ func (p *listPage) newRow(n nested, known *kinds) (listRow, treeRow) {
 	}
 
 	node := treeRow{
+		key:      n.key,
 		id:       n.id,
 		parent:   n.parent,
 		level:    n.level,
@@ -396,11 +405,21 @@ func (p *listPage) clamp() {
 	}
 }
 
-func (p *listPage) currentId() string {
+// currentKey is the key of the row under the cursor, which is what a
+// refresh puts the cursor back on.
+func (p *listPage) currentKey() string {
 	if p.cursor < 0 || p.cursor >= len(p.order) {
 		return ""
 	}
-	return p.rows[p.order[p.cursor]].id
+	return p.rows[p.order[p.cursor]].key
+}
+
+// currentId is the issue the row under the cursor acts on.
+func (p *listPage) currentId() string {
+	if row := p.current(); row != nil {
+		return row.id
+	}
+	return ""
 }
 
 func (p *listPage) current() *listRow {
@@ -418,15 +437,15 @@ func (p *listPage) node() *treeRow {
 	return &p.nodes[p.order[p.cursor]]
 }
 
-// putCursorOn keeps the cursor on the issue it was on across a refresh,
-// falling back to the same position when that issue is gone.
-func (p *listPage) putCursorOn(id string) {
-	if id == "" {
+// putCursorOn keeps the cursor on the row it was on across a refresh, by
+// key, falling back to the same position when that row is gone.
+func (p *listPage) putCursorOn(key string) {
+	if key == "" {
 		p.clamp()
 		return
 	}
 	for at, index := range p.order {
-		if p.rows[index].id == id {
+		if p.rows[index].key == key {
 			p.cursor = at
 			return
 		}
@@ -603,7 +622,7 @@ func (p *listPage) intoChild() {
 		return
 	}
 	if node.folded {
-		p.open[node.id] = true
+		p.open[node.key] = true
 		p.rebuild()
 		node = p.node()
 	}
@@ -637,7 +656,7 @@ func (p *listPage) toggleFold() tea.Cmd {
 		p.status = "nothing to fold"
 		return bell()
 	}
-	p.open[node.id] = node.folded
+	p.open[node.key] = node.folded
 	p.rebuild()
 	return nil
 }
@@ -663,6 +682,10 @@ func (p *listPage) act() (page, tea.Cmd) {
 	}
 	if links := row.links[p.fieldKey()]; len(links) > 0 {
 		return p, p.push(links[0])
+	}
+	if row.id == "" {
+		// a row that stands for no issue has nothing to open (R2)
+		return p, bell()
 	}
 	return p, p.push(row.id)
 }
@@ -713,7 +736,7 @@ func (p *listPage) fieldKey() string {
 // chat pin (ca81145) is the first key anybody presses.
 func (p *listPage) copyCell() tea.Cmd {
 	row := p.current()
-	if row == nil || isGhost(row.id) {
+	if row == nil || row.id == "" {
 		return bell()
 	}
 	fieldKey := p.fieldKey()
@@ -736,7 +759,7 @@ func (p *listPage) copyCell() tea.Cmd {
 // the id the screen shows and the only part that fits the line.
 func (p *listPage) copyId() tea.Cmd {
 	row := p.current()
-	if row == nil || isGhost(row.id) {
+	if row == nil || row.id == "" {
 		return bell()
 	}
 	p.status = "copied " + row.human
@@ -790,7 +813,7 @@ func (p *listPage) updateFilter(msg tea.Msg) (page, tea.Cmd) {
 // be a question with one answer. A cell that cannot be edited rings the bell.
 func (p *listPage) startEdit(pasted *string) tea.Cmd {
 	row := p.current()
-	if row == nil || isGhost(row.id) {
+	if row == nil || row.id == "" {
 		return bell()
 	}
 	fieldKey := p.fieldKey()
@@ -894,7 +917,7 @@ func (p *listPage) updateGrab(press tea.KeyPressMsg) (page, tea.Cmd) {
 		p.grabbed = -1
 		p.crossed = nil
 		p.reorder()
-		p.putCursorOn(p.currentId())
+		p.putCursorOn(p.currentKey())
 		return p, nil
 
 	case keys.up.matches(press):
@@ -975,7 +998,7 @@ func (p *listPage) drop() tea.Cmd {
 		return bell()
 	}
 	p.writeFields(row.id, fields, saidAnd(said, above))
-	p.putCursorOn(row.id)
+	p.putCursorOn(row.key)
 	return nil
 }
 

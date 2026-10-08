@@ -267,10 +267,16 @@ func TestParseExpandIsALayerSpec(t *testing.T) {
 	require.Equal(t, []string{"children", "blocks", "children"},
 		[]string{layers[0].Relation, layers[1].Relation, layers[2].Relation})
 
-	// a layer needs a relation, takes no key of its own invention, a count
-	// is a whole number of levels, and has nothing to repeat at the top
-	_, err = Parse(KindList, kwargs(t, `{"expand":{"query":"."}}`))
-	require.ErrorContains(t, err, "needs relation")
+	// a layer may leave its relation out, for rows that list their own
+	// children (query-rows.md, R3), but not give an empty one; it takes no
+	// key of its own invention, a count is a whole number of levels, and
+	// has nothing to repeat at the top
+	call, err = Parse(KindList, kwargs(t, `{"expand":{"query":"."}}`))
+	require.NoError(t, err)
+	require.Equal(t, "", call.Expand().Relation)
+
+	_, err = Parse(KindList, kwargs(t, `{"expand":{"relation":""}}`))
+	require.ErrorContains(t, err, "relation is empty")
 
 	_, err = Parse(KindList, kwargs(t, `{"expand":{"relation":"children","depth":2}}`))
 	require.ErrorContains(t, err, "takes no key depth")

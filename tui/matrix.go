@@ -187,7 +187,7 @@ func (p *matrixPage) load() error {
 	if err != nil {
 		return err
 	}
-	items, _ := host.IssueItems(values)
+	items := host.IssueRows(values)
 	p.count = len(items)
 
 	p.build(items)

@@ -23,7 +23,10 @@ import (
 // describe is leaves. The query selects the roots; a matched issue that is
 // another matched issue's child shows nested under it, once, and a child the
 // layer's own query kept still shows under its parent, because a parent's
-// children are the reason to expand a parent. The list and the gantt both
+// children are the reason to expand a parent. A row's own `children`, where
+// it lists them, take the relation's place for that row, and every row is
+// known by its key, which is its id unless the query gave it one
+// (doc/design/query-rows.md). The list and the gantt both
 // nest, so what is shared is here: the layers, the tree, the drawing order
 // over it, and moving a row among its siblings. How the tree is drawn is
 // each kind's own: the list draws a child table under an opened parent
@@ -32,7 +35,8 @@ import (
 // nestLayer is one level as the renderer uses it: the spec's layer with its
 // query compiled and the keys it inherits filled in.
 type nestLayer struct {
-	// relation is "" on level 0, whose rows are the view's own query.
+	// relation is "" on level 0, whose rows are the view's own query, and
+	// on a layer whose rows above list their own children (query-rows.md).
 	relation string
 	// program is the layer's `query`, run over the array of a row's candidate
 	// children; nil is every one of them.
@@ -154,11 +158,15 @@ func (n *nesting) family(level int) int {
 	return n.families[n.index(level)]
 }
 
-// nested is one issue in the tree, in pre-order: a row and where it sits.
+// nested is one row in the tree, in pre-order: a row and where it sits.
 type nested struct {
 	item map[string]any
-	id   string
-	// level is 0 for a root; parent the id of the row it is under.
+	// key is the row's identity on the screen, which orders, folds and
+	// finds it; id is the issue it acts on, "" for a row that stands for
+	// nothing (doc/design/query-rows.md, R1 and R2).
+	key string
+	id  string
+	// level is 0 for a root; parent the key of the row it is under.
 	level  int
 	parent string
 	// children is how many the row has, shown or folded away.
@@ -170,15 +178,19 @@ type nested struct {
 	hidden bool
 }
 
-// nest unfolds the items the query returned along the layers of `expand`.
+// nest unfolds the rows the query returned along the layers of `expand`.
 //
-// Without an `expand` it is the items, each a root. With one, the children of
-// a row at level n are what the layer for level n+1 names: the targets of the
-// row's own field of that name, and the issues whose stored relation has that
-// name as its inverse — the inverse side is derived, never stored
-// (schema.yaml, D4), so `children` is read off every `parent` — narrowed by
-// the layer's own query where it has one. A cycle is cut at the repeat, and
-// an issue shows once: under the first matched row that reaches it.
+// Without an `expand` it is the rows, each a root. With one, the children of
+// a row at level n are the rows its own `children` lists, where it lists
+// them (doc/design/query-rows.md, R3), and otherwise what the layer for
+// level n+1 names: the targets of the row's own field of that name, and the
+// issues whose stored relation has that name as its inverse — the inverse
+// side is derived, never stored (schema.yaml, D4), so `children` is read off
+// every `parent` — narrowed by the layer's own query where it has one. A
+// cycle is cut at the repeat, and a key shows once: under the first matched
+// row that reaches it. A row's key is its `key`, else its id, so an issue
+// reached twice through the store shows once, and one the query keyed twice
+// shows twice.
 //
 // Every parent is folded unless `open` says otherwise, so a tree opens as its
 // roots and their counts, which is a summary (Luis, 2026-10-02). The rows
@@ -191,8 +203,14 @@ type nested struct {
 func nest(repo *cache.RepoCache, items []map[string]any, n *nesting, open map[string]bool) ([]nested, error) {
 	if !n.expanded() {
 		out := make([]nested, 0, len(items))
+		seen := map[string]bool{}
 		for _, item := range items {
-			out = append(out, nested{item: item, id: host.StringOr(item["id"], "")})
+			key := host.RowKey(item)
+			if seen[key] {
+				continue
+			}
+			seen[key] = true
+			out = append(out, nested{item: item, key: key, id: host.RowId(item)})
 		}
 		return out, nil
 	}
@@ -226,122 +244,169 @@ func nest(repo *cache.RepoCache, items []map[string]any, n *nesting, open map[st
 		return got
 	}
 
-	// a matched issue shows the query's version of itself, which a jq program
-	// may have shaped, and so does a child its layer's query shaped; anything
-	// else is read off the store
+	// a matched row shows the query's version of itself, which a jq program
+	// may have shaped, and so does a row a parent lists and a child its
+	// layer's query shaped; anything else is an issue read off the store,
+	// whose key is its id
 	shaped := map[string]map[string]any{}
 	for _, item := range items {
-		shaped[host.StringOr(item["id"], "")] = item
+		if key := host.RowKey(item); shaped[key] == nil {
+			shaped[key] = item
+		}
 	}
-	pick := func(id string) map[string]any {
-		if item, ok := shaped[id]; ok {
+	pick := func(key string) map[string]any {
+		if item, ok := shaped[key]; ok {
 			return item
 		}
 		for _, includeArchive := range []bool{false, true} {
-			if set, ok := sets[includeArchive]; ok && set.all[id] != nil {
-				return set.all[id]
+			if set, ok := sets[includeArchive]; ok && set.all[key] != nil {
+				return set.all[key]
 			}
 		}
 		return nil
 	}
 
+	// a candidate child, and whether it is the store's own row for its
+	// issue, which the query's shape of the same issue wins over
+	type candidate struct {
+		row   map[string]any
+		store bool
+	}
+
 	var failed error
+	fail := func(err error) {
+		if failed == nil {
+			failed = err
+		}
+	}
 	kids := map[string][]string{}
-	childrenOf := func(id string, level int) []string {
+	childrenOf := func(key string, level int) []string {
 		layer := n.at(level + 1)
 		if layer == nil {
 			return nil
 		}
-		key := strconv.Itoa(n.index(level+1)) + "\x00" + id
-		if got, ok := kids[key]; ok {
+		memo := strconv.Itoa(n.index(level+1)) + "\x00" + key
+		if got, ok := kids[memo]; ok {
 			return got
+		}
+		row := pick(key)
+		if row == nil {
+			return nil
 		}
 
 		all := source(layer.includeArchive).all
-		var candidates []string
-		for _, kid := range byRelation(layer.relation, layer.includeArchive)[id] {
-			if all[kid] != nil {
-				candidates = append(candidates, kid)
+		var candidates []candidate
+		if children, ok := host.RowChildren(row); ok {
+			for _, child := range children {
+				switch child := child.(type) {
+				case string:
+					if all[child] != nil {
+						candidates = append(candidates, candidate{row: all[child], store: true})
+					}
+				case map[string]any:
+					candidates = append(candidates, candidate{row: child})
+				}
+			}
+		} else if layer.relation == "" {
+			fail(fmt.Errorf("expand: layer %d names no relation, and a row above it lists no children", n.index(level+1)))
+		} else if id := host.RowId(row); id != "" {
+			for _, kid := range byRelation(layer.relation, layer.includeArchive)[id] {
+				if all[kid] != nil {
+					candidates = append(candidates, candidate{row: all[kid], store: true})
+				}
 			}
 		}
-		out := candidates
+
 		if layer.program != nil && len(candidates) > 0 {
-			picked, shapes, err := runLayerQuery(layer.program, candidates, all)
+			rows := make([]map[string]any, len(candidates))
+			for at, c := range candidates {
+				rows[at] = c.row
+			}
+			picked, err := runLayerQuery(layer.program, rows)
 			if err != nil {
-				if failed == nil {
-					failed = err
-				}
+				fail(err)
 			} else {
-				out = picked
-				for id, item := range shapes {
-					shaped[id] = item
+				candidates = candidates[:0]
+				for _, row := range picked {
+					candidates = append(candidates, candidate{row: row})
 				}
 			}
 		}
-		kids[key] = out
-		return out
+
+		keys := make([]string, 0, len(candidates))
+		for _, c := range candidates {
+			kid := host.RowKey(c.row)
+			if !c.store {
+				shaped[kid] = c.row
+			}
+			keys = append(keys, kid)
+		}
+		kids[memo] = keys
+		return keys
 	}
 
-	// the roots are the matched issues no other matched issue reaches
+	// the roots are the matched rows no other matched row reaches
 	under := map[string]bool{}
 	for _, item := range items {
-		var reach func(id string, level int, path map[string]bool)
-		reach = func(id string, level int, path map[string]bool) {
-			path[id] = true
-			for _, kid := range childrenOf(id, level) {
+		var reach func(key string, level int, path map[string]bool)
+		reach = func(key string, level int, path map[string]bool) {
+			path[key] = true
+			for _, kid := range childrenOf(key, level) {
 				if path[kid] {
 					continue
 				}
 				under[kid] = true
 				reach(kid, level+1, path)
 			}
-			delete(path, id)
+			delete(path, key)
 		}
-		reach(host.StringOr(item["id"], ""), 0, map[string]bool{})
+		reach(host.RowKey(item), 0, map[string]bool{})
 	}
 
 	var out []nested
 	seen := map[string]bool{}
-	var walk func(id string, level int, parent string, hidden bool, path map[string]bool)
-	walk = func(id string, level int, parent string, hidden bool, path map[string]bool) {
-		item := pick(id)
-		if item == nil || seen[id] {
+	var walk func(key string, level int, parent string, hidden bool, path map[string]bool)
+	walk = func(key string, level int, parent string, hidden bool, path map[string]bool) {
+		item := pick(key)
+		if item == nil || seen[key] {
 			return
 		}
-		seen[id] = true
-		path[id] = true
+		seen[key] = true
+		path[key] = true
 
+		// a key drawn already is not this row's to count: it shows once
 		var below []string
-		for _, kid := range childrenOf(id, level) {
-			if !path[kid] {
+		for _, kid := range childrenOf(key, level) {
+			if !path[kid] && !seen[kid] {
 				below = append(below, kid)
 			}
 		}
 		node := nested{
 			item:     item,
-			id:       id,
+			key:      key,
+			id:       host.RowId(item),
 			level:    level,
 			parent:   parent,
 			children: len(below),
-			folded:   !open[id],
+			folded:   !open[key],
 			hidden:   hidden,
 		}
 		out = append(out, node)
 
 		for _, kid := range below {
-			walk(kid, level+1, id, hidden || node.folded, path)
+			walk(kid, level+1, key, hidden || node.folded, path)
 		}
-		delete(path, id)
+		delete(path, key)
 	}
 	for _, item := range items {
-		if id := host.StringOr(item["id"], ""); !under[id] {
-			walk(id, 0, "", false, map[string]bool{})
+		if key := host.RowKey(item); !under[key] {
+			walk(key, 0, "", false, map[string]bool{})
 		}
 	}
-	// a matched issue every other matched issue reaches is a cycle with no
-	// way in: it is a root after all
+	// a matched row every other matched row reaches is a cycle with no way
+	// in: it is a root after all
 	for _, item := range items {
-		walk(host.StringOr(item["id"], ""), 0, "", false, map[string]bool{})
+		walk(host.RowKey(item), 0, "", false, map[string]bool{})
 	}
 	return out, failed
 }
@@ -352,39 +417,36 @@ func nest(repo *cache.RepoCache, items []map[string]any, n *nesting, open map[st
 // view's query runs over the array of every issue, so the two are written the
 // same way and a layer can say `map(select(.fields.status != "done"))`
 // without knowing anything about the row it is under.
-func runLayerQuery(program *jq.Program, candidates []string, all map[string]map[string]any) ([]string, map[string]map[string]any, error) {
+func runLayerQuery(program *jq.Program, candidates []map[string]any) ([]map[string]any, error) {
 	input := make([]any, 0, len(candidates))
-	for _, id := range candidates {
-		input = append(input, all[id])
+	for _, row := range candidates {
+		input = append(input, row)
 	}
 
 	values, err := program.Run(input)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	// one array level is unwrapped and no more, the way a view's own query is
-	// read (host.IssueItems)
+	// read (host.ViewRows)
 	if len(values) == 1 {
 		if array, ok := values[0].([]any); ok {
 			values = array
 		}
 	}
 
-	ids := make([]string, 0, len(values))
-	shapes := map[string]map[string]any{}
+	out := make([]map[string]any, 0, len(values))
 	for _, value := range values {
 		object, ok := value.(map[string]any)
 		if !ok {
-			return nil, nil, fmt.Errorf("expand: a layer's query returned something that is not an issue")
+			return nil, fmt.Errorf("expand: a layer's query returned something that is not an issue")
 		}
-		id, ok := object["id"].(string)
-		if !ok {
-			return nil, nil, fmt.Errorf("expand: a layer's query returned an issue with no id")
+		if host.RowKey(object) == "" {
+			return nil, fmt.Errorf("expand: a layer's query returned a row with no id and no key")
 		}
-		ids = append(ids, id)
-		shapes[id] = object
+		out = append(out, object)
 	}
-	return ids, shapes, nil
+	return out, nil
 }
 
 // allIssues is the store as a program's input is, by id and in creation
@@ -450,6 +512,10 @@ func childrenIndex(repo *cache.RepoCache, all map[string]map[string]any, order [
 // treeRow is what the drawing order needs to know about one row: where it
 // sits in the tree, its group and rank, and its text for the filter.
 type treeRow struct {
+	// key is the row's identity on the screen (doc/design/query-rows.md,
+	// R1): what the drawing order, the fold state and the cursor find it by.
+	// id is the issue it acts on, "" for a row that stands for nothing.
+	key    string
 	id     string
 	parent string
 	level  int
@@ -470,6 +536,22 @@ type treeRow struct {
 	ghost bool
 }
 
+// tie is what breaks a tie between two equal ranks: the issue's id, or the
+// key of a row that stands for no issue.
+func (r treeRow) tie() string {
+	if r.id != "" {
+		return r.id
+	}
+	return r.key
+}
+
+// keyed says the row stands for a share of an issue or for none — its key is
+// not its id — so a drop must not write the issue's rank
+// (doc/design/query-rows.md, R5).
+func (r treeRow) keyed() bool {
+	return !r.ghost && r.key != r.id
+}
+
 // treeOrder is the drawing order over rows in tree pre-order: a row that
 // matches the filter, or has a descendant that does, is drawn, never one
 // under a folded parent; every set of siblings is grouped in the order their
@@ -480,7 +562,7 @@ func treeOrder(rows []treeRow, filter string) []int {
 	needle := strings.ToLower(strings.TrimSpace(filter))
 	byId := make(map[string]int, len(rows))
 	for at, row := range rows {
-		byId[row.id] = at
+		byId[row.key] = at
 	}
 
 	visible := make([]bool, len(rows))
@@ -507,7 +589,7 @@ func treeOrder(rows []treeRow, filter string) []int {
 	var emit func(at int)
 	emit = func(at int) {
 		order = append(order, at)
-		for _, kid := range arrange(rows, childrenOf[rows[at].id]) {
+		for _, kid := range arrange(rows, childrenOf[rows[at].key]) {
 			emit(kid)
 		}
 	}
@@ -531,7 +613,7 @@ func arrange(rows []treeRow, members []int) []int {
 
 	sort.SliceStable(members, func(i, j int) bool {
 		left, right := rows[members[i]], rows[members[j]]
-		return lessByRank(left.rank, left.id, right.rank, right.id)
+		return lessByRank(left.rank, left.tie(), right.rank, right.tie())
 	})
 	if !rows[members[0]].grouped {
 		return members
@@ -712,7 +794,7 @@ func foldAll(rows []treeRow, open map[string]bool) map[string]bool {
 	out := make(map[string]bool, len(rows))
 	for _, row := range rows {
 		if row.children > 0 {
-			out[row.id] = true
+			out[row.key] = true
 		}
 	}
 	return out
@@ -726,15 +808,15 @@ func foldAll(rows []treeRow, open map[string]bool) map[string]bool {
 // another process wrote — and a cursor that vanished with it would be a
 // cursor moved by somebody else's write. The ancestors of a row that is
 // wanted are opened, which is what the filter does for a match.
-func reveal(rows []treeRow, open map[string]bool, id string) bool {
-	if id == "" {
+func reveal(rows []treeRow, open map[string]bool, key string) bool {
+	if key == "" {
 		return false
 	}
 	byId := make(map[string]treeRow, len(rows))
 	for _, row := range rows {
-		byId[row.id] = row
+		byId[row.key] = row
 	}
-	row, ok := byId[id]
+	row, ok := byId[key]
 	if !ok || !row.hidden {
 		return false
 	}
@@ -745,8 +827,8 @@ func reveal(rows []treeRow, open map[string]bool, id string) bool {
 		if !ok {
 			return opened
 		}
-		if !open[above.id] {
-			open[above.id] = true
+		if !open[above.key] {
+			open[above.key] = true
 			opened = true
 		}
 		row = above

@@ -502,14 +502,18 @@ func (p *ganttPage) hintLine() string {
 	if b == nil {
 		return hints()
 	}
-	if isGhost(b.id) {
+	if p.node().ghost {
 		return hints(hint{"enter", "new issue"})
+	}
+	// a row that stands for no issue opens nothing (R2)
+	pairs := []hint{{"enter", "open"}}
+	if b.id == "" {
+		pairs = nil
 	}
 	// the arrow cell: enter opens the row as it does anywhere, space folds
 	if p.col < 0 {
-		return hints(append([]hint{{"enter", "open"}}, foldHints(p.node())...)...)
+		return hints(append(pairs, foldHints(p.node())...)...)
 	}
-	pairs := []hint{{"enter", "open"}}
 	if b.hasStart || b.hasStop {
 		pairs = append(pairs, hint{"space", "grab bar"})
 	} else {
