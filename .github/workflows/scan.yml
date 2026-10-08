@@ -34,7 +34,5 @@ jobs:
         with:
           go-version: 1.27.x
 
-      # the webui is only compiled in behind the "webui" build tag (see
-      # //webui:assets.go), so this needs no frontend build.
       - name: Run govulncheck
         run: make secure
