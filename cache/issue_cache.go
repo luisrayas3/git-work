@@ -104,6 +104,15 @@ func (c *IssueCache) PlanSetFields(fields map[string]issue.Value) ([]issue.Opera
 	if err != nil {
 		return nil, err
 	}
+	checker, err := c.liveChecker()
+	if err != nil {
+		return nil, err
+	}
+	typeKey := c.typeKey()
+	if next, ok := issue.String(fields[schema.TypeKey]); ok {
+		typeKey = next
+	}
+	fields = fullIdFields(checker, typeKey, fields)
 	if err := c.checkFields(fields); err != nil {
 		return nil, err
 	}
@@ -127,6 +136,11 @@ func (c *IssueCache) PlanAddValues(items map[string][]issue.Value) ([]issue.Oper
 	if err != nil {
 		return nil, err
 	}
+	checker, err := c.liveChecker()
+	if err != nil {
+		return nil, err
+	}
+	items = fullIdItems(checker, c.typeKey(), items, nil)
 	if err := c.checkItems(items); err != nil {
 		return nil, err
 	}
@@ -151,6 +165,12 @@ func (c *IssueCache) PlanRemoveValues(items map[string][]issue.Value) ([]issue.O
 	if err != nil {
 		return nil, err
 	}
+	checker, err := c.liveChecker()
+	if err != nil {
+		return nil, err
+	}
+	snap := c.Snapshot()
+	items = fullIdItems(checker, issueTypeOf(snap.Fields), items, snap.Items)
 	if err := c.checkItems(items); err != nil {
 		return nil, err
 	}
@@ -296,8 +316,13 @@ func (c *IssueCache) update(fn func(snap *issue.Snapshot) ([]issue.Operation, er
 	}
 
 	// The check runs outside the entity's mutex, because resolving a relation
-	// by alias reads a snapshot, possibly this one's. Nothing can commit in
-	// between: the write lock is still held.
+	// reads the excerpts, possibly this one's. Nothing can commit in between:
+	// the write lock is still held.
+	checker, err := c.liveChecker()
+	if err != nil {
+		return err
+	}
+	ops = fullIdOperations(checker, batchType(issueTypeOf(snap.Fields), ops), snap, ops)
 	if err := c.checkOperations(issueTypeOf(snap.Fields), ops, shapeOnly); err != nil {
 		return err
 	}
@@ -336,14 +361,7 @@ func (c *IssueCache) checkOperations(currentType string, ops []issue.Operation, 
 		checker = checker.Shape()
 	}
 
-	typeKey := currentType
-	for _, op := range ops {
-		if set, ok := op.(*issue.SetFieldOperation); ok && set.Key == schema.TypeKey {
-			if next, ok := issue.String(set.Value); ok {
-				typeKey = next
-			}
-		}
-	}
+	typeKey := batchType(currentType, ops)
 
 	problems := &schema.Problems{}
 	collect := func(err error) error {
@@ -377,6 +395,20 @@ func (c *IssueCache) checkOperations(currentType string, ops []issue.Operation, 
 		return problems
 	}
 	return nil
+}
+
+// batchType is the type a batch leaves the issue with:
+// the last type it sets, else the one the issue has.
+func batchType(currentType string, ops []issue.Operation) string {
+	typeKey := currentType
+	for _, op := range ops {
+		if set, ok := op.(*issue.SetFieldOperation); ok && set.Key == schema.TypeKey {
+			if next, ok := issue.String(set.Value); ok {
+				typeKey = next
+			}
+		}
+	}
+	return typeKey
 }
 
 func (c *IssueCache) EditComment(target entity.CombinedId, message string) (*issue.EditCommentOperation, error) {

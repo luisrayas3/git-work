@@ -373,15 +373,23 @@ func (r planResolver) IdentityExists(id string) error {
 }
 
 func (r planResolver) IssueType(id string) (string, error) {
-	var matches []string
-	for known, typeKey := range r.types {
+	full, err := r.IssueId(id)
+	if err != nil {
+		return "", err
+	}
+	return r.types[entity.Id(full)], nil
+}
+
+func (r planResolver) IssueId(id string) (string, error) {
+	var matches []entity.Id
+	for known := range r.types {
 		if strings.HasPrefix(known.String(), id) {
-			matches = append(matches, typeKey)
+			matches = append(matches, known)
 		}
 	}
 	switch len(matches) {
 	case 1:
-		return matches[0], nil
+		return matches[0].String(), nil
 	case 0:
 		return "", fmt.Errorf("%s names no issue", id)
 	default:

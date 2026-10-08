@@ -159,6 +159,17 @@ prints the operations they would commit and writes nothing.
 Every id position takes an id prefix or an alias —
 `git work issue new '{"fields":{"title":"…"},"aliases":{"jira":"PROJ-12"}}'` —
 and a writer prints an id or nothing at all.
+A relation value is one of those positions,
+and **it is stored as the full id** (2026-10-08, `2086c12`):
+every writer — `new`, `set`, `add`, `remove`, Starlark, the views and the creator, the Jira pull —
+resolves a prefix or an alias in a `relation` or `multi-relation` field at planning time,
+so `--dry-run` prints the full id,
+and one that names no issue, or more than one, is refused, named.
+The choke point is the cache's write path (`cache/full_id.go`, `schema.FullIdValue`).
+The kind is the schema's, so with no type defined a `set` stores the value as given,
+and only an `add`/`remove` item of four hex digits or more naming one issue is still taken for one.
+A `remove` of an item the issue holds verbatim removes it verbatim,
+so a prefix stored before that day can still be taken away.
 
 **Issue writes are validated against the schema** as soon as one type exists
 (`bb9e89e`): `new` needs a known `type`, a key that is not a field of that type

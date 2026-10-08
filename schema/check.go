@@ -10,8 +10,9 @@ import (
 	"github.com/git-bug/git-bug/util/sorted"
 )
 
-// Resolver answers the two questions a value check can not answer alone:
-// whether an identity exists, and what type an issue is.
+// Resolver answers the questions a value check can not answer alone:
+// whether an identity exists, what type an issue is,
+// and which issue a prefix or an alias names.
 //
 // The cache implements it; a test implements it with two maps.
 type Resolver interface {
@@ -20,6 +21,9 @@ type Resolver interface {
 	IdentityExists(id string) error
 	// IssueType returns the type key of an issue, by id or id prefix.
 	IssueType(id string) (string, error)
+	// IssueId returns the full id of the issue an id, an id prefix or an
+	// alias names, which is what a relation stores (FullIdValue).
+	IssueId(ref string) (string, error)
 }
 
 // Checker validates an issue write against the schema.

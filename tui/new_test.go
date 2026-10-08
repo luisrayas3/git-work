@@ -138,6 +138,32 @@ func TestNewCreatesOnEnter(t *testing.T) {
 	require.False(t, has, "a field left empty is not stored: the form invents no default (C5)")
 }
 
+// TestNewStoresAPrefixAsTheFullId: a doc naming the parent by a prefix
+// creates the issue with the parent's full id (2086c12).
+func TestNewStoresAPrefixAsTheFullId(t *testing.T) {
+	repo := testRepo(t)
+	story := newIssue(t, repo, map[string]any{"title": "the story", "type": "story"})
+
+	page := newView(t, repo, `{"doc":{"fields":{"type":"task","parent":"`+story[:7]+`"}}}`)
+	page = typeText(page, "do the thing").(*newPage)
+	for range 10 {
+		if page.current().stop == stopCreate {
+			break
+		}
+		page = send(page, "tab").(*newPage)
+	}
+	require.Equal(t, stopCreate, page.current().stop)
+
+	_, cmd := page.Update(press("enter"))
+	require.NotNil(t, cmd)
+	msg, ok := cmd().(createdMsg)
+	require.True(t, ok)
+
+	doc, err := host.IssueGet(repo, msg.id)
+	require.NoError(t, err)
+	require.Equal(t, `"`+story+`"`, string(doc.Fields["parent"]))
+}
+
 // TestNewStandaloneBecomesShow: with nothing underneath, Create puts show on
 // the new issue in the draft's place, and the id is the program's answer.
 func TestNewStandaloneBecomesShow(t *testing.T) {

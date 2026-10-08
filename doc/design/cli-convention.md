@@ -70,6 +70,8 @@ is `terminal-renderer.md`; this document is the command line it is reached by.
   An alias is stored as `alias:<name>` metadata on the create operation,
   the one place in the entity that can never change,
   and an issue carries as many as it has external systems.
+  A relation value takes an id prefix or an alias like any `ID` position,
+  and is stored as the full id it resolves to (2026-10-08, `2086c12`).
 - **`rm` is local, `archive` is replicated**, on every tree.
   `rm` deletes the local ref and the entity returns on the next pull;
   `archive` is an operation and reaches every clone.

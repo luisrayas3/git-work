@@ -7,6 +7,9 @@ Status: **implemented, 2026-09-28.**
 check refuses under `off_schema` (`TestPullOffSchemaWritten`).
 A key that is not a field of the issue's type, or a type the schema lacks,
 is shape, not policy: without the field there is no kind to fit.
+Resolving a relation value to the full id is shape too (2026-10-08, `2086c12`):
+it runs under `UpdateShape` and `NewRawShape` as under every writer,
+a no-op on a pull, which writes full ids already.
 
 ## Problem
 

@@ -235,6 +235,16 @@ Field kinds, fixed as `bb9e89e` specifies, plus the additions this design settle
 | `relation` | parent, iteration, and any cardinality-one link | `entity.Id` of an issue (D4, D5) |
 | `multi-relation` | blocks, relates-to | list of issue ids (D4) |
 
+A relation's value is the **full** `entity.Id`, never a prefix or an alias
+(2026-10-08, `2086c12`).
+A writer takes either, as every id position does,
+and the cache resolves it on the field's kind before the schema check,
+on every write path, the Jira pull's included.
+What names no issue, or more than one, is left as written for the check to refuse, named.
+A prefix stored verbatim was found that day:
+`select(.fields.parent == "<full id>")` missed it,
+and so does every exact comparison, a Jira repoint's included.
+
 `type` is validated against the type entities rather than a field's values,
 the one special case in the engine.
 The `multi-*` kinds are the ones `AddValue` and `RemoveValue` apply to.

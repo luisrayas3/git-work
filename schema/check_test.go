@@ -30,6 +30,17 @@ func (testResolver) IssueType(id string) (string, error) {
 	return "", fmt.Errorf("no issue matching %s", id)
 }
 
+// IssueId knows e1 and t1 by themselves, and t1 by the alias PROJ-1 too.
+func (testResolver) IssueId(ref string) (string, error) {
+	switch ref {
+	case "e1", "t1":
+		return ref, nil
+	case "PROJ-1":
+		return "t1", nil
+	}
+	return "", fmt.Errorf("no issue matching %s", ref)
+}
+
 func testChecker(t *testing.T) *Checker {
 	t.Helper()
 
