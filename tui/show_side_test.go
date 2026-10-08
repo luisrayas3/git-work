@@ -144,28 +144,37 @@ func TestSideTableTabTraversal(t *testing.T) {
 	send(page, "shift+tab")
 	require.Equal(t, stopFields, page.current().stop)
 
-	// down past the last field is the box, not the side tables
-	for range page.rows {
+	// down past the last field rings: neither the side tables nor the box,
+	// which arrows never cross (2026-10-08)
+	for range len(page.rows) - 1 {
 		send(page, "down")
 	}
+	rings(t, page, "down", "down from the last field rings")
+	require.Equal(t, stopFields, page.current().stop)
+	send(page, "tab", "tab")
 	require.Equal(t, stopBox, page.current().stop)
 	// up from the box rings and stays: the box is left by Tab and S-Tab
-	send(page, "up")
+	rings(t, page, "up", "up from the box rings")
 	require.Equal(t, stopBox, page.current().stop)
 	send(page, "shift+tab")
 	require.Equal(t, stopSide, page.current().stop, "S-Tab from the box is the side tables")
 	send(page, "shift+tab")
 	require.Equal(t, stopFields, page.current().stop)
 
-	// on the side: up from the first is the header, down past the last the box
+	// on the side: up from the first is the header, down past the last rings
 	send(page, "tab")
 	send(page, "up")
 	require.Equal(t, stopHeader, page.current().stop)
 	send(page, "tab", "tab")
 	require.Equal(t, stopSide, page.current().stop)
-	for range page.sideItems() {
+	for range len(page.sideItems()) - 1 {
 		send(page, "down")
 	}
+	last := page.side
+	rings(t, page, "down", "down from the last side row rings")
+	require.Equal(t, stopSide, page.current().stop)
+	require.Equal(t, last, page.side, "and stays on it")
+	send(page, "tab")
 	require.Equal(t, stopBox, page.current().stop)
 	send(page, "shift+tab")
 	require.Equal(t, stopSide, page.current().stop, "shift-tab from the box is the side tables")

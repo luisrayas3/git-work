@@ -447,7 +447,7 @@ On the comment box the cursor washes it whole, its keys on the bottom line like 
 `Enter` there does nothing,
 `Space` puts the cursor in the text, the wash giving way to the text cursor, where `Enter` sends, `M-Enter` (or `S-Enter` where the terminal reports it) is a newline
 and `Esc` leaves the text keeping the draft (`Tab` skips the box whole).
-`↑` on the box rings: it is left by `Tab`/`S-Tab`, not by the row drawn above it (2026-10-08).
+**Arrows never cross the box** (2026-10-08): it is a stop of `Tab`/`S-Tab` alone, so `↑`/`↓` on it ring, and so do `↓` from the last row of the fields or of a side table and `↑` from the top of the tabs; `view new`'s description box is the same, Create under it reached by `Tab`.
 `Space` on the description tab edits the description — the issue's first comment —
 in that same editor, `Enter` writing it, an emptied one refused (2026-10-02).
 Show's `expand` draws a **side table** per element beside the fields, under them in a window too narrow for both

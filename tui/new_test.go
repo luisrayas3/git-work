@@ -77,6 +77,8 @@ func TestNewOpensOnTheTypeWhenNone(t *testing.T) {
 	require.Equal(t, cellType, page.cell)
 	require.Empty(t, page.rows)
 	require.Contains(t, plainView(page), "(no type)  (no title)")
+	page = rings(t, page, "down", "no rows: the next thing down is the box, which arrows never enter").(*newPage)
+	require.Equal(t, stopHeader, page.current().stop)
 
 	// space opens the schema's types; the first is initiative, so task is a
 	// few down
@@ -345,4 +347,32 @@ func TestNewDescriptionBoxHasNoFooter(t *testing.T) {
 	for _, row := range page.rows {
 		require.NotEqual(t, "rank", row.key)
 	}
+}
+
+// TestNewArrowsNeverCrossTheBox: the description box is a stop of Tab and
+// S-Tab alone, as show's comment box is, so Create under it is reached by
+// Tab and every arrow at an edge against the box rings (2026-10-08).
+func TestNewArrowsNeverCrossTheBox(t *testing.T) {
+	repo := testRepo(t)
+
+	page := newView(t, repo, `{"doc":{"fields":{"type":"task","title":"one"}},"fields":["status","priority"]}`)
+	page.editor = nil
+	page.focusStop(stopFields)
+	page.row = len(page.rows) - 1
+	page = rings(t, page, "down", "down from the last row rings").(*newPage)
+	require.Equal(t, stopFields, page.current().stop)
+	require.Equal(t, len(page.rows)-1, page.row)
+
+	page = send(page, "tab").(*newPage)
+	require.Equal(t, stopBox, page.current().stop, "Tab is the box")
+	page = rings(t, page, "down", "down on the box rings").(*newPage)
+	page = rings(t, page, "up", "up on the box rings").(*newPage)
+	require.Equal(t, stopBox, page.current().stop)
+
+	page = send(page, "tab").(*newPage)
+	require.Equal(t, stopCreate, page.current().stop, "Tab is Create")
+	page = rings(t, page, "up", "up from Create rings").(*newPage)
+	require.Equal(t, stopCreate, page.current().stop)
+	page = send(page, "shift+tab", "shift+tab").(*newPage)
+	require.Equal(t, stopFields, page.current().stop, "S-Tab walks back")
 }

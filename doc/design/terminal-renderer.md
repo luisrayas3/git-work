@@ -1006,8 +1006,15 @@ with `Enter` sending from the text, the button was a second way to do one thing.
 Outside the box's text the directions work within a stop first
 and move to the next stop at its edge:
 in the table, up and down walk the rows,
-past the last row is the box, and past the box is the tab strip;
+and up from the first row is the header;
 on the tabs, up and down scroll.
+**The box is a stop of `Tab` and `S-Tab` alone** (2026-10-08, Luis):
+no arrow enters it or leaves it, so `↓` from the last row,
+`↑` and `↓` on the box and `↑` from the top of the tabs all ring.
+Until then past the last row was the box and past the box the tab strip,
+but the stop an arrow lands on beside the box is only what is drawn there,
+not where the person came from, so the arrows walk within a region
+and `Tab` moves between them.
 Copy works on each header cell and on each row as on a list cell;
 copy on the description copies the description.
 
