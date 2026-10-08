@@ -7,23 +7,30 @@ endif
 TAG:=$(shell git describe --match 'v*' --always --dirty --broken)
 LDFLAGS:=-X main.version="${TAG}"
 
+# The module path is still github.com/git-bug/git-bug, so go would name the
+# binary git-bug: every target names it git-work.
+GOBIN:=$(shell go env GOBIN)
+ifeq ($(GOBIN),)
+    GOBIN:=$(shell go env GOPATH)/bin
+endif
+
 all: build
 
 .PHONY: build
 build:
 	go generate
-	go build -ldflags "$(LDFLAGS)" .
+	go build -ldflags "$(LDFLAGS)" -o git-work .
 
 # produce a debugger-friendly build
 .PHONY: build/debug
 build/debug:
 	go generate
-	go build -ldflags "$(LDFLAGS)" -gcflags=all="-N -l" .
+	go build -ldflags "$(LDFLAGS)" -gcflags=all="-N -l" -o git-work .
 
 .PHONY: install
 install:
 	go generate
-	go install -ldflags "$(LDFLAGS)" .
+	go build -ldflags "$(LDFLAGS)" -o "$(GOBIN)/git-work" .
 
 .PHONY: secure
 secure:
