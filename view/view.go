@@ -12,9 +12,8 @@
 // intermediate is printed out (decided 2026-09-24). A view reads the store
 // itself, draws, and returns what the user answered.
 //
-// What draws it is a Renderer: the terminal one (package `tui`, `84dfbde`) and
-// the browser one (`8b06191`). A kind no renderer draws yet fails naming the
-// renderer, so a view is never a command on one surface and not the other.
+// What draws it is a Renderer, the terminal one (package `tui`, `84dfbde`), the
+// only surface since the GUI was dropped (2026-10-08, `938434e`).
 // There are no field roles on the schema: a flow's script names the fields it
 // means when it calls the view (`d56e6f1`, `f4bac00`).
 package view
@@ -33,13 +32,10 @@ import (
 // ErrNoTerminal is what a view with nowhere to draw hits.
 //
 // It is not an error about the call: the call is fine, there is just no
-// surface, and the two ways out are both in the message. It lives here
+// terminal, and the message says where the data is without one. It lives here
 // because the command and host.View both answer with it, and a view that
 // could not be drawn has to say the same thing whoever asked for it.
-var ErrNoTerminal = errors.New("a view needs a terminal; run it in one, or with --gui")
-
-// ErrNoGui is what --gui hits until the browser renderer exists (8b06191).
-var ErrNoGui = errors.New("the gui renderer is not built yet (8b06191)")
+var ErrNoTerminal = errors.New("a view needs a terminal; an agent reads the data with `git work issue list`")
 
 // Call is one parsed view call: the kind, and its arguments with the
 // defaults applied.

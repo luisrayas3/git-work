@@ -39,7 +39,6 @@ git work flow run - '{"status":"done"}' < scratch.star
 ### Options
 
 ```
-      --gui    Draw what the flow renders in the browser
   -h, --help   help for run
 ```
 

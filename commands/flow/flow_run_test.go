@@ -42,7 +42,7 @@ func TestFlowRunJSON(t *testing.T) {
 	importScript(t, env, "kanban.star", runnableFlow)
 
 	env.Out.Reset()
-	require.NoError(t, runFlowRun(env, flowRunOptions{}, []string{"kanban"}))
+	require.NoError(t, runFlowRun(env, []string{"kanban"}))
 
 	var items []struct {
 		Fields map[string]json.RawMessage `json:"fields"`
@@ -64,7 +64,7 @@ func TestFlowRunDrawingNeedsASurface(t *testing.T) {
 	importScript(t, env, "kanban_view.star", drawingFlow)
 
 	env.Out.Reset()
-	err := runFlowRun(env, flowRunOptions{}, []string{"kanban_view"})
+	err := runFlowRun(env, []string{"kanban_view"})
 	require.ErrorContains(t, err, view.ErrNoTerminal.Error())
 	require.Equal(t, "", env.Out.String())
 }
@@ -74,7 +74,7 @@ func TestFlowRunKwargsFromTheArgument(t *testing.T) {
 	importScript(t, env, "kanban.star", runnableFlow)
 
 	env.Out.Reset()
-	require.NoError(t, runFlowRun(env, flowRunOptions{}, []string{"kanban", `{"status":"done"}`}))
+	require.NoError(t, runFlowRun(env, []string{"kanban", `{"status":"done"}`}))
 
 	var items []struct {
 		Fields map[string]json.RawMessage `json:"fields"`
@@ -92,7 +92,7 @@ func TestFlowRunKwargsFromStdin(t *testing.T) {
 	require.NoError(t, err)
 
 	env.Out.Reset()
-	require.NoError(t, runFlowRun(env, flowRunOptions{}, []string{"kanban", "-"}))
+	require.NoError(t, runFlowRun(env, []string{"kanban", "-"}))
 	require.Contains(t, env.Out.String(), "second")
 	require.NotContains(t, env.Out.String(), "first")
 }
@@ -102,20 +102,9 @@ func TestFlowRunPrintsNothingForNone(t *testing.T) {
 	importScript(t, env, "quiet.star", quietFlow)
 
 	env.Out.Reset()
-	require.NoError(t, runFlowRun(env, flowRunOptions{}, []string{"quiet"}))
+	require.NoError(t, runFlowRun(env, []string{"quiet"}))
 	require.Equal(t, "", env.Out.String())
 	require.Len(t, env.Backend.Issues().AllIds(), 1)
-}
-
-func TestFlowRunGuiHasNoRenderer(t *testing.T) {
-	env := newTestEnv(t)
-	importScript(t, env, "kanban.star", runnableFlow)
-
-	err := runFlowRun(env, flowRunOptions{gui: true}, []string{"kanban"})
-	require.ErrorIs(t, err, view.ErrNoGui)
-	require.Contains(t, err.Error(), "8b06191")
-	// and it ran nothing
-	require.Empty(t, env.Backend.Issues().AllIds())
 }
 
 func TestFlowRunRefusals(t *testing.T) {
@@ -123,11 +112,11 @@ func TestFlowRunRefusals(t *testing.T) {
 	importScript(t, env, "kanban.star", runnableFlow)
 
 	// a flow nobody defined
-	require.Error(t, runFlowRun(env, flowRunOptions{}, []string{"absent"}))
+	require.Error(t, runFlowRun(env, []string{"absent"}))
 	// arguments that are not a JSON object
-	require.Error(t, runFlowRun(env, flowRunOptions{}, []string{"kanban", `["status"]`}))
+	require.Error(t, runFlowRun(env, []string{"kanban", `["status"]`}))
 	// an argument the signature does not have
-	err := runFlowRun(env, flowRunOptions{}, []string{"kanban", `{"statuss":"done"}`})
+	err := runFlowRun(env, []string{"kanban", `{"statuss":"done"}`})
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "statuss")
 }
@@ -141,19 +130,19 @@ func TestFlowRunScriptFromStdin(t *testing.T) {
 	require.NoError(t, err)
 
 	env.Out.Reset()
-	require.NoError(t, runFlowRun(env, flowRunOptions{}, []string{"-", `{"status":"done"}`}))
+	require.NoError(t, runFlowRun(env, []string{"-", `{"status":"done"}`}))
 	require.Contains(t, env.Out.String(), "second")
 	require.NotContains(t, env.Out.String(), "first")
 	// and nothing was imported
 	require.Empty(t, env.Backend.Flows().AllIds())
 
 	// the script and the arguments can not share standard input
-	err = runFlowRun(env, flowRunOptions{}, []string{"-", "-"})
+	err = runFlowRun(env, []string{"-", "-"})
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "standard input")
 
 	// a file that is not one function is refused as import refuses it
 	_, err = env.In.(*execenv.TestIn).WriteString("x = 1\n")
 	require.NoError(t, err)
-	require.Error(t, runFlowRun(env, flowRunOptions{}, []string{"-"}))
+	require.Error(t, runFlowRun(env, []string{"-"}))
 }

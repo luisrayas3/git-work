@@ -28,7 +28,6 @@ git-work view board [KWARGS|-] [flags]
 ### Options
 
 ```
-      --gui    Draw the view in the browser
   -h, --help   help for board
 ```
 

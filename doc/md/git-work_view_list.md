@@ -28,7 +28,6 @@ git-work view list [KWARGS|-] [flags]
 ### Options
 
 ```
-      --gui    Draw the view in the browser
   -h, --help   help for list
 ```
 

@@ -16,18 +16,9 @@ import (
 func TestViewNeedsATerminal(t *testing.T) {
 	env := execenv.NewTestEnv(t)
 
-	err := runView(env, viewOptions{}, "list", nil)
+	err := runView(env, "list", nil)
 	require.ErrorIs(t, err, view.ErrNoTerminal)
-	require.Contains(t, err.Error(), "--gui")
-	require.Equal(t, "", env.Out.String())
-}
-
-func TestViewGuiHasNoRenderer(t *testing.T) {
-	env := execenv.NewTestEnv(t)
-
-	err := runView(env, viewOptions{gui: true}, "board", []string{`{"columns":"status"}`})
-	require.ErrorIs(t, err, view.ErrNoGui)
-	require.Contains(t, err.Error(), "8b06191")
+	require.Contains(t, err.Error(), "git work issue list")
 	require.Equal(t, "", env.Out.String())
 }
 
@@ -37,18 +28,18 @@ func TestViewGuiHasNoRenderer(t *testing.T) {
 func TestViewChecksTheCallBeforeTheSurface(t *testing.T) {
 	env := execenv.NewTestEnv(t)
 
-	err := runView(env, viewOptions{}, "board", []string{`{"colums":"status"}`})
+	err := runView(env, "board", []string{`{"colums":"status"}`})
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "colums")
 	require.Contains(t, err.Error(), "columns (required)")
 
 	// a required argument that is absent, likewise
-	err = runView(env, viewOptions{}, "board", nil)
+	err = runView(env, "board", nil)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "columns")
 
 	// and the arguments have to be an object at all
-	err = runView(env, viewOptions{}, "list", []string{`["title"]`})
+	err = runView(env, "list", []string{`["title"]`})
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "JSON object")
 }
@@ -59,12 +50,12 @@ func TestViewChecksTheCallBeforeTheSurface(t *testing.T) {
 func TestViewRefusesRank(t *testing.T) {
 	env := execenv.NewTestEnv(t)
 
-	err := runView(env, viewOptions{}, "list", []string{`{"rank":"rank"}`})
+	err := runView(env, "list", []string{`{"rank":"rank"}`})
 	require.Error(t, err)
 	require.NotErrorIs(t, err, view.ErrNoTerminal)
 	require.Contains(t, err.Error(), "rank")
 
-	err = runView(env, viewOptions{}, "gantt", []string{`{"start":"a","stop":"b","expand":{"relation":"children","rank":"rank"}}`})
+	err = runView(env, "gantt", []string{`{"start":"a","stop":"b","expand":{"relation":"children","rank":"rank"}}`})
 	require.Error(t, err)
 	require.NotErrorIs(t, err, view.ErrNoTerminal)
 	require.Contains(t, err.Error(), "takes no key rank")
@@ -76,7 +67,7 @@ func TestViewKwargsFromStdin(t *testing.T) {
 	require.NoError(t, err)
 
 	// the call parses, so what is left is the missing terminal
-	err = runView(env, viewOptions{}, "board", []string{"-"})
+	err = runView(env, "board", []string{"-"})
 	require.ErrorIs(t, err, view.ErrNoTerminal)
 }
 
@@ -129,13 +120,13 @@ func TestViewChecksShowEntries(t *testing.T) {
 		{"show", `{"id":"abc","show":{"epic":{"expand":{"relation":"children","details":["status"]}}}}`, "takes no details"},
 		{"list", `{"show":{"epic":{"expand":{"relation":"children","fields":["colour"]}}}}`, "colour"},
 	} {
-		err := runView(env, viewOptions{}, c.kind, []string{c.kwargs})
+		err := runView(env, c.kind, []string{c.kwargs})
 		require.Error(t, err, c.kwargs)
 		require.NotErrorIs(t, err, view.ErrNoTerminal, c.kwargs)
 		require.Contains(t, err.Error(), c.want)
 	}
 
 	// a good map passes the check and meets the missing terminal
-	err = runView(env, viewOptions{}, "list", []string{`{"show":{"epic":{"expand":"children"}}}`})
+	err = runView(env, "list", []string{`{"show":{"epic":{"expand":"children"}}}`})
 	require.ErrorIs(t, err, view.ErrNoTerminal)
 }

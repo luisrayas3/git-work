@@ -299,7 +299,6 @@ func TestViewWithoutARendererSaysSo(t *testing.T) {
     return work.view.board(columns="status")
 `, nil)
 	require.ErrorContains(t, err, view.ErrNoTerminal.Error())
-	require.ErrorContains(t, err, "--gui")
 }
 
 // TestViewReachesTheRendererParsed pins the seam: the renderer is handed a

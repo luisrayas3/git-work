@@ -15,13 +15,7 @@ import (
 	"github.com/git-bug/git-bug/view"
 )
 
-type flowRunOptions struct {
-	gui bool
-}
-
 func newFlowRunCommand(env *execenv.Env) *cobra.Command {
-	options := flowRunOptions{}
-
 	cmd := &cobra.Command{
 		Use:   "run NAME|- [KWARGS|-]",
 		Short: "Run a flow",
@@ -50,26 +44,16 @@ git work flow run - '{"status":"done"}' < scratch.star`,
 		Args:    cobra.RangeArgs(1, 2),
 		PreRunE: execenv.LoadBackendEnsureUser(env),
 		RunE: execenv.CloseBackend(env, func(cmd *cobra.Command, args []string) error {
-			return runFlowRun(env, options, args)
+			return runFlowRun(env, args)
 		}),
 		ValidArgsFunction: FlowCompletion(env),
 	}
 
-	flags := cmd.Flags()
-	flags.SortFlags = false
-
-	flags.BoolVar(&options.gui, "gui", false,
-		"Draw what the flow renders in the browser")
-
 	return cmd
 }
 
-func runFlowRun(env *execenv.Env, opts flowRunOptions, args []string) error {
+func runFlowRun(env *execenv.Env, args []string) error {
 	warnDuplicates(env)
-
-	if opts.gui {
-		return view.ErrNoGui
-	}
 
 	kwargs, err := readKwargs(env, args)
 	if err != nil {
