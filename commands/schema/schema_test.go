@@ -318,7 +318,7 @@ func TestSchemaArchiveAndRm(t *testing.T) {
 	initJira(t, env)
 
 	// archive is the replicated removal
-	require.NoError(t, runSchemaArchive(env, []string{"task/estimate"}))
+	require.NoError(t, runSchemaArchive(env, archiveOptions{}, []string{"task/estimate"}))
 	require.Equal(t, "", env.Out.String())
 
 	s, err := env.Backend.LoadSchema()
@@ -328,16 +328,146 @@ func TestSchemaArchiveAndRm(t *testing.T) {
 
 	// archiving a type says what it leaves behind
 	env.Err.Reset()
-	require.NoError(t, runSchemaArchive(env, []string{"bug"}))
+	require.NoError(t, runSchemaArchive(env, archiveOptions{}, []string{"bug"}))
 	require.Contains(t, env.Err.String(), "still live on the archived type bug")
 
 	// rm is local, and prints nothing
 	before := len(env.Backend.Schema().AllIds())
-	require.NoError(t, runSchemaRm(env, []string{"task/due"}))
+	require.NoError(t, runSchemaRm(env, rmOptions{}, []string{"task/due"}))
 	require.Equal(t, "", env.Out.String())
 	require.Equal(t, before-1, len(env.Backend.Schema().AllIds()))
 
-	require.Error(t, runSchemaRm(env, []string{"task/due"}))
+	require.Error(t, runSchemaRm(env, rmOptions{}, []string{"task/due"}))
+}
+
+// duplicateStatus is two clones defining task/status before either pushed (E7):
+// the preset's entity wins and a second one, created later, loses.
+func duplicateStatus(t *testing.T, env *execenv.Env) (winner, loser entity.Id) {
+	t.Helper()
+	initJira(t, env)
+
+	current, err := env.Backend.Schema().Current(config.ShapeField, "task/status")
+	require.NoError(t, err)
+	second, _, err := env.Backend.Schema().New(config.ShapeField, "task/status", map[string]config.Value{
+		"name": config.StringValue("Status, again"),
+	})
+	require.NoError(t, err)
+
+	env.Out.Reset()
+	env.Err.Reset()
+	return current.Id(), second.Id()
+}
+
+func TestSchemaDuplicatedKeyIsRefusedByKey(t *testing.T) {
+	env := newTestEnv(t)
+	winner, loser := duplicateStatus(t, env)
+
+	for _, err := range []error{
+		runSchemaArchive(env, archiveOptions{}, []string{"task/status"}),
+		runSchemaRm(env, rmOptions{}, []string{"task/status"}),
+	} {
+		require.ErrorContains(t, err, "task/status is defined twice: "+winner.Human()+" (current) and "+loser.Human())
+		require.ErrorContains(t, err, "--id")
+	}
+	require.Len(t, env.Backend.Schema().AllDuplicates(), 1, "nothing was written")
+
+	// the warning names the command that repairs it
+	require.Contains(t, env.Err.String(), "git work schema archive --id "+loser.Human())
+
+	// log by key reads every holder, the winner first
+	env.Out.Reset()
+	require.NoError(t, runSchemaLog(env, logOptions{format: "json"}, []string{"task/status"}))
+	var entities []string
+	for _, line := range strings.Split(strings.TrimSpace(env.Out.String()), "\n") {
+		var entry map[string]interface{}
+		require.NoError(t, json.Unmarshal([]byte(line), &entry))
+		id := entry["entity"].(string)
+		if len(entities) == 0 || entities[len(entities)-1] != id {
+			entities = append(entities, id)
+		}
+	}
+	require.Equal(t, []string{winner.String(), loser.String()}, entities)
+}
+
+func TestSchemaArchiveByIdTheLoser(t *testing.T) {
+	env := newTestEnv(t)
+	winner, loser := duplicateStatus(t, env)
+
+	require.NoError(t, runSchemaArchive(env, archiveOptions{id: loser.Human()}, nil))
+	require.Empty(t, env.Backend.Schema().AllDuplicates())
+
+	current, err := env.Backend.Schema().Current(config.ShapeField, "task/status")
+	require.NoError(t, err)
+	require.Equal(t, winner, current.Id())
+
+	env.Err.Reset()
+	require.NoError(t, runSchemaLog(env, logOptions{format: "json"}, nil))
+	require.Empty(t, env.Err.String(), "the warnings stop")
+
+	// an archived entity is still named by id, and log prints it
+	env.Out.Reset()
+	require.NoError(t, runSchemaLog(env, logOptions{format: "json", id: loser.String()}, nil))
+	lines := strings.Split(strings.TrimSpace(env.Out.String()), "\n")
+	require.Len(t, lines, 3, "create, name, archive")
+	for _, line := range lines {
+		require.Contains(t, line, `"entity":"`+loser.String()+`"`)
+	}
+	require.Contains(t, lines[2], `"set-archived"`)
+
+	// archiving it again leaves it archived
+	require.NoError(t, runSchemaArchive(env, archiveOptions{id: loser.Human()}, nil))
+	require.Empty(t, env.Backend.Schema().AllDuplicates())
+}
+
+func TestSchemaArchiveByIdTheWinner(t *testing.T) {
+	env := newTestEnv(t)
+	winner, loser := duplicateStatus(t, env)
+
+	require.NoError(t, runSchemaArchive(env, archiveOptions{id: winner.String()}, nil))
+
+	current, err := env.Backend.Schema().Current(config.ShapeField, "task/status")
+	require.NoError(t, err)
+	require.Equal(t, loser, current.Id())
+
+	env.Err.Reset()
+	require.NoError(t, runSchemaLog(env, logOptions{format: "json"}, []string{"task/status"}))
+	require.Empty(t, env.Err.String())
+}
+
+func TestSchemaById(t *testing.T) {
+	env := newTestEnv(t)
+	ids := initJira(t, env)
+
+	// a prefix two ids share is ambiguous: more ids than hex digits share one
+	require.Greater(t, len(ids), 16)
+	seen := map[byte]bool{}
+	shared := ""
+	for _, id := range ids {
+		if seen[id[0]] {
+			shared = id[:1]
+			break
+		}
+		seen[id[0]] = true
+	}
+	err := runSchemaArchive(env, archiveOptions{id: shared}, nil)
+	require.ErrorContains(t, err, "Multiple matching")
+
+	// an id is never read as a key
+	err = runSchemaArchive(env, archiveOptions{id: "task"}, nil)
+	require.Error(t, err)
+	require.True(t, entity.IsErrNotFound(err))
+
+	// KEY and --id together, or neither, is a usage error
+	require.ErrorContains(t, runSchemaArchive(env, archiveOptions{id: ids[0]}, []string{"task"}), "not both")
+	require.ErrorContains(t, runSchemaRm(env, rmOptions{id: ids[0]}, []string{"task"}), "not both")
+	require.ErrorContains(t, runSchemaLog(env, logOptions{format: "json", id: ids[0]}, []string{"task"}), "not both")
+	require.Error(t, runSchemaArchive(env, archiveOptions{}, nil))
+	require.Error(t, runSchemaRm(env, rmOptions{}, nil))
+
+	// rm by id deletes the local ref
+	before := len(env.Backend.Schema().AllIds())
+	require.NoError(t, runSchemaRm(env, rmOptions{id: ids[0]}, nil))
+	require.Equal(t, before-1, len(env.Backend.Schema().AllIds()))
 }
 
 func TestSchemaValidatesIssueWrites(t *testing.T) {

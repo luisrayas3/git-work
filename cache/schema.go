@@ -2,9 +2,11 @@ package cache
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/git-bug/git-bug/entities/config"
 	"github.com/git-bug/git-bug/entities/issue"
+	"github.com/git-bug/git-bug/entity"
 	"github.com/git-bug/git-bug/schema"
 )
 
@@ -126,6 +128,12 @@ func configShapeOfKey(key string) []config.Shape {
 
 // ResolveSchemaKey finds the entity a schema command's KEY argument names,
 // trying the type shape and then the field shape.
+//
+// A key two unarchived entities hold is refused, naming every holder,
+// because the intent of a write on a duplicated key is to end the duplication,
+// a write to the loser, and resolving it to the winner would lose that edit
+// without a word (schema-archive-id.md, A2).
+// Not-found is returned only when every shape found nothing.
 func (c *RepoCacheConfig) ResolveSchemaKey(key string) (*ConfigCache, error) {
 	var lastErr error
 	for _, shape := range configShapeOfKey(key) {
@@ -133,7 +141,61 @@ func (c *RepoCacheConfig) ResolveSchemaKey(key string) (*ConfigCache, error) {
 		if err == nil {
 			return cached, nil
 		}
+		if multiple, ok := err.(*entity.ErrMultipleMatch); ok {
+			return nil, duplicatedKeyError(key, multiple.Matching)
+		}
 		lastErr = err
 	}
 	return nil, fmt.Errorf("no type or field %s: %w", key, lastErr)
+}
+
+// duplicatedKeyError names every holder of a key, the winner first,
+// and the flag that names one of them.
+// The ids come in the order ResolveKey found them, which is Current's.
+func duplicatedKeyError(key string, ids []entity.Id) error {
+	names := make([]string, len(ids))
+	for i, id := range ids {
+		names[i] = id.Human()
+	}
+	names[0] += " (current)"
+
+	times := "twice"
+	if len(ids) > 2 {
+		times = fmt.Sprintf("%d times", len(ids))
+	}
+	last := len(names) - 1
+	listed := strings.Join(names[:last], ", ") + " and " + names[last]
+
+	return fmt.Errorf("%s is defined %s: %s;\nname one with --id", key, times, listed)
+}
+
+// SchemaHolders returns every unarchived entity holding a key,
+// the winner first and the rest by creation,
+// which is what `schema log KEY` prints (schema-archive-id.md, A2).
+func (c *RepoCacheConfig) SchemaHolders(key string) ([]*ConfigCache, error) {
+	for _, shape := range configShapeOfKey(key) {
+		candidates := c.candidates(shape, key)
+		if len(candidates) == 0 {
+			continue
+		}
+		holders := make([]*ConfigCache, 0, len(candidates))
+		for _, excerpt := range candidates {
+			cached, err := c.Resolve(excerpt.Id())
+			if err != nil {
+				return nil, err
+			}
+			holders = append(holders, cached)
+		}
+		return holders, nil
+	}
+	return nil, fmt.Errorf("no type or field %s: %w", key, entity.NewErrNotFound(c.Typename()))
+}
+
+// ResolveSchemaId finds the type or field entity whose id has the prefix:
+// archived or not, winner or loser, and never a key (schema-archive-id.md, A3).
+func (c *RepoCacheConfig) ResolveSchemaId(prefix string) (*ConfigCache, error) {
+	if prefix == "" {
+		return nil, fmt.Errorf("an empty id names no entity")
+	}
+	return c.ResolvePrefix(prefix)
 }

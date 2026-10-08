@@ -13,20 +13,26 @@ An archived field stops being settable; it does not vanish from the issues that
 have it, because a schema says what may be written now, never what was written
 before. KEY is a type key or a field key, <type>/<field>.
 
+A KEY two entities hold, two clones having defined it before exchanging, is
+refused, naming both ids: name the one to archive with --id ID, a full id or a
+unique prefix, archived or not, which is never read as a key.
+
 ```
-git-work schema archive KEY [flags]
+git-work schema archive KEY | --id ID [flags]
 ```
 
 ### Examples
 
 ```
 git work schema archive task/estimate
+git work schema archive --id db9cdb7
 ```
 
 ### Options
 
 ```
-  -h, --help   help for archive
+  -h, --help        help for archive
+      --id string   name the entity by its id or a unique prefix of it, archived or not, instead of by KEY
 ```
 
 ### SEE ALSO

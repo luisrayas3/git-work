@@ -364,6 +364,12 @@ Nothing needs a ref deleted;
 `schema rm` exists, but it deletes the local ref only, like `issue rm`,
 and the entity returns on the next pull (E10).
 
+A key two entities hold is refused by `schema archive KEY` and `schema rm KEY`,
+which name both ids, and the loser is named by id instead:
+`schema archive --id ID`, the command the warning prints;
+`schema log KEY` reads every holder, and `schema log --id ID` exports the loser's history
+(`schema-archive-id.md`, 2026-10-07).
+
 ### E8 — The cache layer
 
 - `cache.RepoCacheConfig` wraps `SubCache[*config.Entity, *ConfigExcerpt, *ConfigCache]`,

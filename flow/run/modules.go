@@ -425,32 +425,73 @@ func (r *runtime) schemaInit(thread *starlark.Thread, b *starlark.Builtin, args 
 	return changeList(b, changes)
 }
 
-// work.schema.log(key="") — `git work schema log [KEY]`, every entity by default.
+// schemaRefArgs reads the key= and id= keywords of archive, rm and log:
+// by keyword only, so that a script never passes a value whose kind is
+// unsaid, and never both (schema-archive-id.md, A5).
+// A writer must name one; log may name none, every entity.
+func schemaRefArgs(b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple, required bool) (host.SchemaRef, error) {
+	if len(args) != 0 {
+		return host.SchemaRef{}, fmt.Errorf("%s: takes key= or id= by keyword", b.Name())
+	}
+
+	key, id := starlark.Value(starlark.None), starlark.Value(starlark.None)
+	if err := starlark.UnpackArgs(b.Name(), args, kwargs, "key?", &key, "id?", &id); err != nil {
+		return host.SchemaRef{}, err
+	}
+
+	var ref host.SchemaRef
+	for _, arg := range []struct {
+		name  string
+		value starlark.Value
+		into  *string
+	}{{"key", key, &ref.Key}, {"id", id, &ref.Id}} {
+		if arg.value == starlark.None {
+			continue
+		}
+		s, ok := starlark.AsString(arg.value)
+		if !ok {
+			return host.SchemaRef{}, fmt.Errorf("%s: %s is %s, want string or None", b.Name(), arg.name, arg.value.Type())
+		}
+		*arg.into = s
+	}
+
+	switch {
+	case ref.Key != "" && ref.Id != "":
+		return host.SchemaRef{}, fmt.Errorf("%s: takes key= or id=, not both", b.Name())
+	case required && ref.Key == "" && ref.Id == "":
+		return host.SchemaRef{}, fmt.Errorf("%s: takes key= or id=", b.Name())
+	}
+	return ref, nil
+}
+
+// work.schema.log(key=None, id=None) — `git work schema log [KEY | --id ID]`,
+// every entity when neither is given.
 func (r *runtime) schemaLog(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
-	var key string
-	if err := starlark.UnpackArgs(b.Name(), args, kwargs, "key?", &key); err != nil {
+	ref, err := schemaRefArgs(b, args, kwargs, false)
+	if err != nil {
 		return nil, err
 	}
 
 	r.warn(host.SchemaDuplicates(r.repo))
 
-	entries, err := host.SchemaLog(r.repo, key)
+	entries, err := host.SchemaLog(r.repo, ref)
 	if err != nil {
 		return nil, err
 	}
 	return reencode(b, entries)
 }
 
-// work.schema.archive(key) — `git work schema archive KEY`, the replicated removal.
+// work.schema.archive(key=None, id=None) — `git work schema archive KEY | --id ID`,
+// the replicated removal.
 func (r *runtime) schemaArchive(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
-	var key string
-	if err := starlark.UnpackArgs(b.Name(), args, kwargs, "key", &key); err != nil {
+	ref, err := schemaRefArgs(b, args, kwargs, true)
+	if err != nil {
 		return nil, err
 	}
 
 	r.warn(host.SchemaDuplicates(r.repo))
 
-	warnings, err := host.SchemaArchive(r.repo, key)
+	warnings, err := host.SchemaArchive(r.repo, ref)
 	r.warn(warnings)
 	if err != nil {
 		return nil, err
@@ -458,16 +499,17 @@ func (r *runtime) schemaArchive(thread *starlark.Thread, b *starlark.Builtin, ar
 	return starlark.None, nil
 }
 
-// work.schema.rm(key) — `git work schema rm KEY`, the local ref only.
+// work.schema.rm(key=None, id=None) — `git work schema rm KEY | --id ID`,
+// the local ref only.
 func (r *runtime) schemaRm(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
-	var key string
-	if err := starlark.UnpackArgs(b.Name(), args, kwargs, "key", &key); err != nil {
+	ref, err := schemaRefArgs(b, args, kwargs, true)
+	if err != nil {
 		return nil, err
 	}
 
 	r.warn(host.SchemaDuplicates(r.repo))
 
-	if err := host.SchemaRm(r.repo, key); err != nil {
+	if err := host.SchemaRm(r.repo, ref); err != nil {
 		return nil, err
 	}
 	return starlark.None, nil

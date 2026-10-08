@@ -1,6 +1,7 @@
 package schemacmd
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -20,6 +21,30 @@ import (
 // the difference between a team repairing it and a team losing an edit.
 func warnDuplicates(env *execenv.Env) {
 	env.Warn(host.SchemaDuplicates(env.Backend))
+}
+
+// schemaRef reads the entity a command names: a positional KEY, or --id ID,
+// never both, and the caller says which (schema-archive-id.md, A1).
+// A writer must name one; `log` may name none, every entity.
+func schemaRef(args []string, id string, required bool) (host.SchemaRef, error) {
+	switch {
+	case len(args) == 1 && id != "":
+		return host.SchemaRef{}, fmt.Errorf("give KEY or --id ID, not both")
+	case len(args) == 1:
+		return host.SchemaRef{Key: args[0]}, nil
+	case id != "":
+		return host.SchemaRef{Id: id}, nil
+	case required:
+		return host.SchemaRef{}, fmt.Errorf("give KEY or --id ID")
+	default:
+		return host.SchemaRef{}, nil
+	}
+}
+
+// addIdFlag is the --id flag of archive, rm and log.
+func addIdFlag(cmd *cobra.Command, id *string) {
+	cmd.Flags().StringVar(id, "id", "",
+		"name the entity by its id or a unique prefix of it, archived or not, instead of by KEY")
 }
 
 // printImport is the end of import and of init: --dry-run prints the changes

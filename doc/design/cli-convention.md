@@ -130,9 +130,9 @@ git work schema [--format yaml|json]
 git work schema init [PRESET]
 git work schema import FILE|- [--prune] [--dry-run]
 git work schema export [--format yaml|json]
-git work schema log [KEY]
-git work schema archive KEY
-git work schema rm KEY
+git work schema log [KEY | --id ID]             # a key is every entity holding it, the current first
+git work schema archive KEY | --id ID           # a key two entities hold is refused, naming both ids
+git work schema rm KEY | --id ID                # --id is an id or unique prefix, never read as a key
 
 git work flow                                   # names, descriptions, arguments
 git work flow run NAME|- [KWARGS|-] [--gui]      # - runs the script on stdin without importing it
@@ -190,7 +190,9 @@ git work view board '{"query":"map(select(.fields.status != \"done\"))","columns
 trailing underscore `work.schema.import_` does;
 `work.schema.export()`, `work.schema.import_(doc, prune=False, dry_run=False)`,
 `work.schema.init(preset="jira", dry_run=False)`,
-`work.schema.log(key="")`, `work.schema.archive(key)`, `work.schema.rm(key)`;
+`work.schema.log(key=None, id=None)`, `work.schema.archive(key=None, id=None)`,
+`work.schema.rm(key=None, id=None)`, each taking at most one of the two, by keyword only
+(`schema-archive-id.md`);
 `import` is a reserved word in Starlark,
 so that one verb is spelled with a trailing underscore;
 `work.flow.list()`, `work.flow.export(name)`, `work.flow.run(name, **kwargs)`,
