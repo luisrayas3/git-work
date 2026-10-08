@@ -28,7 +28,7 @@ func TestReportNamesIssuesByHumanId(t *testing.T) {
 	local, _, err := env.Backend.Issues().New("local", "", map[string]issue.Value{})
 	require.NoError(t, err)
 
-	importFlows(t, env, flowImportOptions{}, filepath.Join("..", "..", "flows", "report.star"))
+	importFlows(t, env, flowImportOptions{}, filepath.Join("testdata", "report.star"))
 	env.Out.Reset()
 	require.NoError(t, runFlowRun(env, []string{"report", `{"from_":"1d"}`}))
 
