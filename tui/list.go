@@ -17,7 +17,7 @@ import (
 // listPage is the `list` view: one row per issue, one column per field.
 //
 // The rows are the excerpts the query returned, verbatim, so what is drawn is
-// what `git work issue` prints and a jq program can be written against.
+// what `git work issue list` prints and a jq program can be written against.
 // With `expand` bound they are a tree: under each opened row the issues its
 // layer's relation names, drawn as a child table of their own (nest.go,
 // list_view.go).

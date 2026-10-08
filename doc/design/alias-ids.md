@@ -62,7 +62,7 @@ a saved view in a flow runs on every clone that imports it (`terminal-renderer.m
 and a way of reading is not part of what the view is.
 A flag on every text command would be a flag on a dozen commands for one preference.
 The per-call override already exists without either:
-`git -c git-work.display.id=hash work issue --format text` sets the key for one command,
+`git -c git-work.display.id=hash work issue` sets the key for one command,
 because git hands `-c` to its subcommands in `GIT_CONFIG_PARAMETERS`
 and `gitcli` runs `git config` under that environment.
 That the override reaches through is a test the implementation owes.
@@ -192,7 +192,7 @@ In scope, every place a person reads an issue named:
 
 | surface | today | with `jira` |
 | --- | --- | --- |
-| `git work issue --format text` | `3f9a1c2  in-progress  Board…` | `PROJ-9  in-progress  Board…` |
+| `git work issue`, the text form (`b5558475`) | `3f9a1c2  in-progress  Board…` | `PROJ-9  in-progress  Board…` |
 | `issue get --format text` header | `3f9a1c2 [in-progress] Board…` | `PROJ-9 (3f9a1c2) [in-progress] Board…` |
 | `issue log --format text`, issue column | `3f9a1c2  a71e0c4  SetFields…` | `PROJ-9  a71e0c4  SetFields…` (the operation's own id stays) |
 | a list's id column, a board card, a gantt label | short hash | A3 |
