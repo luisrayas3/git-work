@@ -28,5 +28,6 @@ are written through the same path a command writes through.
 * [git-work view gantt](git-work_view_gantt.md)	 - Draw a gantt
 * [git-work view list](git-work_view_list.md)	 - Draw a list
 * [git-work view matrix](git-work_view_matrix.md)	 - Draw a matrix
+* [git-work view new](git-work_view_new.md)	 - Create an issue in a form: show's page over a draft, written on Create
 * [git-work view show](git-work_view_show.md)	 - Draw a show
 

@@ -197,6 +197,7 @@ func (p *ganttPage) rebuild() {
 	if reveal(p.nodes, p.open, was) {
 		build()
 	}
+	p.addGhosts()
 
 	p.reorder()
 	p.putCursorOn(was)
@@ -606,8 +607,77 @@ func (p *ganttPage) milestoneCol(b *bar) int {
 	return p.index(stop)
 }
 
+// total is how many issues the query returned: the rows, less the ghosts.
+func (p *ganttPage) total() int {
+	n := 0
+	for _, node := range p.nodes {
+		if !node.ghost {
+			n++
+		}
+	}
+	return n
+}
+
+// count is how many issues the chart draws: the rows, less the ghosts.
 func (p *ganttPage) count() int {
-	return len(p.order)
+	n := 0
+	for _, index := range p.order {
+		if !p.nodes[index].ghost {
+			n++
+		}
+	}
+	return n
+}
+
+// addGhosts puts a ghost at the foot of each group of roots, one for the
+// whole chart when nothing groups it (ghost.go), as the list does.
+func (p *ganttPage) addGhosts() {
+	groups := []string{}
+	types := map[string][]string{}
+	seen := map[string]bool{}
+	for index, node := range p.nodes {
+		if node.level != 0 || node.ghost {
+			continue
+		}
+		group := node.group
+		if p.groupBy == "" {
+			group = noGroup
+		}
+		if !seen[group] {
+			seen[group] = true
+			groups = append(groups, group)
+		}
+		types[group] = append(types[group], p.bars[index].typeKey)
+	}
+	if len(groups) == 0 {
+		groups = append(groups, noGroup)
+	}
+	for _, group := range groups {
+		b := bar{id: ghostId(group), human: ghostPrefix, typeKey: sharedType(types[group]), fields: map[string]any{}, label: ghostLabel}
+		node := treeRow{id: b.id, group: group, grouped: p.groupBy != "", ghost: true}
+		p.bars = append(p.bars, b)
+		p.nodes = append(p.nodes, node)
+	}
+}
+
+// ghostDoc is the draft a ghost opens: the type its group's rows share, and
+// the `group_by` field as a drop into the group would write it (C6).
+func (p *ganttPage) ghostDoc(ghost *bar, node *treeRow) host.IssueDocument {
+	doc := host.IssueDocument{Fields: map[string]issue.Value{}}
+	if ghost.typeKey != "" {
+		doc.Fields[schema.TypeKey] = issue.StringValue(ghost.typeKey)
+	}
+	for index, other := range p.nodes {
+		if other.ghost || other.level != 0 || other.group != node.group {
+			continue
+		}
+		b := &p.bars[index]
+		if value, ok := groupPrefill(p.repo, b.typeKey, p.groupBy, node.group, b.fields[p.groupBy]); ok {
+			doc.Fields[p.groupBy] = value
+		}
+		break
+	}
+	return doc
 }
 
 func (p *ganttPage) Update(msg tea.Msg) (page, tea.Cmd) {
@@ -625,6 +695,21 @@ func (p *ganttPage) Update(msg tea.Msg) (page, tea.Cmd) {
 
 	case statusMsg:
 		p.status = string(msg)
+		return p, nil
+
+	case createdMsg:
+		// a draft opened from here was created: the issue appears where the
+		// ghost stood, the cursor on it (doc/design/create.md, C4), or is
+		// named when the query does not keep it
+		if err := p.load(); err != nil {
+			p.status = err.Error()
+			return p, nil
+		}
+		p.putCursorOn(msg.id)
+		p.status = "created " + human(msg.id)
+		if p.currentId() != msg.id {
+			p.status += ", not in this view"
+		}
 		return p, nil
 
 	case refreshMsg:
@@ -709,6 +794,9 @@ func (p *ganttPage) key(press tea.KeyPressMsg) (page, tea.Cmd) {
 
 	case keys.act.matches(press):
 		if b := p.current(); b != nil {
+			if node := p.node(); node.ghost {
+				return p, openNew(p.repo, p.ghostDoc(b, node))
+			}
 			return p, p.push(b.id)
 		}
 
@@ -721,6 +809,10 @@ func (p *ganttPage) key(press tea.KeyPressMsg) (page, tea.Cmd) {
 	case keys.filter.matches(press):
 		p.startFilter()
 	case keys.grab.matches(press):
+		if node := p.node(); node != nil && node.ghost {
+			p.status = "enter adds an issue here"
+			return p, bell()
+		}
 		// on the arrow cell space folds, as it does on a list; a bar is
 		// grabbed from the chart
 		if p.col < 0 {
@@ -818,7 +910,7 @@ func (p *ganttPage) push(id string) tea.Cmd {
 
 func (p *ganttPage) copyId() tea.Cmd {
 	b := p.current()
-	if b == nil {
+	if b == nil || isGhost(b.id) {
 		return bell()
 	}
 	// the clipboard gets the whole id, the message the short one (copyId)
@@ -925,6 +1017,7 @@ func (p *ganttPage) dragBy(by int) tea.Cmd {
 	group := p.nodes[neighbour].group
 	p.nodes[p.grabbed].group = group
 	p.crossed = &crossing{group: group, value: groupValue(p.bars[neighbour].fields[p.groupBy], group)}
+	p.cursor = crossGhost(p.nodes, p.order, p.cursor, by)
 	p.status = ""
 	return nil
 }

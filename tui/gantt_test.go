@@ -430,7 +430,8 @@ func TestGanttGroupsEnterAndCopy(t *testing.T) {
 	drawn := plainView(page)
 	require.Less(t, indexOf(drawn, "done"), indexOf(drawn, "in-progress"))
 
-	send(page, "down")
+	// over the done group's ghost (ghost.go)
+	send(page, "down", "down")
 	require.Equal(t, id, page.current().id)
 	_, cmd := page.Update(press("enter"))
 	require.NotNil(t, cmd)

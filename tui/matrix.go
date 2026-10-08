@@ -657,6 +657,14 @@ func (p *matrixPage) Update(msg tea.Msg) (page, tea.Cmd) {
 		p.status = string(msg)
 		return p, nil
 
+	case createdMsg:
+		if err := p.load(); err != nil {
+			p.status = err.Error()
+			return p, nil
+		}
+		p.status = "created " + human(msg.id)
+		return p, nil
+
 	case refreshMsg:
 		if err := p.load(); err != nil {
 			p.status = err.Error()

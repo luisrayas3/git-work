@@ -72,7 +72,7 @@ func (p *boardPage) headerLines(width, visible int) []string {
 	counts := make([]int, len(p.columns))
 	for _, la := range p.lanes {
 		for c, stack := range la.stacks {
-			counts[c] += len(stack)
+			counts[c] += p.realLen(stack)
 		}
 	}
 
@@ -164,6 +164,13 @@ func (p *boardPage) cardLines(c *card, width int, under, grabbed bool) []string 
 	if under {
 		wash = styleRow()
 	}
+	if c.ghost {
+		// the ghost is a place to add, drawn dim on one line
+		if under {
+			return []string{wash.Render("›") + styleCell.Render(pad(ghostPrefix+" "+ghostLabel, inner))}
+		}
+		return []string{" " + wash.Faint(true).Render(pad(ghostPrefix+" "+ghostLabel, inner))}
+	}
 
 	marker := " "
 	switch {
@@ -223,7 +230,7 @@ func (p *boardPage) statusLine() string {
 		count = "1 issue"
 	}
 	if p.filter != "" {
-		count = fmt.Sprintf("%d of %d issues · /%s", n, len(p.cards), p.filter)
+		count = fmt.Sprintf("%d of %d issues · /%s", n, p.real, p.filter)
 	}
 
 	return styleStatus.Render(bottomLine(p.hintLine(), lastAction(p.status, count), p.width))
@@ -239,6 +246,8 @@ func (p *boardPage) hintLine() string {
 		return grabHints(hint{"←→", "column"}, hint{"↑↓", "reorder"})
 	case p.current() == nil:
 		return hints()
+	case p.current().ghost:
+		return hints(hint{"enter", "new issue"})
 	}
 	return hints(hint{"enter", "open"}, hint{"space", "grab"})
 }

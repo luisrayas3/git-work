@@ -465,6 +465,9 @@ type treeRow struct {
 	rank    string
 	// text is everything the row draws, folded, for the filter to search.
 	text string
+	// ghost marks the `+` row at the foot of a scope, which opens the
+	// creator and is never a rank sibling (ghost.go).
+	ghost bool
 }
 
 // treeOrder is the drawing order over rows in tree pre-order: a row that
@@ -595,7 +598,7 @@ func blockEnd(rows []treeRow, order []int, at int) int {
 func siblingAt(rows []treeRow, order []int, at, by int) int {
 	row := rows[order[at]]
 	sibling := func(other treeRow) bool {
-		return other.level == row.level && other.parent == row.parent &&
+		return !other.ghost && other.level == row.level && other.parent == row.parent &&
 			(!row.grouped || other.group == row.group)
 	}
 	if by < 0 {
@@ -665,14 +668,14 @@ func crossGroup(rows []treeRow, order []int, at, by int) (int, bool) {
 	}
 	if by < 0 {
 		for i := at - 1; i >= 0; i-- {
-			if rows[order[i]].level == 0 {
+			if other := rows[order[i]]; other.level == 0 && !other.ghost {
 				return order[i], true
 			}
 		}
 		return 0, false
 	}
 	for i := blockEnd(rows, order, at); i < len(order); i++ {
-		if rows[order[i]].level == 0 {
+		if other := rows[order[i]]; other.level == 0 && !other.ghost {
 			return order[i], true
 		}
 	}

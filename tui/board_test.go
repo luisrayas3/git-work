@@ -117,19 +117,29 @@ func TestBoardCursorMovesBetweenColumnsAndCards(t *testing.T) {
 	page = send(page, "j").(*boardPage)
 	require.Equal(t, first, page.currentId())
 	page = send(page, "j").(*boardPage)
-	require.Equal(t, first, page.currentId(), "down at the bottom stays")
+	require.True(t, page.current().ghost, "down past the last card is the column's ghost (ghost.go)")
+	page = send(page, "j").(*boardPage)
+	require.True(t, page.current().ghost, "and down at the bottom stays")
+	page = send(page, "k").(*boardPage)
+	require.Equal(t, first, page.currentId())
 
-	// right skips the two empty columns between to-do and done
+	// right reaches every column: an empty one holds its ghost, which is
+	// how an issue is added to it
 	page = send(page, "l").(*boardPage)
+	require.True(t, page.current().ghost)
+	require.Equal(t, "in-progress", page.columns[page.col].value)
+	page = send(page, "l", "l").(*boardPage)
 	require.Equal(t, done, page.currentId())
 	page = send(page, "l").(*boardPage)
-	require.Equal(t, done, page.currentId(), "right past the last card stays")
-	page = send(page, "h").(*boardPage)
-	require.Equal(t, second, page.currentId(), "back on the row the cursor was clamped to")
+	require.True(t, page.current().ghost, "the last column, canceled, holds its ghost")
+	page = send(page, "l").(*boardPage)
+	require.True(t, page.current().ghost, "right past the last column stays")
+	page = send(page, "h", "h", "h", "h").(*boardPage)
+	require.Equal(t, second, page.currentId(), "back on the first row, which the one card's column clamped to")
 	page = send(page, "k", "ctrl+n", "g").(*boardPage)
 	require.Equal(t, second, page.currentId())
 	page = send(page, "G").(*boardPage)
-	require.Equal(t, first, page.currentId())
+	require.True(t, page.current().ghost, "the bottom of a column is its ghost")
 }
 
 // TestBoardEnterOpensTheCard: a card has no cell; enter opens the issue.
@@ -263,11 +273,12 @@ func TestBoardSwimlanes(t *testing.T) {
 	require.Less(t, indexOf(drawn, "\nlow"), indexOf(drawn, "\n"+noGroup), "the ungrouped last")
 
 	require.Equal(t, high, page.currentId())
-	page = send(page, "j").(*boardPage)
+	// down passes each lane's ghost on the way (ghost.go)
+	page = send(page, "j", "j").(*boardPage)
 	require.Equal(t, low, page.currentId())
-	page = send(page, "j").(*boardPage)
+	page = send(page, "j", "j").(*boardPage)
 	require.Equal(t, none, page.currentId())
-	page = send(page, "k", "k").(*boardPage)
+	page = send(page, "k", "k", "k", "k").(*boardPage)
 	require.Equal(t, high, page.currentId())
 }
 
@@ -288,7 +299,8 @@ func TestBoardScrollsSideways(t *testing.T) {
 	require.NotContains(t, head, "Canceled")
 	require.True(t, strings.HasSuffix(strings.TrimRight(head, " "), "›"), head)
 
-	page = send(page, "l").(*boardPage)
+	// right reaches every column, the empty ones on their ghost (ghost.go)
+	page = send(page, "l", "l", "l", "l", "l").(*boardPage)
 	head = header(page)
 	require.Contains(t, head, "Canceled")
 	require.NotContains(t, head, "Backlog")
@@ -392,18 +404,18 @@ func TestGroupedBoardKeepsTheLaneHeaderOnTop(t *testing.T) {
 	// the middle lane, and the two cards in it in the order they are drawn
 	lane := page.lanes[1]
 	var stack []int
-	for _, cards := range lane.stacks {
-		if len(cards) > 0 {
-			stack = cards
+	for c := range lane.stacks {
+		if ids := stackIds(page, 1, c); len(ids) > 0 {
+			stack = lane.stacks[c]
 		}
 	}
-	require.Len(t, stack, 2)
+	require.Len(t, stack, 3, "two cards and the ghost at the foot")
 	first, second := page.cards[stack[0]].human, page.cards[stack[1]].human
 
-	// down to the last card of the last lane: the window opens in the middle
-	// of the lane above, so its header is the first body line over cards
-	// that are not the ones it starts with
-	page = send(page, "j", "j", "j", "j", "j").(*boardPage)
+	// down to the last card of the last lane, over each lane's ghost: the
+	// window opens in the middle of the lane above, so its header is the
+	// first body line over cards that are not the ones it starts with
+	page = send(page, "j", "j", "j", "j", "j", "j").(*boardPage)
 	drawn := plainView(page)
 	lines := strings.Split(drawn, "\n")
 	require.Contains(t, lines[3], lane.group, "the window opens on the lane's header")
@@ -427,10 +439,14 @@ func columnLabels(p *boardPage) []string {
 	return labels
 }
 
+// stackIds is one stack's cards in the order they are drawn, the ghost at
+// its foot left out (ghost.go).
 func stackIds(p *boardPage, lane, col int) []string {
 	ids := make([]string, 0)
 	for _, index := range p.lanes[lane].stacks[col] {
-		ids = append(ids, p.cards[index].id)
+		if !p.cards[index].ghost {
+			ids = append(ids, p.cards[index].id)
+		}
 	}
 	return ids
 }

@@ -56,12 +56,13 @@ func (p *listPage) bottom() []string {
 // and the count — the answer to "did that write land?" (bottomLine); what am
 // I looking at is the call, on the first line.
 func (p *listPage) statusLine() string {
-	count := fmt.Sprintf("%d issues", len(p.order))
-	if len(p.order) == 1 {
+	n := p.count()
+	count := fmt.Sprintf("%d issues", n)
+	if n == 1 {
 		count = "1 issue"
 	}
 	if p.filter != "" {
-		count = fmt.Sprintf("%d of %d issues · /%s", len(p.order), len(p.rows), p.filter)
+		count = fmt.Sprintf("%d of %d issues · /%s", n, p.total(), p.filter)
 	}
 
 	return styleStatus.Render(bottomLine(p.hintLine(), lastAction(p.status, count), p.width))
@@ -81,6 +82,9 @@ func (p *listPage) hintLine() string {
 	row := p.current()
 	if row == nil {
 		return hints()
+	}
+	if isGhost(row.id) {
+		return hints(hint{"enter", "new issue"})
 	}
 	if key := p.fieldKey(); key != "" {
 		pairs := []hint{openHint(len(row.links[key]) > 0)}
@@ -218,6 +222,10 @@ func (p *listPage) rowLine(row *listRow, node *treeRow, widths [][]int, tree int
 	wash := lipgloss.NewStyle()
 	if under {
 		wash = styleRow()
+	}
+	if node.ghost {
+		// the ghost is drawn dim whole: a place to add, not an issue
+		wash = wash.Faint(true)
 	}
 
 	fields, sizes := p.layer(node.level).fields, widths[p.nest.family(node.level)]

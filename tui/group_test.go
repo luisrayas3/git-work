@@ -50,7 +50,8 @@ func TestListDragIntoTheGroupAbove(t *testing.T) {
 	second := newIssue(t, repo, map[string]any{"title": "b second", "status": "in-progress"})
 
 	page := list(t, repo, `{"fields":["title","status"],"group_by":"status","query":"sort_by(.fields.title)"}`)
-	page = send(page, "down").(*listPage)
+	// over to-do's ghost (ghost.go)
+	page = send(page, "down", "down").(*listPage)
 	require.Equal(t, second, page.currentId())
 
 	page = send(page, "space", "up", "space").(*listPage)

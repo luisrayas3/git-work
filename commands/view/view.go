@@ -60,7 +60,7 @@ func newViewKindCommand(env *execenv.Env, kind string) *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   kind + " [KWARGS|-]",
-		Short: "Draw a " + kind,
+		Short: kindShort(kind),
 		Long:  kindLong(kind),
 		Args:  cobra.MaximumNArgs(1),
 		// A view writes: an edit made in it is an operation like any other,
@@ -86,9 +86,25 @@ func newViewKindCommand(env *execenv.Env, kind string) *cobra.Command {
 // It said "in the table and not drawn yet" until 2026-10-02, from before any
 // kind was drawn, and went on saying it after they all were, so a reader took
 // `group_by` and `expand` for sketches (f9c991e).
+// kindShort is the one line a kind gets in the command list: what it draws,
+// and for `new`, what it writes, because `new` is the one view that is a
+// writer (doc/design/create.md, C4).
+func kindShort(kind string) string {
+	if kind == view.KindNew {
+		return "Create an issue in a form: show's page over a draft, written on Create"
+	}
+	return "Draw a " + kind
+}
+
 func kindLong(kind string) string {
 	var b strings.Builder
-	fmt.Fprintf(&b, "Draw a %s.\n\n", kind)
+	if kind == view.KindNew {
+		b.WriteString("Create an issue in a form: show's page over an issue that does not exist yet.\n")
+		b.WriteString("Nothing is written until Create, which commits the draft as `issue new` would,\n")
+		b.WriteString("one operation; the created id is printed, or nothing when the form is left.\n\n")
+	} else {
+		fmt.Fprintf(&b, "Draw a %s.\n\n", kind)
+	}
 	b.WriteString("KWARGS is a JSON object of this view's arguments, read from standard\ninput when it is \"-\":\n")
 	b.WriteString(view.Help(kind))
 	if hasOptionalArg(kind) {
@@ -137,6 +153,12 @@ func runView(env *execenv.Env, opts viewOptions, kind string, args []string) err
 	var value any
 	if err := json.Unmarshal(answer, &value); err != nil {
 		return err
+	}
+	// `new` answers the id it created, and a writer prints its id as a line,
+	// as `issue new` does (doc/design/create.md, C4)
+	if id, ok := value.(string); ok {
+		env.Out.Println(id)
+		return nil
 	}
 	return env.Out.PrintJSON(value)
 }

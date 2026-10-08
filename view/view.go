@@ -231,6 +231,11 @@ func (a Arg) check(raw json.RawMessage) (json.RawMessage, error) {
 			return nil, fmt.Errorf("is true or false, not %s", jsonKind(raw))
 		}
 
+	case Document:
+		if err := checkDocument(raw); err != nil {
+			return nil, err
+		}
+
 	case Int:
 		var n int
 		if err := json.Unmarshal(raw, &n); err != nil {
@@ -245,6 +250,33 @@ func (a Arg) check(raw json.RawMessage) (json.RawMessage, error) {
 	}
 
 	return compact(raw), nil
+}
+
+// checkDocument is the shape of `new`'s `doc`: the keys `issue new` reads
+// and nothing else, fields an object, body a string, aliases strings by
+// name. What the values mean is the schema's to say, in host.View, where
+// the planner's check runs before anything draws (doc/design/create.md, C1).
+func checkDocument(raw json.RawMessage) error {
+	var doc struct {
+		Fields  map[string]json.RawMessage `json:"fields"`
+		Body    *string                    `json:"body"`
+		Aliases map[string]string          `json:"aliases"`
+	}
+	dec := json.NewDecoder(bytes.NewReader(raw))
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(&doc); err != nil {
+		var object map[string]json.RawMessage
+		if json.Unmarshal(raw, &object) != nil {
+			return fmt.Errorf("is an object with fields, body and aliases, not %s", jsonKind(raw))
+		}
+		return fmt.Errorf("is the document issue new takes, with fields, body and aliases: %w", err)
+	}
+	for key := range doc.Fields {
+		if strings.TrimSpace(key) == "" {
+			return fmt.Errorf("has an empty field key")
+		}
+	}
+	return nil
 }
 
 func asString(raw json.RawMessage) (string, error) {

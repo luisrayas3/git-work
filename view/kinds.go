@@ -14,6 +14,7 @@ const (
 	KindGantt  = "gantt"
 	KindMatrix = "matrix"
 	KindShow   = "show"
+	KindNew    = "new"
 )
 
 // Tier says how much of a view's behaviour an argument is responsible for.
@@ -71,6 +72,10 @@ const (
 	// ExpandSpec is `expand`: a relation name, or a layer of one carrying
 	// the list's own arguments and an `expand` of its own (expand.go).
 	ExpandSpec ValueKind = "relation or layer"
+	// Document is `new`'s `doc`: the document `git work issue new` takes,
+	// {"fields":{…},"body":"…","aliases":{…}}, with what is already decided
+	// filled in (doc/design/create.md, C1).
+	Document ValueKind = "issue document"
 )
 
 // Arg is one keyword argument of one view kind.
@@ -183,6 +188,17 @@ var Kinds = map[string][]Arg{
 			Doc: "the fields shown, in order; the type's fields in schema order by default"},
 		{Name: "children", Tier: Optional, Kind: ChildRelations,
 			Doc: `the issues pointing at this one, a section each, as [{"type":"task","relation":"parent","fields":["status"]}]; relation may be the inverse name instead, and type and fields may be left out`},
+	},
+	// new is the interactive `issue new`: show's page over an issue that
+	// does not exist yet, nothing written until Create, which commits the
+	// draft as the one operation `issue new` commits (doc/design/create.md).
+	// It takes the document `issue new` takes, with what is already decided
+	// filled in; `fields` keeps show's meaning, so `doc` is the name.
+	KindNew: {
+		{Name: "doc", Tier: Optional, Kind: Document,
+			Doc: `the draft to open on, as issue new takes it: {"fields":{"type":"task","parent":"abc1234"},"body":"…"}; every value stays editable`},
+		{Name: "fields", Tier: Defaulted, Kind: FieldKeys,
+			Doc: "the fields shown, in order; the type's fields in schema order by default"},
 	},
 }
 
