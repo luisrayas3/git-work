@@ -458,7 +458,7 @@ func TestPrintGoesToStdoutAndWarningsToStderr(t *testing.T) {
 	require.NoError(t, err)
 	require.JSONEq(t, "1", string(raw))
 	require.Equal(t, "hello\n", stdout.String())
-	require.Contains(t, stderr.String(), "archived type bug")
+	require.Contains(t, stderr.String(), "field bug/status is attached to no live type")
 }
 
 func TestStderrGoesToStderr(t *testing.T) {
@@ -826,7 +826,7 @@ func TestSchemaArchiveAndRmFromAScript(t *testing.T) {
     work.schema.rm(key="task/due")
 `, nil)
 	require.NoError(t, err)
-	require.Contains(t, stderr, "still live on the archived type bug")
+	require.Contains(t, stderr, "field bug/status is attached to no live type")
 
 	s, err := repo.LoadSchema()
 	require.NoError(t, err)

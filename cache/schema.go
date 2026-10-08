@@ -2,6 +2,7 @@ package cache
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/git-bug/git-bug/entities/config"
@@ -150,7 +151,8 @@ func (c *RepoCacheConfig) ResolveSchemaKey(key string) (*ConfigCache, error) {
 }
 
 // duplicatedKeyError names every holder of a key, the winner first,
-// and the flag that names one of them.
+// and that one is named by id, in words true of both the --id flag and the
+// id= keyword.
 // The ids come in the order ResolveKey found them, which is Current's.
 func duplicatedKeyError(key string, ids []entity.Id) error {
 	names := make([]string, len(ids))
@@ -166,20 +168,31 @@ func duplicatedKeyError(key string, ids []entity.Id) error {
 	last := len(names) - 1
 	listed := strings.Join(names[:last], ", ") + " and " + names[last]
 
-	return fmt.Errorf("%s is defined %s: %s;\nname one with --id", key, times, listed)
+	return fmt.Errorf("%s is defined %s: %s;\nname one by id", key, times, listed)
 }
 
-// SchemaHolders returns every unarchived entity holding a key,
+// SchemaHolders returns every entity that ever held a key, archived included,
 // the winner first and the rest by creation,
 // which is what `schema log KEY` prints (schema-archive-id.md, A2).
 func (c *RepoCacheConfig) SchemaHolders(key string) ([]*ConfigCache, error) {
 	for _, shape := range configShapeOfKey(key) {
-		candidates := c.candidates(shape, key)
-		if len(candidates) == 0 {
+		holding := c.Query(ConfigQuery{Shape: shape, Key: key, IncludeArchived: true})
+		if len(holding) == 0 {
 			continue
 		}
-		holders := make([]*ConfigCache, 0, len(candidates))
-		for _, excerpt := range candidates {
+		sort.Sort(ConfigsByCreation(holding))
+		if winner, err := c.CurrentExcerpt(shape, key); err == nil {
+			// the winner first, the rest keeping their order
+			for i, excerpt := range holding {
+				if excerpt.Id() == winner.Id() {
+					copy(holding[1:i+1], holding[:i])
+					holding[0] = winner
+					break
+				}
+			}
+		}
+		holders := make([]*ConfigCache, 0, len(holding))
+		for _, excerpt := range holding {
 			cached, err := c.Resolve(excerpt.Id())
 			if err != nil {
 				return nil, err
