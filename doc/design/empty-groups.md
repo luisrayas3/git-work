@@ -148,6 +148,22 @@ One rule for every view (2026-10-09),
 because the order code is shared and a group's place should not depend on the view.
 The matrix's rows and columns already follow it (`row_values`, else schema order).
 
+## Implementation notes (2026-10-09, `aea8f702`, `832d6d80`)
+
+Calls the design left open, made in the implementation:
+
+- **`type` as `group_by`** is ordered by the schema's type order,
+  the built-in having no values of its own.
+- **A `multi-enum` lane** compares item by item in schema order.
+- **An empty lane's ghost** takes the type every card on the board shares, else none,
+  since it has no cards of its own to take one from.
+- **With a filter on**, empty lanes are hidden, as ghosts already are:
+  a filter narrows the board to what matches.
+- **Relation siblings match by full id.**
+  A relation stored as a prefix before 2026-10-08 (`2086c12`)
+  is neither a lane issue nor an anchor.
+- **A lane issue this clone has not pulled** sorts as unranked.
+
 ## Out of scope
 
 - The same argument on the list, the gantt and the matrix.
