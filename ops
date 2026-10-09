@@ -1,1 +1,1 @@
-{"author":{"id":"7674679dac9170669f752d932f8b5955b1d55717359e13b1c1e687003c7bb99f"},"ops":[{"type":9,"timestamp":1791578008,"nonce":"y8r0thzKJFnYdO/gIzuJiDcTJE0=","key":"status","value":"done"}]}
+{"author":{"id":"7674679dac9170669f752d932f8b5955b1d55717359e13b1c1e687003c7bb99f"},"ops":[{"type":3,"timestamp":1791578008,"nonce":"zffYuU1OHxn/4i4BhhZmS5z4c9I=","message":"Done: aea8f702 (group order on every view), 832d6d80 (empty_groups), 480b2d00 (help). Calls the design left open are recorded in doc/design/empty-groups.md, Implementation notes (c8f0f70a).","files":null}]}
