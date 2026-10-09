@@ -102,9 +102,17 @@ type column struct {
 }
 
 // lane is one swimlane: its group, and a stack of card indexes per column.
+//
+// A lane carries the value it stands for as it is stored — the enum id, the
+// issue's full id — and a type that has the field, so that a drop into it
+// and its ghosts write that value whether or not a card is in it, and never
+// the label it draws (E5, doc/design/empty-groups.md).
 type lane struct {
-	group  string
-	stacks [][]int
+	group   string
+	raw     any
+	typeKey string
+	sort    groupSort
+	stacks  [][]int
 }
 
 func (p *boardPage) Call() (*view.Call, string, string) {
@@ -247,29 +255,13 @@ func (p *boardPage) resolveColumns() []column {
 		onBoard[c.typeKey] = true
 	}
 
-	names := map[string]string{}
-	if s, err := p.repo.LoadSchema(); err == nil {
-		// the first type's order wins and later types only add what it
-		// did not have
-		for _, typeKey := range s.TypeKeys() {
-			if len(onBoard) > 0 && !onBoard[typeKey] {
-				continue
-			}
-			field, ok := s.Field(typeKey, p.columnsKey)
-			if !ok {
-				continue
-			}
-			if isPerson(field.Kind) {
-				person = true
-			}
-			for _, value := range field.Values {
-				if _, named := names[value.Id]; !named {
-					names[value.Id] = value.Name
-				}
-				if p.values == nil {
-					add(value.Id, value.Name)
-				}
-			}
+	// the first type's order wins and later types only add what it did not
+	// have (group.go)
+	kind, order, names := fieldValues(p.repo, p.columnsKey, onBoard)
+	person = isPerson(kind)
+	if p.values == nil {
+		for _, value := range order {
+			add(value, names[value])
 		}
 	}
 	for _, value := range p.values {
@@ -290,9 +282,10 @@ func (p *boardPage) resolveColumns() []column {
 	return columns
 }
 
-// arrange rebuilds the lanes: the filter, then the groups in the order they
-// first appear with the ungrouped last, then each card into its column, in
-// (rank, id), the unranked keeping the query's order at the end.
+// arrange rebuilds the lanes: the filter, then the groups in the order of
+// the values they stand for with the ungrouped last (group.go, E4), then each
+// card into its column, in (rank, id), the unranked keeping the query's
+// order at the end.
 func (p *boardPage) arrange() {
 	at := make(map[string]int, len(p.columns))
 	for index, column := range p.columns {
@@ -303,6 +296,14 @@ func (p *boardPage) arrange() {
 	p.cards = p.cards[:p.real]
 	p.lanes = p.lanes[:0]
 	laneOf := map[string]int{}
+	var order *groupOrder
+	if p.groupBy != "" {
+		onBoard := map[string]bool{}
+		for _, c := range p.cards {
+			onBoard[c.typeKey] = true
+		}
+		order = newGroupOrder(p.repo, p.groupBy, onBoard)
+	}
 	for index, c := range p.cards {
 		if needle != "" && !strings.Contains(c.text, needle) {
 			continue
@@ -315,7 +316,13 @@ func (p *boardPage) arrange() {
 		if !ok {
 			which = len(p.lanes)
 			laneOf[group] = which
-			p.lanes = append(p.lanes, lane{group: group, stacks: make([][]int, len(p.columns))})
+			la := lane{group: group, stacks: make([][]int, len(p.columns))}
+			if order != nil {
+				la.raw = c.fields[p.groupBy]
+				la.typeKey = c.typeKey
+				la.sort = order.sortOf(la.raw, group)
+			}
+			p.lanes = append(p.lanes, la)
 		}
 		col := at[c.value]
 		p.lanes[which].stacks[col] = append(p.lanes[which].stacks[col], index)
@@ -323,7 +330,7 @@ func (p *boardPage) arrange() {
 	if len(p.lanes) == 0 {
 		p.lanes = append(p.lanes, lane{stacks: make([][]int, len(p.columns))})
 	}
-	p.lanes = noneLast(p.lanes, func(l lane) string { return l.group })
+	sortGroups(p.lanes, func(l lane) groupSort { return l.sort })
 
 	for _, l := range p.lanes {
 		for _, stack := range l.stacks {
@@ -379,11 +386,11 @@ func (p *boardPage) ghostDoc(ghost *card) host.IssueDocument {
 	if ghost.value != "" {
 		doc.Fields[p.columnsKey] = issue.StringValue(ghost.value)
 	}
-	for _, c := range p.cards[:p.real] {
-		if p.groupBy == "" || c.group != ghost.group {
+	for _, la := range p.lanes {
+		if p.groupBy == "" || la.group != ghost.group {
 			continue
 		}
-		if value, ok := groupPrefill(p.repo, c.typeKey, p.groupBy, ghost.group, c.fields[p.groupBy]); ok {
+		if value, ok := groupPrefill(p.repo, la.typeKey, p.groupBy, ghost.group, la.raw); ok {
 			doc.Fields[p.groupBy] = value
 		}
 		break
@@ -807,10 +814,7 @@ func (p *boardPage) crossLane(by int) tea.Cmd {
 		p.status = refusal
 		return bell()
 	}
-	into, ok := p.laneValue(lane)
-	if !ok {
-		return nil
-	}
+	into := p.laneValue(lane)
 
 	from := p.lanes[p.lane].stacks
 	from[p.col] = append(from[p.col][:p.row], from[p.col][p.row+1:]...)
@@ -830,22 +834,12 @@ func (p *boardPage) crossLane(by int) tea.Cmd {
 	return nil
 }
 
-// laneValue is what a drop into a lane writes: the value another card in it
-// holds, whatever column that card is in. A lane the grabbed card emptied on
-// its way out is its own, so the card's stored value is the answer there.
-func (p *boardPage) laneValue(lane int) (crossing, bool) {
-	group := p.lanes[lane].group
-	for _, stack := range p.lanes[lane].stacks {
-		for _, index := range stack {
-			if index != p.grabbed && !p.cards[index].ghost {
-				return crossing{group: group, value: groupValue(p.cards[index].fields[p.groupBy], group)}, true
-			}
-		}
-	}
-	if c := &p.cards[p.grabbed]; group == c.group {
-		return crossing{group: group, value: groupValue(c.fields[p.groupBy], group)}, true
-	}
-	return crossing{}, false
+// laneValue is what a drop into a lane writes: the value the lane stands
+// for, as it is stored, which every card in it holds — the lane carries it
+// itself, so a lane with no card in it writes it too (E5).
+func (p *boardPage) laneValue(lane int) crossing {
+	la := &p.lanes[lane]
+	return crossing{group: la.group, value: groupValue(la.raw, la.group)}
 }
 
 // drop writes where the card landed: the columns field when the column

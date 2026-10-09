@@ -425,14 +425,15 @@ func TestGanttScalesAndExtent(t *testing.T) {
 func TestGanttGroupsEnterAndCopy(t *testing.T) {
 	repo := testRepo(t)
 	withDates(t, repo)
-	id := newIssue(t, repo, map[string]any{"title": "the task", "start": "2026-09-07", "stop": "2026-09-13", "status": "in-progress"})
-	newIssue(t, repo, map[string]any{"title": "the other", "start": "2026-09-07", "stop": "2026-09-13", "status": "done"})
+	id := newIssue(t, repo, map[string]any{"title": "the task", "start": "2026-09-07", "stop": "2026-09-13", "status": "done"})
+	newIssue(t, repo, map[string]any{"title": "the other", "start": "2026-09-07", "stop": "2026-09-13", "status": "in-progress"})
 
 	page := gantt(t, repo, `{"start":"start","stop":"stop","from":"2026-09-07","group_by":"status","query":"sort_by(.fields.status)"}`)
 	drawn := plainView(page)
-	require.Less(t, indexOf(drawn, "done"), indexOf(drawn, "in-progress"))
+	// the groups in schema order, whatever order the query gave
+	require.Less(t, indexOf(drawn, "in-progress"), indexOf(drawn, "done"))
 
-	// over the done group's ghost (ghost.go)
+	// over the in-progress group's ghost (ghost.go)
 	send(page, "down", "down")
 	require.Equal(t, id, page.current().id)
 	_, cmd := page.Update(press("enter"))

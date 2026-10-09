@@ -82,11 +82,13 @@ func TestListDragWillNotChangeTheType(t *testing.T) {
 	newIssue(t, repo, map[string]any{"title": "b story", "type": "story"})
 
 	page := list(t, repo, `{"fields":["title"],"group_by":"type","query":"sort_by(.fields.title)"}`)
+	// the types in schema order: the story first, the task under it
+	page.putCursorOn(task)
 	require.Equal(t, task, page.currentId())
 	before := ops(t, repo, task)
 
 	page = send(page, "space").(*listPage)
-	updated, cmd := page.Update(press("down"))
+	updated, cmd := page.Update(press("up"))
 	require.NotNil(t, cmd, "the bell")
 	page = updated.(*listPage)
 	require.Contains(t, plainView(page), "type cannot be changed")

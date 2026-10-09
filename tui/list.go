@@ -78,6 +78,7 @@ type listPage struct {
 	// where the row really changed group.
 	grabbed   int
 	grabGroup string
+	grabSort  groupSort
 	crossed   *crossing
 	blink     bool
 
@@ -237,6 +238,8 @@ func (p *listPage) rebuild() {
 			p.rows = append(p.rows, row)
 			p.nodes = append(p.nodes, node)
 		}
+		placeGroups(p.repo, p.nodes, func(level int) string { return p.layer(level).groupBy },
+			func(index int) (string, map[string]any) { return p.rows[index].typeKey, p.rows[index].fields })
 	}
 
 	build()
@@ -894,6 +897,7 @@ func (p *listPage) startGrab() (page, tea.Cmd) {
 	}
 	p.grabbed = p.order[p.cursor]
 	p.grabGroup = p.nodes[p.grabbed].group
+	p.grabSort = p.nodes[p.grabbed].groupSort
 	p.crossed = nil
 	p.blink = true
 	return p, blinkTick()
@@ -905,6 +909,7 @@ func (p *listPage) updateGrab(press tea.KeyPressMsg) (page, tea.Cmd) {
 		// the row goes back where it was, its group included: the order is
 		// rebuilt from the store, which never changed.
 		p.nodes[p.grabbed].group = p.grabGroup
+		p.nodes[p.grabbed].groupSort = p.grabSort
 		p.grabbed = -1
 		p.crossed = nil
 		p.reorder()
@@ -956,6 +961,7 @@ func (p *listPage) dragBy(by int) tea.Cmd {
 
 	group := p.nodes[neighbour].group
 	p.nodes[p.grabbed].group = group
+	p.nodes[p.grabbed].groupSort = p.nodes[neighbour].groupSort
 	p.crossed = &crossing{group: group, value: groupValue(p.rows[neighbour].fields[p.groupBy], group)}
 	p.cursor = crossGhost(p.nodes, p.order, p.cursor, by)
 	p.status = ""

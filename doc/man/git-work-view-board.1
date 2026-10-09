@@ -21,7 +21,7 @@ input when it is "-":
   values           strings                          defaulted          the column values, in order; the field's schema order by default, which is resolved at render time
   card             field keys                       defaulted ["title"] the fields shown on a card
   column_width     int, at least 10                 defaulted 32       the narrowest a column goes before the board scrolls sideways; when every column fits they share the width
-  group_by         field key                        optional           the field whose value starts a new swimlane; the cards with no value at all are the last swimlane, (none)
+  group_by         field key                        optional           the field whose value starts a new swimlane, in the value's own order (an enum's schema order, a relation's issues by rank); the cards with no value at all are the last swimlane, (none)
   show             type to show arguments           optional           what Enter opens per type: {"epic":{"expand":"children"}} maps a type key to show's arguments without id, checked as show's own call; the type is the stored issue's, an unlisted one opens a bare show, and every page opened from there opens by the same map
 
 .PP

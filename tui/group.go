@@ -1,8 +1,11 @@
 package tui
 
 import (
+	"sort"
+
 	"github.com/git-bug/git-bug/cache"
 	"github.com/git-bug/git-bug/entities/issue"
+	"github.com/git-bug/git-bug/entity"
 	"github.com/git-bug/git-bug/schema"
 )
 
@@ -76,20 +79,224 @@ func (k *kinds) groupLabel(typeKey, groupBy string, fields map[string]any) strin
 	return noGroup
 }
 
-// noneLast orders groups as every view draws them: in the order they first
-// appear, and (none) last, because the issues nobody has filed under the
-// grouping field yet are what a session works through.
-func noneLast[T any](groups []T, label func(T) string) []T {
-	for at, group := range groups {
-		if label(group) == noGroup {
-			return append(append(groups[:at:at], groups[at+1:]...), group)
+// Groups are ordered by the natural order of the value they stand for, never
+// by where the query first put a row in them (E4, doc/design/empty-groups.md):
+// an enum in schema order, a bool false then true, a relation by the issue it
+// names in (rank, id), a number or a date ascending, anything else by the
+// label it draws, and (none) last, because the issues nobody has filed under
+// the grouping field yet are what a session works through. The order the
+// groups first appear in only breaks a tie — two unranked issues, two values
+// the schema does not list — so a group's place does not depend on the
+// query and is still stable across a refresh. It is one rule for the list,
+// the gantt, the board and the matrix (Q2).
+
+// groupSort is where one group goes among the others, compared by lessGroup.
+type groupSort struct {
+	// none is the group of the rows with no value, drawn last.
+	none bool
+	// known says the value has a place of its own; one with none (an
+	// unranked issue) follows the ones that do, in first-seen order.
+	known bool
+	ints  []int
+	num   float64
+	text  string
+}
+
+// lessGroup says whether one group is drawn before another; two groups
+// neither of which is less are a tie, which a stable sort keeps in the order
+// they first appeared.
+func lessGroup(left, right groupSort) bool {
+	if left.none != right.none {
+		return right.none
+	}
+	if left.known != right.known {
+		return left.known
+	}
+	if !left.known {
+		return false
+	}
+	for i := 0; i < len(left.ints) && i < len(right.ints); i++ {
+		if left.ints[i] != right.ints[i] {
+			return left.ints[i] < right.ints[i]
 		}
 	}
-	return groups
+	if len(left.ints) != len(right.ints) {
+		return len(left.ints) < len(right.ints)
+	}
+	if left.num != right.num {
+		return left.num < right.num
+	}
+	return left.text < right.text
+}
+
+// sortGroups orders groups, given in the order they first appear, by the
+// values they stand for (E4).
+func sortGroups[T any](groups []T, sortOf func(T) groupSort) {
+	sort.SliceStable(groups, func(i, j int) bool {
+		return lessGroup(sortOf(groups[i]), sortOf(groups[j]))
+	})
+}
+
+// fieldValues is what the schema says about one field over the types a view
+// draws, the way a board reads its columns: the kind, the enum values in
+// schema order, and their names. Every type owns its own field (e7e58f2), so
+// the first type's order wins and later types only add what it did not have;
+// with no types drawn at all, every type counts.
+func fieldValues(repo *cache.RepoCache, key string, drawn map[string]bool) (kind schema.Kind, order []string, names map[string]string) {
+	names = map[string]string{}
+	s, err := repo.LoadSchema()
+	if err != nil {
+		kind, _ = schema.BuiltinKind(key)
+		return kind, nil, names
+	}
+	for _, typeKey := range s.TypeKeys() {
+		if len(drawn) > 0 && !drawn[typeKey] {
+			continue
+		}
+		field, ok := s.Field(typeKey, key)
+		if !ok {
+			continue
+		}
+		if kind == "" {
+			kind = field.Kind
+		}
+		for _, value := range field.Values {
+			if _, named := names[value.Id]; !named {
+				names[value.Id] = value.Name
+				order = append(order, value.Id)
+			}
+		}
+	}
+	if kind == "" {
+		kind, _ = schema.BuiltinKind(key)
+	}
+	return kind, order, names
+}
+
+// isEnum says whether a kind's values are the ones the schema lists.
+func isEnum(kind schema.Kind) bool {
+	return kind == schema.KindEnum || kind == schema.KindOrdinalEnum || kind == schema.KindMultiEnum
+}
+
+// groupOrder is the natural order of one `group_by` field's values over the
+// types a view draws.
+type groupOrder struct {
+	repo  *cache.RepoCache
+	kind  schema.Kind
+	place map[string]int
+	ranks map[string]string
+}
+
+func newGroupOrder(repo *cache.RepoCache, groupBy string, drawn map[string]bool) *groupOrder {
+	kind, order, _ := fieldValues(repo, groupBy, drawn)
+	if groupBy == schema.TypeKey {
+		// the built-in type lists no values: the types are, in schema order
+		order = nil
+		if s, err := repo.LoadSchema(); err == nil {
+			order = s.TypeKeys()
+		}
+	}
+	o := &groupOrder{repo: repo, kind: kind, place: map[string]int{}, ranks: map[string]string{}}
+	for at, value := range order {
+		o.place[value] = at
+	}
+	return o
+}
+
+// sortOf is where the group of one value goes: raw is the value as it is
+// stored, label the group it is drawn under.
+func (o *groupOrder) sortOf(raw any, label string) groupSort {
+	if label == noGroup {
+		return groupSort{none: true}
+	}
+	switch {
+	case isEnum(o.kind):
+		var ints []int
+		for _, value := range axisValuesOf(raw) {
+			at, listed := o.place[value]
+			if !listed {
+				// after every listed value, tied with the other unlisted
+				at = len(o.place)
+			}
+			ints = append(ints, at)
+		}
+		return groupSort{known: true, ints: ints}
+	case o.kind == schema.KindBool:
+		if raw == true {
+			return groupSort{known: true, ints: []int{1}}
+		}
+		return groupSort{known: true, ints: []int{0}}
+	case isRelation(o.kind):
+		// a multi-relation by the first issue it names
+		ids := linkIds(raw)
+		if len(ids) == 0 {
+			return groupSort{}
+		}
+		rank := o.rankOf(ids[0])
+		if rank == "" {
+			return groupSort{}
+		}
+		return groupSort{known: true, text: rank + "\x00" + ids[0]}
+	case o.kind == schema.KindNumber:
+		if number, ok := asNumber(raw); ok {
+			return groupSort{known: true, num: number}
+		}
+		return groupSort{}
+	case o.kind == schema.KindDate:
+		return groupSort{known: true, text: plainValue(raw)}
+	}
+	// text, an identity by the name it draws, and anything else
+	return groupSort{known: true, text: label}
+}
+
+// rankOf is the rank of the issue a relation group names, "" when it has
+// none or this clone has not pulled it.
+func (o *groupOrder) rankOf(id string) string {
+	if rank, seen := o.ranks[id]; seen {
+		return rank
+	}
+	rank := ""
+	if excerpt, err := o.repo.Issues().ResolveExcerpt(entity.Id(id)); err == nil {
+		rank, _ = excerpt.FieldString(schema.RankKey)
+	}
+	o.ranks[id] = rank
+	return rank
+}
+
+// placeGroups gives every grouped row of a list or a gantt its group's place
+// (E4), each layer's `group_by` ordered over the types of the rows that
+// layer draws.
+func placeGroups(repo *cache.RepoCache, nodes []treeRow, groupByAt func(level int) string,
+	rowAt func(index int) (typeKey string, fields map[string]any)) {
+	drawn := map[string]map[string]bool{}
+	for index, node := range nodes {
+		groupBy := groupByAt(node.level)
+		if groupBy == "" || node.ghost {
+			continue
+		}
+		if drawn[groupBy] == nil {
+			drawn[groupBy] = map[string]bool{}
+		}
+		typeKey, _ := rowAt(index)
+		drawn[groupBy][typeKey] = true
+	}
+	orders := map[string]*groupOrder{}
+	for groupBy, types := range drawn {
+		orders[groupBy] = newGroupOrder(repo, groupBy, types)
+	}
+	for index := range nodes {
+		node := &nodes[index]
+		groupBy := groupByAt(node.level)
+		if groupBy == "" || node.ghost {
+			continue
+		}
+		_, fields := rowAt(index)
+		node.groupSort = orders[groupBy].sortOf(fields[groupBy], node.group)
+	}
 }
 
 // rootGroups is the groups a list's or a gantt's roots fall in, in the order
-// they first appear, and the types of the roots in each, which is what a
+// they first appear (arrange draws them in their own order), and the types of the roots in each, which is what a
 // ghost per group is made of (ghost.go): one group, (none), when there are
 // no roots at all.
 func rootGroups(nodes []treeRow, typeOf func(index int) string) ([]string, map[string][]string) {
