@@ -5,7 +5,7 @@ so a lane is somewhere to put work, not only a heading over work that exists.
 
 **Serves:** story `2298f37` (the board).
 
-**Status:** proposed 2026-10-09.
+**Status:** approved 2026-10-09, its open questions settled below.
 
 ## The workflow that needs it
 
@@ -130,21 +130,21 @@ see Q2.
 - A refresh recomputes the lanes, so an empty lane fills in place
   when an issue lands in it, and a lane that empties stays.
 
-## Q1 — open
+## Q1 — settled: accepted for now
 
 The top-level case in E3 (grouped by an issue with no parent of its own)
 draws every such issue, done or not.
 That is right for a board grouped by epic in a store of one initiative,
 and noisy for this repository grouped by story, where most stories are done.
-Proposed answer: accept it for now, since `empty_groups` is opt-in,
-and narrow it later if it bites
+Accepted for now, since `empty_groups` is opt-in,
+to be narrowed later if it bites
 (a `group_query`, a jq program over the lane issues, would be the general fix).
 
-## Q2 — open
+## Q2 — settled: every view
 
 E4 changes the group order of the list, the gantt and the matrix too,
 from first seen to the values' own.
-Proposed answer: yes, one rule for every view,
+One rule for every view (2026-10-09),
 because the order code is shared and a group's place should not depend on the view.
 The matrix's rows and columns already follow it (`row_values`, else schema order).
 
