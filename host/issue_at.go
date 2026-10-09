@@ -131,7 +131,7 @@ func IssueListInputAt(repo *cache.RepoCache, at time.Time, includeArchive bool) 
 // operation's place in its own issue, so that two operations written in the
 // same second still print in a fixed order.
 func IssueLogBetween(repo *cache.RepoCache, idOrProgram string, from, to time.Time, includeArchive bool) ([]cmdjson.IssueOperation, error) {
-	issues, err := selectIssues(repo, idOrProgram, includeArchive)
+	ids, err := selectIssues(repo, idOrProgram, includeArchive)
 	if err != nil {
 		return nil, err
 	}
@@ -139,7 +139,14 @@ func IssueLogBetween(repo *cache.RepoCache, idOrProgram string, from, to time.Ti
 	// Never nil: an empty window is the empty list, and a reader that gets
 	// `null` where it asked for a log has to branch on it.
 	entries := []cmdjson.IssueOperation{}
-	for _, i := range issues {
+	for _, id := range ids {
+		// Resolved and read one at a time: past its load limit the cache
+		// evicts the oldest loaded entity and locks it for good, so a
+		// selection wider than the limit, held and read afterwards, blocks.
+		i, err := repo.Issues().Resolve(id)
+		if err != nil {
+			return nil, err
+		}
 		for _, op := range issue.OperationsBetween(i.Snapshot().Operations, from, to) {
 			entry, err := cmdjson.NewIssueOperation(i.Id(), op)
 			if err != nil {
@@ -169,11 +176,14 @@ func IssueLogBetween(repo *cache.RepoCache, idOrProgram string, from, to time.Ti
 // a bare hex word parses as nothing. What does not resolve is compiled as a
 // program, and when that fails too the error names both attempts, so a
 // mistyped id reads as a mistyped id (doc/design/report.md).
-func selectIssues(repo *cache.RepoCache, idOrProgram string, includeArchive bool) ([]*cache.IssueCache, error) {
+//
+// It returns ids rather than loaded issues: the cache holds a bounded number
+// of entities, and the caller resolves each as it reads it.
+func selectIssues(repo *cache.RepoCache, idOrProgram string, includeArchive bool) ([]entity.Id, error) {
 	if idOrProgram != "" {
 		i, resolveErr := repo.Issues().ResolvePrefixOrAlias(idOrProgram)
 		if resolveErr == nil {
-			return []*cache.IssueCache{i}, nil
+			return []entity.Id{i.Id()}, nil
 		}
 		if _, err := jq.Compile(idOrProgram); err != nil {
 			return nil, fmt.Errorf("%q is neither an issue (%v) nor a jq program (%v)",
@@ -194,13 +204,9 @@ func selectIssues(repo *cache.RepoCache, idOrProgram string, includeArchive bool
 		return nil, fmt.Errorf("the program did not return a list of issues")
 	}
 
-	out := make([]*cache.IssueCache, 0, len(items))
+	out := make([]entity.Id, 0, len(items))
 	for _, item := range items {
-		i, err := repo.Issues().Resolve(entity.Id(StringOr(item["id"], "")))
-		if err != nil {
-			return nil, err
-		}
-		out = append(out, i)
+		out = append(out, entity.Id(StringOr(item["id"], "")))
 	}
 	return out, nil
 }
