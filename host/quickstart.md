@@ -218,6 +218,9 @@ and an `optional` one is off until it is named.
   the groups in the value's own order on every view —
   an enum's schema order, a relation's issues by rank —
   never the order the query met them in.
+  On a board `"empty_groups":true` adds the lanes no card falls in:
+  every value of an enum, both of a bool,
+  and for a relation the lane issues' siblings under the same parent.
 - `expand` nests the issues one relation reaches under each row,
   as `"children"` or as a layer that says what that level draws;
   on `show` it takes the same, or a list of them,
