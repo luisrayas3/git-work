@@ -214,7 +214,10 @@ and an `optional` one is off until it is named.
 
 - Most kinds take a `query`, the same jq program the listing takes,
   re-run whenever the store changes, so a view stays live.
-- `group_by` sections the rows by a field, the ones with no value last.
+- `group_by` sections the rows by a field, the ones with no value last,
+  the groups in the value's own order on every view —
+  an enum's schema order, a relation's issues by rank —
+  never the order the query met them in.
 - `expand` nests the issues one relation reaches under each row,
   as `"children"` or as a layer that says what that level draws;
   on `show` it takes the same, or a list of them,

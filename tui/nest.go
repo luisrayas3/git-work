@@ -585,6 +585,8 @@ type treeRow struct {
 	hidden   bool
 
 	group string
+	// groupSort is where the group goes among its siblings' groups (group.go).
+	groupSort groupSort
 	// grouped says the row's own layer has a `group_by`, so its siblings are
 	// drawn in sections under their own headers.
 	grouped bool
@@ -665,8 +667,8 @@ func treeOrder(rows []treeRow, filter string) []int {
 }
 
 // arrange is one set of siblings as it is drawn: the rank orders them, and
-// then, on a layer that groups, their groups in the order the groups first
-// appear with (none) last.
+// then, on a layer that groups, their groups in the order of the values they
+// stand for, (none) last, first seen breaking a tie (group.go, E4).
 //
 // Every level is arranged the same way, because every level is a list: the
 // roots were the only grouped ones while `expand` was a relation name, and a
@@ -685,14 +687,22 @@ func arrange(rows []treeRow, members []int) []int {
 
 	groups := make([]string, 0, 4)
 	of := map[string][]int{}
+	sorts := map[string]groupSort{}
+	placed := map[string]bool{}
 	for _, at := range members {
 		group := rows[at].group
 		if _, seen := of[group]; !seen {
 			groups = append(groups, group)
+			sorts[group] = rows[at].groupSort
+		}
+		if !rows[at].ghost && !placed[group] {
+			// a ghost carries no value, so its group's place is its rows'
+			sorts[group] = rows[at].groupSort
+			placed[group] = true
 		}
 		of[group] = append(of[group], at)
 	}
-	groups = noneLast(groups, func(group string) string { return group })
+	sortGroups(groups, func(group string) groupSort { return sorts[group] })
 
 	out := make([]int, 0, len(members))
 	for _, group := range groups {

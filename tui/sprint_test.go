@@ -78,7 +78,7 @@ func TestTheSprintPageByPerson(t *testing.T) {
 	require.Empty(t, page.status)
 
 	// the page reads top to bottom as the design draws it
-	// (the people come in the order jq's unique puts their ids in)
+	// (the people by name, which is how an identity orders its groups)
 	drawn := plainView(page)
 	adas := []string{
 		"Ada Lovelace",
@@ -89,9 +89,6 @@ func TestTheSprintPageByPerson(t *testing.T) {
 	}
 	graces := []string{"Grace Hopper", "Initiative 1", "Big epic 1", "Grace's story in big epic 1"}
 	sections := append(adas, graces...)
-	if grace < ada {
-		sections = append(graces, adas...)
-	}
 	at := 0
 	for _, text := range sections {
 		next := strings.Index(drawn[at:], text)

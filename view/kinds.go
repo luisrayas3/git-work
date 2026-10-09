@@ -124,7 +124,7 @@ var Kinds = map[string][]Arg{
 		{Name: "details", Tier: Optional, Kind: FieldKeys,
 			Doc: "the fields shown on a dim second line under each row"},
 		{Name: "group_by", Tier: Optional, Kind: FieldKey,
-			Doc: "the field whose value starts a new section; the rows with no value at all are the last section, (none)"},
+			Doc: "the field whose value starts a new section, in the value's own order (an enum's schema order, a relation's issues by rank); the rows with no value at all are the last section, (none)"},
 		{Name: "expand", Tier: Optional, Kind: ExpandSpec, Doc: expandDoc},
 		openArg,
 		showArg,
@@ -141,7 +141,7 @@ var Kinds = map[string][]Arg{
 		{Name: "column_width", Tier: Defaulted, Kind: Int, Default: `32`, Min: minColumnWidth,
 			Doc: "the narrowest a column goes before the board scrolls sideways; when every column fits they share the width"},
 		{Name: "group_by", Tier: Optional, Kind: FieldKey,
-			Doc: "the field whose value starts a new swimlane; the cards with no value at all are the last swimlane, (none)"},
+			Doc: "the field whose value starts a new swimlane, in the value's own order (an enum's schema order, a relation's issues by rank); the cards with no value at all are the last swimlane, (none)"},
 		showArg,
 	},
 	KindGantt: {
@@ -163,7 +163,7 @@ var Kinds = map[string][]Arg{
 		{Name: "progress", Tier: Optional, Kind: FieldKey,
 			Doc: "the number field, 0 to 1, a bar is filled to"},
 		{Name: "group_by", Tier: Optional, Kind: FieldKey,
-			Doc: "the field whose value starts a new row group; the rows with no value at all are the last group, (none)"},
+			Doc: "the field whose value starts a new row group, in the value's own order (an enum's schema order, a relation's issues by rank); the rows with no value at all are the last group, (none)"},
 		{Name: "expand", Tier: Optional, Kind: ExpandSpec, Doc: expandDoc},
 		openArg,
 		showArg,
@@ -185,7 +185,7 @@ var Kinds = map[string][]Arg{
 		{Name: "column_values", Tier: Defaulted, Kind: StringList,
 			Doc: "the column values, in order; the axis's own order by default"},
 		{Name: "group_by", Tier: Optional, Kind: FieldKey,
-			Doc: "the field whose value starts a new block of rows; the rows with no value at all are the last block, (none)"},
+			Doc: "the field whose value starts a new block of rows, in the value's own order (an enum's schema order, a relation's issues by rank); the rows with no value at all are the last block, (none)"},
 		// the list a cell's Enter opens inherits it, and the matrix uses it
 		// for nothing else (doc/design/show-from-a-view.md, V3)
 		{Name: "show", Tier: Optional, Kind: ShowMap, Doc: showMatrixDoc},

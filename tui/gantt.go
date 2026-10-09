@@ -88,6 +88,7 @@ type ganttPage struct {
 	grabbed   int
 	grabFrom  struct{ cursor, col int }
 	grabGroup string
+	grabSort  groupSort
 	crossed   *crossing
 	blink     bool
 
@@ -213,6 +214,8 @@ func (p *ganttPage) rebuild() {
 			p.bars = append(p.bars, b)
 			p.nodes = append(p.nodes, node)
 		}
+		placeGroups(p.repo, p.nodes, func(level int) string { return p.layer(level).groupBy },
+			func(index int) (string, map[string]any) { return p.bars[index].typeKey, p.bars[index].fields })
 	}
 	build()
 	if p.opening != 0 {
@@ -967,6 +970,7 @@ func (p *ganttPage) startGrab() (page, tea.Cmd) {
 	p.grabbed = p.order[p.cursor]
 	p.grabFrom.cursor, p.grabFrom.col = p.cursor, p.col
 	p.grabGroup = p.nodes[p.grabbed].group
+	p.grabSort = p.nodes[p.grabbed].groupSort
 	p.crossed = nil
 	p.blink = true
 	return p, blinkTick()
@@ -980,6 +984,7 @@ func (p *ganttPage) updateGrab(press tea.KeyPressMsg) (page, tea.Cmd) {
 		// store, which never changed
 		b := &p.bars[p.grabbed]
 		p.nodes[p.grabbed].group = p.grabGroup
+		p.nodes[p.grabbed].groupSort = p.grabSort
 		p.crossed = nil
 		p.grabbed = -1
 		p.putBack(b)
@@ -1031,6 +1036,7 @@ func (p *ganttPage) dragBy(by int) tea.Cmd {
 
 	group := p.nodes[neighbour].group
 	p.nodes[p.grabbed].group = group
+	p.nodes[p.grabbed].groupSort = p.nodes[neighbour].groupSort
 	p.crossed = &crossing{group: group, value: groupValue(p.bars[neighbour].fields[p.groupBy], group)}
 	p.cursor = crossGhost(p.nodes, p.order, p.cursor, by)
 	p.status = ""

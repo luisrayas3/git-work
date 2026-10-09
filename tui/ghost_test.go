@@ -24,21 +24,21 @@ func opened(t *testing.T, p page, spelling string) *newPage {
 // type its rows share filled in; the count leaves it out (C6, C7).
 func TestListGhostPerGroup(t *testing.T) {
 	repo := testRepo(t)
-	newIssue(t, repo, map[string]any{"title": "one", "status": "to-do"})
-	newIssue(t, repo, map[string]any{"title": "two", "status": "to-do"})
-	newIssue(t, repo, map[string]any{"title": "three", "status": "in-progress"})
+	newIssue(t, repo, map[string]any{"title": "one", "status": "in-progress"})
+	newIssue(t, repo, map[string]any{"title": "two", "status": "in-progress"})
+	newIssue(t, repo, map[string]any{"title": "three", "status": "to-do"})
 
 	page := list(t, repo, `{"fields":["title","status"],"group_by":"status"}`)
 	drawn := plainView(page)
 	require.Equal(t, 2, strings.Count(drawn, ghostLabel), "one ghost per group")
 	require.Contains(t, drawn, "3 issues", "the ghosts are not issues")
 
-	// the groups come in first-appearance order, last edited first: the
-	// in-progress group with `three`, then to-do with `two` and `one`; a
-	// ghost is the last row of each, before the next header
+	// the groups come in schema order: the to-do group with `three`, then
+	// in-progress with `two` and `one`; a ghost is the last row of each,
+	// before the next header
 	lines := strings.Split(drawn, "\n")
 	var ghosts []int
-	threeAt, todoAt, oneAt := -1, -1, -1
+	threeAt, progressAt, oneAt := -1, -1, -1
 	for at, line := range lines {
 		switch {
 		case strings.Contains(line, ghostLabel):
@@ -47,13 +47,13 @@ func TestListGhostPerGroup(t *testing.T) {
 			threeAt = at
 		case strings.Contains(line, "one"):
 			oneAt = at
-		case strings.TrimSpace(line) == "to-do":
-			todoAt = at
+		case strings.TrimSpace(line) == "in-progress":
+			progressAt = at
 		}
 	}
 	require.Len(t, ghosts, 2)
 	require.Less(t, threeAt, ghosts[0])
-	require.Less(t, ghosts[0], todoAt)
+	require.Less(t, ghosts[0], progressAt)
 	require.Less(t, oneAt, ghosts[1])
 
 	// end lands on the last row, which is the last group's ghost
@@ -63,7 +63,7 @@ func TestListGhostPerGroup(t *testing.T) {
 
 	created := opened(t, page, "enter")
 	require.Equal(t, "task", created.typeKey(), "every row in the group is a task")
-	require.Equal(t, `"to-do"`, string(created.fields["status"]), "the group's value is prefilled")
+	require.Equal(t, `"in-progress"`, string(created.fields["status"]), "the group's value is prefilled")
 	require.NotNil(t, created.editor, "and the title is being typed")
 
 	// space, copy and grab have nothing on a ghost
@@ -101,23 +101,23 @@ func TestListGhostUngroupedAndFiltered(t *testing.T) {
 // rows only.
 func TestListGhostIsNotARankSibling(t *testing.T) {
 	repo := testRepo(t)
-	one := newIssue(t, repo, map[string]any{"title": "one", "status": "to-do"})
-	newIssue(t, repo, map[string]any{"title": "two", "status": "in-progress"})
+	one := newIssue(t, repo, map[string]any{"title": "one", "status": "in-progress"})
+	newIssue(t, repo, map[string]any{"title": "two", "status": "to-do"})
 
-	// last edited first: in-progress's `two` heads the list, to-do's
-	// `one` is in the last group, so up is the way into the other group
+	// schema order: to-do's `two` heads the list, in-progress's `one` is
+	// in the last group, so up is the way into the other group
 	page := list(t, repo, `{"fields":["title"],"group_by":"status"}`)
 	page.putCursorOn(one)
 	page = send(page, "space", "up").(*listPage)
-	require.Equal(t, "in-progress", page.nodes[page.grabbed].group)
-	// drawn under the in-progress header, above its ghost
+	require.Equal(t, "to-do", page.nodes[page.grabbed].group)
+	// drawn under the to-do header, above its ghost
 	drawn := plainView(page)
-	require.Less(t, indexOf(drawn, "in-progress"), indexOf(drawn, "one"))
+	require.Less(t, indexOf(drawn, "to-do"), indexOf(drawn, "one"))
 	require.Less(t, indexOf(drawn, "one"), indexOf(drawn, ghostLabel))
 
 	page = send(page, "space").(*listPage)
-	require.Contains(t, page.status, "moved to in-progress")
-	require.Equal(t, `"in-progress"`, field(t, repo, one, "status"))
+	require.Contains(t, page.status, "moved to to-do")
+	require.Equal(t, `"to-do"`, field(t, repo, one, "status"))
 }
 
 // TestBoardGhostPerColumn: a + card at the foot of every column, in every

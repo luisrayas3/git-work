@@ -108,6 +108,8 @@ type group struct {
 	raw   json.RawMessage
 	// none marks the block of the issues with no value for the field.
 	none bool
+	// sort is where the block goes among the others (group.go).
+	sort groupSort
 }
 
 // cellSum is one cell: how many issues are in it, and what their value field
@@ -206,7 +208,7 @@ func (p *matrixPage) build(items []map[string]any) {
 
 	p.rowAxis = p.resolveAxis(p.rowsKey, p.call.Strings("row_values"), items, onMatrix)
 	p.colAxis = p.resolveAxis(p.columnsKey, p.call.Strings("column_values"), items, onMatrix)
-	p.groups = p.resolveGroups(items)
+	p.groups = p.resolveGroups(items, onMatrix)
 
 	rowAt := placesOf(p.rowAxis)
 	colAt := placesOf(p.colAxis)
@@ -307,34 +309,10 @@ func asNumber(value any) (float64, bool) {
 func (p *matrixPage) resolveAxis(key string, listed []string, items []map[string]any, onMatrix map[string]bool) axis {
 	a := axis{key: key}
 
-	// what the schema says about the field, off the types the issues have:
-	// every type owns its own field (e7e58f2), and the first type's order
-	// wins, later ones only adding what it did not have.
-	names := map[string]string{}
-	var order []string
-	if s, err := p.repo.LoadSchema(); err == nil {
-		for _, typeKey := range s.TypeKeys() {
-			if len(onMatrix) > 0 && !onMatrix[typeKey] {
-				continue
-			}
-			field, ok := s.Field(typeKey, key)
-			if !ok {
-				continue
-			}
-			if a.kind == "" {
-				a.kind = field.Kind
-			}
-			for _, value := range field.Values {
-				if _, named := names[value.Id]; !named {
-					names[value.Id] = value.Name
-					order = append(order, value.Id)
-				}
-			}
-		}
-	}
-	if a.kind == "" {
-		a.kind, _ = schema.BuiltinKind(key)
-	}
+	// what the schema says about the field, off the types the issues have
+	// (group.go)
+	kind, order, names := fieldValues(p.repo, key, onMatrix)
+	a.kind = kind
 	a.multi = isMultiKind(a.kind)
 
 	// what the data has
@@ -365,7 +343,7 @@ func (p *matrixPage) resolveAxis(key string, listed []string, items []map[string
 		for _, value := range listed {
 			add(value)
 		}
-	} else if a.kind == schema.KindEnum || a.kind == schema.KindOrdinalEnum || a.kind == schema.KindMultiEnum {
+	} else if isEnum(a.kind) {
 		for _, value := range order {
 			add(value)
 		}
@@ -441,14 +419,15 @@ func isMultiKind(kind schema.Kind) bool {
 	return false
 }
 
-// resolveGroups is the blocks of rows, in the order they first appear, the
-// ungrouped last, as the list and the board order their groups.
-func (p *matrixPage) resolveGroups(items []map[string]any) []group {
+// resolveGroups is the blocks of rows in the order of the values they stand
+// for, the ungrouped last, as every view orders its groups (group.go, E4).
+func (p *matrixPage) resolveGroups(items []map[string]any, onMatrix map[string]bool) []group {
 	if p.groupBy == "" {
 		return []group{{}}
 	}
 
 	known := newKinds(p.repo)
+	order := newGroupOrder(p.repo, p.groupBy, onMatrix)
 	var groups []group
 	seen := map[string]bool{}
 	for _, item := range items {
@@ -465,12 +444,14 @@ func (p *matrixPage) resolveGroups(items []map[string]any) []group {
 		if err != nil {
 			raw = json.RawMessage("null")
 		}
-		groups = append(groups, group{label: label, raw: raw, none: label == noGroup})
+		groups = append(groups, group{label: label, raw: raw, none: label == noGroup,
+			sort: order.sortOf(fields[p.groupBy], label)})
 	}
 	if len(groups) == 0 {
 		groups = []group{{label: noGroup, raw: json.RawMessage("null"), none: true}}
 	}
-	return noneLast(groups, func(g group) string { return g.label })
+	sortGroups(groups, func(g group) groupSort { return g.sort })
+	return groups
 }
 
 // arrange rebuilds what is drawn out of the grid: the filter, the data rows
