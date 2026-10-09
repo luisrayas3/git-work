@@ -144,7 +144,7 @@ var Kinds = map[string][]Arg{
 			Doc: "the field whose value starts a new swimlane, in the value's own order (an enum's schema order, a relation's issues by rank); the cards with no value at all are the last swimlane, (none)"},
 		{Name: "empty_groups", Tier: Defaulted, Kind: Bool,
 			Doc: "with group_by, add the swimlanes no card falls in, by the field's kind: every value an enum lists, " +
-				"false and true for a bool, and for a relation the siblings of the lanes the cards are in, the other issues whose own group_by holds what theirs holds (an epic's fellow epics under its initiative);" +
+				"false and true for a bool, and for a relation the siblings of the lanes the cards are in, the other issues whose own group_by holds what theirs holds (an epic's fellow epics under its initiative); " +
 				"text, number, date and identity get none, and (none) is still drawn only when a card has no value; false by default"},
 		showArg,
 	},
