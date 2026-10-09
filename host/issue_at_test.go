@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/git-bug/git-bug/cache"
+	"github.com/git-bug/git-bug/commands/cmdjson"
 	"github.com/git-bug/git-bug/entities/identity"
 	"github.com/git-bug/git-bug/entities/issue"
 	"github.com/git-bug/git-bug/repository"
@@ -275,6 +276,33 @@ func TestIssueLogBetween(t *testing.T) {
 
 // TestIssueLogSelectionErrors: a mistyped id reads as a mistyped id, not as a
 // jq syntax error, and a program that returns something else says so.
+// TestIssueLogBetweenPastCacheLimit: a selection wider than the cache's load
+// limit still reads every issue. The cache locks an evicted entity for good,
+// so a log that loaded them all before reading any would block forever.
+func TestIssueLogBetweenPastCacheLimit(t *testing.T) {
+	repo, author := atTestRepo(t)
+	t0 := time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC)
+	for i := 0; i < 3; i++ {
+		newIssueAt(t, repo, author, t0, "issue", nil)
+	}
+	repo.Issues().SetCacheSize(1)
+
+	done := make(chan struct{})
+	var entries []cmdjson.IssueOperation
+	var err error
+	go func() {
+		defer close(done)
+		entries, err = IssueLogBetween(repo, "", time.Time{}, time.Time{}, false)
+	}()
+	select {
+	case <-done:
+	case <-time.After(10 * time.Second):
+		t.Fatal("the log blocked on an evicted issue")
+	}
+	require.NoError(t, err)
+	require.Len(t, entries, 3)
+}
+
 func TestIssueLogSelectionErrors(t *testing.T) {
 	repo, author := atTestRepo(t)
 	newIssueAt(t, repo, author, time.Now(), "a", nil)
