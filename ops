@@ -1,1 +1,1 @@
-{"author":{"id":"7674679dac9170669f752d932f8b5955b1d55717359e13b1c1e687003c7bb99f"},"ops":[{"type":9,"timestamp":1791578069,"nonce":"wRRZPvfLsjz06oTF+sDmXivhPL8=","key":"status","value":"done"}]}
+{"author":{"id":"7674679dac9170669f752d932f8b5955b1d55717359e13b1c1e687003c7bb99f"},"ops":[{"type":3,"timestamp":1791578069,"nonce":"0p8oipGAu+FQ/5zVj5lpeC6D7yE=","message":"Done on trunk: 4eb57a08, 7ffedbf8, 80f75dd4, 690ae653, c1943705; decision 2508809.","files":null}]}
