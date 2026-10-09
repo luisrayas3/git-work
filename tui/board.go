@@ -33,6 +33,10 @@ type boardPage struct {
 	values         []string
 	cardKeys       []string
 	groupBy        string
+	// emptyGroups adds the swimlanes no card falls in, and empty holds them,
+	// resolved on every load (empty_groups.go).
+	emptyGroups bool
+	empty       []lane
 	// colWidth is the narrowest a column goes before the board scrolls
 	// sideways instead (`column_width`, view/kinds.go, which is the
 	// authority on its default).
@@ -129,6 +133,7 @@ func newBoardPage(repo *cache.RepoCache, call *view.Call) (*boardPage, error) {
 		values:         call.Strings("values"),
 		cardKeys:       call.Strings("card"),
 		groupBy:        call.String("group_by"),
+		emptyGroups:    call.Bool("empty_groups"),
 		colWidth:       call.Int("column_width"),
 		width:          80,
 		height:         24,
@@ -163,6 +168,7 @@ func (p *boardPage) load() error {
 	p.real = len(p.cards)
 
 	p.columns = p.resolveColumns()
+	p.empty = p.emptyLanes(known)
 	p.arrange()
 	p.putCursorOn(was)
 	if was == "" {
@@ -327,6 +333,19 @@ func (p *boardPage) arrange() {
 		col := at[c.value]
 		p.lanes[which].stacks[col] = append(p.lanes[which].stacks[col], index)
 	}
+	if needle == "" {
+		// the lanes no card falls in, where empty_groups asks for them; a
+		// filter narrows the board to what matches, which they never do
+		for _, la := range p.empty {
+			if _, drawn := laneOf[la.group]; drawn {
+				continue
+			}
+			laneOf[la.group] = len(p.lanes)
+			la.stacks = make([][]int, len(p.columns))
+			la.sort = order.sortOf(la.raw, la.group)
+			p.lanes = append(p.lanes, la)
+		}
+	}
 	if len(p.lanes) == 0 {
 		p.lanes = append(p.lanes, lane{stacks: make([][]int, len(p.columns))})
 	}
@@ -354,6 +373,14 @@ func (p *boardPage) addGhosts() {
 		for _, stack := range la.stacks {
 			for _, index := range stack {
 				types = append(types, p.cards[index].typeKey)
+			}
+		}
+		if len(types) == 0 && p.real > 0 {
+			// a lane no card falls in (empty_groups.go) takes the type every
+			// card on the board shares, the best witness of what the query
+			// selects there is
+			for _, c := range p.cards[:p.real] {
+				types = append(types, c.typeKey)
 			}
 		}
 		typeKey := sharedType(types)
