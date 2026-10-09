@@ -78,9 +78,9 @@ nfpms:
       - git-work
     package_name: git-work
     vendor: git-work
-    homepage: https://github.com/git-bug/git-bug
-    maintainer: Michael Muré <batolettre@gmail.com>
-    description: Distributed, offline-first bug tracker embedded in git, with bridges
+    homepage: https://github.com/luisrayas3/git-work
+    maintainer: Luis Rayas
+    description: Project tracker stored in git, with Jira sync
     license: GPL-3.0-or-later
     formats:
       - deb
