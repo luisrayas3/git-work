@@ -40,11 +40,7 @@ and the columns' `values` remains the model for an explicit list if one is ever 
 
 - **`enum`, `ordinal-enum`, `multi-enum`:**
   every value the schema lists for the field,
-  over the types on the board as the columns read them,
-  in schema order,
-  then any value the cards hold that the schema does not list, in first-seen order.
-  Schema order replaces first-seen order for the listed values,
-  because once every value is drawn the schema's order is the one a person expects.
+  over the types on the board as the columns read them.
 - **`bool`:** `false`, then `true`.
 - **`relation`, `multi-relation`:** the siblings of the lanes the cards already have (E3).
 - **Anything else** (`text`, `number`, `date`, `identity`):
@@ -94,12 +90,33 @@ This is the rule applied consistently, and the query cannot narrow it,
 since the stories are not in the query's output;
 see Q1.
 
-## E4 — order
+## E4 — order is the values' own, never the cards'
 
-The lanes the cards have keep their order, first seen, as today;
-the empty lanes follow, in `(rank, id)`, the order every view gives issues;
-then `(none)`.
-For an enum, E2's schema order replaces this.
+A lane's place does not depend on whether, or where, the query put a card in it.
+Lanes are ordered by the natural order of the value they stand for,
+and the order the cards first appear in is only a tie-breaker after it:
+
+- **`enum`, `ordinal-enum`, `multi-enum`:** schema order,
+  over the types on the board as the columns read them;
+  a value the schema does not list follows the listed ones.
+- **`bool`:** `false`, then `true`.
+- **`relation`, `multi-relation`:** the lane issues in `(rank, …)`,
+  the order every view gives issues;
+  the unranked follow, as everywhere, keeping the order they first appear in.
+  A `multi-relation` lane sorts by the first issue it names.
+- **`number`, `date`:** ascending.
+- **`text`, `identity`:** by the drawn label (an identity by name).
+- **`(none)`:** last.
+
+Where two lanes tie — two unranked issues, two values the schema does not list —
+first-seen order breaks the tie, so the order is still stable across a refresh.
+
+This holds with `empty_groups` off as well:
+it replaces today's first-seen order for every board,
+so that switching `empty_groups` on adds lanes and moves none.
+The order code is shared by every view since `395ecd42`,
+so the list's, the gantt's and the matrix's `group_by` take the same order;
+see Q2.
 
 ## E5 — what stays the same
 
@@ -122,6 +139,14 @@ and noisy for this repository grouped by story, where most stories are done.
 Proposed answer: accept it for now, since `empty_groups` is opt-in,
 and narrow it later if it bites
 (a `group_query`, a jq program over the lane issues, would be the general fix).
+
+## Q2 — open
+
+E4 changes the group order of the list, the gantt and the matrix too,
+from first seen to the values' own.
+Proposed answer: yes, one rule for every view,
+because the order code is shared and a group's place should not depend on the view.
+The matrix's rows and columns already follow it (`row_values`, else schema order).
 
 ## Out of scope
 
