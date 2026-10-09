@@ -267,11 +267,7 @@ func (p *ganttPage) newBar(n nested, known *kinds) (bar, treeRow) {
 	if b.human == "" && len(b.id) > idWidth {
 		b.human = b.id[:idWidth]
 	}
-	if isRelation(known.of(b.typeKey, p.labelKey)) {
-		b.label = linkText(p.repo, linkIds(fields[p.labelKey]))
-	} else {
-		b.label = known.cellText(b.typeKey, p.labelKey, fields[p.labelKey])
-	}
+	b.label = known.cellText(b.typeKey, p.labelKey, fields[p.labelKey])
 	b.startText = plainValue(fields[p.startKey])
 	b.start, b.hasStart = parseDate(b.startText)
 	b.stopText = plainValue(fields[p.stopKey])
@@ -289,17 +285,8 @@ func (p *ganttPage) newBar(n nested, known *kinds) (bar, treeRow) {
 		children: n.children,
 		folded:   n.folded,
 		hidden:   n.hidden,
-		group:    noGroup,
+		group:    known.groupLabel(b.typeKey, layer.groupBy, fields),
 		grouped:  layer.groupBy != "",
-	}
-	if layer.groupBy != "" {
-		value := known.cellText(b.typeKey, layer.groupBy, fields[layer.groupBy])
-		if isRelation(known.of(b.typeKey, layer.groupBy)) {
-			value = linkText(p.repo, linkIds(fields[layer.groupBy]))
-		}
-		if value != "" {
-			node.group = value
-		}
 	}
 	node.rank = plainValue(fields[schema.RankKey])
 	node.text = strings.ToLower(b.human + " " + b.label)
@@ -672,26 +659,7 @@ func (p *ganttPage) count() int {
 // addGhosts puts a ghost at the foot of each group of roots, one for the
 // whole chart when nothing groups it (ghost.go), as the list does.
 func (p *ganttPage) addGhosts() {
-	groups := []string{}
-	types := map[string][]string{}
-	seen := map[string]bool{}
-	for index, node := range p.nodes {
-		if node.level != 0 || node.ghost {
-			continue
-		}
-		group := node.group
-		if p.groupBy == "" {
-			group = noGroup
-		}
-		if !seen[group] {
-			seen[group] = true
-			groups = append(groups, group)
-		}
-		types[group] = append(types[group], p.bars[index].typeKey)
-	}
-	if len(groups) == 0 {
-		groups = append(groups, noGroup)
-	}
+	groups, types := rootGroups(p.nodes, func(index int) string { return p.bars[index].typeKey })
 	for _, group := range groups {
 		b := bar{key: ghostId(group), human: ghostPrefix, typeKey: sharedType(types[group]), fields: map[string]any{}, label: ghostLabel}
 		node := treeRow{key: b.key, group: group, grouped: p.groupBy != "", ghost: true}

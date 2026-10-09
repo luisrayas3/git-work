@@ -195,21 +195,12 @@ func (p *boardPage) newCard(item map[string]any, known *kinds) card {
 	}
 
 	for _, key := range p.cardKeys {
-		if isRelation(known.of(c.typeKey, key)) {
-			c.links[key] = true
-			c.cells[key] = linkText(p.repo, linkIds(fields[key]))
-			continue
-		}
+		c.links[key] = isRelation(known.of(c.typeKey, key))
 		c.cells[key] = known.cellText(c.typeKey, key, fields[key])
 	}
 
 	c.value = plainValue(fields[p.columnsKey])
-	c.group = noGroup
-	if p.groupBy != "" {
-		if value := known.cellText(c.typeKey, p.groupBy, fields[p.groupBy]); value != "" {
-			c.group = value
-		}
-	}
+	c.group = known.groupLabel(c.typeKey, p.groupBy, fields)
 	c.rank = plainValue(fields[schema.RankKey])
 
 	var text strings.Builder
@@ -332,13 +323,7 @@ func (p *boardPage) arrange() {
 	if len(p.lanes) == 0 {
 		p.lanes = append(p.lanes, lane{stacks: make([][]int, len(p.columns))})
 	}
-
-	// the cards nobody has filed under the grouping field come last
-	if none, ok := laneOf[noGroup]; ok && none != len(p.lanes)-1 {
-		last := p.lanes[none]
-		p.lanes = append(p.lanes[:none], p.lanes[none+1:]...)
-		p.lanes = append(p.lanes, last)
-	}
+	p.lanes = noneLast(p.lanes, func(l lane) string { return l.group })
 
 	for _, l := range p.lanes {
 		for _, stack := range l.stacks {

@@ -232,7 +232,8 @@ func (p *matrixPage) build(items []map[string]any) {
 		typeKey := host.StringOr(fields[schema.TypeKey], "")
 
 		number, hasNumber := asNumber(fields[p.valueKey])
-		g := groupAt[p.groupLabel(known, typeKey, fields)]
+		// with nothing grouping the matrix there is one block, the 0th
+		g := groupAt[known.groupLabel(typeKey, p.groupBy, fields)]
 		// An issue with several values on an axis lands on each of them, so
 		// a multi-valued axis double-counts; dividing the number between
 		// them would invent data (A5).
@@ -449,17 +450,17 @@ func (p *matrixPage) resolveGroups(items []map[string]any) []group {
 
 	known := newKinds(p.repo)
 	var groups []group
-	at := map[string]int{}
+	seen := map[string]bool{}
 	for _, item := range items {
 		fields, _ := item["fields"].(map[string]any)
 		if fields == nil {
 			fields = map[string]any{}
 		}
-		label := p.groupLabel(known, host.StringOr(fields[schema.TypeKey], ""), fields)
-		if _, seen := at[label]; seen {
+		label := known.groupLabel(host.StringOr(fields[schema.TypeKey], ""), p.groupBy, fields)
+		if seen[label] {
 			continue
 		}
-		at[label] = len(groups)
+		seen[label] = true
 		raw, err := json.Marshal(fields[p.groupBy])
 		if err != nil {
 			raw = json.RawMessage("null")
@@ -469,26 +470,7 @@ func (p *matrixPage) resolveGroups(items []map[string]any) []group {
 	if len(groups) == 0 {
 		groups = []group{{label: noGroup, raw: json.RawMessage("null"), none: true}}
 	}
-
-	// the issues nobody has filed under the grouping field come last
-	if index, ok := at[noGroup]; ok && index != len(groups)-1 {
-		last := groups[index]
-		groups = append(groups[:index], groups[index+1:]...)
-		groups = append(groups, last)
-	}
-	return groups
-}
-
-// groupLabel is the block an issue falls in: the drawn value of the grouping
-// field, or (none), which is the board's rule.
-func (p *matrixPage) groupLabel(known *kinds, typeKey string, fields map[string]any) string {
-	if p.groupBy == "" {
-		return ""
-	}
-	if value := known.cellText(typeKey, p.groupBy, fields[p.groupBy]); value != "" {
-		return value
-	}
-	return noGroup
+	return noneLast(groups, func(g group) string { return g.label })
 }
 
 // arrange rebuilds what is drawn out of the grid: the filter, the data rows

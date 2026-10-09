@@ -260,26 +260,7 @@ func (p *listPage) rebuild() {
 // row and carries no rank, so the order draws it last in its group.
 func (p *listPage) addGhosts() {
 	layer := p.layer(0)
-	groups := []string{}
-	types := map[string][]string{}
-	seen := map[string]bool{}
-	for index, node := range p.nodes {
-		if node.level != 0 || node.ghost {
-			continue
-		}
-		group := node.group
-		if layer.groupBy == "" {
-			group = noGroup
-		}
-		if !seen[group] {
-			seen[group] = true
-			groups = append(groups, group)
-		}
-		types[group] = append(types[group], p.rows[index].typeKey)
-	}
-	if len(groups) == 0 {
-		groups = append(groups, noGroup)
-	}
+	groups, types := rootGroups(p.nodes, func(index int) string { return p.rows[index].typeKey })
 	for _, group := range groups {
 		row := listRow{
 			key:     ghostId(group),
@@ -365,10 +346,7 @@ func (p *listPage) newRow(n nested, known *kinds) (listRow, treeRow) {
 			continue
 		}
 		if isRelation(known.of(row.typeKey, key)) {
-			ids := linkIds(fields[key])
-			row.links[key] = ids
-			row.cells[key] = linkText(p.repo, ids)
-			continue
+			row.links[key] = linkIds(fields[key])
 		}
 		row.cells[key] = known.cellText(row.typeKey, key, fields[key])
 	}
@@ -381,13 +359,8 @@ func (p *listPage) newRow(n nested, known *kinds) (listRow, treeRow) {
 		children: n.children,
 		folded:   n.folded,
 		hidden:   n.hidden,
-		group:    noGroup,
+		group:    known.groupLabel(row.typeKey, layer.groupBy, fields),
 		grouped:  layer.groupBy != "",
-	}
-	if layer.groupBy != "" {
-		if value := row.cells[layer.groupBy]; value != "" {
-			node.group = value
-		}
 	}
 	node.rank = plainValue(fields[schema.RankKey])
 

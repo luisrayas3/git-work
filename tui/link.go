@@ -83,10 +83,13 @@ func personText(repo *cache.RepoCache, value any) string {
 	return plainValue(value)
 }
 
-// cellText is any value that is not a relation as a cell draws it: a person
-// by name, everything else plain.
+// cellText is any value as a cell draws it: a relation as the issues it
+// names, a person by name, everything else plain.
 func (k *kinds) cellText(typeKey, fieldKey string, value any) string {
-	if isPerson(k.of(typeKey, fieldKey)) {
+	switch kind := k.of(typeKey, fieldKey); {
+	case isRelation(kind):
+		return linkText(k.repo, linkIds(value))
+	case isPerson(kind):
 		return personText(k.repo, value)
 	}
 	return plainValue(value)

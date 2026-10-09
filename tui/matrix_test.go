@@ -231,7 +231,41 @@ func TestMatrixGroupsAreBlocksOfRows(t *testing.T) {
 	require.Equal(t, 1, strings.Count(drawn, `parent \ iteration`))
 }
 
-// TestMatrixEnterOpensTheCellsIssues: a sum you cannot open is a number you
+// TestMatrixGroupsByRelationAreTheIssue: a block over a relation is headed
+// by the issue it names, as the list heads that group, never the stored
+// hash; and its drill-down still selects on the stored id.
+func TestMatrixGroupsByRelationAreTheIssue(t *testing.T) {
+	repo := testRepo(t)
+	alpha := newIssue(t, repo, map[string]any{"type": "story", "title": "alpha"})
+	sprint := newIssue(t, repo, map[string]any{"type": "iteration", "title": "sprint 1"})
+	newIssue(t, repo, map[string]any{"title": "one", "parent": alpha, "iteration": sprint, "estimate": 3, "status": "done"})
+	newIssue(t, repo, map[string]any{"title": "two", "iteration": sprint, "estimate": 2, "status": "to-do"})
+
+	const kwargs = `"group_by":"parent","query":"` + tasksOnly + `"`
+	page := matrix(t, repo, `{"rows":"status","columns":"iteration","value":"estimate",`+kwargs+`}`)
+	listed := list(t, repo, `{`+kwargs+`}`)
+
+	label := alpha[:idWidth] + " alpha"
+	require.Len(t, page.groups, 2)
+	require.Equal(t, label, page.groups[0].label)
+	require.Equal(t, noGroup, page.groups[1].label)
+	require.Equal(t, label, listed.nodes[0].group, "the list's group, drawn the same")
+	require.NotContains(t, plainView(page), alpha, "never the full hash")
+
+	for at, row := range page.drawn {
+		if row.kind == rowData && row.group == 0 {
+			page.row, page.col = at, 0
+			break
+		}
+	}
+	call, err := page.cellCall()
+	require.NoError(t, err)
+	var query string
+	require.NoError(t, json.Unmarshal(call.Args["query"], &query))
+	require.Contains(t, query, fieldPath("parent")+` == "`+alpha+`"`)
+}
+
+// TestMatrixEnterOpensTheCellsIssues:a sum you cannot open is a number you
 // have to trust, so enter pushes the list its query selects — the predicate,
 // which re-runs, not the ids that are in the cell today.
 func TestMatrixEnterOpensTheCellsIssues(t *testing.T) {
