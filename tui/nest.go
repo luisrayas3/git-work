@@ -692,11 +692,7 @@ func arrange(rows []treeRow, members []int) []int {
 		}
 		of[group] = append(of[group], at)
 	}
-	// the rows with no value for the grouping field come last: they are the
-	// ones nobody has filed yet, and they are what a session works through
-	sort.SliceStable(groups, func(i, j int) bool {
-		return groups[j] == noGroup && groups[i] != noGroup
-	})
+	groups = noneLast(groups, func(group string) string { return group })
 
 	out := make([]int, 0, len(members))
 	for _, group := range groups {

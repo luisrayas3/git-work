@@ -431,6 +431,41 @@ func TestGroupedBoardKeepsTheLaneHeaderOnTop(t *testing.T) {
 	require.Contains(t, lines[4], first, "the cursor's card is right under it")
 }
 
+// TestBoardLanesByRelationAreTheIssue: a lane over a relation is headed by
+// the issue it names, as the list heads that group, never the stored hash;
+// and its ghost still writes the stored id, not the label.
+func TestBoardLanesByRelationAreTheIssue(t *testing.T) {
+	repo := testRepo(t)
+	north := newIssue(t, repo, map[string]any{"type": "story", "title": "north", "status": "to-do"})
+	newIssue(t, repo, map[string]any{"title": "one", "status": "to-do", "parent": north})
+	newIssue(t, repo, map[string]any{"title": "two", "status": "to-do"})
+
+	const kwargs = `"group_by":"parent","query":"map(select(.fields.type == \"task\"))"`
+	page := board(t, repo, `{"columns":"status",`+kwargs+`}`)
+	listed := list(t, repo, `{`+kwargs+`}`)
+
+	label := north[:idWidth] + " north"
+	require.Equal(t, []string{label, noGroup}, laneLabels(page))
+	require.Equal(t, label, listed.nodes[0].group, "the list's group, drawn the same")
+	require.NotContains(t, plainView(page), north, "never the full hash")
+
+	for _, c := range page.cards {
+		if c.ghost && c.group == label {
+			require.Equal(t, issue.StringValue(north), page.ghostDoc(&c).Fields["parent"])
+			return
+		}
+	}
+	t.Fatal("no ghost in the story's lane")
+}
+
+func laneLabels(p *boardPage) []string {
+	labels := make([]string, 0, len(p.lanes))
+	for _, l := range p.lanes {
+		labels = append(labels, l.group)
+	}
+	return labels
+}
+
 func columnLabels(p *boardPage) []string {
 	labels := make([]string, 0, len(p.columns))
 	for _, column := range p.columns {

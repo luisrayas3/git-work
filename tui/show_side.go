@@ -216,11 +216,7 @@ func (p *showPage) loadSide() {
 			cells := []string{host.StringOr(item["human_id"], humanOf(p.repo, id)), host.StringOr(fields[schema.TitleKey], "")}
 			for _, key := range table.layer.Fields {
 				value := fields[key]
-				text := known.cellText(typeKey, key, value)
-				if isRelation(known.of(typeKey, key)) {
-					text = linkText(p.repo, linkIds(value))
-				}
-				cells = append(cells, text)
+				cells = append(cells, known.cellText(typeKey, key, value))
 			}
 			rows = append(rows, sideRow{
 				id:    id,
