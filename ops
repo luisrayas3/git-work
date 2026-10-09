@@ -1,1 +1,1 @@
-{"author":{"id":"7674679dac9170669f752d932f8b5955b1d55717359e13b1c1e687003c7bb99f"},"ops":[{"type":9,"timestamp":1791578069,"nonce":"Y2dttdNVSuZh3kI0LDUjyuo9jq0=","key":"status","value":"canceled"}]}
+{"author":{"id":"7674679dac9170669f752d932f8b5955b1d55717359e13b1c1e687003c7bb99f"},"ops":[{"type":3,"timestamp":1791578069,"nonce":"n0mAO19XsE1ucnXUduW0kEBbBes=","message":"Canceled: the GUI is dropped (2508809).","files":null}]}
