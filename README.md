@@ -94,6 +94,22 @@ so there is nothing to set up.
 Share the tracker with `git work push` and `git work pull`,
 or `git work sync` for both.
 
+The tracker's refs live outside `refs/heads`,
+so a `git fetch --prune`,
+by hand, from an editor or from a sync tool,
+drops their remote-tracking copies,
+and the next `git work pull` fetches the whole tracker again.
+Add one fetch refspec per namespace, once:
+
+```sh
+for ns in work-issues work-flows work-schema work-users; do
+  git config --add remote.origin.fetch "+refs/$ns/*:refs/remotes/origin/$ns/*"
+done
+```
+
+Plain `git fetch` then carries the tracker along,
+and a prune leaves it alone.
+
 For an AI agent,
 `git work quickstart` prints the whole model,
 and this repository's types and flows,

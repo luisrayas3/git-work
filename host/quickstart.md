@@ -253,6 +253,13 @@ In a view `Enter` opens, `Space` edits or grabs a row to move it,
 - `git work pull` and `git work push` carry every namespace over the git remote,
   and `git work sync` does both in one run.
   Pushing publishes the tracker, so do it only when asked to.
+- The tracker's refs are outside `refs/heads`,
+  so any `git fetch --prune` drops their remote-tracking copies
+  and the next pull fetches everything again.
+  Add a fetch refspec once, one per namespace
+  (`work-issues`, `work-flows`, `work-schema`, `work-users`):
+  `git config --add remote.origin.fetch '+refs/work-issues/*:refs/remotes/origin/work-issues/*'`.
+  Plain `git fetch` then carries the tracker, and a prune leaves it alone.
 - `git work jira sync` (or `git work sync --jira`) syncs one bound clone
   with one Jira Cloud project, both ways, field by field;
   Jira wins a field edited on both sides and says so in a comment.
