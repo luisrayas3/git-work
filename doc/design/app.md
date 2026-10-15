@@ -46,7 +46,7 @@ Every other command is on the **palette**.
   (`home › overview › show 3a2279e`),
   then the top page's whole call, query included —
   what the first line cuts in a narrow window, here in full.
-- **This page's commands**: filter, fold all, copy cell, copy id,
+- **This page's commands**: filter, fold all (and open every row, leaves too), copy cell, copy id,
   change what is expanded, link and unlink (A6), edit the query.
 - **Everywhere's commands**: search (A3), new, home, run a flow, help, quit.
 
@@ -144,6 +144,19 @@ Where the sections above are silent, `8a9ea75` and `72285a6` chose:
 - The matrix's `c` keeps what `alt+c` did there, copying the command.
 - Bubble Tea v2 already requests the kitty protocol's disambiguation on every terminal,
   so nothing is added for A2.
+
+### Two folds (2026-10-15, Luis)
+
+`create.md` C8 (`b9a9b62`) draws a fold cell on a leaf, `▸ 0`,
+which unfolds to an empty child table holding only its "(new)" row.
+So the palette has **two** fold commands on a nested list or gantt:
+
+- **`z`, fold all**: opens every row that has children, or folds them all, as today.
+- **`Z`, open everything**: opens every row, the leaves included,
+  so every level's "(new)" row is on screen.
+
+`Z` is `alt+Z` like any palette letter (A2).
+It lands with C8, which is what gives a leaf something to open.
 
 ## A5 — Pickers are typed into, and the issue picker is the finder
 
