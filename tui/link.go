@@ -69,20 +69,23 @@ func linkParts(repo *cache.RepoCache, id string) (human, title string, ok bool) 
 }
 
 // linkStyled is linkText drawn, the one way every view draws a link:
-// list, board, gantt, matrix, show and new alike. The linked id is faint
-// and underlined: the only underline on a page, and the cue that enter
-// follows it. The linked title is plain, so it never outweighs the bold
-// title of the row's own issue, and so are the commas between links.
+// list, board, gantt, matrix, show and new alike. The whole link, id and
+// title and the space between them, is faint and underlined: underlined
+// as the cue that enter follows it, and faint so it never outweighs the
+// row's own title (ownTitle), which is underlined in full strength. An id
+// the store does not have is drawn the same, the id alone. The commas
+// between links are plain, so each link reads as one.
 //
 // Every piece is drawn over base, which is the wash of the row under the
 // cursor or the reversed cell under the column cursor; on a reversed base
-// nothing is faint, so the cursor reads as plainly on a link as anywhere.
+// nothing is faint, the link reversed and underlined, so the cursor reads
+// as plainly on a link as anywhere.
 // A width above zero cuts the whole to it as truncate cuts the plain text,
 // so the text drawn is linkText's cut to the column, the styles kept.
 func linkStyled(repo *cache.RepoCache, ids []string, base lipgloss.Style, width int) string {
-	id := base.Underline(true)
+	style := base.Underline(true)
 	if !base.GetReverse() {
-		id = id.Faint(true)
+		style = style.Faint(true)
 	}
 	pieces := make([]styledPiece, 0, 3*len(ids))
 	for at, link := range ids {
@@ -90,9 +93,9 @@ func linkStyled(repo *cache.RepoCache, ids []string, base lipgloss.Style, width 
 			pieces = append(pieces, styledPiece{", ", base})
 		}
 		human, title, ok := linkParts(repo, link)
-		pieces = append(pieces, styledPiece{human, id})
+		pieces = append(pieces, styledPiece{human, style})
 		if ok {
-			pieces = append(pieces, styledPiece{" " + title, base})
+			pieces = append(pieces, styledPiece{" " + title, style})
 		}
 	}
 	return renderPieces(pieces, width)
@@ -102,6 +105,15 @@ func linkStyled(repo *cache.RepoCache, ids []string, base lipgloss.Style, width 
 type styledPiece struct {
 	text  string
 	style lipgloss.Style
+}
+
+// draw is text in the piece's style, an underlined one drawn as one run
+// (underlined), so a link's underline runs unbroken through its spaces.
+func (p styledPiece) draw(text string) string {
+	if p.style.GetUnderline() {
+		return underlined(p.style, text)
+	}
+	return p.style.Render(text)
 }
 
 // renderPieces draws pieces in their styles, cut to a width (none when it
@@ -122,15 +134,15 @@ func renderPieces(pieces []styledPiece, width int) string {
 			continue
 		}
 		if !cut {
-			out.WriteString(piece.style.Render(piece.text))
+			out.WriteString(piece.draw(piece.text))
 			continue
 		}
 		if w := ansi.StringWidth(piece.text); w <= room {
-			out.WriteString(piece.style.Render(piece.text))
+			out.WriteString(piece.draw(piece.text))
 			room -= w
 			continue
 		}
-		out.WriteString(piece.style.Render(ansi.Truncate(piece.text, room, "") + "…"))
+		out.WriteString(piece.draw(ansi.Truncate(piece.text, room, "") + "…"))
 		break
 	}
 	return out.String()

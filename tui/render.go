@@ -3,6 +3,7 @@ package tui
 import (
 	"encoding/json"
 	"fmt"
+	"image/color"
 	"strconv"
 	"strings"
 
@@ -49,9 +50,58 @@ func styleMark() lipgloss.Style {
 	return lipgloss.NewStyle().Background(lipgloss.Color("250"))
 }
 
-// styleTitle is the issue's title on show: as large as a terminal allows,
-// which is bold, in the terminal's own foreground, over a rule.
+// styleTitle is the issue's title on show and new, the page's heading: as
+// large as a terminal allows, which is bold, in the terminal's own
+// foreground, over a rule. It is not underlined: the heading is the page's
+// own title, not a row's (ownTitle).
 var styleTitle = lipgloss.NewStyle().Bold(true)
+
+// ownTitle is an issue's own title wherever a row, a card or a label draws
+// it (the list's title cell, the board card's title, the gantt's label when
+// the label is the title): drawn over base in normal weight, underlined. A
+// linked title (linkStyled) is underlined too, and faint as well, so a
+// row's own title is the brighter of the two. Base is the row's wash or the
+// reversed cursor cell, which the title keeps.
+func ownTitle(base lipgloss.Style, text string) string {
+	return underlined(base, text)
+}
+
+// underlined draws text in style, underlined, as one run. lipgloss draws
+// each space of underlined text in a style of its own that keeps the
+// colours and the underline and drops the rest, so a reversed title would
+// have holes at its spaces and a faint link a bright underline there; this
+// keeps every attribute style has across the whole text.
+func underlined(style lipgloss.Style, text string) string {
+	if text == "" {
+		return ""
+	}
+	sgr := ansi.Style{}
+	if style.GetBold() {
+		sgr = sgr.Bold()
+	}
+	if style.GetFaint() {
+		sgr = sgr.Faint()
+	}
+	if style.GetItalic() {
+		sgr = sgr.Italic(true)
+	}
+	if style.GetReverse() {
+		sgr = sgr.Reverse(true)
+	}
+	if fg := style.GetForeground(); !isNoColor(fg) {
+		sgr = sgr.ForegroundColor(fg)
+	}
+	if bg := style.GetBackground(); !isNoColor(bg) {
+		sgr = sgr.BackgroundColor(bg)
+	}
+	return sgr.Underline(true).Styled(text)
+}
+
+// isNoColor says whether a style's colour is unset.
+func isNoColor(c color.Color) bool {
+	_, none := c.(lipgloss.NoColor)
+	return c == nil || none
+}
 
 // styleArchived is the header's archived cell, when the issue is: the one
 // word on the page that says what is drawn is out of every default list.
