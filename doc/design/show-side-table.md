@@ -217,6 +217,11 @@ A table over **a stored relation of the shown issue** has **no ghost**:
 the new issue would have to be added to *this* issue's field,
 a second commit on a second entity, and there is no atomic multi-entity commit.
 
+**2026-10-15:** that paragraph is superseded by `create.md` C8.
+A table over a stored relation of the shown issue gets a ghost too:
+the new issue is created, then this issue's field is written with `issue add`,
+one commit on each entity, as any relation write on another issue is.
+
 ## S7 — Live, and never on a draft
 
 The tables are recomputed on every load, which the ref watcher's refresh and the page's own writes both do.
