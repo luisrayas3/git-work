@@ -188,6 +188,8 @@ its parameters the arguments.
   so the file's name never matters, `--prune` archives the flows not given,
   and a file that is not exactly one `def` aborts the whole import.
 - `git work flow export NAME` prints a flow's source; `--all DIR` writes every one.
+- Bare `git work`, in a terminal, runs the flow named `home`, as `git work flow run home` does;
+  with no `home` flow stored, or no terminal, it prints the help.
 
 A script reaches one predeclared name, `work`,
 which mirrors this command line one to one, because both go through the same code:
@@ -209,8 +211,8 @@ Views are interactive and need a terminal; there is no browser interface.
 An agent reads the data with `git work issue list 'PROGRAM'` instead,
 and opens a view only for a human to look at.
 
-There are six kinds — `list`, `show`, `board`, `gantt`, `matrix`
-and `new`, the form that creates an issue —
+There are seven kinds — `list`, `show`, `board`, `gantt`, `matrix`,
+`new`, the form that creates an issue, and `home`, the flows a person starts from —
 each a `git work view KIND KWARGS` command
 taking one JSON object of keyword arguments (`-` reads it from standard input).
 `git work view list --help` is the argument table,
@@ -251,12 +253,18 @@ and an `optional` one is off until it is named.
   every value still editable, and prints the id it creates;
   in a list, a gantt or a board the dim `+ (new)` row at the foot of a group
   opens it prefilled with that group's values.
+- `git work view home '{"flows":["overview","report"]}'` draws those flows,
+  each with its docstring's first line, a name the store lacks refused;
+  `Enter` runs one with its defaults, its view opening over home,
+  and a flow that prints shows its output on a page.
+  A `home` flow calling it is what bare `git work` opens.
 
 In a view `Enter` opens, `Space` edits or grabs a row to move it,
 typing (or `/`) filters a list, a board or a gantt, and `C-q` quits.
 `Esc` opens the palette: where you are, the whole call,
 and every command under a letter that is the same on every page
-(`w` copy cell, `c` copy id, `n` new, `s` search, `q` quit; `esc x` is `alt+x`);
+(`w` copy cell, `c` copy id, `s` search, `n` new, `h` home, `r` run a flow, `q` quit;
+`esc x` is `alt+x`);
 a second `Esc` goes back, and quits from the first page.
 `esc s` finds any issue as `git work issue search` does, and `Enter` opens it.
 A picker is typed into at once: typing narrows, `Enter` chooses,

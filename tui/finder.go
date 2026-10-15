@@ -105,6 +105,11 @@ type searchPanel struct {
 	repo   *cache.RepoCache
 	shows  json.RawMessage
 	picker *picker
+
+	// title, verb and choose make the panel another picker over the page:
+	// `r`'s, over the stored flows (home.go). Empty, it is the search.
+	title, verb string
+	choose      func(chosen choice) tea.Cmd
 }
 
 // openSearch is `s`: the finder, over the top page.
@@ -135,6 +140,9 @@ func (r *root) searchKey(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return r, nil
 	}
 	chosen, _ := panel.picker.chosen()
+	if panel.choose != nil {
+		return r, panel.choose(chosen)
+	}
 	shown, err := showOf(panel.repo, panel.shows, chosen.value)
 	if err != nil {
 		return r, tea.Batch(bell(), r.say(err.Error()))
@@ -144,10 +152,22 @@ func (r *root) searchKey(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 // searchHints is the status line while the search is open.
 func (s *searchPanel) hints() string {
-	if s.picker.text() != "" {
-		return hints(hint{"enter", "open"}, hint{"esc", "clear"})
+	verb := "open"
+	if s.verb != "" {
+		verb = s.verb
 	}
-	return hints(hint{"enter", "open"}, hint{"esc", "back"})
+	if s.picker.text() != "" {
+		return hints(hint{"enter", verb}, hint{"esc", "clear"})
+	}
+	return hints(hint{"enter", verb}, hint{"esc", "back"})
+}
+
+// heading is the panel's name over its input.
+func (s *searchPanel) heading() string {
+	if s.title != "" {
+		return s.title
+	}
+	return "search"
 }
 
 // withSearch draws the search over the foot of the page, as the palette is
@@ -157,7 +177,7 @@ func (r *root) withSearch(content string) string {
 	height := max(r.height, len(lines))
 	panel := append([]string{
 		styleRule.Render(strings.Repeat("─", max(r.width, 1))),
-		styleHeader.Render("search"),
+		styleHeader.Render(r.search.heading()),
 	}, r.search.picker.lines(r.width)...)
 	keep := min(max(height-1-len(panel), 0), len(lines)-1)
 	out := append([]string{}, lines[:max(keep, 0)]...)

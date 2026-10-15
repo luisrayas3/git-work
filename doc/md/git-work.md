@@ -10,6 +10,9 @@ git-work stores issues as git objects, separate from the files history. As
 issues are regular git objects, they can be pushed and pulled from/to the same
 git remote you are already using to collaborate with other people.
 
+In a terminal, bare `git work` runs the flow named home, as
+`git work flow run home` does; with no home flow stored it prints this help.
+
 
 
 ```

@@ -28,7 +28,12 @@ type page interface {
 // The messages the pages send each other through the program.
 type (
 	// pushMsg opens a page on top of the stack: a list opening an issue.
-	pushMsg struct{ page page }
+	// closed, where there is one, is told when the page leaves the stack,
+	// with its answer: it is a flow's view call waiting to return (home.go).
+	pushMsg struct {
+		page   page
+		closed chan<- json.RawMessage
+	}
 	// popMsg closes the top page, revealing the one that opened it.
 	popMsg struct{}
 	// refreshMsg says the store changed and every page should re-read it.
@@ -54,6 +59,13 @@ type root struct {
 	// answer is what the view returns once the program ends: the id a
 	// standalone `new` created, else nothing (doc/design/create.md, C4).
 	answer json.RawMessage
+
+	// run hands a flow's name to the renderer, which runs it off the
+	// program's goroutine (home.go); nil where nothing can, as in a test.
+	run func(name string) tea.Cmd
+	// waiting are the pages a flow's view call pushed, by their place in
+	// the stack, each told its answer when it leaves.
+	waiting map[int]chan<- json.RawMessage
 }
 
 func (r *root) Init() tea.Cmd {
@@ -106,6 +118,12 @@ func (r *root) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case pushMsg:
 		r.pages = append(r.pages, msg.page)
+		if msg.closed != nil {
+			if r.waiting == nil {
+				r.waiting = map[int]chan<- json.RawMessage{}
+			}
+			r.waiting[len(r.pages)-1] = msg.closed
+		}
 		// the new page has never seen a size, so it is told at once
 		_, cmd := r.top().Update(tea.WindowSizeMsg{Width: r.width, Height: r.height})
 		return r, cmd
@@ -117,7 +135,7 @@ func (r *root) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if len(r.pages) <= 1 {
 			return r, tea.Quit
 		}
-		r.pages = r.pages[:len(r.pages)-1]
+		r.popTo(len(r.pages)-1, nil)
 		return r, nil
 
 	case tea.PasteMsg:
@@ -125,6 +143,12 @@ func (r *root) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			r.search.picker.setText(msg.Content)
 			return r, nil
 		}
+
+	case runFlowMsg:
+		return r, r.runFlow(msg)
+
+	case flowDoneMsg:
+		return r, r.flowDone(msg)
 
 	case refreshMsg:
 		if r.search != nil {
@@ -144,7 +168,9 @@ func (r *root) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			_, cmd := r.top().Update(tea.WindowSizeMsg{Width: r.width, Height: r.height})
 			return r, tea.Batch(cmd, r.say("created "+human(msg.id)))
 		}
-		r.pages = r.pages[:len(r.pages)-1]
+		// a flow's `new` answers the id it created, as a standalone one does
+		answer, _ := json.Marshal(msg.id)
+		r.popTo(len(r.pages)-1, answer)
 		top, cmd := r.top().Update(msg)
 		r.pages[len(r.pages)-1] = top
 		return r, cmd
@@ -153,6 +179,19 @@ func (r *root) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	top, cmd := r.top().Update(msg)
 	r.pages[len(r.pages)-1] = top
 	return r, cmd
+}
+
+// popTo leaves the first n pages, telling every flow whose page left that
+// its view call is over; the top one is given answer.
+func (r *root) popTo(n int, answer json.RawMessage) {
+	for at := len(r.pages) - 1; at >= n; at-- {
+		if closed, ok := r.waiting[at]; ok {
+			closed <- answer
+			delete(r.waiting, at)
+		}
+		answer = nil
+	}
+	r.pages = r.pages[:n]
 }
 
 // say puts a line in the top page's status line.

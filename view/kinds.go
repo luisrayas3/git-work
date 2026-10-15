@@ -15,6 +15,7 @@ const (
 	KindMatrix = "matrix"
 	KindShow   = "show"
 	KindNew    = "new"
+	KindHome   = "home"
 )
 
 // Tier says how much of a view's behaviour an argument is responsible for.
@@ -217,6 +218,14 @@ var Kinds = map[string][]Arg{
 			Doc: `the draft to open on, as issue new takes it: {"fields":{"type":"task","parent":"abc1234"},"body":"…"}; every value stays editable`},
 		{Name: "fields", Tier: Defaulted, Kind: FieldKeys,
 			Doc: "the fields shown, in order; the type's fields in schema order by default"},
+	},
+	// home is the page `git work` opens on: flows by name, each run by
+	// Enter, which hands the name to the renderer and never calls the flow
+	// itself (doc/design/app.md, A8).
+	KindHome: {
+		{Name: "flows", Tier: Required, Kind: StringList,
+			Doc: "the flows drawn, in order, each by name with its docstring's first line, every one a stored flow; " +
+				"Enter runs one with its defaults, and the view it opens goes on the same stack"},
 	},
 }
 

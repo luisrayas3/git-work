@@ -2,7 +2,6 @@ package commands
 
 import (
 	"context"
-	"os"
 
 	"github.com/spf13/cobra"
 
@@ -18,6 +17,8 @@ import (
 )
 
 func NewRootCommand(ctx context.Context, version string) *cobra.Command {
+	env := execenv.NewEnv(ctx)
+
 	cmd := &cobra.Command{
 		Use:   execenv.RootCommandName,
 		Short: "A project tracker embedded in Git",
@@ -27,6 +28,9 @@ git-work stores issues as git objects, separate from the files history. As
 issues are regular git objects, they can be pushed and pulled from/to the same
 git remote you are already using to collaborate with other people.
 
+In a terminal, bare ` + "`git work`" + ` runs the flow named home, as
+` + "`git work flow run home`" + ` does; with no home flow stored it prints this help.
+
 `,
 
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
@@ -34,13 +38,13 @@ git remote you are already using to collaborate with other people.
 			root.Version = version
 		},
 
-		// For the root command, force the execution of the PreRun
-		// even if we just display the help. This is to make sure that we check
-		// the repository and give the user early feedback.
-		Run: func(cmd *cobra.Command, args []string) {
-			if err := cmd.Help(); err != nil {
-				os.Exit(1)
+		// Bare `git work` is `git work flow run home`; with no home flow, no
+		// repository or no terminal it prints the help (doc/design/app.md, A8).
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if ran, err := runHome(env, cmd, args); ran {
+				return err
 			}
+			return cmd.Help()
 		},
 
 		SilenceUsage:      true,
@@ -59,8 +63,6 @@ git remote you are already using to collaborate with other people.
 		cmd.AddCommand(child)
 		child.GroupID = groupID
 	}
-
-	env := execenv.NewEnv(ctx)
 
 	addCmdWithGroup(issuecmd.NewIssueCommand(env), entityGroup)
 	addCmdWithGroup(schemacmd.NewSchemaCommand(env), entityGroup)

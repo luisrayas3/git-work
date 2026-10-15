@@ -88,22 +88,28 @@ func LoadBackendEnsureUser(env *Env) func(*cobra.Command, []string) error {
 		if err != nil {
 			return err
 		}
-
-		i, source, err := env.Backend.EnsureUserIdentity()
-		if err != nil {
-			return err
-		}
-		switch source {
-		case cache.UserIdentityAdopted:
-			env.Err.Printf("Adopted identity %s (%s <%s>) matching git user.email\n",
-				i.Id().Human(), i.Name(), i.Email())
-		case cache.UserIdentityCreated:
-			env.Err.Printf("Created identity %s (%s <%s>) from git user.name/user.email\n",
-				i.Id().Human(), i.Name(), i.Email())
-		}
-
-		return nil
+		return EnsureUser(env)
 	}
+}
+
+// EnsureUser is the second half of LoadBackendEnsureUser, for a command that
+// decides only once the backend is loaded whether it writes at all: bare
+// `git work`, which runs the home flow only where there is one.
+func EnsureUser(env *Env) error {
+	i, source, err := env.Backend.EnsureUserIdentity()
+	if err != nil {
+		return err
+	}
+	switch source {
+	case cache.UserIdentityAdopted:
+		env.Err.Printf("Adopted identity %s (%s <%s>) matching git user.email\n",
+			i.Id().Human(), i.Name(), i.Email())
+	case cache.UserIdentityCreated:
+		env.Err.Printf("Created identity %s (%s <%s>) from git user.name/user.email\n",
+			i.Id().Human(), i.Name(), i.Email())
+	}
+
+	return nil
 }
 
 // CloseBackend is a wrapper for a RunE function that will close the Backend properly

@@ -47,12 +47,13 @@ func entry(c *chord, what ...string) paletteEntry {
 }
 
 // everywhere is the palette's last section: the commands that mean the same
-// on every page. Home (h) and run a flow (r) join it with the features they
-// name (A8).
+// on every page, in A1's order: search, new, home, run a flow, help, quit.
 func everywhere() []paletteEntry {
 	return []paletteEntry{
 		entry(keys.search, "search"),
 		entry(keys.newIssue, "new"),
+		entry(keys.home),
+		entry(keys.runFlow),
 		entry(keys.help, "help"),
 		entry(keys.quit, "quit"),
 	}
@@ -90,6 +91,8 @@ func pageCommands(p page) []paletteEntry {
 		return []paletteEntry{copyCell, copyId}
 	case *newPage:
 		return []paletteEntry{copyCell}
+	case *outputPage:
+		return []paletteEntry{entry(keys.copy, "copy output")}
 	}
 	return nil
 }
@@ -112,6 +115,11 @@ func atRest(p page) bool {
 			!p.editingDesc && !p.inText()
 	case *newPage:
 		return p.help == nil && p.editor == nil && !p.inText()
+	case *homePage:
+		// typed into, its esc clears the text first, as a picker's does (A5)
+		return p.help == nil && p.picker.text() == ""
+	case *outputPage:
+		return p.help == nil
 	}
 	return true
 }
@@ -169,6 +177,10 @@ func repoOf(p page) *cache.RepoCache {
 	case *showPage:
 		return p.repo
 	case *newPage:
+		return p.repo
+	case *homePage:
+		return p.repo
+	case *outputPage:
 		return p.repo
 	}
 	return nil
@@ -299,9 +311,8 @@ func (r *root) paletteKey(press tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		r.palette = false
 		return r, r.back()
 	case keys.copy.matches(press) && press.Mod&tea.ModAlt == 0:
-		call, _, _ := r.top().Call()
 		r.palette = false
-		return r, tea.Batch(tea.SetClipboard(command(call)), r.say("copied the command"))
+		return r, tea.Batch(tea.SetClipboard(commandOf(r.top())), r.say("copied the command"))
 	}
 	if l, ok := letter(press); ok {
 		r.palette = false
@@ -347,6 +358,10 @@ func (r *root) restKey(press tea.KeyPressMsg) (tea.Cmd, bool) {
 		return openCreator(r.top()), true
 	case keys.search.matches(press):
 		return r.openSearch(), true
+	case keys.home.matches(press):
+		return r.goHome(), true
+	case keys.runFlow.matches(press):
+		return r.openFlowPicker(), true
 	case keys.help.matches(press), keys.filter.matches(press):
 		return nil, false
 	}

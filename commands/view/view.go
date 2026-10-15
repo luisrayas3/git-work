@@ -33,7 +33,7 @@ func NewViewCommand(env *execenv.Env) *cobra.Command {
 		Use:   "view",
 		Short: "Draw the issues",
 		Long: `Draw the issues: a list, a board, a gantt chart, a matrix, or one issue, or
-create one in a form.
+create one in a form; or the home page, the flows that run from it.
 
 A view takes one JSON object of keyword arguments and nothing else. Every kind
 but ` + "`show`" + ` and ` + "`new`" + ` takes a ` + "`query`" + `, the jq program its issues come from, so
@@ -80,8 +80,11 @@ func newViewKindCommand(env *execenv.Env, kind string) *cobra.Command {
 // and for `new`, what it writes, because `new` is the one view that is a
 // writer (doc/design/create.md, C4).
 func kindShort(kind string) string {
-	if kind == view.KindNew {
+	switch kind {
+	case view.KindNew:
 		return "Create an issue in a form: show's page over a draft, written on Create"
+	case view.KindHome:
+		return "Draw the home page: flows by name, Enter runs one"
 	}
 	return "Draw a " + kind
 }
@@ -92,6 +95,11 @@ func kindLong(kind string) string {
 		b.WriteString("Create an issue in a form: show's page over an issue that does not exist yet.\n")
 		b.WriteString("Nothing is written until Create, which commits the draft as `issue new` would,\n")
 		b.WriteString("one operation; the created id is printed, or nothing when the form is left.\n\n")
+	} else if kind == view.KindHome {
+		b.WriteString("Draw the home page: the flows it names, each with its docstring's first line.\n")
+		b.WriteString("Enter runs one, as `git work flow run NAME` does, and the view it opens goes\n")
+		b.WriteString("on the same stack; a flow that prints shows its output on a page. Bare\n")
+		b.WriteString("`git work` runs the flow named home, which calls this.\n\n")
 	} else {
 		fmt.Fprintf(&b, "Draw a %s.\n\n", kind)
 	}
