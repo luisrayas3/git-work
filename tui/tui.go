@@ -11,8 +11,8 @@
 // title edited here and a title set from the shell are the same operation
 // against the same write lock. Nothing here touches a ref.
 //
-// Every kind in the table is drawn: `list`, `show`, `board`, `gantt` and
-// `matrix`, and `expand` nests the list and the gantt. A kind the table grows
+// Every kind in the table is drawn: `list`, `show`, `board`, `gantt`,
+// `matrix`, `new` and `home`, and `expand` nests the list and the gantt. A kind the table grows
 // that this renderer does not draw fails naming it, so a view is never
 // silently a different view than it says.
 package tui
@@ -35,6 +35,12 @@ import (
 type Renderer struct {
 	// out is the terminal, held as a file because the program needs the fd.
 	out *os.File
+
+	// session is the program a Render started and is still drawing; a view
+	// call made while it draws — a flow run from a page — is pushed onto its
+	// stack rather than starting a second program (home.go). It is touched
+	// only on the goroutine Render was first called on.
+	session *session
 }
 
 var _ view.Renderer = &Renderer{}
@@ -65,6 +71,9 @@ func (r *Renderer) Render(ctx context.Context, repo *cache.RepoCache, call *view
 	if err != nil {
 		return nil, err
 	}
+	if r.session != nil {
+		return r.session.push(first)
+	}
 
 	in, closeIn, err := openInput()
 	if err != nil {
@@ -82,22 +91,36 @@ func (r *Renderer) Render(ctx context.Context, repo *cache.RepoCache, call *view
 	stopWatching := watch(repo, program)
 	defer stopWatching()
 
-	// The program runs on its own goroutine and the caller's stays here, as a
-	// worker: a view blocks the script that called it, and the script's thread
-	// is the only one Starlark may be re-entered on. Nothing posts a job yet:
-	// actions injected into views are deferred, not decided
-	// (doc/design/terminal-renderer.md), and when they come, this loop is
-	// where they run, so navigation and redraw never wait on a script.
-	jobs := make(chan func())
+	return r.drive(ctx, repo, stack, program)
+}
+
+// drive runs the program, and is the worker until it ends.
+//
+// The program runs on its own goroutine and the caller's stays here, as a
+// worker: a view blocks the script that called it, and the script's thread
+// is the only one Starlark may be re-entered on. A flow run from a page is a
+// job here (home.go), so navigation and redraw never wait on a script;
+// actions injected into views, still deferred
+// (doc/design/terminal-renderer.md), would run here too.
+func (r *Renderer) drive(ctx context.Context, repo *cache.RepoCache, stack *root, program *tea.Program) (json.RawMessage, error) {
+	s := &session{ctx: ctx, repo: repo, program: program,
+		jobs: make(chan func()), finished: make(chan struct{})}
+	stack.run = func(name string) tea.Cmd {
+		return s.post(func() { r.runFlow(s, name) })
+	}
+	r.session = s
+	defer func() { r.session = nil }()
+
 	done := make(chan error, 1)
 	go func() {
 		_, err := program.Run()
+		close(s.finished)
 		done <- err
 	}()
 
 	for {
 		select {
-		case job := <-jobs:
+		case job := <-s.jobs:
 			job()
 		case err := <-done:
 			if err != nil {
@@ -123,6 +146,8 @@ func (r *Renderer) page(repo *cache.RepoCache, call *view.Call) (page, error) {
 		return newMatrixPage(repo, call)
 	case view.KindNew:
 		return newNewPage(repo, call)
+	case view.KindHome:
+		return newHomePage(repo, call)
 	default:
 		return nil, fmt.Errorf("the terminal renderer does not draw a %s", call.Kind)
 	}

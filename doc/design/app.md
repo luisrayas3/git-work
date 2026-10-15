@@ -338,6 +338,54 @@ as `enter` on a row hands an id to the host, which opens it.
 The view names a call; it does not make one.
 `r` on the palette offers every flow, not only home's.
 
+### Settled in building A8 (2026-10-15)
+
+Where the section above is silent, `1298303` chose:
+
+- **How the name reaches the host.**
+  `enter` answers a message naming the flow;
+  the stack hands it to the renderer,
+  which runs it on its worker — the goroutine `Render` was called on,
+  the one loop `tui.go` kept for script work —
+  through `flow/run`'s `Flow`, the function `git work flow run` calls,
+  with the renderer itself as the flow's renderer.
+  The flow's `work.view.*` call reaches `host.View` and then `Render`,
+  which, finding its own program drawing,
+  pushes the page onto that stack instead of starting a second program,
+  and blocks the flow until the page leaves the stack
+  (with the page's answer, so a flow's `new` still returns its id).
+  The worker keeps serving while a flow is blocked,
+  so a flow run from a page a flow drew works too.
+  Quitting ends a blocked flow with an error nobody is shown.
+- **`tui` imports `flow/run`**, which is no cycle:
+  `flow/run` knows only the `view.Renderer` interface.
+  Injecting a runner from each command instead
+  was three call sites to keep in step for nothing.
+- **A flow runs with its defaults.**
+  One with a required argument fails at `enter`, saying which;
+  home has no form for arguments.
+- **A name the store lacks is refused at the call**, in `host.View`,
+  naming the flows there are, as an unknown field is;
+  `flows` is required and may not be empty.
+  One archived after the call is drawn *(no such flow)* and rings on `enter`.
+- **A flow that prints** has its output — and its returned value, as JSON —
+  on a page of its own, `flow run NAME`, scrolled, `w` copying it,
+  whether or not it also drew.
+  One that neither prints nor draws says so on the status line;
+  one that fails says why there,
+  or on the output page when the reason is a Starlark backtrace.
+- **`h`** goes back down to the lowest home page on the stack;
+  where there is none — the stack began at `git work view list` —
+  it runs the `home` flow, its page pushed over this one.
+  On home already it rings.
+- **`r`** is A5's picker over every stored flow, each with its first line,
+  drawn over the page in the panel the search is drawn in:
+  typed into at once, the first `esc` clears the text and the second cancels,
+  and the flow chosen runs, its page pushed over this one.
+- **Home's rows are a picker's too**, the same widget:
+  typing narrows by name or first line with no `/` needed,
+  and `esc` drops the text before it is the palette.
+
 ## A9 — Search over descriptions, sized for thousands
 
 `git work issue search TEXT` and `work.issue.search(text)`:

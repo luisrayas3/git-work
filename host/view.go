@@ -4,8 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"slices"
+	"strings"
 
 	"github.com/git-bug/git-bug/cache"
+	"github.com/git-bug/git-bug/entities/config"
 	"github.com/git-bug/git-bug/view"
 )
 
@@ -44,9 +47,44 @@ func View(ctx context.Context, repo *cache.RepoCache, renderer view.Renderer, ki
 		}
 	}
 
+	if call.Kind == view.KindHome {
+		if err := checkHomeFlows(repo, call.Strings("flows")); err != nil {
+			return nil, err
+		}
+	}
+
 	if renderer == nil {
 		return nil, view.ErrNoTerminal
 	}
 
 	return renderer.Render(ctx, repo, call)
+}
+
+// checkHomeFlows refuses a home page that names a flow the store does not
+// have, naming the ones it does, as an unknown field is refused naming the
+// type's fields: a home whose entry fails only when it is chosen is a home
+// that has rotted unseen (doc/design/app.md, A8).
+func checkHomeFlows(repo *cache.RepoCache, names []string) error {
+	stored := repo.Flows().Keys(config.ShapeFlow)
+	if len(names) == 0 {
+		return fmt.Errorf("view home: flows is empty, it names the flows drawn: %s", flowNames(stored))
+	}
+	var missing []string
+	for _, name := range names {
+		if !slices.Contains(stored, name) {
+			missing = append(missing, name)
+		}
+	}
+	if len(missing) > 0 {
+		return fmt.Errorf("view home: no flow named %s, the flows are %s",
+			strings.Join(missing, ", "), flowNames(stored))
+	}
+	return nil
+}
+
+func flowNames(names []string) string {
+	if len(names) == 0 {
+		return "none (git work flow import stores them)"
+	}
+	return strings.Join(names, ", ")
 }

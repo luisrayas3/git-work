@@ -126,6 +126,7 @@ type keymap struct {
 	foldAll               *chord
 	nextTab, previousTab  *chord
 	newIssue, search      *chord
+	home, runFlow         *chord
 	help                  *chord
 	back                  *chord
 	quit                  *chord
@@ -190,7 +191,12 @@ var keys = keymap{
 	// search is the finder over every issue; enter on one opens it
 	// (doc/design/app.md, A5)
 	search: newChord("search issues").on("s"),
-	help:   newChord("help", "?").on("?"),
+	// home is back down the stack to the home page, or the home flow run
+	// where the stack did not start from one; run a flow picks any stored
+	// flow and runs it (A8, home.go).
+	home:    newChord("home").on("h"),
+	runFlow: newChord("run a flow").on("r"),
+	help:    newChord("help", "?").on("?"),
 	// esc opens the palette, and a second esc is back: out of a filter, out
 	// of an issue, and from the first page out of the program (A1).
 	back: newChord("commands; twice: back (first page: quit)", "esc", "ctrl+g"),
@@ -209,7 +215,7 @@ func helpRows() []*chord {
 		keys.act, keys.edit, keys.grab, keys.newline,
 		keys.copy, keys.copyId, keys.paste,
 		keys.filter, keys.foldAll, keys.nextTab, keys.previousTab,
-		keys.newIssue, keys.search, keys.back, keys.help, keys.quit,
+		keys.search, keys.newIssue, keys.home, keys.runFlow, keys.back, keys.help, keys.quit,
 	}
 }
 

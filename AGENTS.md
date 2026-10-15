@@ -37,7 +37,7 @@ go generate              # after a command or flag changes: doc/md, doc/man, mis
 | `host` | the one code path behind both the command line and Starlark |
 | `commands` | the cobra command tree, a thin layer over `host` |
 | `flow`, `flow/run` | reading a flow's source, and the Starlark runtime |
-| `view`, `tui` | the view kinds' argument table, and the Bubble Tea renderer |
+| `view`, `tui` | the view kinds' argument table, and the Bubble Tea renderer, which runs the flows home names |
 | `query/jq` | the query language (gojq) |
 | `rank` | the fractional index behind manual order |
 | `jira` | the Jira sync |
@@ -104,6 +104,9 @@ Read the upstream package you build on before changing its callers.
   A view's input is one KWARGS object,
   the same one the Starlark call takes,
   and the argument table in package `view` is the authority for it.
+  The `home` view only names a flow:
+  the renderer runs it on its worker through `flow/run`,
+  and the flow's own view call pushes onto the same stack (`tui/home.go`).
 - **The terminal is the only interactive surface.**
   There is no GUI and no JS toolchain;
   everything is Go.

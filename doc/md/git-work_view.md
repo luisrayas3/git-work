@@ -5,7 +5,7 @@ Draw the issues
 ### Synopsis
 
 Draw the issues: a list, a board, a gantt chart, a matrix, or one issue, or
-create one in a form.
+create one in a form; or the home page, the flows that run from it.
 
 A view takes one JSON object of keyword arguments and nothing else. Every kind
 but `show` and `new` takes a `query`, the jq program its issues come from, so
@@ -27,6 +27,7 @@ are written through the same path a command writes through.
 * [git-work](git-work.md)	 - A project tracker embedded in Git
 * [git-work view board](git-work_view_board.md)	 - Draw a board
 * [git-work view gantt](git-work_view_gantt.md)	 - Draw a gantt
+* [git-work view home](git-work_view_home.md)	 - Draw the home page: flows by name, Enter runs one
 * [git-work view list](git-work_view_list.md)	 - Draw a list
 * [git-work view matrix](git-work_view_matrix.md)	 - Draw a matrix
 * [git-work view new](git-work_view_new.md)	 - Create an issue in a form: show's page over a draft, written on Create
