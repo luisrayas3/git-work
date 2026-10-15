@@ -144,6 +144,12 @@ func (p *matrixPage) rowLine(row drawnRow, labels, width, visible int, under boo
 	derived := row.kind != rowData
 
 	label := wash.Faint(derived).Render(pad(row.label, labels))
+	if row.kind == rowData && isRelation(p.rowAxis.kind) && !p.rowAxis.values[row.value].none {
+		// a relation's row is the issue it names, drawn as every link is
+		text := truncate(row.label, labels)
+		label = linkStyled(p.repo, []string{p.rowAxis.values[row.value].value}, wash, labels) +
+			wash.Render(pad("", labels-ansi.StringWidth(text)))
+	}
 	parts := []string{label}
 	gap := wash.Render(strings.Repeat(" ", matrixGap))
 

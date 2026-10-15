@@ -57,10 +57,6 @@ var styleTitle = lipgloss.NewStyle().Bold(true)
 // word on the page that says what is drawn is out of every default list.
 var styleArchived = lipgloss.NewStyle().Foreground(lipgloss.Color("3")).Bold(true)
 
-// styleLink is a value that names another issue on show: enter follows it.
-// The view kinds draw such a cell faint instead (list_view.go, board_view.go).
-var styleLink = lipgloss.NewStyle().Underline(true)
-
 // styleRule is the rule a group header draws after its label: faint, in the
 // terminal's own foreground, which reads whichever way the background goes.
 var styleRule = lipgloss.NewStyle().Faint(true)

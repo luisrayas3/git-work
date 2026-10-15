@@ -105,6 +105,9 @@ type bar struct {
 	fields  map[string]any
 
 	label string
+	// labelLinks are the ids the label names when the label is a
+	// relation, drawn as every link is (linkStyled)
+	labelLinks []string
 	// start and stop are the dates as stored, at midnight of their own
 	// day, and the text they were stored as, which is what a shifted date
 	// is written back in the shape of; a bar missing one is a milestone.
@@ -271,6 +274,9 @@ func (p *ganttPage) newBar(n nested, known *kinds) (bar, treeRow) {
 		b.human = b.id[:idWidth]
 	}
 	b.label = known.cellText(b.typeKey, p.labelKey, fields[p.labelKey])
+	if isRelation(known.of(b.typeKey, p.labelKey)) {
+		b.labelLinks = linkIds(fields[p.labelKey])
+	}
 	b.startText = plainValue(fields[p.startKey])
 	b.start, b.hasStart = parseDate(b.startText)
 	b.stopText = plainValue(fields[p.stopKey])
