@@ -16,7 +16,7 @@ import (
 // relationships are fields whose value is an entity.Id). Nobody reads a
 // 64-character hash, so the renderer draws it as the issue it names — short
 // id and title — and enter on it opens that issue, which is what makes it a
-// link, while space opens its picker (relationChoices) like any other edit.
+// link, while space opens its picker (relationFinder) like any other edit.
 
 // isRelation says whether a kind's values are issue ids.
 func isRelation(kind schema.Kind) bool {

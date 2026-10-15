@@ -178,10 +178,8 @@ func editHint(kind schema.Kind, known bool) (hint, bool) {
 // page under it reads nothing until it closes.
 func (e *editor) hints() string {
 	switch {
-	case e.picker == nil:
-		return hints(hint{"enter", "write"}, hint{"esc", "cancel"})
-	case e.picker.narrowing != nil:
-		return filterHints()
+	case e.picker != nil && e.picker.text() != "":
+		return hints(hint{"enter", "write"}, hint{"esc", "clear"})
 	}
-	return hints(hint{"enter", "write"}, hint{"esc", "cancel"}, hint{"/", "narrow"})
+	return hints(hint{"enter", "write"}, hint{"esc", "cancel"})
 }

@@ -142,7 +142,9 @@ func TestListHintsNameWhatIsUnderTheCursor(t *testing.T) {
 		{what: "an editor open", at: func(p page) page { return send(p, "right", "space") },
 			line: "enter: write · esc: cancel · ? keys"},
 		{what: "a picker open", at: func(p page) page { return send(p, "right", "right", "right", "space") },
-			line: "enter: write · esc: cancel · /: narrow · ? keys"},
+			line: "enter: write · esc: cancel · ? keys"},
+		{what: "a picker typed into", at: func(p page) page { return send(p, "right", "right", "right", "space", "n") },
+			line: "enter: write · esc: clear · ? keys"},
 	})
 
 	runHints(t, open(`{`+fields+`,`+onlyTask+`}`), []hintCase{

@@ -125,7 +125,7 @@ type keymap struct {
 	grab                  *chord
 	foldAll               *chord
 	nextTab, previousTab  *chord
-	newIssue              *chord
+	newIssue, search      *chord
 	help                  *chord
 	back                  *chord
 	quit                  *chord
@@ -187,7 +187,10 @@ var keys = keymap{
 	// first child and up to the parent.
 	foldAll:  newChord("fold / unfold every row (nested)").on("z"),
 	newIssue: newChord("new issue").on("n"),
-	help:     newChord("help", "?").on("?"),
+	// search is the finder over every issue; enter on one opens it
+	// (doc/design/app.md, A5)
+	search: newChord("search issues").on("s"),
+	help:   newChord("help", "?").on("?"),
 	// esc opens the palette, and a second esc is back: out of a filter, out
 	// of an issue, and from the first page out of the program (A1).
 	back: newChord("commands; twice: back (first page: quit)", "esc", "ctrl+g"),
@@ -206,7 +209,7 @@ func helpRows() []*chord {
 		keys.act, keys.edit, keys.grab, keys.newline,
 		keys.copy, keys.copyId, keys.paste,
 		keys.filter, keys.foldAll, keys.nextTab, keys.previousTab,
-		keys.newIssue, keys.back, keys.help, keys.quit,
+		keys.newIssue, keys.search, keys.back, keys.help, keys.quit,
 	}
 }
 

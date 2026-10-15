@@ -47,10 +47,11 @@ func entry(c *chord, what ...string) paletteEntry {
 }
 
 // everywhere is the palette's last section: the commands that mean the same
-// on every page. Search (s), home (h) and run a flow (r) join it with the
-// features they name (A5, A8).
+// on every page. Home (h) and run a flow (r) join it with the features they
+// name (A8).
 func everywhere() []paletteEntry {
 	return []paletteEntry{
+		entry(keys.search, "search"),
 		entry(keys.newIssue, "new"),
 		entry(keys.help, "help"),
 		entry(keys.quit, "quit"),
@@ -344,6 +345,8 @@ func (r *root) restKey(press tea.KeyPressMsg) (tea.Cmd, bool) {
 		return tea.Quit, true
 	case keys.newIssue.matches(press):
 		return openCreator(r.top()), true
+	case keys.search.matches(press):
+		return r.openSearch(), true
 	case keys.help.matches(press), keys.filter.matches(press):
 		return nil, false
 	}
