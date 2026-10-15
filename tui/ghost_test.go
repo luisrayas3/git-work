@@ -47,7 +47,7 @@ func TestListGhostPerGroup(t *testing.T) {
 			threeAt = at
 		case strings.Contains(line, "one"):
 			oneAt = at
-		case strings.TrimSpace(line) == "in-progress":
+		case strings.HasPrefix(line, "in-progress ─"):
 			progressAt = at
 		}
 	}

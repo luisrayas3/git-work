@@ -105,7 +105,7 @@ func (p *boardPage) body(width, visible int) (lines []string, groups []int, curs
 		headerAt := -1
 		if p.groupBy != "" {
 			headerAt = len(lines)
-			lines = append(lines, styleGroup.Render(fit(la.group, p.width)))
+			lines = append(lines, groupHeader(la.group, p.width))
 			groups = append(groups, headerAt)
 		}
 
@@ -192,7 +192,10 @@ func (p *boardPage) cardLines(c *card, width int, under, grabbed bool) []string 
 
 	if title, ok := c.cells[schema.TitleKey]; ok && title != "" {
 		for _, line := range strings.Split(ansi.Wrap(title, inner, ""), "\n") {
-			lines = append(lines, wash.Render(" "+pad(line, inner)))
+			// the title is bold, as it is on every view
+			text := truncate(line, inner)
+			rest := pad("", max(inner-ansi.StringWidth(text), 0))
+			lines = append(lines, wash.Render(" ")+wash.Bold(true).Render(text)+wash.Render(rest))
 		}
 	}
 
@@ -204,7 +207,8 @@ func (p *boardPage) cardLines(c *card, width int, under, grabbed bool) []string 
 		label := key + ":"
 		style := wash
 		if c.links[key] {
-			style = style.Underline(true)
+			// a link is faint: the issue it names is read on its own card
+			style = style.Faint(true)
 		}
 		text := truncate(value, max(inner-len([]rune(label))-1, 0))
 		rest := pad("", max(inner-len([]rune(label))-1-ansi.StringWidth(text), 0))

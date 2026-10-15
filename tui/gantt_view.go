@@ -7,6 +7,8 @@ import (
 
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
+
+	"github.com/git-bug/git-bug/schema"
 )
 
 // The glyphs of the chart: a bar's done part and its rest, the envelope a
@@ -242,13 +244,15 @@ func (p *ganttPage) body(labelWidth, visible int) (lines []string, groups []int,
 			if tint, ok := colors[group]; ok {
 				header = header.Foreground(tint)
 			}
-			// the crosshair runs through the header too, unbroken
-			text := pad(group, max(ansi.StringWidth(group), min(cross+w, p.width)))
-			line := header.Render(ansi.Cut(text, 0, cross)) +
-				header.Background(styleRow().GetBackground()).Render(ansi.Cut(text, cross, cross+w))
-			if rest := ansi.Cut(text, cross+w, p.width); rest != "" {
-				line += header.Render(rest)
-			}
+			// the label, then the rule, as every group header is
+			// (groupHeader); the crosshair runs through both, unbroken
+			text := groupRule(group, p.width)
+			text = pad(text, max(ansi.StringWidth(text), min(cross+w, p.width)))
+			lw := ansi.StringWidth(group)
+			bg := styleRow().GetBackground()
+			line := groupPieces(text, lw, 0, cross, header, styleRule) +
+				groupPieces(text, lw, cross, cross+w, header.Background(bg), styleRule.Background(bg)) +
+				groupPieces(text, lw, cross+w, max(p.width, cross+w), header, styleRule)
 			headerAt = len(lines)
 			lines = append(lines, fit(line, p.width))
 			groups = append(groups, headerAt)
@@ -331,7 +335,13 @@ func (p *ganttPage) rowLine(index, labelWidth, visible int, under, grabbed bool,
 		parts = append(parts, wash.Render(" "), style.Render(cell))
 	}
 	room := max(labelWidth-1-indent-idw-1, 0)
-	parts = append(parts, wash.Render(" "+pad(b.label, room)))
+	// the title is bold, as it is on every view; another label is not
+	label := truncate(b.label, room)
+	style := wash
+	if p.labelKey == schema.TitleKey {
+		style = wash.Bold(true)
+	}
+	parts = append(parts, wash.Render(" "), style.Render(label), wash.Render(pad("", max(room-ansi.StringWidth(label), 0))))
 	parts = append(parts, wash.Faint(true).Render("│"))
 
 	first, last, own, ok := p.span(index)
