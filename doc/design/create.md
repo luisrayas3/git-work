@@ -192,8 +192,10 @@ and the ghost is where the prefill comes from.
 
 Decided 2026-10-15 (Luis): all of `b9a9b62`.
 It takes C7's *the roots' only, for now* away,
-and settles two items of Deferred below, the child ghost and the matrix cell.
+and settles two items of Deferred below, the child ghost and the matrix cell —
+the cell not as Deferred words it, by a creating cell, but through its drill-down, and a new list argument, `doc`.
 It also overturns one sentence of `show-side-table.md` S6: why, below.
+Revised the same day with Luis's answers on the matrix, leaves, a single relation on the parent, and show (`app.md` A7).
 
 ### One ghost per scope, at every level
 
@@ -219,10 +221,29 @@ and it must look and behave the same at every depth.
 - **Folded, no ghost.** A child table folded away is hidden with its ghost;
   the fold's count counts issues, never the ghost,
   and a gantt's folded envelope is drawn from bars, which a ghost has not.
-- **A leaf has no child table, so no ghost.**
-  A row whose layer below reaches nothing draws no fold cell and no table (`treeCell`),
-  and giving every leaf an empty table to hold a `+` would double a tree of leaves.
-  The first child of a leaf is made from its show, whose side table ends in the same ghost.
+- **A leaf unfolds to an empty child table** (Luis, 2026-10-15),
+  so the first child is added where every other is.
+  A row draws a fold cell when the layer below it exists
+  and its write set (below) can be named for the row's type —
+  its type stores the relation, or a type that stores the inverse may target it —
+  because that is exactly when a ghost could stand under it.
+  A row that cannot have children of that layer draws no fold cell, as today.
+  - Folded, a leaf's cell reads `▸ 0`, faint:
+    the count is still *what folding hides*, and zero is the truth;
+    faint so that a column of leaves does not read as a column of parents,
+    and the digit kept so the tree column's width (`treeWidth`) is measured the same way for every row.
+    Opened, it reads `▾`, as a parent's does.
+    The count never counts the ghost, at any level.
+  - The empty table **draws its column header**, above its ghost,
+    as every child table draws one above its first row:
+    the ghost is that table's first row, and the header says what the new child's row will show.
+    One rule for every table is worth the line.
+  - **The cost** on a tree of leaves is nothing until a fold opens: folded is the default (`nest`),
+    and a folded leaf is the one line it already was.
+    The palette's *fold all* (`app.md` A1–A4; it was `Z`) and the call's `open` (R4)
+    open the rows that have children and leave leaves folded:
+    they mean *show me the tree*, and an empty table under every leaf is not the tree.
+    A leaf is opened by its own fold cell, `Space`, or by `Tab` into it, which lands on the ghost.
 - **The filter** hides a child ghost as it hides the roots':
   a ghost has no text, so a non-empty filter narrows it away.
 - **Never a rank sibling**, at any level (C7):
@@ -233,10 +254,10 @@ and it must look and behave the same at every depth.
   a layer whose rows above list their own `children` (R3),
   and a relation whose write set below cannot be named
   have no ghost: a `+` that cannot put the issue where it stands would break the one promise it makes.
-- **Arrows and `Enter`, nothing else.** A child ghost is reached with the arrows and the moves that walk a level,
-  and opened with `Enter`, as the roots' is.
-  It has no letter key and depends on no meaning of `Esc`,
-  because `app.md` A1 and A3 are changing both: letters start the filter, and `Esc` opens a palette.
+- **`Enter`, `Space`, `Tab` and the arrows, nothing else.** A ghost is reached with the arrows and `Tab`,
+  and opened with `Enter`; `Space` on a fold cell folds.
+  Neither a ghost nor a fold cell has a letter key or depends on a meaning of `Esc`,
+  because `app.md` A1–A4 give letters to the filter and `Esc` to the palette.
 
 ### The prefill is the drop's write set, per scope
 
@@ -272,8 +293,19 @@ otherwise it is the inverse, stored on the child.
   `issue add` for a `multi-relation`,
   whose set semantics merge with anyone else's concurrent add
   where a set of the whole list would lose it;
-  `issue set` for a single `relation`, whose ghost is drawn only while the field is empty,
-  since a `+` that replaced what is there would be a move, not an add.
+  `issue set` for a single `relation`, whose ghost is always drawn (Luis, 2026-10-15).
+
+**A single relation on the parent replaces.**
+While the field is empty its ghost reads `(new)`, as every ghost does.
+While it is set, the ghost reads `(new, replacing abc1234)`,
+naming by short id the issue that will leave the field,
+because a `+` that silently swapped a link would be the one ghost that does more than it says.
+Where the first field's cell is too narrow, it is cut from the right with `…`,
+as every cell is (`fit`), so `(new, repl…` still says it is not a plain add;
+below `(new…` it is the cell's width, as any cell.
+Create then sets the parent's field to the new id.
+The issue replaced is not archived, edited or otherwise touched:
+only the parent's field changes, and the old issue stays where any other view finds it.
 
 ### The parent-side write is an ordinary write
 
@@ -296,8 +328,17 @@ because *the new issue would have to be added to this issue's field, a second co
 That reason is withdrawn by the same principle:
 a commit on the other entity is what writing a relation already is,
 eventually consistent, like Jira (AGENTS.md).
-So show's tables over a stored relation of the shown issue get the ghost too,
+So show's tables over a stored relation of the shown issue get the ghost too (confirmed, Luis, 2026-10-15),
 through the same write set, and S6's ghosts become this section's.
+
+On show, a side table is **one `expand` element of the shown type's spec**:
+since `app.md` A7 (committed 2026-10-15) show takes `id` and `shows`,
+and the spec under the shown issue's type carries `fields` and `expand`,
+each element a relation name or a flat layer (`relation`, `query`, `include_archive`, `fields`, `details`, `group_by`).
+The ghost hangs off one such element: its relation names the write set, as a nested layer's does,
+its `group_by` gives one ghost per group, and its rows are the type witness.
+Where the element came from — show's own `expand` before A7, a spec in `shows` after it — changes nothing here.
+List and gantt nesting is the core's `expand` and is untouched by A7.
 
 **One API.** No verb does create-and-link, and none is added.
 The writers are the existing `host.IssueAdd` (and `host.IssueSet` for a single `relation`),
@@ -332,38 +373,73 @@ the failure is said where the person is looking, and the fix is one edit on the 
 Between the two commits another reader can see the issue unlinked;
 the next refresh shows it linked, as any two edits are seen.
 
-### The matrix's empty cell
+### The matrix cell: the drill-down carries it
 
-`Enter` on an **empty data cell** opens the creator with the allocation its axes name,
-where it opened an empty drill-down before (`allocations.md`, A9):
-an empty list is nothing to look at, and the cell is the place to add.
-A cell with issues still drills down, and a totals cell still opens its row, column or lot:
-a total names one axis or none, so it is no place to add.
-The empty cell stays blank, because blank is how the matrix says *nothing here* against a `0` (A6);
-under the cursor it draws a dim `+`, and the hint line says *enter: new*.
+**Every cell follows one rule**, empty or not (Luis, 2026-10-15):
+`Enter` drills down, as A9 has it, and the list it pushes ends in a ghost
+that already holds the cell.
+So a cell that holds allocations gets one more —
+two people on one story in one sprint, the usual case —
+and an empty cell gets its first, each one step away, through its drill-down's ghost.
+The matrix itself draws no ghost and creates nothing:
+a blank cell stays the matrix's *nothing here* against a `0` (A6),
+and a cell has one meaning under `Enter`, not two by its contents.
+A totals cell drills down the same way and carries only the axes it names.
 
-Its draft is the drop's write set of a place with two coordinates, and a third with `group_by`:
+The list learns the cell from **a new argument, `doc`**:
+the `issue new` document every root ghost's draft starts from.
 
-- **each axis field** prefilled as a group is (`groupPrefill`), with the cell's row value and column value,
-  `(none)` leaving it null;
+| Argument | Tier | Kind | Meaning |
+| --- | --- | --- | --- |
+| `doc` | feature | object | an `issue new` document, `{"fields": {…}, "body": "…", "aliases": {…}}`, partial; the base of every root ghost's draft |
+
+- **Its shape is `new`'s `doc` (C1)**, and so is its name, because it is the same thing:
+  the document a creation starts from, with what is already decided filled in.
+  On `new` the creation is the page; on a list it is each root ghost, which opens `new` with it.
+  One name, one meaning across kinds, which is C1's own rule for choosing `doc`;
+  and a document rather than a bare fields object, so that a flow can seed a body or an alias as `new` can,
+  and so that the list hands `new` exactly what `new` takes.
+  It does not start with `show`, which since `app.md` A7 is `shows`, how each type is shown, and nothing to do with creation.
+- It is **checked at open as `new`'s is** (C1): keys fields of the type when one is given, values fitting their kinds,
+  through the same `host.IssueDraft`, so a list call carrying a document `new` would refuse is refused at the call.
+- **It is not sugar** (`cli-convention.md`).
+  Sugar is a second spelling of something already expressible;
+  this is information the list cannot get any other way.
+  The query is a jq program and cannot be inverted (C6),
+  so a list over `map(select(.fields.work == "…")) | map(select(.fields.iteration == "…"))`
+  cannot read off it what an issue must hold to be selected;
+  the caller that wrote the predicate knows, and says so.
+  It is plumbing: one JSON value in the one KWARGS object, the same on the command line and as `work.view.list(doc=…)`,
+  parsed against the argument table in package `view`, so a flow can pass it as the matrix does.
+- **How it composes** with the list's own ghosts: it is the **base**, and each root scope layers on top of it,
+  in C6's order: the type its rows share where `doc` names none,
+  then the group's `group_by` value, which wins on that one key because the ghost stands in that group.
+  A child scope does not inherit it: a child table's rows are what the relation reached, not what the query selected,
+  and the document describes the latter.
+  The person edits any of it in the creator, as every prefill (C6).
+- It is a **list** argument. The gantt and the board take none for now:
+  nothing pushes them over a predicate, and when something does, it is the same name with the same meaning.
+
+What the matrix puts in `doc`, for the cell under the cursor, is the cell's write set:
+
+- **each axis field** with the cell's row value and column value, as a group prefills (`groupPrefill`),
+  `(none)` leaving it out;
   a multi-valued axis gets a set of the one value, which unlike a drop is not ambiguous,
   since a draft has nothing to replace;
 - **the block's `group_by` value** the same way;
-- **the type** every issue on the matrix shares, the query's rows being C6's witness;
+- **the type** every issue on the matrix shares, the matrix's own rows being C6's witness,
+  so an empty cell's drill-down, with no rows of its own, still knows it;
 - **no `value`**: the form invents no number (C5), and the person types the points.
 
-Create pops back to the matrix, which keeps the cursor by its axis values (A11),
-so the cursor is on the cell, now holding the new issue's number.
-An issue the axes or the query no longer place is named, as C4 names it.
+The pushed list's call line carries the `doc`, so copying it there still gives a legal `git work view list` call (A9).
+Create pops back to the drill-down, the cursor on the new row;
+Going back to the matrix finds the cell's number changed, the cursor kept by axis values (A11).
 
 This takes up the item `allocations.md` defers,
 which said a cell with none *could create the allocation the axes describe*
 and left it to *actions injected into views*.
-It is not an injected action: it is the ghost, the one creation path every kind has, standing in a cell.
-Editing a cell's number in place stays deferred there.
-**Open:** a cell that already holds an allocation —
-two people on one story in one sprint, the usual case — has no ghost of its own;
-its drill-down's root ghost cannot invert the cell's query, so it prefills only the type.
+It is not an injected action: it is the list's ghost, the one creation path every kind has,
+told where it stands. Editing a cell's number in place stays deferred there.
 
 ## Deferred
 
