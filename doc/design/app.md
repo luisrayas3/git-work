@@ -229,6 +229,42 @@ The finder narrows to issues whose type has the stored field,
 the write is checked against that type's schema as any write is,
 and the status line says which issue was written.
 
+### Settled in building A6 (2026-10-15)
+
+Where A6, A7's last paragraph and `link-fields.md` L5 are silent, `d486dd0` chose:
+
+- **`l` and `u` cover the link relations only**, the ones marked `link: true` and their inverses,
+  not every relation of the type.
+  L5 says the palette's `l` and `u` are the `links` row's picker reached from anywhere,
+  and one picker is one set of choices;
+  every other relation already has its own way in,
+  a stored one as a row `space` edits, an inverse as a side table whose ghost creates into it.
+  `l` is that picker exactly, so choosing an issue already linked removes it, as on the row.
+- **`u` lists one choice per link**, a relation and an issue:
+  the issue drawn, its relation dim beside it (`inverse` after an inverse),
+  narrowed by either, so `blo` keeps the `blocks` links.
+  It lists every link, a link field the spec draws as a row of its own included.
+  With none it rings and says so.
+- **They are show's alone.** `new` keeps the row's picker on `space` (L5),
+  and a draft has no link to unlink that is not on that row.
+- **`e` is a picker that toggles**, typed into as every picker is:
+  the type's relations, stored and inverse, in the order a spec's check names them,
+  then `links`; the ones the spec expands marked `● expanded`.
+  `enter` toggles the one under the cursor and the page is redrawn at once,
+  the picker staying open on it, so several are toggled in one go;
+  the first `esc` clears the text and the second closes it.
+- **A toggle changes the whole spec**, as A7 resolves one:
+  the spec the page was drawn by, from the call, the schema or the built-in,
+  becomes the call's `shows[type]`, with the relation taken out wherever `expand` names it,
+  a layer included, or added at the end by name.
+  Its `fields` and the other elements are kept as given, a layer's keys with them,
+  and an `expand` left empty is dropped, since an empty list is not one.
+  It is checked as a spec is, and is no longer dim:
+  the first line spells it as part of the call, and `ctrl+c` on the palette copies that call.
+- **Nothing is written**, not the store and not the schema.
+  The changed `shows` is the page's, carried to every page it opens, as V3 carries it;
+  the page under it keeps its own, so going back is going back to the spec it had.
+
 ## A7 — `shows`: how each type is shown, one map for every view
 
 Every view kind's call has two parts.

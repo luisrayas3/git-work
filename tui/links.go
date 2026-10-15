@@ -144,6 +144,9 @@ type linkEdit struct {
 	rels []linkRel
 	// rel is the relation chosen, nil while the relations are the choices
 	rel *linkRel
+	// unlink says the choices are the issue's links themselves, the palette's
+	// `u`, each a relation and an issue to remove (show_palette.go)
+	unlink bool
 }
 
 // linkRelationsEditor is space on the `links` row: every link relation,

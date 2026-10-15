@@ -60,8 +60,8 @@ func everywhere() []paletteEntry {
 }
 
 // pageCommands is the palette's middle section: what this page answers.
-// Change what is expanded (e), link (l) and unlink (u) join it with the
-// features they name (A6, A7), as entries here.
+// A show page adds change what is expanded (e), link (l) and unlink (u)
+// (A6, A7; show_palette.go).
 func pageCommands(p page) []paletteEntry {
 	filter := entry(keys.filter, "filter")
 	foldAll := entry(keys.foldAll, "fold all")
@@ -85,10 +85,11 @@ func pageCommands(p page) []paletteEntry {
 	case *matrixPage:
 		return []paletteEntry{filter, copyCell, entry(keys.copyId, "copy command")}
 	case *showPage:
+		own := []paletteEntry{entry(keys.expand, "expand"), entry(keys.link, "link"), entry(keys.unlink, "unlink")}
 		if p.current().stop == stopSide {
-			return []paletteEntry{filter, copyCell, copyId}
+			return append([]paletteEntry{filter, copyCell, copyId}, own...)
 		}
-		return []paletteEntry{copyCell, copyId}
+		return append([]paletteEntry{copyCell, copyId}, own...)
 	case *newPage:
 		return []paletteEntry{copyCell}
 	case *outputPage:

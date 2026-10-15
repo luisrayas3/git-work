@@ -543,6 +543,14 @@ func (p *showPage) key(press tea.KeyPressMsg) (page, tea.Cmd) {
 		p.status = "reading clipboard…"
 		return p, tea.ReadClipboard
 
+	// the palette's own, from anywhere on the page (show_palette.go)
+	case keys.link.matches(press):
+		return p, p.startEdit(schema.LinksKey, nil)
+	case keys.unlink.matches(press):
+		return p, p.startUnlink()
+	case keys.expand.matches(press):
+		return p, p.startExpand("")
+
 	case keys.help.matches(press):
 		p.help = &help{}
 	}
@@ -948,6 +956,12 @@ func (p *showPage) updateEditor(msg tea.Msg) (page, tea.Cmd) {
 	p.editor = nil
 	if cancelled {
 		return p, nil
+	}
+	if ed.expand {
+		return p, p.expandChosen(ed)
+	}
+	if ed.link != nil && ed.link.unlink {
+		return p, p.unlinkChosen(ed)
 	}
 	if ed.link != nil {
 		return p, p.linkChosen(ed)

@@ -35,8 +35,12 @@ type editor struct {
 	clearable bool
 
 	// link is the link picker's state, on the editor space on the links row
-	// opens (links.go); nil on every other
+	// opens (links.go), and on the palette's link and unlink; nil on every
+	// other
 	link *linkEdit
+	// expand says the editor is the palette's `e`, the relations a show
+	// page's spec expands toggled (show_palette.go)
+	expand bool
 }
 
 // picker is a list of choices: an enum's values, the repository's people, or
@@ -330,6 +334,10 @@ func (e *editor) View(width int) []string {
 		return []string{title, fit(e.input.View(), width), styleDim.Render("enter saves · esc cancels")}
 	}
 	lines := append([]string{title}, e.picker.lines(width)...)
+	if e.expand {
+		// nothing is saved: a toggle redraws the page at once
+		return append(lines, styleDim.Render("enter toggles · esc done"))
+	}
 	if e.picker.text() != "" {
 		return append(lines, styleDim.Render("enter saves · esc clears"))
 	}
