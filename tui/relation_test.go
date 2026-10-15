@@ -71,10 +71,11 @@ func TestChangeARelationPicksFromItsTargetTypes(t *testing.T) {
 	require.NotContains(t, values, id)
 	require.Contains(t, plainView(page), south[:7]+" south")
 
-	page = send(page, "/", "s", "o", "u").(*showPage)
+	// typing narrows at once, with no `/` first (doc/design/app.md, A5)
+	page = send(page, "s", "o", "u").(*showPage)
 	require.Equal(t, south, picker.items[picker.cursor].value, "the narrowing keeps south alone")
 	require.NotContains(t, join(page.editor.View(100)), north[:7]+" north")
-	page = send(page, "enter", "enter").(*showPage)
+	page = send(page, "enter").(*showPage)
 	require.Nil(t, page.editor)
 	require.Equal(t, south, fieldOf(t, repo, id, "parent"))
 	require.Contains(t, plainView(page), south[:7]+" south")

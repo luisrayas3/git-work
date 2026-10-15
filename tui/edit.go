@@ -2,7 +2,6 @@ package tui
 
 import (
 	"fmt"
-	"sort"
 	"strconv"
 	"strings"
 
@@ -12,7 +11,6 @@ import (
 
 	"github.com/git-bug/git-bug/cache"
 	"github.com/git-bug/git-bug/entities/issue"
-	"github.com/git-bug/git-bug/entity"
 	"github.com/git-bug/git-bug/host"
 	"github.com/git-bug/git-bug/schema"
 )
@@ -38,18 +36,33 @@ type editor struct {
 }
 
 // picker is a list of choices: an enum's values, the repository's people, or
-// the issues a relation may name.
+// the issues a relation may name (doc/design/app.md, A5).
 //
-// `/` narrows it the way `/` narrows a list: typed text keeps the choices it
-// is in, enter keeps the narrowing and goes back to choosing, esc drops it.
-// A relation's choices are every issue of its target types, which is a list
-// too long to walk, so this is what makes that picker usable.
+// It opens with its input focused: typing narrows at once, the arrows move,
+// enter chooses, the first esc clears the text and the second cancels. A
+// static picker narrows its own choices (choice.matches); the finder, a
+// picker over the issues, asks the search again as the text changes
+// (finder.go), since a relation's choices are every issue of its target
+// types, a list too long to hold drawn.
 type picker struct {
+	input textinput.Model
+
+	// fixed are a static picker's choices; on the finder, the ones after the
+	// search's, such as (none), narrowed as a static picker's are
+	fixed []choice
+	// search is the finder's: the choices the text finds, and how many more
+	// it found than it hands back
+	search func(text string) ([]choice, int)
+
+	// items are the choices the text keeps, in order, and more the ones the
+	// finder found and does not hand back
 	items  []choice
+	more   int
 	cursor int
 
-	query     string
-	narrowing *textinput.Model
+	// current is the value the field holds now, where the cursor rests while
+	// nothing is typed
+	current string
 }
 
 // choice is one row of a picker: what it is, and what it writes.
@@ -60,6 +73,8 @@ type choice struct {
 
 	// current marks the value the field holds now.
 	current bool
+	// also is text it matches on that it does not draw: a person's login
+	also string
 }
 
 // editable decides what editing a field means here, given the live schema.
@@ -89,13 +104,13 @@ func editable(repo *cache.RepoCache, issueId, typeKey, fieldKey string, current 
 		return &editor{issueId: issueId, key: fieldKey, kind: kind, picker: newPicker(people, plainValue(current))}, "", nil
 
 	case schema.KindRelation:
-		targets, err := relationChoices(repo, issueId, typeKey, fieldKey, plainValue(current))
+		finder, err := relationFinder(repo, issueId, typeKey, fieldKey, plainValue(current))
 		if err != nil {
 			return nil, "", err
 		}
 		// the picker opens on the current value: going to it is enter on
 		// the cell, and never a choice here (2026-10-02)
-		return &editor{issueId: issueId, key: fieldKey, kind: kind, picker: newPicker(targets, plainValue(current))}, "", nil
+		return &editor{issueId: issueId, key: fieldKey, kind: kind, picker: finder}, "", nil
 
 	case schema.KindMultiRelation:
 		// changing the set is add and remove, two host calls, so two
@@ -181,21 +196,20 @@ func identityChoices(repo *cache.RepoCache) ([]choice, error) {
 		}
 		// the label is the name a cell draws the value as, so the picker
 		// opens on the one the cell showed
-		out = append(out, choice{label: host.UserName(repo, id.String()), dim: identity.Email(), value: id.String()})
+		// matched on name, login and email (doc/design/app.md, A5)
+		out = append(out, choice{label: host.UserName(repo, id.String()), dim: identity.Email(), also: identity.Login(), value: id.String()})
 	}
 	out = append(out, choice{label: "(nobody)", dim: "clear", value: ""})
 	return out, nil
 }
 
-// relationChoices are the issues a relation may name: those of its
-// target_types, or every issue where it names none, last edited first as a
-// list is, each drawn as a link is — short id and title — and then (none),
-// which clears it. The issue itself is left out, and the candidates are the
-// unarchived, read from the same helper the nesting and show's children read
-// (doc/design/include-archive.md, I5); an archived issue is listed only when
-// it is the value already there: the picker opens on what the cell showed,
-// whatever it is.
-func relationChoices(repo *cache.RepoCache, issueId, typeKey, fieldKey, current string) ([]choice, error) {
+// relationFinder is a relation's picker: the finder narrowed to the field's
+// target_types, or every type where it names none, without the issue itself,
+// and then (none), which clears it. The current value is listed even where
+// the narrowing would leave it out — archived, or of a type no longer a
+// target — since the picker opens on what the cell showed, whatever it is
+// (doc/design/include-archive.md, I5).
+func relationFinder(repo *cache.RepoCache, issueId, typeKey, fieldKey, current string) (*picker, error) {
 	s, err := repo.LoadSchema()
 	if err != nil {
 		return nil, err
@@ -204,65 +218,33 @@ func relationChoices(repo *cache.RepoCache, issueId, typeKey, fieldKey, current 
 	if !ok {
 		return nil, fmt.Errorf("no field %s on %s", fieldKey, typeKey)
 	}
-	allowed := map[string]bool{}
-	for _, target := range field.TargetTypes {
-		allowed[target] = true
-	}
-
-	type candidate struct {
-		id, typeKey string
-		edited      int64
-	}
-	var found []candidate
-	all, order := allIssues(repo, false)
-	for _, id := range order {
-		if id == issueId {
-			continue
-		}
-		fields, _ := all[id]["fields"].(map[string]any)
-		targetType := host.StringOr(fields[schema.TypeKey], "")
-		if id != current && len(allowed) > 0 && !allowed[targetType] {
-			continue
-		}
-		edit, _ := all[id]["edit_time"].(map[string]any)
-		edited, _ := edit["timestamp"].(float64)
-		found = append(found, candidate{id: id, typeKey: targetType, edited: int64(edited)})
-	}
-	// the value already there is listed even when the input leaves it out
-	if current != "" && current != issueId && all[current] == nil {
-		if excerpt, err := repo.Issues().ResolveExcerpt(entity.Id(current)); err == nil {
-			targetType, _ := issue.String(excerpt.Fields[schema.TypeKey])
-			found = append(found, candidate{id: current, typeKey: targetType, edited: excerpt.EditUnixTime})
-		}
-	}
-	sort.Slice(found, func(i, j int) bool {
-		if found[i].edited != found[j].edited {
-			return found[i].edited > found[j].edited
-		}
-		return found[i].id < found[j].id
-	})
-
-	var out []choice
-	for _, c := range found {
-		out = append(out, choice{label: linkLabel(repo, c.id), dim: c.typeKey, value: c.id, current: c.id == current})
-	}
-	out = append(out, choice{label: "(none)", dim: "clear", value: ""})
-	return out, nil
+	scope := finderScope{types: field.TargetTypes, exclude: issueId, current: current}
+	none := []choice{{label: "(none)", dim: "clear", value: ""}}
+	return newFinder(repo, scope, none, current), nil
 }
 
+// newPicker is a static picker over its choices, on the current value.
 func newPicker(items []choice, current string) *picker {
-	p := &picker{items: items}
-	for at, item := range items {
-		if item.value == current {
-			p.cursor = at
-		}
-	}
+	p := &picker{input: pickerInput(), fixed: items, current: current}
+	p.refresh()
 	return p
 }
 
-// paste puts pasted text in the widget: in the line for a text, on the value
-// it names for a list of choices. Nothing is written until enter, so a paste
-// that landed on the wrong field is an esc away from never having happened.
+// pickerInput is a picker's line, focused from the start.
+func pickerInput() textinput.Model {
+	input := textinput.New()
+	input.Prompt = ""
+	input.Placeholder = "type to narrow"
+	input.SetWidth(40)
+	input.Focus()
+	return input
+}
+
+// paste puts pasted text in the widget: in the line for a text, and for a
+// list of choices in its input, which narrows to what it names — an enum's
+// value or label, a person, an issue's id whole or short. Nothing is written
+// until enter, so a paste that landed on the wrong field is an esc away from
+// never having happened.
 func (e *editor) paste(text string) string {
 	text = strings.TrimSpace(text)
 	if e.picker == nil {
@@ -270,62 +252,37 @@ func (e *editor) paste(text string) string {
 		e.input.CursorEnd()
 		return ""
 	}
-	for at, item := range e.picker.items {
-		if item.value != "" && (strings.EqualFold(item.value, text) || strings.EqualFold(item.label, text)) {
-			e.picker.cursor = at
-			return ""
-		}
-	}
-	// an issue is pasted as its id, whole or short, as every command takes it
-	if e.kind == schema.KindRelation && len(text) >= 4 {
+	// a paste that names a choice outright is that choice, and the text
+	// stays empty, so esc still cancels
+	if e.picker.text() == "" {
 		for at, item := range e.picker.items {
-			if item.value != "" && strings.HasPrefix(item.value, strings.ToLower(text)) {
+			if item.value != "" && (strings.EqualFold(item.value, text) || strings.EqualFold(item.label, text)) {
 				e.picker.cursor = at
 				return ""
 			}
 		}
 	}
-	return fmt.Sprintf("%s: no value %q", e.key, text)
+	e.picker.setText(text)
+	if len(e.picker.items) == 0 {
+		e.picker.setText("")
+		return fmt.Sprintf("%s: no value %q", e.key, text)
+	}
+	return ""
 }
 
 // Update runs the widget, and says when the user is done with it.
 func (e *editor) Update(msg tea.Msg) (done bool, cancelled bool, cmd tea.Cmd) {
-	if e.picker != nil && e.picker.narrowing != nil {
-		return false, false, e.picker.narrow(msg)
+	if e.picker != nil {
+		return e.picker.Update(msg)
 	}
-	press, ok := msg.(tea.KeyPressMsg)
-	if ok {
+	if press, ok := msg.(tea.KeyPressMsg); ok {
 		switch {
-		case keys.cancel.matches(press) && e.picker != nil && e.picker.query != "":
-			// out of the narrowing first, out of the picker after that,
-			// as back is on a list
-			e.picker.setQuery("")
-			return false, false, nil
 		case keys.cancel.matches(press):
 			return true, true, nil
 		case keys.act.matches(press):
-			if e.picker != nil && !e.picker.matches(e.picker.cursor) {
-				// nothing is under the cursor: the narrowing hides it all
-				return false, false, bell()
-			}
 			return true, false, nil
 		}
 	}
-
-	if e.picker != nil {
-		if ok {
-			switch {
-			case keys.up.matches(press):
-				e.picker.move(-1)
-			case keys.down.matches(press):
-				e.picker.move(1)
-			case keys.filter.matches(press):
-				e.picker.startNarrowing()
-			}
-		}
-		return false, false, nil
-	}
-
 	var updated textinput.Model
 	updated, cmd = e.input.Update(msg)
 	e.input = updated
@@ -335,11 +292,11 @@ func (e *editor) Update(msg tea.Msg) (done bool, cancelled bool, cmd tea.Cmd) {
 // Value is what the editor writes, as the store holds it.
 func (e *editor) Value() (issue.Value, error) {
 	if e.picker != nil {
-		chosen := e.picker.items[e.picker.cursor].value
-		if chosen == "" {
+		chosen, ok := e.picker.chosen()
+		if !ok || chosen.value == "" {
 			return issue.MustValue(nil), nil
 		}
-		return issue.StringValue(chosen), nil
+		return issue.StringValue(chosen.value), nil
 	}
 
 	text := strings.TrimSpace(e.input.Value())
@@ -361,46 +318,150 @@ func (e *editor) Value() (issue.Value, error) {
 // View draws the widget over the bottom of the page.
 func (e *editor) View(width int) []string {
 	title := styleHeader.Render(e.key)
-
 	if e.picker == nil {
 		return []string{title, fit(e.input.View(), width), styleDim.Render("enter saves · esc cancels")}
 	}
-
-	lines := []string{title}
-	switch {
-	case e.picker.narrowing != nil:
-		lines = append(lines, fit("/"+e.picker.narrowing.View(), width))
-	case e.picker.query != "":
-		lines = append(lines, styleDim.Render(fit("/"+e.picker.query, width)))
+	lines := append([]string{title}, e.picker.lines(width)...)
+	if e.picker.text() != "" {
+		return append(lines, styleDim.Render("enter saves · esc clears"))
 	}
+	return append(lines, styleDim.Render("enter saves · esc cancels"))
+}
 
-	visible := e.picker.visible()
-	if len(visible) == 0 {
-		lines = append(lines, styleDim.Render("  (no match)"))
-	}
-	// a long list is a window over it that follows the cursor, so that the
-	// page above keeps its rows
-	at := 0
-	for i, index := range visible {
-		if index == e.picker.cursor {
-			at = i
+// pickerRows is as many choices as a picker draws at once.
+const pickerRows = 10
+
+// Update is a key in the picker: the arrows and the page keys move, enter
+// chooses what is under the cursor, esc clears the text and then cancels,
+// and anything else is the input's, the choices narrowed again when its text
+// changes.
+func (p *picker) Update(msg tea.Msg) (chose bool, cancelled bool, cmd tea.Cmd) {
+	if press, ok := msg.(tea.KeyPressMsg); ok {
+		switch {
+		case keys.cancel.matches(press):
+			if p.text() != "" {
+				p.setText("")
+				return false, false, nil
+			}
+			return true, true, nil
+		case keys.act.matches(press):
+			if _, ok := p.chosen(); !ok {
+				// nothing is under the cursor: the text kept nothing
+				return false, false, bell()
+			}
+			return true, false, nil
+		case keys.up.matches(press):
+			p.move(-1)
+			return false, false, nil
+		case keys.down.matches(press):
+			p.move(1)
+			return false, false, nil
+		case press.String() == "pgup":
+			p.move(-pickerRows)
+			return false, false, nil
+		case press.String() == "pgdown":
+			p.move(pickerRows)
+			return false, false, nil
 		}
 	}
-	top := 0
-	scroll(&top, at, pickerRows, len(visible))
-	labelWidth := 24
-	for _, index := range visible {
-		labelWidth = max(labelWidth, min(ansi.StringWidth(e.picker.items[index].label)+2, width/2))
+	was := p.input.Value()
+	p.input, cmd = p.input.Update(msg)
+	if p.input.Value() != was {
+		p.refresh()
 	}
-	for _, index := range visible[top:min(top+pickerRows, len(visible))] {
-		item := e.picker.items[index]
+	return false, false, cmd
+}
+
+// text is what has been typed.
+func (p *picker) text() string {
+	return p.input.Value()
+}
+
+// setText puts text in the input in place of what is there, as a paste or a
+// clear does.
+func (p *picker) setText(text string) {
+	p.input.SetValue(text)
+	p.input.CursorEnd()
+	p.refresh()
+}
+
+// chosen is the choice under the cursor, if the text kept any.
+func (p *picker) chosen() (choice, bool) {
+	if p.cursor < 0 || p.cursor >= len(p.items) {
+		return choice{}, false
+	}
+	return p.items[p.cursor], true
+}
+
+// refresh narrows the choices to the text: the finder's search first, then
+// the fixed choices that match. The cursor goes to the best match, which is
+// the first, or with nothing typed back to the current value.
+func (p *picker) refresh() {
+	text := p.text()
+	p.items, p.more = nil, 0
+	if p.search != nil {
+		p.items, p.more = p.search(text)
+	}
+	for _, item := range p.fixed {
+		if item.matches(text) {
+			p.items = append(p.items, item)
+		}
+	}
+	p.cursor = 0
+	if text == "" {
+		for at, item := range p.items {
+			if item.value == p.current {
+				p.cursor = at
+				break
+			}
+		}
+	}
+}
+
+// matches says whether the text narrows to a choice: its label, what is dim
+// beside it, what else it is known by, or the start of what it writes, which
+// for an issue is its id. Case is ignored.
+func (c choice) matches(text string) bool {
+	if text == "" {
+		return true
+	}
+	text = strings.ToLower(text)
+	return strings.Contains(strings.ToLower(c.label), text) ||
+		strings.Contains(strings.ToLower(c.dim), text) ||
+		strings.Contains(strings.ToLower(c.also), text) ||
+		strings.HasPrefix(strings.ToLower(c.value), text)
+}
+
+// move is up and down among the choices the text keeps, stopping at either
+// end.
+func (p *picker) move(by int) {
+	if len(p.items) == 0 {
+		return
+	}
+	p.cursor = min(max(p.cursor+by, 0), len(p.items)-1)
+}
+
+// lines are the input, then a window over the choices that follows the
+// cursor, so that the page above keeps its rows.
+func (p *picker) lines(width int) []string {
+	lines := []string{fit("/"+p.input.View(), width)}
+	if len(p.items) == 0 {
+		return append(lines, styleDim.Render("  (no match)"))
+	}
+	top := 0
+	scroll(&top, p.cursor, pickerRows, len(p.items))
+	labelWidth := 24
+	for _, item := range p.items {
+		labelWidth = max(labelWidth, min(ansi.StringWidth(item.label)+2, width/2))
+	}
+	for at := top; at < min(top+pickerRows, len(p.items)); at++ {
+		item := p.items[at]
 		marker := "  "
 		// padded before it is styled: a style is escape codes, and they are
 		// not columns.
 		text := truncate(item.label, labelWidth-2)
 		label := pad(text, labelWidth)
-		switch {
-		case index == e.picker.cursor:
+		if at == p.cursor {
 			marker = "> "
 			label = styleCursor.Render(text) + pad("", labelWidth-ansi.StringWidth(text))
 		}
@@ -410,95 +471,8 @@ func (e *editor) View(width int) []string {
 		}
 		lines = append(lines, fit(marker+label+styleDim.Render(dim), width))
 	}
-	if e.picker.narrowing != nil {
-		return append(lines, styleDim.Render("enter keeps · esc clears"))
+	if p.more > 0 {
+		lines = append(lines, styleDim.Render(fit(fmt.Sprintf("  … %d more: type to narrow", p.more), width)))
 	}
-	return append(lines, styleDim.Render("enter saves · esc cancels"))
-}
-
-// pickerRows is as many choices as a picker draws at once.
-const pickerRows = 10
-
-// matches says whether the choice at an index is one the narrowing keeps: its
-// label, what is dim beside it, or the start of what it writes, which for an
-// issue is its id.
-func (p *picker) matches(at int) bool {
-	if at < 0 || at >= len(p.items) {
-		return false
-	}
-	item := p.items[at]
-	if p.query == "" {
-		return true
-	}
-	query := strings.ToLower(p.query)
-	return strings.Contains(strings.ToLower(item.label), query) ||
-		strings.Contains(strings.ToLower(item.dim), query) ||
-		strings.HasPrefix(strings.ToLower(item.value), query)
-}
-
-// visible are the indexes of the choices the narrowing keeps, in order.
-func (p *picker) visible() []int {
-	out := make([]int, 0, len(p.items))
-	for at := range p.items {
-		if p.matches(at) {
-			out = append(out, at)
-		}
-	}
-	return out
-}
-
-// move is up and down among the choices the narrowing keeps.
-func (p *picker) move(by int) {
-	for at := p.cursor + by; at >= 0 && at < len(p.items); at += by {
-		if p.matches(at) {
-			p.cursor = at
-			return
-		}
-	}
-}
-
-// setQuery narrows, and keeps the cursor on a choice that is still there.
-func (p *picker) setQuery(query string) {
-	p.query = query
-	if p.matches(p.cursor) {
-		return
-	}
-	if visible := p.visible(); len(visible) > 0 {
-		p.cursor = visible[0]
-	}
-}
-
-func (p *picker) startNarrowing() {
-	input := textinput.New()
-	input.SetValue(p.query)
-	input.SetWidth(40)
-	input.CursorEnd()
-	input.Focus()
-	p.narrowing = &input
-}
-
-// narrow is a key typed while narrowing: text is the query, up and down
-// still move, enter keeps the narrowing and esc drops it.
-func (p *picker) narrow(msg tea.Msg) tea.Cmd {
-	if press, ok := msg.(tea.KeyPressMsg); ok {
-		switch {
-		case keys.cancel.matches(press):
-			p.narrowing = nil
-			p.setQuery("")
-			return nil
-		case keys.act.matches(press):
-			p.narrowing = nil
-			return nil
-		case press.String() == "up" || press.String() == "ctrl+p":
-			p.move(-1)
-			return nil
-		case press.String() == "down" || press.String() == "ctrl+n":
-			p.move(1)
-			return nil
-		}
-	}
-	updated, cmd := p.narrowing.Update(msg)
-	p.narrowing = &updated
-	p.setQuery(updated.Value())
-	return cmd
+	return lines
 }

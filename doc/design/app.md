@@ -178,6 +178,37 @@ and the palette's search,
 where choosing an issue pushes its show (A7).
 A relation's picker keeps its narrowing to the field's target types.
 
+### Settled in building A5 (2026-10-15)
+
+Where the section above is silent, `59bae59` chose:
+
+- **The finder is a picker whose choices are the search's**:
+  `host.SearchExcerpts` asked again on every change of the text,
+  so it matches and orders as `git work issue search` does,
+  description included (A9 landed first).
+  A static picker (an enum, the people) narrows its own choices
+  on label, the dim text beside it, and the start of the value;
+  a person's login is matched without being drawn.
+- **The cursor goes to the first match as the text changes**, the best one,
+  and back to the current value when the text is cleared.
+- **The finder hands back the first 200 matches** and counts the rest
+  (`… N more: type to narrow`): the search is a scan,
+  and it is drawing thousands of rows on every key that would cost.
+  The current value is listed even past that.
+- **A relation's picker searches the archive only for its current value**,
+  which it lists whatever its type or archived state, as before;
+  (none) stays last, and is narrowed as a static choice is.
+- **A paste that names a choice outright** (an enum's value or label, a person)
+  puts the cursor on it with the text left empty, so `esc` still cancels;
+  any other paste is typed in, and refused if it keeps nothing.
+- **The search (`s`) is a panel at the foot of the page**, drawn as the palette is,
+  not a page of its own: it opens over any page,
+  and `enter` pushes the issue's show opened by the page's own show map
+  (`showOf`, `showsOf`), as `enter` on a row of that page would.
+  Its first `esc` clears, its second closes it, with nothing pushed.
+- **`/` is text in a picker**, no longer its narrowing key;
+  `pgup` and `pgdown` move ten choices.
+
 ## A6 — Linking from the palette, inverses included
 
 `l` on a show page picks a relation by typing (`blo` is `blocks`),

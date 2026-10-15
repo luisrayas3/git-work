@@ -256,8 +256,11 @@ In a view `Enter` opens, `Space` edits or grabs a row to move it,
 typing (or `/`) filters a list, a board or a gantt, and `C-q` quits.
 `Esc` opens the palette: where you are, the whole call,
 and every command under a letter that is the same on every page
-(`w` copy cell, `c` copy id, `n` new, `q` quit; `esc x` is `alt+x`);
+(`w` copy cell, `c` copy id, `n` new, `s` search, `q` quit; `esc x` is `alt+x`);
 a second `Esc` goes back, and quits from the first page.
+`esc s` finds any issue as `git work issue search` does, and `Enter` opens it.
+A picker is typed into at once: typing narrows, `Enter` chooses,
+the first `Esc` clears the text and the second cancels.
 `?` lists every key; emacs's `C-` and `M-` keys work, vim's letters do not.
 
 ## Sync and Jira

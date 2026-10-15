@@ -47,6 +47,9 @@ type root struct {
 	// palette says the palette is open over the top page (palette.go,
 	// doc/design/app.md, A1).
 	palette bool
+	// search is the palette's search, open over the top page (finder.go,
+	// A5), or nil
+	search *searchPanel
 
 	// answer is what the view returns once the program ends: the id a
 	// standalone `new` created, else nothing (doc/design/create.md, C4).
@@ -84,6 +87,9 @@ func (r *root) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if r.palette {
 			return r.paletteKey(msg)
 		}
+		if r.search != nil {
+			return r.searchKey(msg)
+		}
 		if atRest(r.top()) {
 			if cmd, done := r.restKey(msg); done {
 				return r, cmd
@@ -114,7 +120,16 @@ func (r *root) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		r.pages = r.pages[:len(r.pages)-1]
 		return r, nil
 
+	case tea.PasteMsg:
+		if r.search != nil {
+			r.search.picker.setText(msg.Content)
+			return r, nil
+		}
+
 	case refreshMsg:
+		if r.search != nil {
+			r.search.picker.refresh()
+		}
 		return r, r.broadcast(msg)
 
 	case createdMsg:
@@ -149,8 +164,11 @@ func (r *root) say(status string) tea.Cmd {
 
 func (r *root) View() tea.View {
 	content := r.top().View()
-	if r.palette {
+	switch {
+	case r.palette:
 		content = r.withPalette(content)
+	case r.search != nil:
+		content = r.withSearch(content)
 	}
 	view := tea.NewView(content)
 	view.AltScreen = true
