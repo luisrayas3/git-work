@@ -136,7 +136,7 @@ func TestBoardEmptyLaneGhostAndDrop(t *testing.T) {
 	page = send(page, "down", "down").(*boardPage)
 	moved := page.currentId()
 	require.Equal(t, b, fieldOf(t, repo, moved, "parent"))
-	page = send(page, "space", "j", "space").(*boardPage)
+	page = send(page, "space", "down", "space").(*boardPage)
 	require.Equal(t, c, fieldOf(t, repo, moved, "parent"))
 	require.Contains(t, plainView(page), "moved to "+c[:idWidth])
 	require.Len(t, page.lanes, 3, "the lane B emptied stays, C's sibling")

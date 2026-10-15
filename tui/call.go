@@ -69,7 +69,7 @@ func callParts(call *view.Call, lead, leadArg string) (head []string, query stri
 	return head, query, dim
 }
 
-// callLines is the call line unfolded, for when the cursor is on it: the
+// callLines is the call line unfolded, the palette's first section: the
 // same first line, less the query, marked and reversed as the cell under
 // the cursor is, and under it the query formatted to the window by
 // jq.Format — a pipeline one stage per line, and anything else broken only
@@ -86,6 +86,10 @@ func callLines(call *view.Call, lead, leadArg string, width int) []string {
 		style = styleDim
 	}
 	var body []string
+	if query == "" {
+		// show has no query: the call is the one line
+		return lines
+	}
 	if formatted, err := jq.Format(query, inner-2); err == nil {
 		body = strings.Split(formatted, "\n")
 	} else {
@@ -157,8 +161,8 @@ func pipeline(program string) []string {
 }
 
 // command is the whole call as the shell command that draws it, which is
-// what the call line unfolds into when the cursor is on it and what copy
-// copies there: the command is the spec, so this is the spec, verbatim.
+// what the copy key copies on the palette: the command is the spec, so this
+// is the spec, verbatim.
 func command(call *view.Call) string {
 	args, err := json.Marshal(call.Args)
 	if err != nil || len(call.Args) == 0 {

@@ -61,7 +61,7 @@ func TestListDropRanksTheUnrankedRowsAbove(t *testing.T) {
 	require.Equal(t, []string{a, b, c, d}, drawnIds(page))
 	was := writes(t, repo, a)
 
-	page = send(page, "j", "j", "space", "k", "space").(*listPage)
+	page = send(page, "down", "down", "space", "up", "space").(*listPage)
 	require.Equal(t, -1, page.grabbed)
 
 	require.Equal(t, []string{a, c, b, d}, drawnIds(page))
@@ -85,7 +85,7 @@ func TestListDropAtTheTopRanksOnlyTheRowItMoved(t *testing.T) {
 	page := list(t, repo, `{"query":"sort_by(.fields.title)","fields":["title"]}`)
 	was := writes(t, repo, a)
 
-	page = send(page, "j", "j", "space", "k", "k", "space").(*listPage)
+	page = send(page, "down", "down", "space", "up", "up", "space").(*listPage)
 
 	require.Equal(t, []string{c, a, b, d}, drawnIds(page))
 	require.NotEqual(t, "", fieldOf(t, repo, c, "rank"))
@@ -110,7 +110,7 @@ func TestListDropOnARankedStoreWritesOneKey(t *testing.T) {
 	require.Equal(t, []string{a, b, c, d}, drawnIds(page))
 	was := writes(t, repo, a)
 
-	page = send(page, "j", "j", "space", "k", "space").(*listPage)
+	page = send(page, "down", "down", "space", "up", "space").(*listPage)
 
 	require.Equal(t, []string{a, c, b, d}, drawnIds(page))
 	require.Equal(t, was+1, writes(t, repo, c))
@@ -135,12 +135,12 @@ func TestListNestedDropRanksOnlyTheSiblingsAbove(t *testing.T) {
 	page := list(t, repo, `{"fields":["title"],`+
 		`"expand":{"relation":"children","query":"sort_by(.fields.title)"},`+
 		`"query":"map(select(.fields.type == \"story\")) | sort_by(.fields.title)"}`)
-	page = send(page, "Z").(*listPage) // a nested view opens folded
+	page = send(page, "alt+z").(*listPage) // a nested view opens folded
 	require.Equal(t, []string{first, elder, second, a, b, c, d}, drawnIds(page))
 	was := writes(t, repo, a)
 
 	// into the second story's children, down to c, and up one
-	page = send(page, "j", "tab", "j", "j", "space", "k", "space").(*listPage)
+	page = send(page, "down", "tab", "down", "down", "space", "up", "space").(*listPage)
 
 	require.Equal(t, []string{first, elder, second, a, c, b, d}, drawnIds(page))
 	require.Less(t, fieldOf(t, repo, a, "rank"), fieldOf(t, repo, c, "rank"))
@@ -163,7 +163,7 @@ func TestBoardDropRanksTheUnrankedCardsAbove(t *testing.T) {
 	require.Equal(t, []string{a, b, c, d}, stackIds(page, 0, 1))
 	was := writes(t, repo, a)
 
-	page = send(page, "j", "j", "space", "k", "space").(*boardPage)
+	page = send(page, "down", "down", "space", "up", "space").(*boardPage)
 	require.Equal(t, -1, page.grabbed)
 
 	require.Equal(t, []string{a, c, b, d}, stackIds(page, 0, 1))
@@ -186,7 +186,7 @@ func TestBoardDropAtTheTopRanksOnlyTheCardItMoved(t *testing.T) {
 	page := board(t, repo, `{"query":"sort_by(.fields.title)","columns":"status"}`)
 	was := writes(t, repo, a)
 
-	page = send(page, "j", "j", "space", "k", "k", "space").(*boardPage)
+	page = send(page, "down", "down", "space", "up", "up", "space").(*boardPage)
 
 	require.Equal(t, []string{c, a, b, d}, stackIds(page, 0, 1))
 	require.Equal(t, was+1, writes(t, repo, c))
@@ -208,7 +208,7 @@ func TestBoardDropOnARankedStoreWritesOneKey(t *testing.T) {
 	require.Equal(t, []string{a, b, c, d}, stackIds(page, 0, 1))
 	was := writes(t, repo, a)
 
-	page = send(page, "j", "j", "space", "k", "space").(*boardPage)
+	page = send(page, "down", "down", "space", "up", "space").(*boardPage)
 
 	require.Equal(t, []string{a, c, b, d}, stackIds(page, 0, 1))
 	require.Equal(t, was+1, writes(t, repo, c))
@@ -228,7 +228,7 @@ func TestGanttDropRanksTheUnrankedRowsAbove(t *testing.T) {
 	require.Equal(t, []string{a, b, c, d}, barIds(page))
 	was := writes(t, repo, a)
 
-	page = send(page, "j", "j", "space", "k", "space").(*ganttPage)
+	page = send(page, "down", "down", "space", "up", "space").(*ganttPage)
 	require.Equal(t, -1, page.grabbed)
 
 	require.Equal(t, []string{a, c, b, d}, barIds(page))
@@ -251,7 +251,7 @@ func TestGanttDropAtTheTopRanksOnlyTheRowItMoved(t *testing.T) {
 	page := gantt(t, repo, `{"query":"sort_by(.fields.title)","start":"start","stop":"stop"}`)
 	was := writes(t, repo, a)
 
-	page = send(page, "j", "j", "space", "k", "k", "space").(*ganttPage)
+	page = send(page, "down", "down", "space", "up", "up", "space").(*ganttPage)
 
 	require.Equal(t, []string{c, a, b, d}, barIds(page))
 	require.Equal(t, was+1, writes(t, repo, c))
@@ -273,7 +273,7 @@ func TestGanttDropOnARankedStoreWritesOneKey(t *testing.T) {
 	require.Equal(t, []string{a, b, c, d}, barIds(page))
 	was := writes(t, repo, a)
 
-	page = send(page, "j", "j", "space", "k", "space").(*ganttPage)
+	page = send(page, "down", "down", "space", "up", "space").(*ganttPage)
 
 	require.Equal(t, []string{a, c, b, d}, barIds(page))
 	require.Equal(t, was+1, writes(t, repo, c))

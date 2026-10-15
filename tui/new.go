@@ -446,7 +446,7 @@ func (p *newPage) textKey(press tea.KeyPressMsg) (page, tea.Cmd) {
 func (p *newPage) leave() (page, tea.Cmd) {
 	if p.dirty() && !p.warned {
 		p.warned = true
-		p.status = "esc again drops the draft"
+		p.status = "back again drops the draft"
 		return p, nil
 	}
 	return p, func() tea.Msg { return popMsg{} }

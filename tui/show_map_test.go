@@ -267,9 +267,13 @@ func onField(t *testing.T, p *showPage, key string) {
 	t.Fatalf("no %s row", key)
 }
 
-// back is Esc on the stack top page, and the pop it answers with.
+// back is Esc on the stack top page, the second one where the first opened
+// the palette (app.md, A1), and the pop it answers with.
 func back(stack *root) {
 	_, cmd := stack.Update(press("esc"))
+	if stack.palette {
+		_, cmd = stack.Update(press("esc"))
+	}
 	if cmd != nil {
 		stack.Update(cmd())
 	}

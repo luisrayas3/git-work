@@ -73,37 +73,39 @@ func list(t *testing.T, repo *cache.RepoCache, kwargs string) *listPage {
 }
 
 // press is one keystroke, spelled the way a binding spells it.
+//
+// A character is its own spelling and carries its text, as a terminal sends
+// it; a key with ctrl, alt or cmd carries none, so that it reads as the key
+// and never as typing.
 func press(spelling string) tea.KeyPressMsg {
-	switch spelling {
-	case "enter":
-		return tea.KeyPressMsg{Code: tea.KeyEnter}
-	case "alt+enter":
-		return tea.KeyPressMsg{Code: tea.KeyEnter, Mod: tea.ModAlt}
-	case "shift+enter":
-		return tea.KeyPressMsg{Code: tea.KeyEnter, Mod: tea.ModShift}
-	case "esc":
-		return tea.KeyPressMsg{Code: tea.KeyEscape}
-	case "up":
-		return tea.KeyPressMsg{Code: tea.KeyUp}
-	case "down":
-		return tea.KeyPressMsg{Code: tea.KeyDown}
-	case "space":
+	if spelling == "space" || spelling == " " {
 		return tea.KeyPressMsg{Code: tea.KeySpace, Text: " "}
-	case "tab":
-		return tea.KeyPressMsg{Code: tea.KeyTab}
-	case "shift+tab":
-		return tea.KeyPressMsg{Code: tea.KeyTab, Mod: tea.ModShift}
-	case "ctrl+c":
-		return tea.KeyPressMsg{Code: 'c', Mod: tea.ModCtrl}
-	case "ctrl+shift+c":
-		return tea.KeyPressMsg{Code: 'c', Mod: tea.ModCtrl | tea.ModShift}
-	case "alt+c":
-		return tea.KeyPressMsg{Code: 'c', Mod: tea.ModAlt}
-	case "ctrl+pgdown":
-		return tea.KeyPressMsg{Code: tea.KeyPgDown, Mod: tea.ModCtrl}
 	}
-	runes := []rune(spelling)
-	return tea.KeyPressMsg{Code: runes[0], Text: spelling}
+	if runes := []rune(spelling); len(runes) == 1 {
+		return tea.KeyPressMsg{Code: runes[0], Text: spelling}
+	}
+
+	var mod tea.KeyMod
+	name := spelling
+	for _, prefix := range []struct {
+		name string
+		mod  tea.KeyMod
+	}{{"ctrl+", tea.ModCtrl}, {"alt+", tea.ModAlt}, {"shift+", tea.ModShift}, {"super+", tea.ModSuper}} {
+		if rest, ok := strings.CutPrefix(name, prefix.name); ok && rest != "" {
+			mod |= prefix.mod
+			name = rest
+		}
+	}
+	named := map[string]rune{
+		"enter": tea.KeyEnter, "esc": tea.KeyEscape, "tab": tea.KeyTab,
+		"up": tea.KeyUp, "down": tea.KeyDown, "left": tea.KeyLeft, "right": tea.KeyRight,
+		"home": tea.KeyHome, "end": tea.KeyEnd, "pgup": tea.KeyPgUp, "pgdown": tea.KeyPgDown,
+		"backspace": tea.KeyBackspace, "delete": tea.KeyDelete, "space": tea.KeySpace,
+	}
+	if code, ok := named[name]; ok {
+		return tea.KeyPressMsg{Code: code, Mod: mod}
+	}
+	return tea.KeyPressMsg{Code: []rune(name)[0], Mod: mod}
 }
 
 // send types a series of keys into a page and returns what it became.
@@ -165,57 +167,6 @@ func TestTheFirstLineIsTheCall(t *testing.T) {
 	require.NotContains(t, plainView(page), "? keys · 1 issue · map", "the query left the status line")
 }
 
-// TestBackFromTheFirstViewLandsOnTheCall: back is always back, and back from
-// the first view puts the cursor on the call line, which unfolds into the
-// whole command; back from there quits, because a stray esc must not end a
-// session, and the place the second back quits from is worth standing on.
-func TestBackFromTheFirstViewLandsOnTheCall(t *testing.T) {
-	repo := testRepo(t)
-	newIssue(t, repo, map[string]any{"title": "one"})
-
-	for _, spelling := range []string{"esc", "q"} {
-		stack := &root{pages: []page{list(t, repo, `{"group_by":"status"}`)}, width: 300, height: 20}
-		stack.Update(tea.WindowSizeMsg{Width: 300, Height: 20})
-
-		_, cmd := stack.Update(press(spelling))
-		_, cmd = stack.Update(cmd())
-		require.Nil(t, cmd, "the first back does not quit")
-		require.True(t, stack.onCall)
-		drawn := ansiPattern.ReplaceAllString(stack.View().Content, "")
-		lines := strings.Split(drawn, "\n")
-		require.Len(t, lines, 20, "the page keeps its height")
-		// the call line stays the call line, and the query unfolds under it
-		// as the pipeline it is, one line per top-level pipe
-		require.Equal(t, "› list  group_by=status", strings.TrimSpace(lines[0]))
-		require.Equal(t, "  sort_by(.edit_time.lamport, .edit_time.timestamp)", strings.TrimRight(lines[1], " "))
-		require.Equal(t, "  | reverse", strings.TrimRight(lines[2], " "))
-		require.Contains(t, drawn, "esc: quit")
-
-		// narrow, a long segment wraps and the page still keeps its height
-		stack.Update(tea.WindowSizeMsg{Width: 30, Height: 20})
-		drawn = ansiPattern.ReplaceAllString(stack.View().Content, "")
-		lines = strings.Split(drawn, "\n")
-		require.Len(t, lines, 20)
-		require.True(t, strings.HasPrefix(lines[2], "    "), "a wrapped continuation is indented under its segment")
-
-		// a key in between goes back into the view, and means what it means there
-		stack.Update(press("j"))
-		require.False(t, stack.onCall)
-		_, cmd = stack.Update(press(spelling))
-		_, cmd = stack.Update(cmd())
-		require.Nil(t, cmd)
-
-		// copy on the call copies the command
-		_, cmd = stack.Update(press("ctrl+c"))
-		require.NotNil(t, cmd)
-		require.True(t, stack.onCall, "copying stays on the call")
-
-		_, cmd = stack.Update(press(spelling))
-		require.NotNil(t, cmd)
-		require.IsType(t, tea.QuitMsg{}, cmd())
-	}
-}
-
 // TestPipelineCutsAtTopLevelPipesOnly: a pipe inside a call, a string or
 // an assignment is the program's own.
 func TestPipelineCutsAtTopLevelPipesOnly(t *testing.T) {
@@ -250,7 +201,7 @@ func TestALinkIsTheIssueItNames(t *testing.T) {
 	require.Contains(t, drawn, story[:7]+" the story")
 	require.NotContains(t, drawn, story)
 
-	page = send(page, "l", "l").(*listPage)
+	page = send(page, "right", "right").(*listPage)
 	_, cmd := page.Update(press("enter"))
 	require.NotNil(t, cmd)
 	pushed := cmd().(pushMsg)
@@ -266,14 +217,14 @@ func TestCursorMoves(t *testing.T) {
 	// the default listing is last edited first, so the second issue is on top
 	require.Equal(t, second, page.currentId())
 
-	page = send(page, "j").(*listPage)
+	page = send(page, "down").(*listPage)
 	require.Equal(t, first, page.currentId())
 
-	page = send(page, "k").(*listPage)
+	page = send(page, "up").(*listPage)
 	require.Equal(t, second, page.currentId())
 
-	// and the three spellings are one key: the arrows, the vi letters and the
-	// readline controls all move the same cursor
+	// and the two spellings are one key: the arrows and the readline
+	// controls move the same cursor
 	page = send(page, "down").(*listPage)
 	require.Equal(t, first, page.currentId())
 	page = send(page, "ctrl+p").(*listPage)
@@ -281,11 +232,11 @@ func TestCursorMoves(t *testing.T) {
 	page = send(page, "ctrl+n").(*listPage)
 	require.Equal(t, first, page.currentId())
 
-	page = send(page, "G").(*listPage)
+	page = send(page, "end").(*listPage)
 	require.True(t, page.node().ghost, "the last row is the ghost, the place to add (ghost.go)")
-	page = send(page, "k").(*listPage)
+	page = send(page, "up").(*listPage)
 	require.Equal(t, first, page.currentId())
-	page = send(page, "g").(*listPage)
+	page = send(page, "home").(*listPage)
 	require.Equal(t, second, page.currentId())
 }
 
@@ -334,7 +285,7 @@ func TestGroupedListKeepsTheGroupHeaderOnTop(t *testing.T) {
 
 	// scrolled to the end, the window opens in the middle of the second
 	// group: its header is the first body line, the rows it heads are not
-	page = send(page, "G").(*listPage)
+	page = send(page, "end").(*listPage)
 	lines := strings.Split(plainView(page), "\n")
 	require.Contains(t, lines[2], group, "the window opens on the group's header")
 	require.NotContains(t, lines[3], firstRow, "and not on the group's first row")
@@ -343,7 +294,7 @@ func TestGroupedListKeepsTheGroupHeaderOnTop(t *testing.T) {
 
 	// and back up onto that first row, the header is still the line above it
 	for page.cursor > second {
-		page = send(page, "k").(*listPage)
+		page = send(page, "up").(*listPage)
 	}
 	lines = strings.Split(plainView(page), "\n")
 	require.Contains(t, lines[2], group, "the group's header is the first body line")
@@ -376,7 +327,7 @@ func TestRefreshKeepsTheCursorOnTheSameIssue(t *testing.T) {
 	newIssue(t, repo, map[string]any{"title": "second"})
 
 	page := list(t, repo, "")
-	page = send(page, "j").(*listPage)
+	page = send(page, "down").(*listPage)
 	was := page.currentId()
 
 	// another process writes: a new issue, which the default listing puts on
@@ -398,7 +349,7 @@ func TestTheCursorStartsOnTheIdAndCopiesIt(t *testing.T) {
 	page := list(t, repo, "")
 	require.Equal(t, 0, page.column)
 
-	for _, spelling := range []string{"y", "ctrl+c"} {
+	for _, spelling := range []string{"alt+w", "ctrl+c"} {
 		updated, cmd := page.Update(press(spelling))
 		require.NotNil(t, cmd, "the clipboard is written by a command, as OSC 52")
 		require.Contains(t, plainView(updated), "copied "+id[:7])
@@ -410,57 +361,19 @@ func TestCopyIsTheCellAndCopyIdIsTheId(t *testing.T) {
 	id := newIssue(t, repo, map[string]any{"title": "one", "status": "to-do"})
 
 	page := list(t, repo, `{"fields":["title","status"]}`)
-	page = send(page, "l", "l").(*listPage)
+	page = send(page, "right", "right").(*listPage)
 
-	for _, spelling := range []string{"ctrl+c", "ctrl+shift+c", "y"} {
+	for _, spelling := range []string{"ctrl+c", "ctrl+shift+c", "alt+w"} {
 		updated, cmd := page.Update(press(spelling))
 		require.NotNil(t, cmd)
 		require.Contains(t, plainView(updated), "copied status")
 	}
 
-	for _, spelling := range []string{"Y", "alt+c"} {
+	for _, spelling := range []string{"alt+c"} {
 		updated, cmd := page.Update(press(spelling))
 		require.NotNil(t, cmd)
 		require.Contains(t, plainView(updated), "copied "+id[:7])
 	}
-}
-
-// TestHelpHasATabPerFamily: each tab is one person's whole set, and moving
-// between them does not close the help.
-func TestHelpHasATabPerFamily(t *testing.T) {
-	repo := testRepo(t)
-	newIssue(t, repo, map[string]any{"title": "one"})
-
-	page := list(t, repo, "")
-	page = send(page, "?").(*listPage)
-	drawn := plainView(page)
-	for _, spelling := range []string{"standard", "vim", "emacs", "pgup", "home", "enter", "ctrl+c", "alt+c", "ctrl+pgdown", "ctrl+q"} {
-		require.Contains(t, drawn, spelling)
-	}
-	require.NotContains(t, drawn, "ctrl+n")
-	// enter is the one action key; the keys that were one key here and
-	// another there are gone
-	require.NotContains(t, drawn, "ctrl+enter")
-	require.NotContains(t, drawn, "f2")
-
-	page = send(page, "l").(*listPage)
-	drawn = plainView(page)
-	for _, spelling := range []string{"G", "ctrl+u", " y ", " p ", "gt"} {
-		require.Contains(t, drawn, spelling)
-	}
-
-	page = send(page, "3").(*listPage)
-	drawn = plainView(page)
-	for _, spelling := range []string{"ctrl+p", "ctrl+b", "alt+v", "alt+w", "ctrl+s", "ctrl+g"} {
-		require.Contains(t, drawn, spelling)
-	}
-
-	// a stray key keeps it open; esc closes it
-	page = send(page, "1").(*listPage)
-	page = send(page, "x").(*listPage)
-	require.NotNil(t, page.help)
-	page = send(page, "esc").(*listPage)
-	require.Nil(t, page.help)
 }
 
 // TestEmacsSearchIsCtrlS: ctrl+s narrows, as / does.

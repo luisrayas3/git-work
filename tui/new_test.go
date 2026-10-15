@@ -292,7 +292,7 @@ func TestNewEscAsksTwiceWithADraft(t *testing.T) {
 	page = typeText(page, "half").(*newPage)
 	_, cmd = page.Update(press("esc"))
 	require.Nil(t, cmd)
-	require.Contains(t, page.status, "esc again")
+	require.Contains(t, page.status, "back again")
 	_, cmd = page.Update(press("esc"))
 	require.NotNil(t, cmd)
 	require.IsType(t, popMsg{}, cmd())

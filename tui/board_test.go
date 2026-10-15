@@ -114,31 +114,31 @@ func TestBoardCursorMovesBetweenColumnsAndCards(t *testing.T) {
 	// the default query is last edited first, so the second is on top
 	require.Equal(t, second, page.currentId())
 
-	page = send(page, "j").(*boardPage)
+	page = send(page, "down").(*boardPage)
 	require.Equal(t, first, page.currentId())
-	page = send(page, "j").(*boardPage)
+	page = send(page, "down").(*boardPage)
 	require.True(t, page.current().ghost, "down past the last card is the column's ghost (ghost.go)")
-	page = send(page, "j").(*boardPage)
+	page = send(page, "down").(*boardPage)
 	require.True(t, page.current().ghost, "and down at the bottom stays")
-	page = send(page, "k").(*boardPage)
+	page = send(page, "up").(*boardPage)
 	require.Equal(t, first, page.currentId())
 
 	// right reaches every column: an empty one holds its ghost, which is
 	// how an issue is added to it
-	page = send(page, "l").(*boardPage)
+	page = send(page, "right").(*boardPage)
 	require.True(t, page.current().ghost)
 	require.Equal(t, "in-progress", page.columns[page.col].value)
-	page = send(page, "l", "l").(*boardPage)
+	page = send(page, "right", "right").(*boardPage)
 	require.Equal(t, done, page.currentId())
-	page = send(page, "l").(*boardPage)
+	page = send(page, "right").(*boardPage)
 	require.True(t, page.current().ghost, "the last column, canceled, holds its ghost")
-	page = send(page, "l").(*boardPage)
+	page = send(page, "right").(*boardPage)
 	require.True(t, page.current().ghost, "right past the last column stays")
-	page = send(page, "h", "h", "h", "h").(*boardPage)
+	page = send(page, "left", "left", "left", "left").(*boardPage)
 	require.Equal(t, second, page.currentId(), "back on the first row, which the one card's column clamped to")
-	page = send(page, "k", "ctrl+n", "g").(*boardPage)
+	page = send(page, "up", "ctrl+n", "home").(*boardPage)
 	require.Equal(t, second, page.currentId())
-	page = send(page, "G").(*boardPage)
+	page = send(page, "end").(*boardPage)
 	require.True(t, page.current().ghost, "the bottom of a column is its ghost")
 }
 
@@ -168,9 +168,9 @@ func TestBoardGrabMovesAcrossColumnsWithoutARank(t *testing.T) {
 	page = send(page, "space").(*boardPage)
 	require.GreaterOrEqual(t, page.grabbed, 0)
 	// right moves into the neighbouring column, empty or not
-	page = send(page, "l").(*boardPage)
+	page = send(page, "right").(*boardPage)
 	require.Contains(t, header(page), "In Progress (1)")
-	page = send(page, "l", "enter").(*boardPage)
+	page = send(page, "right", "enter").(*boardPage)
 	require.Equal(t, -1, page.grabbed)
 	require.Equal(t, "in-review", fieldOf(t, repo, id, "status"))
 	require.Equal(t, id, page.currentId(), "the cursor follows the card")
@@ -179,13 +179,13 @@ func TestBoardGrabMovesAcrossColumnsWithoutARank(t *testing.T) {
 	// dropped where it was picked up: nothing written
 	before, err := host.IssueLog(repo, id)
 	require.NoError(t, err)
-	page = send(page, "space", "l", "h", "space").(*boardPage)
+	page = send(page, "space", "right", "left", "space").(*boardPage)
 	after, err := host.IssueLog(repo, id)
 	require.NoError(t, err)
 	require.Len(t, after, len(before))
 
 	// the last column is (none), and a drop there clears the field
-	page = send(page, "space", "l", "l", "l", "l", "space").(*boardPage)
+	page = send(page, "space", "right", "right", "right", "right", "space").(*boardPage)
 	require.Equal(t, "", fieldOf(t, repo, id, "status"))
 	require.Equal(t, id, page.currentId())
 }
@@ -203,7 +203,7 @@ func TestBoardGrabUpAndDownWritesARank(t *testing.T) {
 	page := board(t, repo, `{"columns":"status"}`)
 	require.Equal(t, first, page.currentId(), "the rank orders the column")
 
-	page = send(page, "space", "j", "space").(*boardPage)
+	page = send(page, "space", "down", "space").(*boardPage)
 	moved := fieldOf(t, repo, first, "rank")
 	expected, err := rank.Between("b", "c")
 	require.NoError(t, err)
@@ -214,11 +214,11 @@ func TestBoardGrabUpAndDownWritesARank(t *testing.T) {
 
 	// across columns, the card lands at its row and gets a rank between its
 	// new neighbours; both keys in one call
-	page = send(page, "g", "space").(*boardPage)
+	page = send(page, "home", "space").(*boardPage)
 	for range 3 {
-		page = send(page, "l").(*boardPage)
+		page = send(page, "right").(*boardPage)
 	}
-	page = send(page, "j", "space").(*boardPage)
+	page = send(page, "down", "space").(*boardPage)
 	require.Equal(t, "done", fieldOf(t, repo, second, "status"))
 	require.Greater(t, fieldOf(t, repo, second, "rank"), "m")
 	require.Equal(t, []string{other, second}, stackIds(page, 0, 4))
@@ -230,7 +230,7 @@ func TestBoardGrabCanBePutBack(t *testing.T) {
 	id := newIssue(t, repo, map[string]any{"title": "one", "status": "to-do"})
 
 	page := board(t, repo, `{"columns":"status"}`)
-	page = send(page, "space", "l", "l", "esc").(*boardPage)
+	page = send(page, "space", "right", "right", "esc").(*boardPage)
 
 	require.Equal(t, -1, page.grabbed)
 	require.Equal(t, "to-do", fieldOf(t, repo, id, "status"))
@@ -246,7 +246,7 @@ func TestBoardRefreshFollowsTheCardToItsNewColumn(t *testing.T) {
 	newIssue(t, repo, map[string]any{"title": "two", "status": "to-do"})
 
 	page := board(t, repo, `{"columns":"status"}`)
-	page = send(page, "j").(*boardPage)
+	page = send(page, "down").(*boardPage)
 	require.Equal(t, id, page.currentId())
 
 	_, err := host.IssueSet(repo, id, map[string]issue.Value{"status": issue.StringValue("done")}, false)
@@ -274,11 +274,11 @@ func TestBoardSwimlanes(t *testing.T) {
 
 	require.Equal(t, high, page.currentId())
 	// down passes each lane's ghost on the way (ghost.go)
-	page = send(page, "j", "j").(*boardPage)
+	page = send(page, "down", "down").(*boardPage)
 	require.Equal(t, low, page.currentId())
-	page = send(page, "j", "j").(*boardPage)
+	page = send(page, "down", "down").(*boardPage)
 	require.Equal(t, none, page.currentId())
-	page = send(page, "k", "k", "k", "k").(*boardPage)
+	page = send(page, "up", "up", "up", "up").(*boardPage)
 	require.Equal(t, high, page.currentId())
 }
 
@@ -300,7 +300,7 @@ func TestBoardScrollsSideways(t *testing.T) {
 	require.True(t, strings.HasSuffix(strings.TrimRight(head, " "), "›"), head)
 
 	// right reaches every column, the empty ones on their ghost (ghost.go)
-	page = send(page, "l", "l", "l", "l", "l").(*boardPage)
+	page = send(page, "right", "right", "right", "right", "right").(*boardPage)
 	head = header(page)
 	require.Contains(t, head, "Canceled")
 	require.NotContains(t, head, "Backlog")
@@ -316,7 +316,7 @@ func TestBoardCopiesTheIdAndFilters(t *testing.T) {
 	newIssue(t, repo, map[string]any{"title": "read the design", "status": "done"})
 
 	page := board(t, repo, `{"columns":"status"}`)
-	for _, spelling := range []string{"y", "ctrl+c", "alt+c", "Y"} {
+	for _, spelling := range []string{"alt+w", "ctrl+c", "alt+c"} {
 		updated, cmd := page.Update(press(spelling))
 		require.NotNil(t, cmd)
 		require.Contains(t, plainView(updated), "copied "+id[:7])
@@ -371,9 +371,9 @@ func TestBoardColumnsComeFromTheTypesOnTheBoard(t *testing.T) {
 	// the task cannot go where an iteration can: the schema says so, and
 	// the card stays where it was
 	page.putCursorOn(id)
-	page = send(page, "space", "G").(*boardPage)
+	page = send(page, "space", "end").(*boardPage)
 	for range 8 {
-		page = send(page, "l").(*boardPage)
+		page = send(page, "right").(*boardPage)
 	}
 	page = send(page, "space").(*boardPage)
 	require.Contains(t, plainView(page), "not in the schema")
@@ -415,7 +415,7 @@ func TestGroupedBoardKeepsTheLaneHeaderOnTop(t *testing.T) {
 	// down to the last card of the last lane, over each lane's ghost: the
 	// window opens in the middle of the lane above, so its header is the
 	// first body line over cards that are not the ones it starts with
-	page = send(page, "j", "j", "j", "j", "j", "j").(*boardPage)
+	page = send(page, "down", "down", "down", "down", "down", "down").(*boardPage)
 	drawn := plainView(page)
 	lines := strings.Split(drawn, "\n")
 	require.Contains(t, lines[3], lane.group, "the window opens on the lane's header")
@@ -424,7 +424,7 @@ func TestGroupedBoardKeepsTheLaneHeaderOnTop(t *testing.T) {
 	require.Contains(t, drawn, page.currentId()[:idWidth], "the cursor's card is on screen")
 
 	// and back up onto that lane's first card, the header is still above it
-	page = send(page, "k", "k", "k").(*boardPage)
+	page = send(page, "up", "up", "up").(*boardPage)
 	require.Equal(t, page.cards[stack[0]].id, page.currentId())
 	lines = strings.Split(plainView(page), "\n")
 	require.Contains(t, lines[3], lane.group, "the lane's header is the first body line")

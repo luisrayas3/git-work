@@ -13,9 +13,9 @@ import (
 //
 // Every kind builds its line out of the same pairs, `enter` and `space`
 // first, so that the two keys that do everything never have to be looked up
-// in the help. The keys are spelled the way the standard family spells them,
-// lower case, because `?` is where the vim and the emacs spellings live and
-// three spellings in one line read as noise to all three.
+// in the help. The keys are spelled as the standard keys, lower case: `?`
+// is where the emacs spellings live, and two spellings in one line read as
+// noise.
 //
 // Nothing here promises a key the page does not act on in that state: where
 // a key rings the bell — space on a sum, on a column that is not a field of

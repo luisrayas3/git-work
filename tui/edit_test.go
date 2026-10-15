@@ -39,7 +39,7 @@ func TestEditAnEnumPicksFromTheSchema(t *testing.T) {
 
 	// the column cursor moves from the id across the field columns, and
 	// space edits the one it is on
-	page = send(page, "l", "l", "space").(*listPage)
+	page = send(page, "right", "right", "space").(*listPage)
 	require.NotNil(t, page.editor)
 
 	drawn := plainView(page)
@@ -49,7 +49,7 @@ func TestEditAnEnumPicksFromTheSchema(t *testing.T) {
 	// the value the issue has is where the picker opens
 	require.Equal(t, "to-do", page.editor.picker.items[page.editor.picker.cursor].value)
 
-	page = send(page, "j", "enter").(*listPage)
+	page = send(page, "down", "enter").(*listPage)
 	require.Nil(t, page.editor)
 	require.Equal(t, "in-progress", fieldOf(t, repo, id, "status"))
 	require.Contains(t, plainView(page), "status set")
@@ -60,7 +60,7 @@ func TestEditCanBeCancelled(t *testing.T) {
 	id := newIssue(t, repo, map[string]any{"title": "one", "status": "to-do"})
 
 	page := list(t, repo, `{"fields":["title","status"]}`)
-	page = send(page, "l", "l", "space", "j", "esc").(*listPage)
+	page = send(page, "right", "right", "space", "down", "esc").(*listPage)
 
 	require.Nil(t, page.editor)
 	require.Equal(t, "to-do", fieldOf(t, repo, id, "status"))
@@ -73,7 +73,7 @@ func TestEditATextFieldWritesIt(t *testing.T) {
 	id := newIssue(t, repo, map[string]any{"title": "one"})
 
 	page := list(t, repo, `{"fields":["title"]}`)
-	page = send(page, "l", "space").(*listPage)
+	page = send(page, "right", "space").(*listPage)
 	require.NotNil(t, page.editor)
 
 	page.editor.input.SetValue("a better title")
@@ -89,7 +89,7 @@ func TestASchemaRefusalIsAStatusLine(t *testing.T) {
 	id := newIssue(t, repo, map[string]any{"title": "one", "estimate": 3})
 
 	page := list(t, repo, `{"fields":["estimate"]}`)
-	page = send(page, "l", "space").(*listPage)
+	page = send(page, "right", "space").(*listPage)
 	require.NotNil(t, page.editor)
 
 	page.editor.input.SetValue("three")
@@ -106,7 +106,7 @@ func TestASetValuedFieldSaysWhereToEditIt(t *testing.T) {
 	newIssue(t, repo, map[string]any{"title": "one"})
 
 	page := list(t, repo, `{"fields":["labels"]}`)
-	page = send(page, "l", "space").(*listPage)
+	page = send(page, "right", "space").(*listPage)
 
 	require.Nil(t, page.editor)
 	require.Contains(t, plainView(page), "git work issue add/remove")
@@ -136,7 +136,7 @@ func TestPasteOpensTheEditor(t *testing.T) {
 	id := newIssue(t, repo, map[string]any{"title": "one", "status": "to-do"})
 
 	page := list(t, repo, `{"fields":["title","status"]}`)
-	page = send(page, "l").(*listPage)
+	page = send(page, "right").(*listPage)
 	updated, _ := page.Update(tea.PasteMsg{Content: "pasted title"})
 	page = updated.(*listPage)
 	require.NotNil(t, page.editor)
@@ -146,7 +146,7 @@ func TestPasteOpensTheEditor(t *testing.T) {
 	require.Equal(t, "pasted title", fieldOf(t, repo, id, "title"))
 
 	// on an enum it is the value it names, and one it does not name is refused
-	page = send(page, "l").(*listPage)
+	page = send(page, "right").(*listPage)
 	updated, _ = page.Update(tea.PasteMsg{Content: "In Progress"})
 	page = updated.(*listPage)
 	require.Equal(t, "in-progress", page.editor.picker.items[page.editor.picker.cursor].value)
@@ -188,7 +188,7 @@ func TestGrabAndDropWritesARankBetweenTheNeighbours(t *testing.T) {
 	require.GreaterOrEqual(t, page.grabbed, 0)
 	require.Contains(t, plainView(page), "first")
 
-	page = send(page, "j", "space").(*listPage)
+	page = send(page, "down", "space").(*listPage)
 	require.Equal(t, -1, page.grabbed)
 
 	// it landed between its new neighbours, and only it moved
@@ -212,7 +212,7 @@ func TestGrabCanBePutBack(t *testing.T) {
 	newIssue(t, repo, map[string]any{"title": "second", "rank": "b"})
 
 	page := list(t, repo, "")
-	page = send(page, "space", "j", "esc").(*listPage)
+	page = send(page, "space", "down", "esc").(*listPage)
 
 	require.Equal(t, -1, page.grabbed)
 	require.Equal(t, "a", fieldOf(t, repo, first, "rank"))

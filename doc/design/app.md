@@ -113,6 +113,38 @@ The full table is the help's, generated from the keymap as it is now.
 On macOS `alt` reaches the program only when the terminal sends Option as Meta;
 the palette works either way.
 
+### Settled in building A1–A4 (2026-10-15)
+
+Where the sections above are silent, `8a9ea75` and `72285a6` chose:
+
+- **A letter on the palette is handed to the page as `alt+letter`**,
+  so `esc w` typed slowly and typed quickly are one code path, not two.
+  A printable key that is no command rings and leaves the palette open;
+  a direction, `enter` or `tab` only closes it;
+  any other key closes it and then means what it means on the page.
+  `esc esc` typed quickly, which arrives as `alt+esc`, is back.
+- **Fold all is `z`**: `Z` was its key, and is text now.
+- **`?` and `/` stay keys of their own** and do not start a filter:
+  every status line promises `? keys`, and `/` is the empty filter.
+  Typing over a filter kept with `enter` adds to it, as `/` reopens it.
+- **vim's `ctrl+u` and `ctrl+d` go with its letters**:
+  the one keymap is the standard keys and emacs's.
+- **`v`, `<` and `>` are not listed on the palette**:
+  page up, home and end are core keys,
+  and the letters work all the same, being alt keys.
+- **`ctrl+c` on the palette copies the call as its shell command**,
+  which the call line did, so the palette's first section keeps it.
+- **`n` opens the creator on an empty draft** over any page, on its type cell,
+  with the page's `show` map.
+- Search, home, run a flow, link, unlink, change what is expanded
+  and edit the query are left off until their features exist;
+  each is an entry in `pageCommands` or `everywhere` (`tui/palette.go`).
+- A draft on show or new warns *back again drops draft* on the first back,
+  since back is now two presses.
+- The matrix's `c` keeps what `alt+c` did there, copying the command.
+- Bubble Tea v2 already requests the kitty protocol's disambiguation on every terminal,
+  so nothing is added for A2.
+
 ## A5 — Pickers are typed into, and the issue picker is the finder
 
 Every picker opens **with its input focused**:

@@ -657,7 +657,7 @@ func TestGroupedGanttKeepsTheGroupHeaderOnTop(t *testing.T) {
 
 	// scrolled to the end, the window opens in the middle of the second
 	// group: its header is the first body line, its first row is above
-	page = send(page, "G").(*ganttPage)
+	page = send(page, "end").(*ganttPage)
 	lines := strings.Split(plainView(page), "\n")
 	require.Equal(t, header, lines[4], "the window opens on the group's header, crosshair and all")
 	require.NotContains(t, lines[5], firstRow, "and not on the group's first row")
@@ -666,7 +666,7 @@ func TestGroupedGanttKeepsTheGroupHeaderOnTop(t *testing.T) {
 
 	// and back up onto that first row, the header is still the line above it
 	for page.cursor > second {
-		page = send(page, "k").(*ganttPage)
+		page = send(page, "up").(*ganttPage)
 	}
 	lines = strings.Split(plainView(page), "\n")
 	require.Equal(t, header, lines[4], "the group's header is the first body line")
