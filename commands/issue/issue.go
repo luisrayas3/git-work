@@ -89,6 +89,7 @@ git work issue 'map(select(.fields.status != "done"))' --at 7d
 	cmd.AddCommand(newIssueNewCommand(env))
 	cmd.AddCommand(newIssueRemoveCommand(env))
 	cmd.AddCommand(newIssueRmCommand(env))
+	cmd.AddCommand(newIssueSearchCommand(env))
 	cmd.AddCommand(newIssueSetCommand(env))
 
 	return cmd

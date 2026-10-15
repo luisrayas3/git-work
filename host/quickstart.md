@@ -98,7 +98,15 @@ The bare `git work issue 'PROGRAM'` takes the same program and flags
 and prints one line per issue (id, status, title), for a human.
 `--include-archive` puts the archived issues back in the input;
 a view takes it as `"include_archive": true`,
-and `work.issue.list` and `work.issue.log` as `include_archive=True`.
+and `work.issue.list`, `work.issue.log` and `work.issue.search` as `include_archive=True`.
+
+`git work issue search TEXT` finds issues without a program:
+the ones whose id (by prefix), alias, title or description contain TEXT,
+case ignored, as the same excerpts in one array.
+The description is the first comment; the others are not searched.
+The issues an id or alias names come first, then title matches,
+then description-only matches, each last edited first.
+`--format text` prints them one line each.
 
 ## What changed since
 

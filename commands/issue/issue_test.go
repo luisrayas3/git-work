@@ -579,6 +579,83 @@ func TestIssueAliases(t *testing.T) {
 	require.Error(t, runIssueSet(env, writeOptions{}, []string{"SHARED-1", `{"status":"done"}`}))
 }
 
+// TestIssueSearch: id prefix, alias, title and description, case ignored,
+// best match first, and the description kept current and kept out of the JSON
+// (doc/design/app.md, A9).
+func TestIssueSearch(t *testing.T) {
+	env := newTestEnv(t)
+	inBody := newTestIssue(t, env,
+		`{"fields":{"title":"unrelated","status":"open"},"body":"the Parser drops a token"}`)
+	inTitle := newTestIssue(t, env,
+		`{"fields":{"title":"parser rewrite","status":"open"},"body":"nothing here"}`)
+	aliased := newTestIssue(t, env,
+		`{"fields":{"title":"keyed","status":"open"},"body":"see PARSER","aliases":{"jira":"PARSER-7"}}`)
+	archived := newTestIssue(t, env, `{"fields":{"title":"old parser","status":"done"}}`)
+	require.NoError(t, runIssueArchive(env, writeOptions{}, []string{archived.Human()}))
+
+	search := func(opts issueSearchOptions, text string) []string {
+		t.Helper()
+		env.Out.Reset()
+		if opts.format == "" {
+			opts.format = "json"
+		}
+		require.NoError(t, runIssueSearch(env, opts, []string{text}))
+		var found []struct {
+			Id string `json:"id"`
+		}
+		require.NoError(t, json.Unmarshal(env.Out.Bytes(), &found))
+		ids := make([]string, len(found))
+		for i, f := range found {
+			ids[i] = f.Id
+		}
+		return ids
+	}
+
+	// alias, then title, then description; case ignored
+	require.Equal(t, []string{aliased.String(), inTitle.String(), inBody.String()},
+		search(issueSearchOptions{}, "parser"))
+
+	// the archived only on asking
+	require.Contains(t, search(issueSearchOptions{includeArchive: true}, "parser"), archived.String())
+
+	// an id matches by prefix
+	require.Equal(t, []string{inBody.String()}, search(issueSearchOptions{}, inBody.String()[:10]))
+
+	// nothing found is an empty array, in either format
+	require.Empty(t, search(issueSearchOptions{}, "no such text"))
+	require.Empty(t, search(issueSearchOptions{format: "text"}, "no such text"))
+
+	// an edit of the description is searched at once
+	i, err := env.Backend.Issues().Resolve(inTitle)
+	require.NoError(t, err)
+	commentId := i.Snapshot().Comments[0].CombinedId().String()
+	require.NoError(t, runIssueCommentEdit(env, []string{commentId, "now about zebras"}))
+	require.Equal(t, []string{inTitle.String()}, search(issueSearchOptions{}, "ZEBRA"))
+
+	// a later comment is not searched
+	require.NoError(t, runIssueCommentNew(env, []string{inBody.Human(), "giraffes"}))
+	require.Empty(t, search(issueSearchOptions{}, "giraffe"))
+
+	// the description stays out of the excerpt's JSON, here and in the list
+	env.Out.Reset()
+	require.NoError(t, runIssueSearch(env, issueSearchOptions{format: "json"}, []string{"zebra"}))
+	require.NotContains(t, env.Out.String(), "zebras")
+	env.Out.Reset()
+	require.NoError(t, runIssueList(env, issueListOptions{format: "json"}, nil))
+	require.NotContains(t, env.Out.String(), "zebras")
+
+	// text: one line per issue
+	env.Out.Reset()
+	require.NoError(t, runIssueSearch(env, issueSearchOptions{format: "text"}, []string{"zebra"}))
+	require.Equal(t, inTitle.Human()+"\topen\tparser rewrite\n", env.Out.String())
+
+	// from argv
+	env.Out.Reset()
+	require.NoError(t, execenv.ExecuteTest(t, env, NewIssueCommand(env), "search", "PARSER-7"))
+	require.Contains(t, env.Out.String(), aliased.String())
+	require.Error(t, execenv.ExecuteTest(t, env, NewIssueCommand(env), "search"))
+}
+
 func TestIssueRm(t *testing.T) {
 	env := newTestEnv(t)
 	id := newTestIssue(t, env, `{"fields":{"title":"gone"},"aliases":{"jira":"PROJ-12"}}`)

@@ -627,6 +627,31 @@ func TestIncludeArchiveKeyword(t *testing.T) {
 	require.Equal(t, []any{1.0, 2.0, 1.0, 3.0}, value)
 }
 
+// TestIssueSearch: work.issue.search is `git work issue search`, the same
+// excerpts, best match first, the archived only on include_archive=True.
+func TestIssueSearch(t *testing.T) {
+	repo := testRepo(t)
+
+	value, _, err := run(t, repo, `def find():
+    """Search titles and descriptions."""
+    work.issue.new({"fields": {"title": "about the Widget"}})
+    work.issue.new({"fields": {"title": "other"}, "body": "a widget, described"})
+    gone = work.issue.new({"fields": {"title": "widget gone"}})
+    work.issue.archive(gone)
+    return [
+        [i["fields"]["title"] for i in work.issue.search("WIDGET")],
+        len(work.issue.search("widget", include_archive=True)),
+        work.issue.search("nothing like it"),
+    ]
+`, nil)
+	require.NoError(t, err)
+	require.Equal(t, []any{
+		[]any{"about the Widget", "other"},
+		3.0,
+		[]any{},
+	}, value)
+}
+
 func TestFlowListAndExport(t *testing.T) {
 	repo := testRepo(t)
 	importFlow(t, repo, `def inner(n=1):

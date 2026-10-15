@@ -22,6 +22,13 @@ var _ Excerpt = &IssueExcerpt{}
 //
 // Fields is carried whole: it is what every filter and every view keys on,
 // and it is small, because long text lives in comments.
+//
+// Description is the one long text it does carry, comment 0's,
+// so that search reads no entity (doc/design/app.md, A9).
+// A few thousand descriptions of a few KB each is a few MB,
+// and the excerpt is rebuilt whenever its issue changes, an edit of comment 0
+// included, so there is no second structure to keep coherent.
+// It stays out of the JSON excerpt `issue list` prints.
 type IssueExcerpt struct {
 	id entity.Id
 
@@ -33,6 +40,7 @@ type IssueExcerpt struct {
 	AuthorId     entity.Id
 	Fields       map[string]issue.Value
 	LenComments  int
+	Description  string
 	Actors       []entity.Id
 	Participants []entity.Id
 
@@ -56,6 +64,11 @@ func NewIssueExcerpt(i *IssueCache) *IssueExcerpt {
 		fields[k] = v
 	}
 
+	var description string
+	if len(snap.Comments) > 0 {
+		description = snap.Comments[0].Message
+	}
+
 	e := &IssueExcerpt{
 		id:                i.Id(),
 		CreateLamportTime: i.CreateLamportTime(),
@@ -67,6 +80,7 @@ func NewIssueExcerpt(i *IssueCache) *IssueExcerpt {
 		Actors:            actorsIds,
 		Participants:      participantsIds,
 		LenComments:       len(snap.Comments),
+		Description:       description,
 		CreateMetadata:    snap.Operations[0].AllMetadata(),
 	}
 
