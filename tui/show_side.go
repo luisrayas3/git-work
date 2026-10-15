@@ -18,9 +18,10 @@ import (
 	"github.com/git-bug/git-bug/view"
 )
 
-// Show's side tables: `expand` on show, the list's spec or a list of it, one
-// flat table per element beside the fields, under them in a window too
-// narrow for both (doc/design/show-side-table.md, approved 2026-10-08, Luis).
+// Show's side tables: the `expand` of the issue's type's spec (`shows`,
+// doc/design/app.md A7), the list's spec or a list of it, one flat table per
+// element beside the fields, under them in a window too narrow for both
+// (doc/design/show-side-table.md, approved 2026-10-08, Luis).
 //
 // A table is the issues one relation reaches from the shown issue — a stored
 // relation field of its own, or the inverse the schema declares, read as
@@ -87,43 +88,49 @@ type sideGrab struct {
 	id    string
 }
 
-// newShowView is the show page a call describes, `expand` included: the
-// entry point from the command and from a flow, and from every Enter that
-// opens an issue by a view's `show` (show_map.go).
+// newShowView is the show page a call describes: the issue drawn by its
+// type's spec, the call's `shows[type]`, else the type's `show` in the
+// schema, else the built-in (doc/design/app.md A7). It is the entry point
+// from the command and from a flow, and from every Enter that opens an issue
+// by a view's `shows` (show_map.go).
 func newShowView(repo *cache.RepoCache, call *view.Call) (*showPage, error) {
-	p, err := newShowPage(repo, call.String("id"), call.Strings("fields"))
+	p, err := newShowPage(repo, call.String("id"), nil)
 	if err != nil {
 		return nil, err
 	}
-	// the map the pages this one opens are opened by, never this page's
-	// (doc/design/show-from-a-view.md, V3)
-	if call.Has("show") {
-		p.call.Args["show"] = call.Raw("show")
-	}
-	layers := call.SideTables()
-	if len(layers) == 0 {
-		return p, nil
+	// the pages this one opens are opened by the same shows
+	if call.Has("shows") {
+		p.call.Args["shows"] = call.Raw("shows")
 	}
 
-	for _, layer := range layers {
-		spec := sideSpec{layer: layer}
+	s, _ := repo.LoadSchema()
+	typeKey, _ := issue.String(p.snapshot.Fields[schema.TypeKey])
+	spec, source := view.SpecFor(call.Raw("shows"), s, typeKey)
+	if source.Defaulted() {
+		// not the call's, so the first line draws it dim, as it draws a
+		// defaulted argument
+		p.defaulted = "shows." + typeKey + "=" + string(spec.Raw)
+	}
+	p.order = spec.Fields
+
+	for _, layer := range spec.Tables {
+		side := sideSpec{layer: layer}
 		if layer.Query != "" {
 			program, err := jq.Compile(layer.Query)
 			if err != nil {
 				return nil, fmt.Errorf("expand: %w", err)
 			}
-			spec.program = program
+			side.program = program
 		}
-		p.specs = append(p.specs, spec)
+		p.specs = append(p.specs, side)
 	}
-	p.call.Args["expand"] = call.Raw("expand")
 	if err := p.load(); err != nil {
 		return nil, err
 	}
 	return p, nil
 }
 
-// sideSpec is one element of show's `expand`, compiled once: a table, or,
+// sideSpec is one element of the spec's `expand`, compiled once: a table, or,
 // for `links`, a table per link relation the issue has entries in, which
 // changes with the issue and so is resolved on every load (link-fields.md, L4).
 type sideSpec struct {
@@ -343,7 +350,7 @@ func (p *showPage) sideAct() tea.Cmd {
 	case item == nil:
 		return bell()
 	case item.ghost:
-		return openNew(p.repo, p.call.Raw("show"), cloneDoc(*p.tables[item.table].ghost))
+		return openNew(p.repo, p.call.Raw("shows"), cloneDoc(*p.tables[item.table].ghost))
 	case item.row < 0:
 		p.status = "no issue"
 		return bell()

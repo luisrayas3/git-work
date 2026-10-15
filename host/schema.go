@@ -1,6 +1,7 @@
 package host
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -9,6 +10,7 @@ import (
 	"github.com/git-bug/git-bug/entities/config"
 	"github.com/git-bug/git-bug/entity"
 	"github.com/git-bug/git-bug/schema"
+	"github.com/git-bug/git-bug/view"
 )
 
 // SchemaDuplicates returns every key that resolves away from an entity (E7).
@@ -109,6 +111,9 @@ func SchemaImport(repo *cache.RepoCache, doc *schema.Document, prune bool, dryRu
 	if err != nil {
 		return nil, nil, err
 	}
+	if err := checkTypeShows(doc, current, changes); err != nil {
+		return nil, nil, err
+	}
 
 	if dryRun {
 		return changes, nil, nil
@@ -116,6 +121,43 @@ func SchemaImport(repo *cache.RepoCache, doc *schema.Document, prune bool, dryRu
 
 	created, err := applySchemaChanges(repo, changes)
 	return changes, created, err
+}
+
+// checkTypeShows checks every type's `show` the document states as a view's
+// `shows` entry is checked, against the schema the import would leave, so
+// that a spec naming a field the same file adds is fine and one naming a
+// field nobody has is refused before anything is written (app.md A7).
+func checkTypeShows(doc *schema.Document, current []schema.Entry, changes []schema.Change) error {
+	var after *schema.Schema
+	problems := &schema.Problems{}
+	add := func(format string, args ...any) {
+		problems.List = append(problems.List, fmt.Sprintf(format, args...))
+	}
+	for _, typeKey := range doc.Types.Keys() {
+		t, _ := doc.Types.Get(typeKey)
+		if t.Show == nil {
+			continue
+		}
+		if after == nil {
+			compiled, err := schema.Compile(schema.Apply(current, changes))
+			if err != nil {
+				return err
+			}
+			after = compiled
+		}
+		raw, err := json.Marshal(t.Show)
+		if err != nil {
+			add("type %s: show: %v", typeKey, err)
+			continue
+		}
+		if err := view.CheckSpecJSON(raw, after, typeKey); err != nil {
+			add("type %s: show %v", typeKey, err)
+		}
+	}
+	if len(problems.List) == 0 {
+		return nil
+	}
+	return problems
 }
 
 // SchemaInit instantiates an embedded preset as config entities.

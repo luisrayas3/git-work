@@ -120,12 +120,12 @@ func TestTheFinderDrawsAWindowOfMany(t *testing.T) {
 
 // TestThePalettesSearchOpensAShow: `esc s` opens the finder over the page;
 // typing narrows it, and enter pushes the chosen issue's show, opened by the
-// page's own show map, as enter on a row would.
+// page's own shows, as enter on a row would.
 func TestThePalettesSearchOpensAShow(t *testing.T) {
 	repo := testRepo(t)
 	_, _, _, task := anEpic(t, repo)
 
-	first := list(t, repo, `{"show":`+epicShows+`}`)
+	first := list(t, repo, `{"shows":`+epicShows+`}`)
 	stack := stackOf(first, 100, 30)
 	run(stack, "esc")
 	require.Contains(t, drawnStack(stack), "s search", "the palette lists it")

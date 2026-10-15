@@ -232,11 +232,6 @@ func (a Arg) check(raw json.RawMessage) (json.RawMessage, error) {
 			}
 		}
 
-	case SideTables:
-		if _, err := parseSideTables(raw); err != nil {
-			return nil, err
-		}
-
 	case ExpandSpec:
 		if _, err := parseExpand(raw); err != nil {
 			return nil, err
@@ -261,8 +256,8 @@ func (a Arg) check(raw json.RawMessage) (json.RawMessage, error) {
 			return nil, fmt.Errorf("is %s, it is a whole number of levels from the roots", strings.TrimSpace(string(raw)))
 		}
 
-	case ShowMap:
-		if _, err := parseShowMap(raw); err != nil {
+	case Shows:
+		if _, err := parseShows(raw); err != nil {
 			return nil, err
 		}
 

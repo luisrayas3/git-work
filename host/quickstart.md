@@ -167,6 +167,8 @@ so they merge like issues do.
 - A field's key is `TYPE/FIELD`: every field belongs to one type,
   so `task/status` and `epic/status` are two fields with two value lists.
   In the file, YAML anchors share a definition between types.
+- A type's `show`, `show: {expand: [children, links]}`, is how show draws its issues
+  where a view's `shows` does not say; the import checks it as a view's spec is checked.
 - `git work schema log [KEY]` is a key's history,
   and `git work schema archive KEY` removes it, replicated.
 
@@ -231,22 +233,29 @@ and an `optional` one is off until it is named.
   On a board `"empty_groups":true` adds the lanes no card falls in:
   every value of an enum, both of a bool,
   and for a relation the lane issues' siblings under the same parent.
-- `expand` nests the issues one relation reaches under each row,
-  as `"children"` or as a layer that says what that level draws;
-  on `show` it takes the same, or a list of them,
-  and draws each as a flat table of the issues it reaches beside the fields;
+- `expand` on a list and a gantt nests the issues one relation reaches under each row,
+  as `"children"` or as a layer that says what that level draws.
+- `shows` says how each issue type is shown, on every kind:
+  `{"story":{"fields":["status","links"],"expand":["children","links"]}}`
+  maps a type key to a spec, which is what `show` takes less the id.
+  `show` itself takes only `id` and `shows`;
+  `Enter` on a list, a gantt, a board or a matrix opens show with the same `shows`,
+  and so does every page opened from there.
+  A spec's `fields` are the rows of show's fields table,
+  and its `expand` a relation or a layer, or a list of them,
+  each drawn as a flat table of the issues it reaches beside the fields;
   there `"links"` is a table per link relation the issue has entries in,
   and a list's or a gantt's `expand` refuses it.
+  A type the call leaves out is shown by its `show` in the schema,
+  else by `{"expand":["links"]}`, the whole spec and never merged,
+  drawn dim on the first line as a defaulted argument is.
 - A relation field marked `link: true` in the schema
   (`blocks`, `clones`, what a Jira link type becomes) is a link, and so is its inverse:
   show folds every link into one `links` row,
   the count and then each relation's (`3 · blocks 1 · is-blocked-by 2`), or `—`;
   `Enter` on it goes to the link tables, and `Space` picks a relation, stored or inverse,
   then an issue to add or remove — an inverse is written on the other issue.
-  A show call's `fields` naming a link field draws it as a row, and naming `links` places the row.
-- `show` on a list, a gantt, a board or a matrix says what `Enter` opens per type,
-  `{"epic":{"expand":"children"}}`, a type key mapped to show's arguments without `id`;
-  the pages opened from there open by the same map.
+  A spec's `fields` naming a link field draws it as a row, and naming `links` places the row.
 - On a list and a gantt a row the query makes may carry a top-level `key`,
   its identity on the screen, so one issue can be drawn twice;
   its `id` stays the issue it acts on, and may be left out beside a key,

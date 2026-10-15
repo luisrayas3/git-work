@@ -1,6 +1,7 @@
 package schema
 
 import (
+	"encoding/json"
 	"fmt"
 	"regexp"
 	"strings"
@@ -52,7 +53,19 @@ type TypeDoc struct {
 	// written and an unstated one left alone, so a file without them unmaps
 	// nothing; the empty string is stated, and means "never sync this".
 	Aliases map[string]string `yaml:"aliases,omitempty"`
-	Fields  *fieldMap         `yaml:"fields,omitempty"`
+	// Show is how show draws an issue of the type where a view's `shows`
+	// does not say (doc/design/app.md A7): what show takes less the id.
+	Show   *ShowDoc  `yaml:"show,omitempty"`
+	Fields *fieldMap `yaml:"fields,omitempty"`
+}
+
+// ShowDoc is a type's show spec in the document: `fields`, the rows of
+// show's fields table, and `expand`, its side tables, a relation name, a
+// layer, or a list of them. Its meaning is the views' to check, which the
+// import does against the schema it would write (host.SchemaImport).
+type ShowDoc struct {
+	Fields []string `yaml:"fields,omitempty" json:"fields,omitempty"`
+	Expand any      `yaml:"expand,omitempty" json:"expand,omitempty"`
 }
 
 // FieldDoc is one field in the document.
@@ -242,6 +255,7 @@ func Export(s *Schema) *Document {
 			Name:        t.Name,
 			Description: t.Description,
 			Aliases:     copyAliases(t.Aliases),
+			Show:        exportShow(t.Show),
 			Fields:      newOrderedMap[FieldDoc](),
 		}
 
@@ -293,6 +307,20 @@ func exportField(field *Field) FieldDoc {
 	return out
 }
 
+// exportShow reads a type's stored spec back as the document's, nil where
+// there is none or it no longer reads (D6: a read never fails on what was
+// written before).
+func exportShow(raw json.RawMessage) *ShowDoc {
+	if len(raw) == 0 {
+		return nil
+	}
+	var show ShowDoc
+	if err := json.Unmarshal(raw, &show); err != nil {
+		return nil
+	}
+	return &show
+}
+
 // copyAliases keeps a document from sharing a map with the schema it came from.
 func copyAliases(aliases map[string]string) map[string]string {
 	if len(aliases) == 0 {
@@ -330,6 +358,16 @@ func (d *Document) Validate(knownTypes []string) error {
 		where := "type " + typeKey
 		validateAliases(problems, where, t.Aliases, AliasName)
 		typeAliases.claim(problems, where, t.Aliases)
+		if t.Show != nil {
+			for _, key := range t.Show.Fields {
+				if strings.TrimSpace(key) == "" {
+					problems.add("%s: show: fields has an empty field key", where)
+				}
+			}
+			if _, err := json.Marshal(t.Show); err != nil {
+				problems.add("%s: show: %v", where, err)
+			}
+		}
 		d.validateType(problems, typeKey, t, known)
 	}
 

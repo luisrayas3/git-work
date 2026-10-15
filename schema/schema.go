@@ -14,6 +14,7 @@
 package schema
 
 import (
+	"encoding/json"
 	"sort"
 
 	"github.com/git-bug/git-bug/entity"
@@ -121,6 +122,12 @@ type Type struct {
 	// Aliases are what the type is in other systems, by system (JS2):
 	// for Jira an issue type id.
 	Aliases map[string]string `json:"aliases,omitempty"`
+
+	// Show is the type's show spec as JSON, nil where the type has none:
+	// what show takes less the id, `{"expand":["children","links"]}`, which
+	// a view's `shows` overrides whole (doc/design/app.md A7). The views
+	// parse and check it; it changes no storage, write or query.
+	Show json.RawMessage `json:"show,omitempty"`
 
 	// Fields are the type's fields by key, built-ins included.
 	Fields map[string]*Field `json:"fields"`

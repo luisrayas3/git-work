@@ -37,6 +37,13 @@ func showCall(t *testing.T, repo *cache.RepoCache, kwargs string) (*showPage, er
 	return page, nil
 }
 
+// specCall builds the show page of one issue drawn by a spec, the call's
+// shows keyed by the issue's own type (doc/design/app.md A7).
+func specCall(t *testing.T, repo *cache.RepoCache, id, spec string) (*showPage, error) {
+	t.Helper()
+	return showCall(t, repo, `{"id":"`+id+`","shows":{"`+storedType(repo, id)+`":`+spec+`}}`)
+}
+
 // checkCall is host.View's check, which the command and a flow pass before
 // anything draws.
 func checkCall(repo *cache.RepoCache, call *view.Call) error {
@@ -80,7 +87,7 @@ func TestSideTableBesideTheFields(t *testing.T) {
 	_, err := host.IssueSet(repo, gone, map[string]issue.Value{"archived": issue.MustValue(true)}, false)
 	require.NoError(t, err)
 
-	page, err := showCall(t, repo, `{"id":"`+story+`","expand":[{"relation":"children","fields":["status"]},"blocks"]}`)
+	page, err := specCall(t, repo, story, `{"expand":[{"relation":"children","fields":["status"]},"blocks"]}`)
 	require.NoError(t, err)
 
 	first := lineWith(page, "status ")
@@ -97,12 +104,12 @@ func TestSideTableBesideTheFields(t *testing.T) {
 	require.Empty(t, lineWith(page, "  blocks "), "a stored relation a table draws is not a field row too")
 
 	// include_archive brings the archived back
-	page, err = showCall(t, repo, `{"id":"`+story+`","expand":{"relation":"children","include_archive":true}}`)
+	page, err = specCall(t, repo, story, `{"expand":{"relation":"children","include_archive":true}}`)
 	require.NoError(t, err)
 	require.NotEmpty(t, lineWith(page, gone[:idWidth]))
 
 	// and the query narrows, as a layer's does
-	page, err = showCall(t, repo, `{"id":"`+story+`","expand":{"relation":"children","query":"map(select(.fields.type == \"task\"))"}}`)
+	page, err = specCall(t, repo, story, `{"expand":{"relation":"children","query":"map(select(.fields.type == \"task\"))"}}`)
 	require.NoError(t, err)
 	require.Empty(t, lineWith(page, sub[:idWidth]))
 	require.NotEmpty(t, lineWith(page, one[:idWidth]))
@@ -114,7 +121,7 @@ func TestSideTableUnderWhenNarrow(t *testing.T) {
 	repo := testRepo(t)
 	story, one, _, _ := storyWithTasks(t, repo)
 
-	page, err := showCall(t, repo, `{"id":"`+story+`","expand":{"relation":"children","fields":["status"]}}`)
+	page, err := specCall(t, repo, story, `{"expand":{"relation":"children","fields":["status"]}}`)
 	require.NoError(t, err)
 	page.Update(tea.WindowSizeMsg{Width: 40, Height: 50})
 
@@ -134,7 +141,7 @@ func TestSideTableUnderWhenNarrow(t *testing.T) {
 func TestSideTableTabTraversal(t *testing.T) {
 	repo := testRepo(t)
 	story, one, _, _ := storyWithTasks(t, repo)
-	page, err := showCall(t, repo, `{"id":"`+story+`","expand":"children"}`)
+	page, err := specCall(t, repo, story, `{"expand":"children"}`)
 	require.NoError(t, err)
 
 	require.Equal(t, stopFields, page.current().stop, "the page opens on the fields")
@@ -185,7 +192,7 @@ func TestSideTableTabTraversal(t *testing.T) {
 func TestSideTableLeftRightSwitchTabs(t *testing.T) {
 	repo := testRepo(t)
 	story, _, _, _ := storyWithTasks(t, repo)
-	page, err := showCall(t, repo, `{"id":"`+story+`","expand":"children"}`)
+	page, err := specCall(t, repo, story, `{"expand":"children"}`)
 	require.NoError(t, err)
 
 	for _, stop := range []stopKind{stopFields, stopSide, stopBox, stopTabs} {
@@ -215,7 +222,7 @@ func TestSideTableScrollsWithinItsCap(t *testing.T) {
 		ids = append(ids, newTyped(t, repo, "task", map[string]any{"title": fmt.Sprintf("task %02d", i), "parent": story}))
 	}
 
-	page, err := showCall(t, repo, `{"id":"`+story+`","expand":{"relation":"children","query":"sort_by(.fields.title)"}}`)
+	page, err := specCall(t, repo, story, `{"expand":{"relation":"children","query":"sort_by(.fields.title)"}}`)
 	require.NoError(t, err)
 	limit := max(len(page.rows), sideCap)
 
@@ -243,7 +250,7 @@ func TestSideTableScrollsWithinItsCap(t *testing.T) {
 func TestSideTableKeys(t *testing.T) {
 	repo := testRepo(t)
 	story, one, two, sub := storyWithTasks(t, repo)
-	page, err := showCall(t, repo, `{"id":"`+story+`","expand":{"relation":"children","fields":["status"]}}`)
+	page, err := specCall(t, repo, story, `{"expand":{"relation":"children","fields":["status"]}}`)
 	require.NoError(t, err)
 	send(page, "tab")
 
@@ -306,7 +313,7 @@ func TestSideTableGhost(t *testing.T) {
 	repo := testRepo(t)
 	story, _, _, _ := storyWithTasks(t, repo)
 
-	page, err := showCall(t, repo, `{"id":"`+story+`","expand":"children"}`)
+	page, err := specCall(t, repo, story, `{"expand":"children"}`)
 	require.NoError(t, err)
 	send(page, "tab")
 	items := page.sideItems()
@@ -323,17 +330,17 @@ func TestSideTableGhost(t *testing.T) {
 
 	// on a task, children are subtasks alone: the type is filled
 	task := page.sideRowAt(&page.sideItems()[0]).id
-	sub, err := showCall(t, repo, `{"id":"`+task+`","expand":"children"}`)
+	sub, err := specCall(t, repo, task, `{"expand":"children"}`)
 	require.NoError(t, err)
 	require.Equal(t, issue.StringValue("subtask"), sub.tables[0].ghost.Fields[schema.TypeKey])
 
 	// blocked_by is read through blocks, a set: the ghost holds a set
-	blocked, err := showCall(t, repo, `{"id":"`+story+`","expand":"blocked_by"}`)
+	blocked, err := specCall(t, repo, story, `{"expand":"blocked_by"}`)
 	require.NoError(t, err)
 	require.Equal(t, issue.MustValue([]string{story}), blocked.tables[0].ghost.Fields["blocks"])
 
 	// a stored relation of the shown issue: no ghost, and `(none)` stands
-	stored, err := showCall(t, repo, `{"id":"`+story+`","expand":"blocks"}`)
+	stored, err := specCall(t, repo, story, `{"expand":"blocks"}`)
 	require.NoError(t, err)
 	require.Nil(t, stored.tables[0].ghost)
 	require.Contains(t, plainView(stored), noGroup)
@@ -355,7 +362,7 @@ func TestSideTableGhost(t *testing.T) {
 func TestSideTableIsLive(t *testing.T) {
 	repo := testRepo(t)
 	story, _, two, _ := storyWithTasks(t, repo)
-	page, err := showCall(t, repo, `{"id":"`+story+`","expand":"children"}`)
+	page, err := specCall(t, repo, story, `{"expand":"children"}`)
 	require.NoError(t, err)
 	send(page, "tab", "down")
 	require.Equal(t, two, page.sideRowAt(page.sideCurrent()).id)
@@ -373,15 +380,15 @@ func TestSideTableRefusesBeforeDrawing(t *testing.T) {
 	story := newTyped(t, repo, "story", map[string]any{"title": "the story"})
 
 	for kwargs, says := range map[string]string{
-		`{"relation":"nephews"}`:                                 "task/parent (inverse children)",
+		`{"relation":"nephews"}`:                                 "its relations are parent, iteration, blocks, blocked_by, children, links",
 		`{"relation":"children","fields":["colour"]}`:            "colour",
 		`[ "children", {"relation":"blocks","fields":["nope"]}]`: "table 2 names field nope",
 	} {
 		_, err := host.View(t.Context(), repo, nil, view.KindShow, map[string]json.RawMessage{
-			"id":     mustJSON(story),
-			"expand": json.RawMessage(kwargs),
+			"id":    mustJSON(story),
+			"shows": json.RawMessage(`{"story":{"expand":` + kwargs + `}}`),
 		})
-		require.ErrorContains(t, err, "view show: expand", kwargs)
+		require.ErrorContains(t, err, "view show: shows story expand", kwargs)
 		require.ErrorContains(t, err, says, kwargs)
 	}
 

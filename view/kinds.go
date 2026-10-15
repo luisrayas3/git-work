@@ -69,9 +69,6 @@ const (
 	// ExpandSpec is `expand`: a relation name, or a layer of one carrying
 	// the list's own arguments and an `expand` of its own (expand.go).
 	ExpandSpec ValueKind = "relation or layer"
-	// SideTables is show's `expand`: what the list's takes, or a list of
-	// it, one flat table per element beside the fields (side.go).
-	SideTables ValueKind = "relations or layers"
 	// OpenLevels is `open`: true for every level, false for none, or a whole
 	// number of levels from the roots (doc/design/query-rows.md, R4).
 	OpenLevels ValueKind = "bool or levels"
@@ -79,10 +76,10 @@ const (
 	// {"fields":{…},"body":"…","aliases":{…}}, with what is already decided
 	// filled in (doc/design/create.md, C1).
 	Document ValueKind = "issue document"
-	// ShowMap is `show`: type keys, each mapped to show's arguments without
-	// `id`, the show `Enter` opens on an issue of that type
-	// (doc/design/show-from-a-view.md).
-	ShowMap ValueKind = "type to show arguments"
+	// Shows is `shows`: type keys, each mapped to a spec, what show takes
+	// less the id, which is how an issue of that type is shown wherever it
+	// is opened (doc/design/app.md A7; show.go).
+	Shows ValueKind = "type to spec"
 )
 
 // Arg is one keyword argument of one view kind.
@@ -128,7 +125,7 @@ var Kinds = map[string][]Arg{
 			Doc: "the field whose value starts a new section, in the value's own order (an enum's schema order, a relation's issues by rank); the rows with no value at all are the last section, (none)"},
 		{Name: "expand", Tier: Optional, Kind: ExpandSpec, Doc: expandDoc},
 		openArg,
-		showArg,
+		showsArg,
 	},
 	KindBoard: {
 		queryArg,
@@ -147,7 +144,7 @@ var Kinds = map[string][]Arg{
 			Doc: "with group_by, add the swimlanes no card falls in, by the field's kind: every value an enum lists, " +
 				"false and true for a bool, and for a relation the siblings of the lanes the cards are in, the other issues whose own group_by holds what theirs holds (an epic's fellow epics under its initiative); " +
 				"text, number, date and identity get none, and (none) is still drawn only when a card has no value; false by default"},
-		showArg,
+		showsArg,
 	},
 	KindGantt: {
 		rowsQueryArg,
@@ -171,7 +168,7 @@ var Kinds = map[string][]Arg{
 			Doc: "the field whose value starts a new row group, in the value's own order (an enum's schema order, a relation's issues by rank); the rows with no value at all are the last group, (none)"},
 		{Name: "expand", Tier: Optional, Kind: ExpandSpec, Doc: expandDoc},
 		openArg,
-		showArg,
+		showsArg,
 	},
 	// matrix is the two-axis summary: rows of one field by columns of
 	// another, a sum in each cell (doc/design/allocations.md). It reads any
@@ -193,19 +190,15 @@ var Kinds = map[string][]Arg{
 			Doc: "the field whose value starts a new block of rows, in the value's own order (an enum's schema order, a relation's issues by rank); the rows with no value at all are the last block, (none)"},
 		// the list a cell's Enter opens inherits it, and the matrix uses it
 		// for nothing else (doc/design/show-from-a-view.md, V3)
-		{Name: "show", Tier: Optional, Kind: ShowMap, Doc: showMatrixDoc},
+		showsArg,
 	},
 	// show is the one kind that is about a single issue,
-	// so it takes an id where every other kind takes a query.
+	// so it takes an id where every other kind takes a query; how it draws
+	// the issue is its type's spec in shows (doc/design/app.md A7)
 	KindShow: {
 		{Name: "id", Tier: Required, Kind: Id,
 			Doc: "the issue to show, by id prefix or alias"},
-		{Name: "fields", Tier: Defaulted, Kind: FieldKeys, Doc: showFieldsDoc},
-		// expand is the list's, drawn flat beside the fields: one name for
-		// one object on every kind (doc/design/show-side-table.md, S1)
-		{Name: "expand", Tier: Optional, Kind: SideTables, Doc: sideDoc},
-		// for the pages this one opens, never for itself (V3)
-		{Name: "show", Tier: Optional, Kind: ShowMap, Doc: showShowDoc},
+		showsArg,
 	},
 	// new is the interactive `issue new`: show's page over an issue that
 	// does not exist yet, nothing written until Create, which commits the
@@ -251,37 +244,25 @@ const expandDoc = `the relation nested under a row: "children", or a layer ` +
 	`the level below: a layer, or a number of further levels this same layer draws, 0 for every one; ` +
 	`links is refused, being several relations, a show's side tables`
 
-// sideDoc is `expand` on show: the list's spec, drawn as a flat table beside
-// the fields rather than nested under a row (doc/design/show-side-table.md).
-const sideDoc = `the issues a relation reaches from this one, a table each beside the fields ` +
-	`(under them in a narrow window): what a list's expand takes, a relation name ("children", "blocks") ` +
-	`or a layer {"relation":…,"query":…,"include_archive":…,"fields":…}, or a list of them, ` +
-	`one table per element; a relation is a stored one or the inverse name the schema gives one, ` +
-	`the query runs over the unarchived issues it reaches, fields are the columns after id and title, ` +
-	`and details, group_by and expand are refused, a side table being flat; ` +
-	`links (a name, or a layer's relation) is a table per link relation with entries, stored then inverse, ` +
-	`its query, include_archive and fields applying to each`
+// showsArg is `shows` on every kind that opens an issue, and on show itself
+// (doc/design/app.md A7): how each type is shown, whichever view meets it.
+var showsArg = Arg{Name: "shows", Tier: Optional, Kind: Shows, Doc: showsDoc}
 
-// showFieldsDoc is `fields` on show, which folds the link fields into one
-// row (doc/design/link-fields.md, L3).
-const showFieldsDoc = `the fields shown, in order; the type's fields in schema order by default, ` +
+// showsDoc says what a spec is, which is what show used to take as its own
+// fields and expand (link-fields.md, L3 and L4; show-side-table.md).
+const showsDoc = `how each issue type is shown, on the page Enter opens and every page opened from there: ` +
+	`{"story":{"fields":["status","links"],"expand":["children","links"]}} maps a type key to a spec, ` +
+	`what show takes less the id, checked against that type; ` +
+	`fields are the rows of show's fields table, in order, the type's in schema order when absent, ` +
 	`its link fields folded into one links row, the count of what the issue is linked to by relation, ` +
-	`at the first one's place; naming a link field draws it as a row, and naming links places that row, ` +
-	`which a list of fields without it leaves out`
-
-// showArg is `show` on the list, the gantt and the board, whose Enter opens
-// an issue (doc/design/show-from-a-view.md, V1).
-var showArg = Arg{Name: "show", Tier: Optional, Kind: ShowMap, Doc: showDoc}
-
-const showDoc = `what Enter opens per type: {"epic":{"expand":"children"}} maps a type key to show's arguments ` +
-	`without id, checked as show's own call; the type is the stored issue's, an unlisted one opens a bare show, ` +
-	`and every page opened from there opens by the same map`
-
-const showMatrixDoc = `the list a cell's Enter opens takes it as its own: what Enter opens per type, ` +
-	`a type key mapped to show's arguments without id`
-
-const showShowDoc = `what the pages this one opens are opened by, never this issue: a side table's row, a relation ` +
-	`cell, the page after Create; a type key mapped to show's arguments without id, as a list takes it`
+	`at the first one's place: naming a link field draws it as a row, and naming links places that row, ` +
+	`which a list of fields without it leaves out; ` +
+	`expand is the side tables beside the fields (under them in a narrow window), a relation name ` +
+	`("children", "blocks") or a layer {"relation":…,"query":…,"include_archive":…,"fields":…}, or a list of them, ` +
+	`one table per element, a relation stored or the inverse name the schema gives one, ` +
+	`the query over the unarchived issues it reaches, fields the columns after id and title; ` +
+	`links is a table per link relation with entries, stored then inverse; ` +
+	`a type the call leaves out is shown by its show in the schema, else by {"expand":["links"]}, whole, never merged`
 
 // openArg is how unfolded a nested view is drawn (doc/design/query-rows.md,
 // R4): a call argument and not a layer key, because it is how the view

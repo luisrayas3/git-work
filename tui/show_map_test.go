@@ -2,12 +2,15 @@ package tui
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/stretchr/testify/require"
 
 	"github.com/git-bug/git-bug/cache"
+	"github.com/git-bug/git-bug/host"
+	"github.com/git-bug/git-bug/schema"
 	"github.com/git-bug/git-bug/view"
 )
 
@@ -44,7 +47,7 @@ func TestEnterOpensTheShowTheTypeMaps(t *testing.T) {
 	repo := testRepo(t)
 	epic, open, done, _ := anEpic(t, repo)
 
-	page := list(t, repo, `{"query":"map(select(.fields.type == \"epic\"))","expand":"children","open":true,"show":`+epicShows+`}`)
+	page := list(t, repo, `{"query":"map(select(.fields.type == \"epic\"))","expand":"children","open":true,"shows":`+epicShows+`}`)
 	page.putCursorOn(epic)
 	shown := pushedShow(t, send1(page, "enter"))
 	require.Equal(t, epic, shown.id)
@@ -62,7 +65,7 @@ func TestEnterOpensTheShowTheTypeMaps(t *testing.T) {
 	story := pushedShow(t, send1(page, "enter"))
 	require.Equal(t, open, story.id)
 	require.Empty(t, story.tables, "an unlisted type opens a bare show")
-	require.JSONEq(t, epicShows, string(story.call.Raw("show")))
+	require.JSONEq(t, epicShows, string(story.call.Raw("shows")))
 }
 
 // TestEnterReadsTheStoredType: a query that shapes fields.type does not pick
@@ -72,16 +75,16 @@ func TestEnterReadsTheStoredType(t *testing.T) {
 	epic, open, _, _ := anEpic(t, repo)
 
 	// a story drawn as an epic opens as the story it is
-	page := list(t, repo, `{"query":"map(select(.id == \"`+open+`\") | .fields.type = \"epic\")","show":`+epicShows+`}`)
+	page := list(t, repo, `{"query":"map(select(.id == \"`+open+`\") | .fields.type = \"epic\")","shows":`+epicShows+`}`)
 	require.Equal(t, "epic", page.current().cells["type"], "the row is shaped")
 	require.Empty(t, pushedShow(t, send1(page, "enter")).tables)
 
 	// and an epic drawn as a story opens as the epic it is
-	page = list(t, repo, `{"query":"map(select(.id == \"`+epic+`\") | .fields.type = \"story\")","show":`+epicShows+`}`)
+	page = list(t, repo, `{"query":"map(select(.id == \"`+epic+`\") | .fields.type = \"story\")","shows":`+epicShows+`}`)
 	require.Len(t, pushedShow(t, send1(page, "enter")).tables, 1)
 
 	// a row with no id rings, as it did (query-rows.md, R2)
-	page = list(t, repo, `{"query":"[{key: \"a heading\", fields: {type: \"epic\", title: \"a heading\"}}]","show":`+epicShows+`}`)
+	page = list(t, repo, `{"query":"[{key: \"a heading\", fields: {type: \"epic\", title: \"a heading\"}}]","shows":`+epicShows+`}`)
 	_, cmd := page.Update(press("enter"))
 	require.NotNil(t, cmd, "the bell")
 	_, pushed := cmd().(pushMsg)
@@ -95,22 +98,22 @@ func TestEveryKindOpensByTheMap(t *testing.T) {
 	repo := testRepo(t)
 	epic, _, _, _ := anEpic(t, repo)
 
-	b := board(t, repo, `{"columns":"status","show":`+epicShows+`}`)
+	b := board(t, repo, `{"columns":"status","shows":`+epicShows+`}`)
 	b.putCursorOn(epic)
 	require.Equal(t, epic, b.currentId())
 	require.Len(t, pushedShow(t, send1(b, "enter")).tables, 1, "a board's card")
 
-	g := gantt(t, repo, `{"start":"due","stop":"due","show":`+epicShows+`}`)
+	g := gantt(t, repo, `{"start":"due","stop":"due","shows":`+epicShows+`}`)
 	g.putCursorOn(epic)
 	require.Equal(t, epic, g.current().id)
 	require.Len(t, pushedShow(t, send1(g, "enter")).tables, 1, "a gantt's bar")
 
-	m := matrix(t, repo, `{"rows":"type","columns":"status","query":"map(select(.fields.type == \"epic\"))","show":`+epicShows+`}`)
+	m := matrix(t, repo, `{"rows":"type","columns":"status","query":"map(select(.fields.type == \"epic\"))","shows":`+epicShows+`}`)
 	put(t, m, "Epic", "In Progress")
 	_, cmd := m.Update(press("enter"))
 	require.NotNil(t, cmd)
 	opened := cmd().(pushMsg).page.(*listPage)
-	require.JSONEq(t, epicShows, string(opened.call.Raw("show")), "the list takes the matrix's map")
+	require.JSONEq(t, epicShows, string(opened.call.Raw("shows")), "the list takes the matrix's map")
 	opened.Update(tea.WindowSizeMsg{Width: 100, Height: 20})
 	opened.putCursorOn(epic)
 	require.Len(t, pushedShow(t, send1(opened, "enter")).tables, 1, "and opens by it")
@@ -119,7 +122,7 @@ func TestEveryKindOpensByTheMap(t *testing.T) {
 	m = matrix(t, repo, `{"rows":"type","columns":"status","query":"map(select(.fields.type == \"epic\"))"}`)
 	put(t, m, "Epic", "In Progress")
 	_, cmd = m.Update(press("enter"))
-	require.False(t, cmd().(pushMsg).page.(*listPage).call.Has("show"))
+	require.False(t, cmd().(pushMsg).page.(*listPage).call.Has("shows"))
 }
 
 // TestTheMapIsCarried: from the epic's page, a side table's row, then a
@@ -130,7 +133,7 @@ func TestTheMapIsCarried(t *testing.T) {
 	repo := testRepo(t)
 	epic, open, _, _ := anEpic(t, repo)
 
-	epics := list(t, repo, `{"query":"map(select(.fields.type == \"epic\"))","show":`+epicShows+`}`)
+	epics := list(t, repo, `{"query":"map(select(.fields.type == \"epic\"))","shows":`+epicShows+`}`)
 	stack := &root{pages: []page{epics}, width: 160, height: 50}
 	stack.Update(tea.WindowSizeMsg{Width: 160, Height: 50})
 	epics.putCursorOn(epic)
@@ -190,20 +193,23 @@ func TestThePageAfterCreateOpensByTheMap(t *testing.T) {
 	require.Len(t, created.shown.(*showPage).tables, 1)
 }
 
-// TestADirectShowTakesTheMap: show's own `show` is for the pages it opens,
-// never for the shown issue (V3, Settled 2).
+// TestADirectShowTakesTheMap: show takes the id and shows, and draws the
+// issue by its type's spec there, as every page it opens is drawn
+// (doc/design/app.md A7, revising V3's "never for the shown issue").
 func TestADirectShowTakesTheMap(t *testing.T) {
 	repo := testRepo(t)
 	epic, open, _, _ := anEpic(t, repo)
 
-	// an epic shown directly with an epic entry: not applied to itself
-	direct, err := showCall(t, repo, `{"id":"`+epic+`","show":`+epicShows+`}`)
+	// an epic shown directly with an epic entry: drawn by it
+	direct, err := showCall(t, repo, `{"id":"`+epic+`","shows":`+epicShows+`}`)
 	require.NoError(t, err)
-	require.Empty(t, direct.tables, "never for itself")
-	require.Contains(t, plainView(direct), "show=", "the call line is the call")
+	require.Len(t, direct.tables, 1, "the shown issue's own spec")
+	first := strings.SplitN(plainView(direct), "\n", 2)[0]
+	require.Contains(t, first, "shows=", "the call line is the call")
+	require.NotContains(t, first, "shows.epic=", "a spec the call gave is the call's, not a default")
 
 	// a story shown directly: its parent opens by the map
-	story, err := showCall(t, repo, `{"id":"`+open+`","show":`+epicShows+`}`)
+	story, err := showCall(t, repo, `{"id":"`+open+`","shows":`+epicShows+`}`)
 	require.NoError(t, err)
 	onField(t, story, "parent")
 	shown := pushedShow(t, send1(story, "enter"))
@@ -211,30 +217,83 @@ func TestADirectShowTakesTheMap(t *testing.T) {
 	require.Len(t, shown.tables, 1)
 }
 
-// TestAShowEntryIsCheckedAsShowIs: what show refuses, an entry refuses,
-// naming the type; the shape in view.Parse, the names in view.CheckSchema
-// (V2).
+// TestAShowEntryIsCheckedAsShowIs: a spec is checked against the type it is
+// keyed under, naming the type; the shape in view.Parse, the names in
+// view.CheckSchema (V2, A7).
 func TestAShowEntryIsCheckedAsShowIs(t *testing.T) {
 	repo := testRepo(t)
 	for _, c := range []struct{ shows, want string }{
-		{`{"saga":{}}`, "show names type saga, which the schema does not have; the types are"},
-		{`{"epic":{"expand":"nephews"}}`, "show epic: view show: expand"},
+		{`{"saga":{}}`, "shows names type saga, which the schema does not have; the types are"},
+		{`{"epic":{"expand":"nephews"}}`, "view list: shows epic expand names nephews, which is not a relation of epic"},
+		{`{"iteration":{"expand":"blocks"}}`, "not a relation of iteration"},
 		{`{"epic":{"expand":{"relation":"children","fields":["colour"]}}}`, "colour"},
+		{`{"epic":{"fields":["status","colour"]}}`, "fields names colour, which is not a field of epic"},
 	} {
-		call, err := view.Parse(view.KindList, kwargs(t, `{"show":`+c.shows+`}`))
+		call, err := view.Parse(view.KindList, kwargs(t, `{"shows":`+c.shows+`}`))
 		require.NoError(t, err, c.shows)
 		require.ErrorContains(t, checkCall(repo, call), c.want)
 	}
 	for _, c := range []struct{ shows, want string }{
-		{`{"epic":{"id":"abc"}}`, "epic takes no id"},
-		{`{"epic":{"colour":"red"}}`, "epic takes no argument colour, an entry takes fields (defaulted), expand (optional)"},
+		{`{"epic":{"id":"abc"}}`, "epic takes no key id"},
+		{`{"epic":{"colour":"red"}}`, "epic takes no key colour, a spec takes fields and expand"},
 		{`{"epic":{"expand":{"relation":"children","group_by":"status"}}}`, "takes no group_by"},
-		{`{"epic":"children"}`, "epic is an object of show arguments"},
+		{`{"epic":"children"}`, "epic is an object of fields and expand"},
 		{`["epic"]`, "is an object of type keys"},
 	} {
-		_, err := view.Parse(view.KindBoard, kwargs(t, `{"columns":"status","show":`+c.shows+`}`))
+		_, err := view.Parse(view.KindBoard, kwargs(t, `{"columns":"status","shows":`+c.shows+`}`))
 		require.ErrorContains(t, err, c.want, c.shows)
 	}
+	// links and a link field are what a spec may name, as show's own call
+	call, err := view.Parse(view.KindList, kwargs(t, `{"shows":{"story":{"fields":["links","blocks"],"expand":["children","links"]}}}`))
+	require.NoError(t, err)
+	require.NoError(t, checkCall(repo, call))
+}
+
+// TestASpecIsWholeAndDefaultsDim: a type the call leaves out is shown by its
+// show in the schema, else by the built-in, whole and never merged with the
+// call's; a spec that was not the call's is drawn dim on the first line
+// (A7).
+func TestASpecIsWholeAndDefaultsDim(t *testing.T) {
+	repo := testRepo(t)
+	epic, open, _, _ := anEpic(t, repo)
+
+	// the built-in: links, and the first line says so after the call
+	bare, err := showCall(t, repo, `{"id":"`+open+`"}`)
+	require.NoError(t, err)
+	first := strings.SplitN(plainView(bare), "\n", 2)[0]
+	require.Contains(t, first, `shows.story={"expand":["links"]}`)
+
+	// the schema's show for a type
+	setTypeShow(t, repo, "epic", &schema.ShowDoc{Fields: []string{"status"}, Expand: []any{"children"}})
+	fromSchema, err := showCall(t, repo, `{"id":"`+epic+`"}`)
+	require.NoError(t, err)
+	require.Len(t, fromSchema.tables, 1)
+	require.Equal(t, "children", fromSchema.tables[0].layer.Relation)
+	require.Equal(t, []string{"status"}, fromSchema.order)
+	require.Contains(t, strings.SplitN(plainView(fromSchema), "\n", 2)[0], `shows.epic={"fields":["status"],"expand":["children"]}`)
+
+	// the call's spec wins whole: fields alone, no table inherited
+	whole, err := showCall(t, repo, `{"id":"`+epic+`","shows":{"epic":{"fields":["priority"]}}}`)
+	require.NoError(t, err)
+	require.Empty(t, whole.tables, "the schema's expand is not merged in")
+	require.Equal(t, []string{"priority"}, whole.order)
+	require.NotContains(t, strings.SplitN(plainView(whole), "\n", 2)[0], "shows.epic=")
+}
+
+// setTypeShow imports a type's show into the store, the schema otherwise as
+// it is: exported, the one attribute changed, imported.
+func setTypeShow(t *testing.T, repo *cache.RepoCache, typeKey string, show *schema.ShowDoc) {
+	t.Helper()
+	s, err := repo.LoadSchema()
+	require.NoError(t, err)
+	doc := schema.Export(s)
+	entry, ok := doc.Types.Get(typeKey)
+	require.True(t, ok)
+	entry.Show = show
+	doc.SetType(typeKey, entry)
+	changes, _, err := host.SchemaImport(repo, doc, false, false)
+	require.NoError(t, err)
+	require.Len(t, changes, 1, "one update, of the type's show")
 }
 
 // send1 is one key into a page, and the command it answered with.

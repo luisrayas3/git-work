@@ -12,15 +12,16 @@ import (
 	"github.com/git-bug/git-bug/view"
 )
 
-// A view's `show` is what Enter opens per type (doc/design/show-from-a-view.md):
-// the stored issue's type picks the entry, never a row's shaped `fields.type`,
-// an unlisted type opens a bare show, and the page opened carries the map as
-// its own `show`, so every page it opens in turn — a side table's row, a
-// relation cell, the creator and the page after Create — opens by it too.
-// The map travels as the argument's JSON, checked once in host.View.
+// A view's `shows` is how each type is shown wherever Enter opens it
+// (doc/design/app.md A7, revising show-from-a-view.md): Enter opens show
+// with the issue's id and the same `shows`, the page draws the issue by its
+// stored type's spec, never a row's shaped `fields.type`, and every page it
+// opens in turn — a side table's row, a relation cell, the creator and the
+// page after Create — carries the same map. It travels as the argument's
+// JSON, checked once in host.View.
 
 // storedType is the type an issue holds in the store, "" where it cannot be
-// read, which opens a bare show and lets the page report what is wrong.
+// read.
 func storedType(repo *cache.RepoCache, id string) string {
 	excerpt, err := repo.Issues().ResolveExcerpt(entity.Id(id))
 	if err != nil {
@@ -30,17 +31,17 @@ func storedType(repo *cache.RepoCache, id string) string {
 	return typeKey
 }
 
-// showOf is the show page Enter opens on an issue, by a view's map.
+// showOf is the show page Enter opens on an issue, by a view's `shows`.
 func showOf(repo *cache.RepoCache, shows json.RawMessage, id string) (*showPage, error) {
-	call, err := view.ShowFor(shows, storedType(repo, id), id)
+	call, err := view.ShowFor(shows, id)
 	if err != nil {
 		return nil, err
 	}
 	return newShowView(repo, call)
 }
 
-// pushShow opens an issue over the page by a view's map, or says why not in
-// the status line.
+// pushShow opens an issue over the page by a view's `shows`, or says why not
+// in the status line.
 func pushShow(repo *cache.RepoCache, shows json.RawMessage, id string, status *string) tea.Cmd {
 	shown, err := showOf(repo, shows, id)
 	if err != nil {

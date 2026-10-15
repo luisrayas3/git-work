@@ -15,27 +15,40 @@ func kwargs(t *testing.T, doc string) map[string]json.RawMessage {
 	return out
 }
 
-// TestShowForPicksTheEntry: the stored type's entry with the row's id, a
-// bare show for a type not listed, and the map carried on either
-// (doc/design/show-from-a-view.md, V1, V3).
-func TestShowForPicksTheEntry(t *testing.T) {
+// TestShowForCarriesTheShows: Enter opens show with the row's id and the
+// view's shows, whatever the type (doc/design/app.md A7).
+func TestShowForCarriesTheShows(t *testing.T) {
 	shows := json.RawMessage(`{"epic": {"expand": "children", "fields": ["status"]}}`)
 
-	call, err := ShowFor(shows, "epic", "abc")
+	call, err := ShowFor(shows, "abc")
 	require.NoError(t, err)
 	require.Equal(t, "abc", call.String("id"))
-	require.Equal(t, []string{"status"}, call.Strings("fields"))
-	require.Len(t, call.SideTables(), 1)
-	require.JSONEq(t, string(shows), string(call.Raw("show")))
+	require.JSONEq(t, string(shows), string(call.Raw("shows")))
 
-	call, err = ShowFor(shows, "story", "abc")
-	require.NoError(t, err)
-	require.False(t, call.Has("expand"), "an unlisted type opens a bare show")
-	require.True(t, call.Has("show"), "carrying the map")
-
-	call, err = ShowFor(nil, "epic", "abc")
+	call, err = ShowFor(nil, "abc")
 	require.NoError(t, err)
 	require.Equal(t, []string{"id"}, sortedKeys(call.Args))
+}
+
+// TestSpecFor: the call's spec for the type, else the schema's, else the
+// built-in, each whole (A7). With no schema at hand the call's and the
+// built-in are all there is.
+func TestSpecFor(t *testing.T) {
+	shows := json.RawMessage(`{"epic": {"fields": ["status"]}}`)
+
+	spec, source := SpecFor(shows, nil, "epic")
+	require.Equal(t, SpecFromCall, source)
+	require.False(t, source.Defaulted())
+	require.Equal(t, []string{"status"}, spec.Fields)
+	require.Empty(t, spec.Tables, "whole: a spec naming fields alone draws no tables")
+
+	spec, source = SpecFor(shows, nil, "story")
+	require.Equal(t, SpecBuiltin, source)
+	require.True(t, source.Defaulted())
+	require.Nil(t, spec.Fields)
+	require.Len(t, spec.Tables, 1)
+	require.Equal(t, "links", spec.Tables[0].Relation)
+	require.JSONEq(t, BuiltinSpec, string(spec.Raw))
 }
 
 func TestParseAppliesTheDefaults(t *testing.T) {
@@ -89,7 +102,7 @@ func TestRankIsNoArgument(t *testing.T) {
 	for kind, doc := range map[string]string{
 		KindList:  `{"expand":{"relation":"children","rank":"rank"}}`,
 		KindGantt: `{"start":"a","stop":"b","expand":{"relation":"children","rank":"rank"}}`,
-		KindShow:  `{"id":"abc","expand":{"relation":"children","rank":"rank"}}`,
+		KindShow:  `{"id":"abc","shows":{"epic":{"expand":{"relation":"children","rank":"rank"}}}}`,
 	} {
 		_, err := Parse(kind, kwargs(t, doc))
 		require.ErrorContains(t, err, "takes no key rank", kind)
@@ -184,20 +197,20 @@ func TestNullMeansTheDefault(t *testing.T) {
 	require.ErrorContains(t, err, "columns")
 }
 
-// TestParseSideTables: show's expand is the list's spec, or a list of it, a
-// table per element, checked for shape by the table, which needs no store;
-// what a flat table cannot draw is refused by name, and `children` is gone
-// (doc/design/show-side-table.md, S1 and S3).
-func TestParseSideTables(t *testing.T) {
-	call, err := Parse(KindShow, kwargs(t, `{"id":"abc","expand":"children"}`))
+// TestParseSpecSideTables: a spec's expand is the list's spec, or a list of
+// it, a table per element, checked for shape by the table, which needs no
+// store; what a flat table cannot draw is refused by name
+// (doc/design/show-side-table.md, S1 and S3; app.md A7).
+func TestParseSpecSideTables(t *testing.T) {
+	spec, err := ParseSpec(json.RawMessage(`{"expand":"children"}`))
 	require.NoError(t, err)
-	require.Len(t, call.SideTables(), 1)
-	require.Equal(t, "children", call.SideTables()[0].Relation)
-	require.Nil(t, call.Expand(), "show's expand is no list's spec")
+	require.Len(t, spec.Tables, 1)
+	require.Equal(t, "children", spec.Tables[0].Relation)
 
-	call, err = Parse(KindShow, kwargs(t, `{"id":"abc","expand":[{"relation":"children","query":"map(.)","fields":["status"],"include_archive":true},"blocks"]}`))
+	spec, err = ParseSpec(json.RawMessage(`{"fields":["status"],"expand":[{"relation":"children","query":"map(.)","fields":["status"],"include_archive":true},"blocks"]}`))
 	require.NoError(t, err)
-	tables := call.SideTables()
+	require.Equal(t, []string{"status"}, spec.Fields)
+	tables := spec.Tables
 	require.Len(t, tables, 2)
 	require.Equal(t, []string{"status"}, tables[0].Fields)
 	require.Equal(t, "map(.)", tables[0].Query)
@@ -205,21 +218,41 @@ func TestParseSideTables(t *testing.T) {
 	require.Equal(t, "blocks", tables[1].Relation)
 
 	for doc, says := range map[string]string{
-		`{"id":"abc","expand":[]}`:                                                     "empty list",
-		`{"id":"abc","expand":{"query":"."}}`:                                          "needs relation",
-		`{"id":"abc","expand":[{"relation":""}]}`:                                      "empty",
-		`{"id":"abc","expand":[{"relation":"children","as":"x"}]}`:                     "no key as",
-		`{"id":"abc","expand":{"relation":"children","fields":"status"}}`:              "fields is a list",
-		`{"id":"abc","expand":{"relation":"children","details":["status"]}}`:           "takes no details",
-		`{"id":"abc","expand":["blocks",{"relation":"children","group_by":"status"}]}`: "table 2 takes no group_by",
-		`{"id":"abc","expand":{"relation":"children","expand":"children"}}`:            "takes no expand",
-		`{"id":"abc","expand":{"relation":"children","expand":0}}`:                     "takes no expand",
-		`{"id":"abc","expand":3}`:                                                      "relation name or an object",
-		`{"id":"abc","children":[{"relation":"children"}]}`:                            "takes no argument children",
+		`{"expand":[]}`:                                                     "empty list",
+		`{"expand":{"query":"."}}`:                                          "needs relation",
+		`{"expand":[{"relation":""}]}`:                                      "empty",
+		`{"expand":[{"relation":"children","as":"x"}]}`:                     "no key as",
+		`{"expand":{"relation":"children","fields":"status"}}`:              "fields is a list",
+		`{"expand":{"relation":"children","details":["status"]}}`:           "takes no details",
+		`{"expand":["blocks",{"relation":"children","group_by":"status"}]}`: "table 2 takes no group_by",
+		`{"expand":{"relation":"children","expand":"children"}}`:            "takes no expand",
+		`{"expand":{"relation":"children","expand":0}}`:                     "takes no expand",
+		`{"expand":3}`:                           "relation name or an object",
+		`{"children":[{"relation":"children"}]}`: "takes no key children",
+		`{"fields":"status"}`:                    "fields is a list",
+		`{"fields":[""]}`:                        "empty field key",
+		`["children"]`:                           "is an object of fields and expand",
+	} {
+		_, err := ParseSpec(json.RawMessage(doc))
+		require.ErrorContains(t, err, says, doc)
+	}
+
+	// show takes the id and shows, and nothing else (A7)
+	for doc, says := range map[string]string{
+		`{"id":"abc","expand":"children"}`:             "takes no argument expand",
+		`{"id":"abc","fields":["status"]}`:             "takes no argument fields",
+		`{"id":"abc","shows":{"epic":{"id":"x"}}}`:     "epic takes no key id",
+		`{"id":"abc","shows":{"epic":{"expand":[]}}}`:  "epic expand is an empty list",
+		`{"id":"abc","shows":["epic"]}`:                "is an object of type keys",
+		`{"id":"abc","show":{"epic":{}}}`:              "takes no argument show",
+		`{"id":"abc","shows":{"":{"expand":"links"}}}`: "empty type key",
 	} {
 		_, err := Parse(KindShow, kwargs(t, doc))
 		require.ErrorContains(t, err, says, doc)
 	}
+	call, err := Parse(KindShow, kwargs(t, `{"id":"abc","shows":{"epic":{"expand":["children","links"]}}}`))
+	require.NoError(t, err)
+	require.True(t, call.Has("shows"))
 }
 
 func TestParseUnknownKind(t *testing.T) {

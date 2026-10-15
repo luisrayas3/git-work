@@ -25,6 +25,10 @@ const (
 	// views draw folded into one `links` row; it changes no storage, no
 	// write and no query (doc/design/link-fields.md, L1).
 	AttrLink = "link"
+	// AttrShow is a type's show spec, `{"fields":[…],"expand":[…]}`: how
+	// show draws an issue of the type where the call's `shows` does not say
+	// (doc/design/app.md A7). Like link, only the views read it.
+	AttrShow = "show"
 
 	// ValuesPrefix folds an enum's values one attribute per member,
 	// `values/<id>`, so two people adding two statuses both keep theirs (E3).

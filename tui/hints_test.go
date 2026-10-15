@@ -319,7 +319,7 @@ func TestShowHintsNameWhatIsUnderTheCursor(t *testing.T) {
 	// a side table's row is one issue: opened, or grabbed to move it; its
 	// ghost creates, and a table with neither has nothing to do
 	children := func() page {
-		page, err := showCall(t, repo, `{"id":"`+story+`","expand":"children"}`)
+		page, err := specCall(t, repo, story, `{"expand":"children"}`)
 		require.NoError(t, err)
 		return page
 	}
@@ -331,7 +331,7 @@ func TestShowHintsNameWhatIsUnderTheCursor(t *testing.T) {
 		{what: "the filter", at: func(p page) page { return send(toSide(p), "/") }, line: "enter: keep · esc: clear · ? keys"},
 	})
 
-	none, err := showCall(t, repo, `{"id":"`+other+`","expand":"blocks"}`)
+	none, err := specCall(t, repo, other, `{"expand":"blocks"}`)
 	require.NoError(t, err)
 	runHints(t, func() page { return none }, []hintCase{
 		{what: "an empty table with no ghost", at: toSide, line: helpHint},
