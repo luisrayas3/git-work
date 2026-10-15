@@ -59,11 +59,13 @@ shared:
     name: Due date
 
   # One side is stored and the inverse is derived (D4): `blocked_by` is what
-  # the other issue reads, never a key an issue writes.
+  # the other issue reads, never a key an issue writes. It is a Jira link
+  # type, so it is a link, and so is its inverse (link-fields.md, L2).
   blocks: &blocks
     kind: multi-relation
     name: Blocks
     inverse: blocked_by
+    link: true
 
   sprint: &sprint
     kind: relation

@@ -148,7 +148,7 @@ func typeAttributeNames(name string) bool {
 // fieldAttributeNames are the attributes an import owns on a field entity.
 func fieldAttributeNames(name string) bool {
 	switch name {
-	case AttrKind, AttrName, AttrDescription, AttrOrdinal, AttrFreeform, AttrInverse:
+	case AttrKind, AttrName, AttrDescription, AttrOrdinal, AttrFreeform, AttrInverse, AttrLink:
 		return true
 	}
 	prefix, _, folded := config.SplitName(name)
@@ -185,6 +185,9 @@ func fieldAttributes(fieldKey string, field FieldDoc, ordinal int, entry Entry, 
 	}
 	if field.Inverse != "" {
 		attributes[AttrInverse] = mustValue(field.Inverse)
+	}
+	if field.Link {
+		attributes[AttrLink] = mustValue(true)
 	}
 	for _, target := range field.TargetTypes {
 		attributes[targetTypeName(target)] = mustValue(struct{}{})

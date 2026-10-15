@@ -67,7 +67,9 @@ type FieldDoc struct {
 	Freeform    bool              `yaml:"freeform,omitempty"`
 	Inverse     string            `yaml:"inverse,omitempty"`
 	TargetTypes []string          `yaml:"target_types,omitempty"`
-	Values      []ValueDoc        `yaml:"values,omitempty"`
+	// Link marks a relation the views draw as a link (link-fields.md, L1).
+	Link   bool       `yaml:"link,omitempty"`
+	Values []ValueDoc `yaml:"values,omitempty"`
 }
 
 // ValueDoc is one enum value in the document.
@@ -274,6 +276,7 @@ func exportField(field *Field) FieldDoc {
 	out.Aliases = copyAliases(field.Aliases)
 	out.Freeform = field.Freeform
 	out.Inverse = field.Inverse
+	out.Link = field.Link
 	out.TargetTypes = append([]string(nil), field.TargetTypes...)
 
 	for _, value := range field.Values {
@@ -346,6 +349,14 @@ func (d *Document) validateType(problems *Problems, typeKey string, t TypeDoc, k
 			continue
 		}
 
+		if fieldKey == LinksKey {
+			// `links` is a word of the views, the row show folds the links
+			// into, so that a view never has to choose between the two
+			// (link-fields.md, L3)
+			problems.add("%s: %s is reserved: it is the row show draws the links in", where, LinksKey)
+			continue
+		}
+
 		kind, err := parseFieldKind(fieldKey, field.Kind)
 		if err != nil {
 			problems.add("%s: %v", where, err)
@@ -360,7 +371,7 @@ func (d *Document) validateType(problems *Problems, typeKey string, t TypeDoc, k
 					where, fieldKey, builtinKind, kind)
 			}
 			if len(field.Values) > 0 || len(field.TargetTypes) > 0 || field.Inverse != "" || field.Freeform ||
-				len(field.Aliases) > 0 {
+				field.Link || len(field.Aliases) > 0 {
 				problems.add("%s: %s is built in; only its name and description are configurable",
 					where, fieldKey)
 			}
@@ -377,6 +388,9 @@ func (d *Document) validateType(problems *Problems, typeKey string, t TypeDoc, k
 		}
 
 		if kind.IsRelation() {
+			if field.Inverse == LinksKey {
+				problems.add("%s: inverse %s is reserved: it is the row show draws the links in", where, LinksKey)
+			}
 			if field.Inverse != "" {
 				if other, twice := inverses[field.Inverse]; twice {
 					problems.add("%s: inverse %s is already %s/%s's",
@@ -400,6 +414,9 @@ func (d *Document) validateType(problems *Problems, typeKey string, t TypeDoc, k
 			}
 			if len(field.TargetTypes) > 0 {
 				problems.add("%s: kind %s has no target types", where, kind)
+			}
+			if field.Link {
+				problems.add("%s: link is for relation kinds, not %s", where, kind)
 			}
 		}
 

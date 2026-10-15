@@ -234,7 +234,16 @@ and an `optional` one is off until it is named.
 - `expand` nests the issues one relation reaches under each row,
   as `"children"` or as a layer that says what that level draws;
   on `show` it takes the same, or a list of them,
-  and draws each as a flat table of the issues it reaches beside the fields.
+  and draws each as a flat table of the issues it reaches beside the fields;
+  there `"links"` is a table per link relation the issue has entries in,
+  and a list's or a gantt's `expand` refuses it.
+- A relation field marked `link: true` in the schema
+  (`blocks`, `clones`, what a Jira link type becomes) is a link, and so is its inverse:
+  show folds every link into one `links` row,
+  the count and then each relation's (`3 · blocks 1 · is-blocked-by 2`), or `—`;
+  `Enter` on it goes to the link tables, and `Space` picks a relation, stored or inverse,
+  then an issue to add or remove — an inverse is written on the other issue.
+  A show call's `fields` naming a link field draws it as a row, and naming `links` places the row.
 - `show` on a list, a gantt, a board or a matrix says what `Enter` opens per type,
   `{"epic":{"expand":"children"}}`, a type key mapped to show's arguments without `id`;
   the pages opened from there open by the same map.
@@ -317,7 +326,9 @@ A field's kind says what its value has to be:
 - `date` — an RFC 3339 string, `"2026-10-02"` or a full timestamp.
 - `identity`, `multi-identity` — the id of an identity, as `git work user list` lists them.
 - `relation`, `multi-relation` — the id of another issue,
-  of a type the field's target types allow.
+  of a type the field's target types allow;
+  `link: true` marks one a link, which changes how a view draws it and nothing else.
+  `links` is reserved: no field or inverse takes it.
 
 `title` (text), `type` (enum), `archived` (bool) and `rank`
 are built in fields on every type and cannot be removed.

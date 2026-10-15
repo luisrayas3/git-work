@@ -33,6 +33,10 @@ type editor struct {
 	// cleared says the field is to be set to null, which is what an empty
 	// text box means for everything but the title.
 	clearable bool
+
+	// link is the link picker's state, on the editor space on the links row
+	// opens (links.go); nil on every other
+	link *linkEdit
 }
 
 // picker is a list of choices: an enum's values, the repository's people, or
@@ -63,6 +67,10 @@ type picker struct {
 	// current is the value the field holds now, where the cursor rests while
 	// nothing is typed
 	current string
+
+	// mark is what a current choice is marked with: "● current" unless a
+	// picker says otherwise, as a membership picker's "● linked"
+	mark string
 }
 
 // choice is one row of a picker: what it is, and what it writes.
@@ -467,7 +475,11 @@ func (p *picker) lines(width int) []string {
 		}
 		dim := item.dim
 		if item.current {
-			dim = "● current  " + dim
+			mark := p.mark
+			if mark == "" {
+				mark = "● current"
+			}
+			dim = mark + "  " + dim
 		}
 		lines = append(lines, fit(marker+label+styleDim.Render(dim), width))
 	}

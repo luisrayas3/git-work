@@ -46,8 +46,13 @@ type showPage struct {
 	// rows is the fields table as drawn, rebuilt on every load
 	rows []tableRow
 	// tables are the call's `expand`, a side table each beside the fields
-	// (show_side.go)
+	// (show_side.go), resolved from specs on every load, since `links` is
+	// a table per link relation the issue has entries in
 	tables []*sideTable
+	specs  []sideSpec
+	// links are the issue's link relations and what they hold, which the
+	// links row counts (links.go)
+	links []linkRel
 	// side is the side column's item under the cursor, kept while the
 	// cursor is elsewhere, as row is; sideTop is the first line its window
 	// draws when it scrolls within itself
@@ -190,8 +195,10 @@ func (p *showPage) load() error {
 	}
 	p.log = entries
 
-	p.rows = p.tableRows()
+	typeKey, _ := issue.String(p.snapshot.Fields[schema.TypeKey])
+	p.links = issueLinks(p.repo, typeKey, p.snapshot.Id().String(), p.snapshot.Fields)
 	p.loadSide()
+	p.rows = p.tableRows()
 	return nil
 }
 
@@ -223,23 +230,25 @@ func (p *showPage) fieldOrder() []string {
 // tableRows is every field but the four built-ins: three are the header, and
 // rank is internal, a fractional index a person never reads; a relation is
 // drawn as the issues it names.
+//
+// The link fields are one row, links, in place of theirs (links.go).
 func (p *showPage) tableRows() []tableRow {
 	typeKey, _ := issue.String(p.snapshot.Fields[schema.TypeKey])
 	known := newKinds(p.repo)
 
-	var out []tableRow
-	for _, key := range p.fieldOrder() {
+	return linkFieldRows(p.fieldOrder(), p.order, p.links, func(key string) []tableRow {
 		switch key {
 		case schema.TitleKey, schema.TypeKey, issue.ArchivedKey, schema.RankKey:
 			// rank is not drawn even where the call names it: it is an
 			// order the drags write, not a value anyone reads (2026-10-08)
-			continue
+			return nil
 		}
 		if isRelation(known.of(typeKey, key)) && len(p.order) == 0 && p.drawnBeside(key) {
 			// a stored relation a side table draws is not drawn twice,
 			// unless the call's fields name it (show-side-table.md, S3)
-			continue
+			return nil
 		}
+		var out []tableRow
 		if isRelation(known.of(typeKey, key)) {
 			value, _ := decodeValue(p.snapshot.Fields[key])
 			ids := linkIds(value)
@@ -247,7 +256,7 @@ func (p *showPage) tableRows() []tableRow {
 				out = append(out, tableRow{key: key, label: linkLabel(p.repo, id), first: at == 0, link: id})
 			}
 			if len(ids) > 0 {
-				continue
+				return out
 			}
 		}
 		label := plain(p.snapshot.Fields[key])
@@ -255,9 +264,8 @@ func (p *showPage) tableRows() []tableRow {
 			value, _ := decodeValue(p.snapshot.Fields[key])
 			label = personText(p.repo, value)
 		}
-		out = append(out, tableRow{key: key, label: label, first: true})
-	}
-	return out
+		return append(out, tableRow{key: key, label: label, first: true})
+	})
 }
 
 // drawnBeside says a side table lists the relation of this name.
@@ -773,6 +781,9 @@ func (p *showPage) act(here position) tea.Cmd {
 	if row.link != "" {
 		return p.follow(row.link)
 	}
+	if row.key == schema.LinksKey {
+		return p.toLinkTables()
+	}
 	// an empty relation is a link to nothing
 	typeKey, _ := issue.String(p.snapshot.Fields[schema.TypeKey])
 	if kind, _ := fieldKind(p.repo, typeKey, row.key); isRelation(kind) {
@@ -801,6 +812,20 @@ func (p *showPage) edit(here position) tea.Cmd {
 		return bell()
 	}
 	return p.startEdit(p.field(), nil)
+}
+
+// toLinkTables is enter on the links row, its tables' table of contents:
+// the cursor goes to the first link table (link-fields.md, L5).
+func (p *showPage) toLinkTables() tea.Cmd {
+	for at, item := range p.sideItems() {
+		if p.tables[item.table].link {
+			p.focusStop(stopSide)
+			p.side = at
+			return nil
+		}
+	}
+	p.status = "no link table"
+	return bell()
 }
 
 // follow opens the issue a link names, over this one, by the call's `show`:
@@ -863,6 +888,18 @@ func (p *showPage) startEdit(fieldKey string, pasted *string) tea.Cmd {
 	if fieldKey == "" {
 		return bell()
 	}
+	if fieldKey == schema.LinksKey {
+		if pasted != nil {
+			return bell()
+		}
+		ed, refusal := linkRelationsEditor(p.links)
+		if refusal != "" {
+			p.status = refusal
+			return bell()
+		}
+		p.editor, p.status = ed, ""
+		return nil
+	}
 	typeKey, _ := issue.String(p.snapshot.Fields[schema.TypeKey])
 	current, _ := decodeValue(p.snapshot.Fields[fieldKey])
 
@@ -911,6 +948,9 @@ func (p *showPage) updateEditor(msg tea.Msg) (page, tea.Cmd) {
 	if cancelled {
 		return p, nil
 	}
+	if ed.link != nil {
+		return p, p.linkChosen(ed)
+	}
 
 	value, err := ed.Value()
 	if err != nil {
@@ -919,6 +959,26 @@ func (p *showPage) updateEditor(msg tea.Msg) (page, tea.Cmd) {
 	}
 	p.write(ed.key, value, ed.key+" set")
 	return p, nil
+}
+
+// linkChosen is enter in the link picker: a relation opens its membership
+// picker, and an issue there is added or removed, one write (L5).
+func (p *showPage) linkChosen(ed *editor) tea.Cmd {
+	chosen := ed.linkChoice()
+	if ed.link.rel == nil {
+		p.editor = linkMembersEditor(p.repo, p.id, ed.link.rels, ed.link.relation(chosen.value))
+		return nil
+	}
+	said, err := writeLink(p.repo, p.id, ed.link.rel, chosen)
+	if err != nil {
+		p.status = err.Error()
+		return bell()
+	}
+	p.status = said
+	if err := p.load(); err != nil {
+		p.status = err.Error()
+	}
+	return nil
 }
 
 // write sets one field, and says what it did in the status line.
@@ -1326,6 +1386,12 @@ func (p *showPage) hintLine() string {
 	kind, known := fieldKind(p.repo, typeKey, row.key)
 	if row.link != "" {
 		pairs = append(pairs, hint{"enter", "go to"})
+	}
+	if row.key == schema.LinksKey {
+		if len(p.tables) > 0 {
+			pairs = append(pairs, hint{"enter", "go to"})
+		}
+		return hints(append(pairs, hint{"space", "edit"})...)
 	}
 	if edit, ok := editHint(kind, known); ok {
 		pairs = append(pairs, edit)

@@ -143,6 +143,9 @@ func quickstartField(f *schema.Field) string {
 		if f.Inverse != "" {
 			detail += "; read back as " + f.Inverse
 		}
+		if f.Link {
+			detail += "; a link"
+		}
 	}
 
 	return fmt.Sprintf("- `%s` (%s)", f.Key, detail)
