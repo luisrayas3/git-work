@@ -249,12 +249,18 @@ and an `optional` one is off until it is named.
   A type the call leaves out is shown by its `show` in the schema,
   else by `{"expand":["links"]}`, the whole spec and never merged,
   drawn dim on the first line as a defaulted argument is.
+  `esc e` on show toggles what its type's spec expands,
+  among the type's relations and `links`,
+  for that page and the pages it opens: nothing is written,
+  and the changed spec is part of the call on the first line.
 - A relation field marked `link: true` in the schema
   (`blocks`, `clones`, what a Jira link type becomes) is a link, and so is its inverse:
   show folds every link into one `links` row,
   the count and then each relation's (`3 · blocks 1 · is-blocked-by 2`), or `—`;
   `Enter` on it goes to the link tables, and `Space` picks a relation, stored or inverse,
   then an issue to add or remove — an inverse is written on the other issue.
+  `esc l` is that picker from anywhere on the page,
+  and `esc u` picks one of the issue's links to remove.
   A spec's `fields` naming a link field draws it as a row, and naming `links` places the row.
 - On a list and a gantt a row the query makes may carry a top-level `key`,
   its identity on the screen, so one issue can be drawn twice;

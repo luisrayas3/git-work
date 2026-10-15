@@ -124,6 +124,7 @@ type keymap struct {
 	filter                *chord
 	grab                  *chord
 	foldAll               *chord
+	expand, link, unlink  *chord
 	nextTab, previousTab  *chord
 	newIssue, search      *chord
 	home, runFlow         *chord
@@ -186,7 +187,13 @@ var keys = keymap{
 	// id; the whole tree at once is a palette command, `Z` being text now
 	// (A3). Tab and shift-tab, the next and previous stop, are into the
 	// first child and up to the parent.
-	foldAll:  newChord("fold / unfold every row (nested)").on("z"),
+	foldAll: newChord("fold / unfold every row (nested)").on("z"),
+	// Show's own: what its issue's type is expanded by, for this page and
+	// the ones it opens, and a link added or removed, inverses written to
+	// the other issue (A6, A7; show_palette.go).
+	expand:   newChord("show: change what is expanded").on("e"),
+	link:     newChord("show: link to an issue").on("l"),
+	unlink:   newChord("show: unlink an issue").on("u"),
 	newIssue: newChord("new issue").on("n"),
 	// search is the finder over every issue; enter on one opens it
 	// (doc/design/app.md, A5)
@@ -214,7 +221,7 @@ func helpRows() []*chord {
 		keys.next, keys.previous,
 		keys.act, keys.edit, keys.grab, keys.newline,
 		keys.copy, keys.copyId, keys.paste,
-		keys.filter, keys.foldAll, keys.nextTab, keys.previousTab,
+		keys.filter, keys.foldAll, keys.expand, keys.link, keys.unlink, keys.nextTab, keys.previousTab,
 		keys.search, keys.newIssue, keys.home, keys.runFlow, keys.back, keys.help, keys.quit,
 	}
 }

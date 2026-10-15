@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"encoding/json"
 	"fmt"
 	"slices"
 	"sort"
@@ -98,36 +99,47 @@ func newShowView(repo *cache.RepoCache, call *view.Call) (*showPage, error) {
 	if err != nil {
 		return nil, err
 	}
-	// the pages this one opens are opened by the same shows
-	if call.Has("shows") {
-		p.call.Args["shows"] = call.Raw("shows")
+	if err := p.applyShows(call.Raw("shows")); err != nil {
+		return nil, err
 	}
+	return p, nil
+}
 
-	s, _ := repo.LoadSchema()
+// applyShows draws the page by a `shows`: its type's spec read from it, the
+// call's `shows` made it, so that the pages this one opens are opened by the
+// same, and the page loaded again. It is how the page is first drawn, and
+// how `e` redraws it by a changed spec (show_palette.go).
+func (p *showPage) applyShows(shows json.RawMessage) error {
+	s, _ := p.repo.LoadSchema()
 	typeKey, _ := issue.String(p.snapshot.Fields[schema.TypeKey])
-	spec, source := view.SpecFor(call.Raw("shows"), s, typeKey)
-	if source.Defaulted() {
-		// not the call's, so the first line draws it dim, as it draws a
-		// defaulted argument
-		p.defaulted = "shows." + typeKey + "=" + string(spec.Raw)
-	}
-	p.order = spec.Fields
+	spec, source := view.SpecFor(shows, s, typeKey)
 
+	var specs []sideSpec
 	for _, layer := range spec.Tables {
 		side := sideSpec{layer: layer}
 		if layer.Query != "" {
 			program, err := jq.Compile(layer.Query)
 			if err != nil {
-				return nil, fmt.Errorf("expand: %w", err)
+				return fmt.Errorf("expand: %w", err)
 			}
 			side.program = program
 		}
-		p.specs = append(p.specs, side)
+		specs = append(specs, side)
 	}
-	if err := p.load(); err != nil {
-		return nil, err
+
+	// the pages this one opens are opened by the same shows
+	delete(p.call.Args, "shows")
+	if len(shows) > 0 {
+		p.call.Args["shows"] = shows
 	}
-	return p, nil
+	p.defaulted = ""
+	if source.Defaulted() {
+		// not the call's, so the first line draws it dim, as it draws a
+		// defaulted argument
+		p.defaulted = "shows." + typeKey + "=" + string(spec.Raw)
+	}
+	p.order, p.specs = spec.Fields, specs
+	return p.load()
 }
 
 // sideSpec is one element of the spec's `expand`, compiled once: a table, or,

@@ -260,6 +260,101 @@ func typeRelations(s *schema.Schema, typeKey string) []string {
 	return out
 }
 
+// TypeRelations are the relations an issue of a type has, stored and
+// inverse, in the order a spec's check names them: what `e` on a show page
+// offers to expand, beside `links` (A7).
+func TypeRelations(s *schema.Schema, typeKey string) []string {
+	if s == nil {
+		return nil
+	}
+	return typeRelations(s, typeKey)
+}
+
+// ExpandNames are the relations a spec's `expand` names, in its order.
+func (s *Spec) ExpandNames() []string {
+	out := make([]string, 0, len(s.Tables))
+	for _, table := range s.Tables {
+		out = append(out, table.Relation)
+	}
+	return out
+}
+
+// ToggleExpand is a spec with one relation's table taken out, wherever its
+// `expand` names it, or added at the end where it names it nowhere: `e` on
+// a show page (A7). Everything else is kept as it was given, a layer's own
+// keys included; an `expand` left empty is dropped, since an empty list is
+// not one.
+func ToggleExpand(spec *Spec, relation string) (json.RawMessage, error) {
+	object := map[string]json.RawMessage{}
+	if !isNull(spec.Raw) {
+		if err := json.Unmarshal(spec.Raw, &object); err != nil {
+			return nil, err
+		}
+	}
+
+	var elements []json.RawMessage
+	if raw, ok := object["expand"]; ok && !isNull(raw) {
+		if err := json.Unmarshal(raw, &elements); err != nil {
+			elements = []json.RawMessage{raw}
+		}
+	}
+	kept := make([]json.RawMessage, 0, len(elements)+1)
+	for _, element := range elements {
+		if elementRelation(element) != relation {
+			kept = append(kept, element)
+		}
+	}
+	if len(kept) == len(elements) {
+		kept = append(kept, mustString(relation))
+	}
+
+	if len(kept) == 0 {
+		delete(object, "expand")
+	} else {
+		list, err := json.Marshal(kept)
+		if err != nil {
+			return nil, err
+		}
+		object["expand"] = list
+	}
+	out, err := json.Marshal(object)
+	if err != nil {
+		return nil, err
+	}
+	return compact(out), nil
+}
+
+// elementRelation is the relation one element of `expand` names: the
+// element itself, or a layer's `relation`.
+func elementRelation(element json.RawMessage) string {
+	var name string
+	if json.Unmarshal(element, &name) == nil {
+		return name
+	}
+	var layer struct {
+		Relation string `json:"relation"`
+	}
+	_ = json.Unmarshal(element, &layer)
+	return layer.Relation
+}
+
+// WithSpec is a `shows` with one type's spec in place of what it had, every
+// other type's as given.
+func WithSpec(shows json.RawMessage, typeKey string, spec json.RawMessage) (json.RawMessage, error) {
+	entries := map[string]json.RawMessage{}
+	if !isNull(shows) {
+		if err := json.Unmarshal(shows, &entries); err != nil {
+			return nil, err
+		}
+	}
+	entries[typeKey] = spec
+	out, err := json.Marshal(entries)
+	if err != nil {
+		return nil, err
+	}
+	return compact(out), nil
+}
+
 func sortedKeys[V any](m map[string]V) []string {
 	keys := make([]string, 0, len(m))
 	for key := range m {
