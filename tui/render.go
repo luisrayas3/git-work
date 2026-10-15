@@ -57,8 +57,56 @@ var styleTitle = lipgloss.NewStyle().Bold(true)
 // word on the page that says what is drawn is out of every default list.
 var styleArchived = lipgloss.NewStyle().Foreground(lipgloss.Color("3")).Bold(true)
 
-// styleLink is a value that names another issue: enter follows it.
+// styleLink is a value that names another issue on show: enter follows it.
+// The view kinds draw such a cell faint instead (list_view.go, board_view.go).
 var styleLink = lipgloss.NewStyle().Underline(true)
+
+// styleRule is the rule a group header draws after its label: faint, in the
+// terminal's own foreground, which reads whichever way the background goes.
+var styleRule = lipgloss.NewStyle().Faint(true)
+
+// groupRule is a group header's text, unstyled: the label, a space, and a
+// rule to the edge of the window, so the header is also the line that
+// divides one group from the one above it. A label as wide as the window
+// is cut and has no rule.
+func groupRule(label string, width int) string {
+	if width <= 0 {
+		return label
+	}
+	n := width - ansi.StringWidth(label) - 1
+	if n <= 0 {
+		return truncate(label, width)
+	}
+	return label + " " + strings.Repeat("─", n)
+}
+
+// groupHeader is a group header as every view kind draws it: the label in
+// the group style and the rule after it in its own, faint one. A label
+// opening with spaces is a nested group's, at its table's indent.
+func groupHeader(label string, width int) string {
+	return groupPieces(groupRule(label, width), ansi.StringWidth(label), 0, -1, styleGroup, styleRule)
+}
+
+// groupPieces draws the columns [from, to) of a group header's text, to -1
+// meaning its end: the first labelWidth columns in the label's style and
+// the rest in the rule's, each piece styled on its own.
+func groupPieces(text string, labelWidth, from, to int, label, rule lipgloss.Style) string {
+	if to < 0 {
+		to = ansi.StringWidth(text)
+	}
+	var out string
+	if from < labelWidth {
+		if piece := ansi.Cut(text, from, min(to, labelWidth)); piece != "" {
+			out += label.Render(piece)
+		}
+	}
+	if to > labelWidth {
+		if piece := ansi.Cut(text, max(from, labelWidth), to); piece != "" {
+			out += rule.Render(piece)
+		}
+	}
+	return out
+}
 
 // noGroup is what a row with no value for the grouping field is filed under.
 const noGroup = "(none)"

@@ -116,7 +116,7 @@ func (p *matrixPage) body(labels, width, visible int) (lines []string, groups []
 		if p.groupBy != "" && row.kind != rowGrand && row.group != group {
 			group = row.group
 			header = len(lines)
-			lines = append(lines, styleGroup.Render(fit(p.groups[group].label, p.width)))
+			lines = append(lines, groupHeader(p.groups[group].label, p.width))
 			groups = append(groups, header)
 		}
 		if at == p.row {

@@ -6,6 +6,8 @@ import (
 
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
+
+	"github.com/git-bug/git-bug/schema"
 )
 
 // idWidth is the narrowest id column: the seven characters of a short hash,
@@ -171,7 +173,7 @@ func (p *listPage) body() listBody {
 		// a group is its own level's: the roots section the whole list, and
 		// a layer with a `group_by` sections the table under one parent
 		if heads[at] {
-			line := styleGroup.Render(fit(p.groupLine(node), p.width))
+			line := groupHeader(p.groupLine(node), p.width)
 			if node.level == 0 {
 				rootGroup = len(body.lines)
 				under = rootGroup
@@ -227,9 +229,11 @@ func (p *listPage) groupLine(node *treeRow) string {
 // The row under the cursor has a light wash across the whole window, which
 // says which issue; the cell under the column cursor is reversed within it,
 // which says that edit and copy act on that one. The id is a cell like the
-// others, and the one the cursor starts on. A cell that links other issues
-// is underlined, because enter follows it. The tree cell is the one after
-// the id: the fold arrow and the count of what a fold is hiding (treeCell).
+// others, and the one the cursor starts on. The title is bold, the one
+// field every issue has and the one a row is read by; a cell that links
+// other issues is faint, since the issues it names are read on rows of their
+// own, and enter follows it. The tree cell is the one after the id: the
+// fold arrow and the count of what a fold is hiding (treeCell).
 func (p *listPage) rowLine(row *listRow, node *treeRow, widths [][]int, ids []int, tree int, under bool, grabbed bool) string {
 	// every piece is styled on its own, the wash included: a style ends in
 	// a reset, and a reset inside the row would end the wash with it
@@ -284,13 +288,18 @@ func (p *listPage) rowLine(row *listRow, node *treeRow, widths [][]int, ids []in
 		gap := strings.Repeat(" ", max(sizes[at]-ansi.StringWidth(text), 0))
 		// the cursor cell is reversed over its whole width, padding
 		// included, so an empty cell still shows where the cursor is;
-		// the underline stays on the text alone
+		// the bold and the faint stay on the text alone, and the cursor
+		// cell is never faint, so the cursor reads as plainly on a link
 		style, fill := wash, wash
-		if under && at+p.firstFieldCol() == p.column {
+		cursor := under && at+p.firstFieldCol() == p.column
+		if cursor {
 			style, fill = styleCell, styleCell
 		}
-		if len(row.links[key]) > 0 {
-			style = style.Underline(true)
+		switch {
+		case key == schema.TitleKey && !node.ghost:
+			style = style.Bold(true)
+		case len(row.links[key]) > 0 && !cursor:
+			style = style.Faint(true)
 		}
 		parts = append(parts, style.Render(text)+fill.Render(gap))
 		used += 1 + sizes[at]
