@@ -253,8 +253,12 @@ and an `optional` one is off until it is named.
   opens it prefilled with that group's values.
 
 In a view `Enter` opens, `Space` edits or grabs a row to move it,
-`/` filters, `Esc` goes back and `C-q` quits;
-`?` lists every key, in standard, vim and emacs bindings.
+typing (or `/`) filters a list, a board or a gantt, and `C-q` quits.
+`Esc` opens the palette: where you are, the whole call,
+and every command under a letter that is the same on every page
+(`w` copy cell, `c` copy id, `n` new, `q` quit; `esc x` is `alt+x`);
+a second `Esc` goes back, and quits from the first page.
+`?` lists every key; emacs's `C-` and `M-` keys work, vim's letters do not.
 
 ## Sync and Jira
 

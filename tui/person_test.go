@@ -66,7 +66,7 @@ func TestEditAPersonPicksANameAndWritesTheId(t *testing.T) {
 	id := newIssue(t, repo, map[string]any{"title": "one", "assignee": ada})
 
 	page := list(t, repo, `{"fields":["title","assignee"]}`)
-	page = send(page, "l", "l", "space").(*listPage)
+	page = send(page, "right", "right", "space").(*listPage)
 	require.NotNil(t, page.editor)
 	picker := page.editor.picker
 	require.Equal(t, ada, picker.items[picker.cursor].value, "opens on the current value")
@@ -83,10 +83,10 @@ func TestEditAPersonPicksANameAndWritesTheId(t *testing.T) {
 	}
 	require.NotEqual(t, -1, john)
 	for picker.cursor < john {
-		page = send(page, "j").(*listPage)
+		page = send(page, "down").(*listPage)
 	}
 	for picker.cursor > john {
-		page = send(page, "k").(*listPage)
+		page = send(page, "up").(*listPage)
 	}
 	page = send(page, "enter").(*listPage)
 	require.Nil(t, page.editor)

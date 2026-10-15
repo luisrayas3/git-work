@@ -117,7 +117,7 @@ func TestIdStyleDimsTheFallback(t *testing.T) {
 
 	// and the drawn list carries it: the hash's line is faint where the id is
 	page := list(t, repo, `{"fields":["title"]}`)
-	page = send(page, "l").(*listPage) // the cursor off the id column
+	page = send(page, "right").(*listPage) // the cursor off the id column
 	raw := page.View()
 	faint := regexp.MustCompile(`\x1b\[(?:[0-9]+;)*2(?:;[0-9]+)*m` + local[:7])
 	require.Regexp(t, faint, raw, "the hash is dim")
@@ -139,7 +139,7 @@ func TestCopyCopiesWhatIsShown(t *testing.T) {
 		require.Equal(t, task, clipped(t, cmd), "the hash is copied whole")
 	}
 
-	page = send(page, "l", "l").(*listPage) // onto parent
+	page = send(page, "right", "right").(*listPage) // onto parent
 	_, cmd := page.Update(press("ctrl+c"))
 	require.Equal(t, jiraKey, clipped(t, cmd), "a link copies the jiraKey it shows")
 
@@ -169,7 +169,7 @@ func TestPickerDrawsKeys(t *testing.T) {
 	newIssue(t, repo, map[string]any{"title": "the task"})
 
 	page := list(t, repo, `{"fields":["title","parent"],"query":"map(select(.fields.type == \"task\"))"}`)
-	page = send(page, "l", "l", "space").(*listPage)
+	page = send(page, "right", "right", "space").(*listPage)
 	require.NotNil(t, page.editor)
 	require.Equal(t, story, page.editor.picker.items[0].value)
 	require.Equal(t, jiraKey+" the story", page.editor.picker.items[0].label)

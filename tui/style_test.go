@@ -71,7 +71,7 @@ func TestEveryGroupHeaderCarriesARule(t *testing.T) {
 	t.Run("list", func(t *testing.T) {
 		page := list(t, repo, `{"fields":["title"],"group_by":"type","expand":{"relation":"children","group_by":"status"},`+
 			`"query":"map(select(.fields.type == \"story\"))"}`)
-		send(page, "shift+z")
+		send(page, "alt+z")
 		drawn := page.View()
 		requireHeader(t, drawn, "story", page.width)
 		// a nested group's header is at its table's indent, the rule
@@ -200,9 +200,9 @@ func TestTitlesAreUnderlinedAndLinksAreOneStyle(t *testing.T) {
 
 		// under the column cursor the title is reversed and still
 		// underlined, and so is the link, nothing faint
-		send(page, "l")
+		send(page, "right")
 		requireOwnTitle(t, rawLine(t, page.View(), "the task"), "the task", true)
-		send(page, "l")
+		send(page, "right")
 		line = rawLine(t, page.View(), "the task")
 		requireLink(t, line, human, "the story", true)
 		requireOwnTitle(t, line, "the task", false)

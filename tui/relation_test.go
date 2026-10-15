@@ -27,7 +27,7 @@ func TestSpaceOnARelationOpensItsPicker(t *testing.T) {
 	id := newIssue(t, repo, map[string]any{"title": "the task", "parent": story})
 
 	page := list(t, repo, `{"fields":["title","parent"],"query":"map(select(.fields.type == \"task\"))"}`)
-	page = send(page, "l", "l").(*listPage)
+	page = send(page, "right", "right").(*listPage)
 	require.Contains(t, plainView(page), "enter: go to · space: change", "the status line says what enter and space do")
 
 	page = send(page, "space").(*listPage)
@@ -95,14 +95,14 @@ func TestEnterOnARelationGoesToIt(t *testing.T) {
 	require.Equal(t, story, fieldOf(t, repo, id, "parent"))
 
 	listed := list(t, repo, `{"fields":["title","parent"],"query":"map(select(.fields.type == \"task\"))"}`)
-	listed = send(listed, "l", "l").(*listPage)
+	listed = send(listed, "right", "right").(*listPage)
 	moved, cmd := listed.Update(press("enter"))
 	require.NotNil(t, cmd)
 	require.Equal(t, story, cmd().(pushMsg).page.(*showPage).id)
 	require.Nil(t, moved.(*listPage).editor, "no picker")
 
 	// and enter on any other cell opens the row's own issue
-	listed = send(listed, "h").(*listPage)
+	listed = send(listed, "left").(*listPage)
 	_, cmd = listed.Update(press("enter"))
 	require.NotNil(t, cmd)
 	require.Equal(t, id, cmd().(pushMsg).page.(*showPage).id)
@@ -116,7 +116,7 @@ func TestChangeARelationToNoneClearsIt(t *testing.T) {
 	id := newIssue(t, repo, map[string]any{"title": "the task", "parent": story})
 
 	page := list(t, repo, `{"fields":["title","parent"],"query":"map(select(.fields.type == \"task\"))"}`)
-	page = send(page, "l", "l", "space").(*listPage)
+	page = send(page, "right", "right", "space").(*listPage)
 	require.NotNil(t, page.editor)
 	for range page.editor.picker.items {
 		page = send(page, "down").(*listPage)
@@ -161,7 +161,7 @@ func TestAMultiRelationGoesToEachAndSaysWhereToChangeIt(t *testing.T) {
 
 	// a list's cell holds both, and enter goes to the first
 	listed := list(t, repo, `{"fields":["title","blocks"],"query":"map(select(.fields.title == \"the task\"))"}`)
-	listed = send(listed, "l", "l").(*listPage)
+	listed = send(listed, "right", "right").(*listPage)
 	_, cmd = listed.Update(press("enter"))
 	require.NotNil(t, cmd)
 	require.Equal(t, one, cmd().(pushMsg).page.(*showPage).id)
@@ -174,7 +174,7 @@ func TestSpaceOnAViewOnlyColumnRings(t *testing.T) {
 	newIssue(t, repo, map[string]any{"title": "one"})
 
 	page := list(t, repo, `{"fields":["title","children"]}`)
-	page = send(page, "l", "l").(*listPage)
+	page = send(page, "right", "right").(*listPage)
 	updated, cmd := page.Update(press("space"))
 	require.NotNil(t, cmd, "the bell")
 	require.Nil(t, updated.(*listPage).editor)

@@ -127,14 +127,16 @@ func TestShowHasThreeTabs(t *testing.T) {
 
 	page = send(page, "right").(*showPage)
 	require.Equal(t, tabDescription, page.tab, "it wraps")
-	page = send(page, "h").(*showPage)
+	page = send(page, "left").(*showPage)
 	require.Equal(t, tabLog, page.tab)
 
-	// ctrl+pgdown and vim's gt switch too
+	// ctrl+pgdown and ctrl+pgup switch too; vim's gt is gone (app.md, A3)
 	page = send(page, "ctrl+pgdown").(*showPage)
 	require.Equal(t, tabDescription, page.tab)
-	page = send(page, "g", "t").(*showPage)
+	page = send(page, "ctrl+pgdown").(*showPage)
 	require.Equal(t, tabComments, page.tab)
+	page = send(page, "ctrl+pgup", "ctrl+pgdown", "home", "t").(*showPage)
+	require.Equal(t, tabComments, page.tab, "home then t is no tab key")
 
 	// and in the box's text, where letters and arrows are text, ctrl+pgdown
 	// still
@@ -200,10 +202,10 @@ func TestShowFieldsAreATable(t *testing.T) {
 	require.Equal(t, stopFields, page.current().stop)
 	require.Equal(t, "status", page.field())
 
-	page = send(page, "j").(*showPage)
+	page = send(page, "down").(*showPage)
 	require.Equal(t, "priority", page.field())
 	// arrows never cross the box, either way: Tab and S-Tab do (2026-10-08)
-	page = rings(t, page, "j", "down from the last row rings").(*showPage)
+	page = rings(t, page, "down", "down from the last row rings").(*showPage)
 	require.Equal(t, stopFields, page.current().stop, "and stays on the row")
 	require.Equal(t, "priority", page.field())
 	page = send(page, "tab").(*showPage)
@@ -227,7 +229,7 @@ func TestShowFieldsAreATable(t *testing.T) {
 	require.Equal(t, stopTabs, page.current().stop)
 	page = send(page, "shift+tab", "shift+tab").(*showPage)
 	require.Equal(t, stopFields, page.current().stop, "S-Tab leaves it for the fields")
-	page = send(page, "k", "k").(*showPage)
+	page = send(page, "up", "up").(*showPage)
 	require.Equal(t, stopHeader, page.current().stop, "up from the first row is the header")
 	require.Equal(t, "title", page.field())
 
@@ -270,7 +272,7 @@ func TestShowEditsTheFieldUnderTheCursor(t *testing.T) {
 	require.NotNil(t, page.editor)
 	require.Equal(t, "status", page.editor.key)
 
-	page = send(page, "j", "enter").(*showPage)
+	page = send(page, "down", "enter").(*showPage)
 	require.Equal(t, "in-progress", fieldOf(t, repo, id, "status"))
 
 	page = send(page, "shift+tab").(*showPage)
@@ -284,7 +286,7 @@ func TestShowEditsTheFieldUnderTheCursor(t *testing.T) {
 	page = send(page, "esc").(*showPage)
 
 	// left of the title is the type, a list of the schema's types
-	page = send(page, "h", "space").(*showPage)
+	page = send(page, "left", "space").(*showPage)
 	require.NotNil(t, page.editor)
 	require.Equal(t, "type", page.editor.key)
 	drawn := plainView(page)
@@ -300,7 +302,7 @@ func TestArchivedIsAHeaderCellThatFlips(t *testing.T) {
 	id := newIssue(t, repo, map[string]any{"title": "one"})
 
 	page := show(t, repo, id, nil)
-	page = send(page, "shift+tab", "l", "l").(*showPage)
+	page = send(page, "shift+tab", "right", "right").(*showPage)
 	require.Equal(t, "archived", page.field())
 	require.Contains(t, plainView(page), "one  [ ] archived")
 
@@ -549,7 +551,7 @@ func TestShowKeepsADraft(t *testing.T) {
 
 	_, cmd = page.Update(press("esc"))
 	require.Nil(t, cmd, "the first esc outside the text warns")
-	require.Contains(t, plainView(page), "esc again")
+	require.Contains(t, plainView(page), "back again")
 
 	_, cmd = page.Update(press("esc"))
 	require.NotNil(t, cmd)
@@ -574,6 +576,9 @@ func TestEnterOpensAnIssueAndEscComesBack(t *testing.T) {
 	require.Len(t, stack.pages, 2)
 	require.Contains(t, ansiPattern.ReplaceAllString(stack.View().Content, ""), second[:7])
 
+	// the first esc opens the palette, the second is back (app.md, A1)
+	_, cmd = stack.Update(press("esc"))
+	require.Nil(t, cmd)
 	_, cmd = stack.Update(press("esc"))
 	require.NotNil(t, cmd)
 	stack.Update(cmd())

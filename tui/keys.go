@@ -7,95 +7,98 @@ import (
 	tea "charm.land/bubbletea/v2"
 )
 
-// family is one of the three sets of muscle memory the renderer reads.
+// One keymap (doc/design/app.md, A3, 2026-10-15).
 //
-// All three are read at once, with no mode: whoever sits down already knows
-// one of them. They exist as a type only so that `?` can show each person
-// their own set, one tab each, instead of three spellings in every row.
-type family int
-
-const (
-	standard family = iota
-	vim
-	emacs
-	families
-)
-
-func (f family) String() string {
-	return [...]string{"standard", "vim", "emacs"}[f]
-}
-
-// chord is one action's keys, per family.
+// The standard keys and emacs's ctrl and alt keys are read, and nothing
+// else: vim's single letters went, because a letter at the top level is
+// worth more as text, and typing on a list, a board or a gantt filters it.
+// The keys a person needs with no menu are the ones every program has; every
+// other command is on the palette `esc` opens, under a letter (palette.go).
 //
-// A family with no keys of its own reads the standard ones, which every
-// family also reads, so every tab of the help is the whole set.
+// A command's letter is also its alt key, by definition (A2): a terminal
+// sends alt+x as ESC then x, which is what esc then x typed quickly sends,
+// so the two are one key on every terminal. That is why the letters agree
+// with emacs's alt keys wherever emacs has one: w copies, v pages up, < and >
+// go to the first and the last.
+//
+// Bubble Tea v2 asks every terminal for the kitty keyboard protocol's key
+// disambiguation on its own, which removes the wait after a lone ESC and
+// tells shift+enter from enter where the terminal has it; no key here means
+// anything different because of it.
+
+// chord is one action: its keys, and its letter on the palette.
 type chord struct {
 	what string
-	keys [families][]string
-	// shown replaces the keys in the help where a family's key is not one the
+	keys []string
+	// letter is the action's key on the palette, and so its alt key; empty
+	// for an action that has none
+	letter string
+	// shown replaces the keys in the help where they are not keys the
 	// program reads: the terminal's own paste arrives as a paste, not a key.
-	shown [families]string
+	shown string
 
 	binding key.Binding
 }
 
-func newChord(what string, std, vi, em []string) *chord {
-	c := &chord{what: what, keys: [families][]string{std, vi, em}}
+func newChord(what string, keys ...string) *chord {
+	c := &chord{what: what, keys: keys}
+	c.binding = key.NewBinding(key.WithKeys(keys...))
+	return c
+}
 
-	all := make([]string, 0, len(std)+len(vi)+len(em))
-	seen := map[string]bool{}
-	for _, set := range c.keys {
-		for _, k := range set {
-			if !seen[k] {
-				seen[k] = true
-				all = append(all, k)
-			}
-		}
+// on gives the action a letter on the palette, and with it the alt key the
+// letter is (A2). A shifted letter is also spelled with the modifier by a
+// terminal that reports it rather than the character — alt+shift+, for
+// alt+< — so both spellings are bound.
+func (c *chord) on(letter string) *chord {
+	c.letter = letter
+	all := append([]string{}, c.keys...)
+	all = append(all, "alt+"+letter)
+	if shifted, ok := shiftedLetters[letter]; ok {
+		all = append(all, "alt+shift+"+shifted)
 	}
 	c.binding = key.NewBinding(key.WithKeys(all...))
 	return c
 }
 
-func (c *chord) show(f family, spelling string) *chord {
-	c.shown[f] = spelling
+// shiftedLetters are the palette's letters typed with shift, as the key
+// under them.
+var shiftedLetters = map[string]string{"<": ",", ">": ".", "?": "/"}
+
+func (c *chord) show(spelling string) *chord {
+	c.shown = spelling
 	return c
 }
 
-// matches says whether a key press is this action in any family.
+// matches says whether a key press is this action.
 func (c *chord) matches(press tea.KeyPressMsg) bool {
 	return key.Matches(press, c.binding)
 }
 
-// spelling is how a family's keys read in the help.
-func (c *chord) spelling(f family) string {
-	if c.shown[f] != "" {
-		return c.shown[f]
+// spelling is how the action's keys read in the help: its keys, then its
+// alt key where it has a letter.
+func (c *chord) spelling() string {
+	if c.shown != "" {
+		return c.shown
 	}
-	set := c.keys[f]
-	if len(set) == 0 {
-		set = c.keys[standard]
-	}
-
-	parts := make([]string, 0, len(set))
-	for _, k := range set {
+	parts := make([]string, 0, len(c.keys)+1)
+	for _, k := range c.keys {
 		// two spellings of one key are one key to a person reading
 		if _, doubled := doubles[k]; doubled {
 			continue
 		}
 		parts = append(parts, readable(k))
 	}
+	if c.letter != "" {
+		parts = append(parts, "alt+"+c.letter)
+	}
 	return strings.Join(parts, " ")
 }
 
-// doubles are the second spellings of a shifted key: a terminal sends either
-// the character or the modifier, so both are bound, and one is shown.
+// doubles are the second spellings of a key: a terminal sends either, so
+// both are bound, and one is shown.
 var doubles = map[string]struct{}{
-	"alt+shift+,": {},
-	"alt+shift+.": {},
-	"shift+g":     {},
-	"shift+y":     {},
-	"shift+z":     {},
-	" ":           {},
+	" ": {},
 	// the ctrl+shift and cmd+shift copies are the same copy, for a terminal
 	// that hands them over rather than keeping them for itself
 	"ctrl+shift+c":  {},
@@ -110,8 +113,6 @@ func readable(k string) string {
 	return strings.ReplaceAll(k, "super+", "cmd+")
 }
 
-func one(k ...string) []string { return k }
-
 // keymap is every key the renderer reads.
 type keymap struct {
 	up, down, left, right *chord
@@ -124,6 +125,7 @@ type keymap struct {
 	grab                  *chord
 	foldAll               *chord
 	nextTab, previousTab  *chord
+	newIssue              *chord
 	help                  *chord
 	back                  *chord
 	quit                  *chord
@@ -134,25 +136,19 @@ type keymap struct {
 }
 
 var keys = keymap{
-	up:     newChord("up", one("up"), one("k"), one("ctrl+p")),
-	down:   newChord("down", one("down"), one("j"), one("ctrl+n")),
-	left:   newChord("previous column / tab", one("left"), one("h"), one("ctrl+b")),
-	right:  newChord("next column / tab", one("right"), one("l"), one("ctrl+f")),
-	pageUp: newChord("page up", one("pgup"), one("ctrl+u"), one("alt+v")),
-	pageDn: newChord("page down", one("pgdown"), one("ctrl+d"), one("ctrl+v")),
-	// alt+< and alt+> are shift keys, and a terminal spells them either as
-	// the character or as the modifier, so both spellings are bound.
-	top:    newChord("first", one("home"), one("g"), one("alt+<", "alt+shift+,")),
-	bottom: newChord("last", one("end"), one("G", "shift+g"), one("alt+>", "alt+shift+.")),
+	up:     newChord("up", "up", "ctrl+p"),
+	down:   newChord("down", "down", "ctrl+n"),
+	left:   newChord("previous column / tab", "left", "ctrl+b"),
+	right:  newChord("next column / tab", "right", "ctrl+f"),
+	pageUp: newChord("page up", "pgup").on("v"),
+	pageDn: newChord("page down", "pgdown", "ctrl+v"),
+	top:    newChord("first", "home").on("<"),
+	bottom: newChord("last", "end").on(">"),
 
-	next:     newChord("next stop", one("tab"), nil, nil),
-	previous: newChord("previous stop", one("shift+tab"), nil, nil),
-	// the tab keys of browsers and editors; vim's gt and gT are read by the
-	// show page itself, because g alone is already a key
-	nextTab: newChord("next tab", one("ctrl+pgdown"), nil, nil).
-		show(vim, "gt ctrl+pgdown"),
-	previousTab: newChord("previous tab", one("ctrl+pgup"), nil, nil).
-		show(vim, "gT ctrl+pgup"),
+	next:        newChord("next stop", "tab"),
+	previous:    newChord("previous stop", "shift+tab"),
+	nextTab:     newChord("next tab", "ctrl+pgdown"),
+	previousTab: newChord("previous tab", "ctrl+pgup"),
 
 	// Enter opens and space edits (doc/design/terminal-renderer.md,
 	// 2026-10-02): enter opens the issue under the cursor, or the one a link
@@ -162,42 +158,43 @@ var keys = keymap{
 	// ctrl+enter is enter on every terminal without the kitty keyboard
 	// protocol, and a key that is one key here and another there is not a key
 	// the renderer reads (2026-09-28).
-	act:  newChord("open issue, follow link; typing: send comment", one("enter"), nil, nil),
-	edit: newChord("edit cell (a link: change it); on the box: write", one("space", " "), nil, nil),
+	act:  newChord("open issue, follow link; typing: send comment", "enter"),
+	edit: newChord("edit cell (a link: change it); on the box: write", "space", " "),
 	// A newline in a comment: alt+enter is escape, enter, which every
 	// terminal sends; shift+enter only where the terminal tells it from enter.
-	newline: newChord("typing: newline in comment", one("alt+enter", "shift+enter"), nil, nil),
+	newline: newChord("typing: newline in comment", "alt+enter", "shift+enter"),
 
 	// Copy and paste are the terminal's first: cmd+c and ctrl+shift+c copy
 	// what the mouse selected, and cmd+v and ctrl+shift+v paste, arriving as
 	// a bracketed paste rather than a key. Where the terminal hands a copy
 	// key over instead of keeping it, it copies the cell under the cursor;
 	// ctrl+c is that key everywhere, because no terminal keeps it.
-	copy: newChord("copy cell",
-		one("ctrl+c", "super+c", "ctrl+shift+c", "super+shift+c"), one("y"), one("alt+w")),
-	copyId: newChord("copy id", one("alt+c"), one("Y", "shift+y"), nil),
+	copy:   newChord("copy cell", "ctrl+c", "super+c", "ctrl+shift+c", "super+shift+c").on("w"),
+	copyId: newChord("copy id").on("c"),
 	// A paste key that reaches the program asks the terminal for its
 	// clipboard over OSC 52. ctrl+v stays emacs's page down: a standard
 	// user's ctrl+v is the terminal's paste, or ^V, and never a paste here.
-	paste: newChord("paste into field",
-		one("super+v", "ctrl+shift+v", "super+shift+v"), one("p"), one("ctrl+y")).
-		show(standard, "terminal paste (cmd+v, ctrl+shift+v)"),
+	paste: newChord("paste into field", "super+v", "ctrl+shift+v", "super+shift+v", "ctrl+y").
+		show("terminal paste, ctrl+y"),
 
-	filter: newChord("filter", one("/"), one("/"), one("ctrl+s")),
-	grab:   newChord("on id, card, bar: grab / drop (move it)", one("space", " "), nil, nil),
+	// Typing filters a list, a board or a gantt too (A3); `/` starts the
+	// filter with nothing typed.
+	filter: newChord("filter (or type)", "/", "ctrl+s").on("f"),
+	grab:   newChord("on id, card, bar: grab / drop (move it)", "space", " "),
 	// One nested row is folded with space on its arrow, the cell after its
-	// id, so `z` is gone (2026-10-02); `Z` is the whole tree at once, and
-	// tab and shift-tab, the next and previous stop, are into the first
-	// child and up to the parent.
-	foldAll: newChord("fold / unfold every row (nested)", one("Z", "shift+z"), nil, nil),
-	help:    newChord("help", one("?"), nil, nil),
-	// Back is always back: out of a filter, out of an issue, and from the
-	// first view, twice, out of the program (doc/design/terminal-renderer.md).
-	back: newChord("back (twice at top: quit)", one("esc"), one("esc", "q"), one("esc", "ctrl+g")),
+	// id; the whole tree at once is a palette command, `Z` being text now
+	// (A3). Tab and shift-tab, the next and previous stop, are into the
+	// first child and up to the parent.
+	foldAll:  newChord("fold / unfold every row (nested)").on("z"),
+	newIssue: newChord("new issue").on("n"),
+	help:     newChord("help", "?").on("?"),
+	// esc opens the palette, and a second esc is back: out of a filter, out
+	// of an issue, and from the first page out of the program (A1).
+	back: newChord("commands; twice: back (first page: quit)", "esc", "ctrl+g"),
 	// ctrl+q is the quit nothing swallows, at once, from anywhere.
-	quit: newChord("quit now", one("ctrl+q"), nil, nil),
+	quit: newChord("quit now", "ctrl+q").on("q"),
 
-	cancel: newChord("cancel", one("esc"), one("esc"), one("esc", "ctrl+g")),
+	cancel: newChord("cancel", "esc", "ctrl+g"),
 }
 
 // helpRows is the order the help lists the actions in.
@@ -209,52 +206,33 @@ func helpRows() []*chord {
 		keys.act, keys.edit, keys.grab, keys.newline,
 		keys.copy, keys.copyId, keys.paste,
 		keys.filter, keys.foldAll, keys.nextTab, keys.previousTab,
-		keys.back, keys.help, keys.quit,
+		keys.newIssue, keys.back, keys.help, keys.quit,
 	}
 }
 
-// help is the overlay `?` opens: the keys, one tab per family.
-type help struct {
-	tab family
-}
+// help is the overlay `?` opens: the keymap, generated from it.
+type help struct{}
 
-// Update moves between the tabs, and says when the help is closed.
-//
-// The keys that close it are the ones that would mean "out" in any family;
-// anything else is ignored, so that a stray key does not throw away the tab
-// a person was reading.
+// Update says when the help is closed: on a key that means "out", and on
+// nothing else, so that a stray key does not throw away what a person was
+// reading.
 func (h *help) Update(press tea.KeyPressMsg) (closed bool) {
-	switch {
-	case keys.right.matches(press), keys.next.matches(press):
-		h.tab = (h.tab + 1) % families
-	case keys.left.matches(press), keys.previous.matches(press):
-		h.tab = (h.tab + families - 1) % families
-	case press.String() == "1", press.String() == "2", press.String() == "3":
-		h.tab = family(press.String()[0] - '1')
-	case keys.back.matches(press), keys.quit.matches(press), keys.help.matches(press):
-		return true
-	}
-	return false
+	return keys.back.matches(press) || keys.quit.matches(press) || keys.help.matches(press)
 }
 
+// View is one row per action: its keys, its letter on the palette, and what
+// it does.
 func (h *help) View(width int) string {
-	tabs := make([]string, 0, families)
-	for f := family(0); f < families; f++ {
-		label := " " + f.String() + " "
-		if f == h.tab {
-			label = styleCell.Render(label)
-		} else {
-			label = styleDim.Render(label)
-		}
-		tabs = append(tabs, label)
-	}
-
-	lines := []string{styleHeader.Render("keys") + "  " + strings.Join(tabs, " "), ""}
+	lines := []string{styleHeader.Render("keys"), ""}
 	for _, row := range helpRows() {
-		lines = append(lines, fit("  "+pad(row.spelling(h.tab), 30)+row.what, width))
+		letter := ""
+		if row.letter != "" {
+			letter = "esc " + row.letter
+		}
+		lines = append(lines, fit("  "+pad(row.spelling(), 32)+pad(letter, 8)+row.what, width))
 	}
 	lines = append(lines, "",
-		styleDim.Render(fit("  ←/→ tab 1-3: switch · esc ?: close", width)))
+		styleDim.Render(fit("  esc x is alt+x · esc ?: close", width)))
 	return strings.Join(lines, "\n")
 }
 

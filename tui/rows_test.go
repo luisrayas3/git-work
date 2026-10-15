@@ -223,7 +223,7 @@ func TestAListedChildIsTheRowsOwn(t *testing.T) {
 		"expand": map[string]any{"fields": []string{"status", "title"}, "query": `map(select(.fields.status != "done"))`},
 	})
 	require.Empty(t, page.status)
-	page = send(page, "Z").(*listPage)
+	page = send(page, "alt+z").(*listPage)
 
 	require.Equal(t, 1, nodeOf(t, page, epic+"@"+ada).children, "the layer's query narrows the listed children")
 	require.Equal(t, 1, nodeOf(t, page, epic+"@"+grace).children)

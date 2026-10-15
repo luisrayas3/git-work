@@ -168,11 +168,11 @@ func TestBoardDragCrossesSwimlanes(t *testing.T) {
 
 	// carried down and back up within one drag, into the lane it emptied on
 	// its way out, the card is where it was picked up and nothing is written
-	page = send(page, "space", "j", "k", "space").(*boardPage)
+	page = send(page, "space", "down", "up", "space").(*boardPage)
 	require.Equal(t, before, ops(t, repo, high))
 	require.Equal(t, "high", fieldOf(t, repo, high, "priority"))
 
-	page = send(page, "space", "j", "space").(*boardPage)
+	page = send(page, "space", "down", "space").(*boardPage)
 	require.Equal(t, "low", fieldOf(t, repo, high, "priority"))
 	require.Equal(t, before+2, ops(t, repo, high), "the priority and the rank, in one commit")
 	require.Contains(t, plainView(page), "moved to low")

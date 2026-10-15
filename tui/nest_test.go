@@ -119,7 +119,7 @@ func TestListNestsChildrenUnderTheirParent(t *testing.T) {
 	require.Equal(t, "nothing to fold", page.status)
 }
 
-// TestListFoldsEveryRowAtOnce: Z folds every parent, and again where none
+// TestListFoldsEveryRowAtOnce: alt+z (esc z) folds every parent, and again where none
 // is open, opens every one of them; enter on the arrow opens the row, as it
 // does on the id.
 func TestListFoldsEveryRowAtOnce(t *testing.T) {
@@ -131,12 +131,12 @@ func TestListFoldsEveryRowAtOnce(t *testing.T) {
 	page := list(t, repo, `{"expand":{"relation":"children","expand":0},"query":"map(select(.fields.type == \"story\"))"}`)
 	require.Contains(t, plainView(page), "1 issue")
 
-	send(page, "shift+z")
+	send(page, "alt+z")
 	drawn := plainView(page)
 	require.Contains(t, drawn, "3 issues", "every parent open, however deep")
 	require.Equal(t, 1+2*indentWidth, startOf(page, sub), "two levels down")
 
-	send(page, "shift+z")
+	send(page, "alt+z")
 	require.Contains(t, plainView(page), "1 issue")
 
 	// enter on the arrow cell opens the row, the way it does on the id
@@ -155,7 +155,7 @@ func TestListAMatchedChildShowsOnce(t *testing.T) {
 	sub := newTyped(t, repo, "subtask", map[string]any{"title": "the subtask", "parent": task})
 
 	page := list(t, repo, `{"expand":"children","query":"sort_by(.fields.title)"}`)
-	send(page, "shift+z")
+	send(page, "alt+z")
 	drawn := plainView(page)
 	require.Equal(t, 1, strings.Count(drawn, task[:idWidth]), "under its story, not again as a root")
 	require.Equal(t, 1, strings.Count(drawn, sub[:idWidth]))
@@ -166,7 +166,7 @@ func TestListAMatchedChildShowsOnce(t *testing.T) {
 	require.Equal(t, 1, startOf(page, sub))
 
 	page = list(t, repo, `{"expand":{"relation":"children","expand":0},"query":"sort_by(.fields.title)"}`)
-	send(page, "shift+z")
+	send(page, "alt+z")
 	require.Equal(t, 1+2*indentWidth, startOf(page, sub), "0: the subtask two levels down")
 
 	// a cycle: each blocks the other
@@ -175,7 +175,7 @@ func TestListAMatchedChildShowsOnce(t *testing.T) {
 	_, err := host.IssueSet(repo, a, map[string]issue.Value{"blocks": issue.MustValue([]any{b})}, false)
 	require.NoError(t, err)
 	page = list(t, repo, `{"expand":{"relation":"blocks","expand":0},"query":"map(select(.fields.title == \"a\" or .fields.title == \"b\")) | sort_by(.fields.title)"}`)
-	send(page, "shift+z")
+	send(page, "alt+z")
 	drawn = plainView(page)
 	require.Contains(t, drawn, "2 issues")
 	require.Equal(t, 1, strings.Count(drawn, a[:idWidth]))
@@ -193,14 +193,14 @@ func TestListACountIsThatManyMoreLevels(t *testing.T) {
 	newTyped(t, repo, "task", map[string]any{"title": "a", "blocks": []any{b}})
 
 	page := list(t, repo, `{"expand":{"relation":"blocks","expand":1},"query":"map(select(.fields.title == \"a\"))"}`)
-	send(page, "shift+z")
+	send(page, "alt+z")
 	require.Contains(t, plainView(page), "3 issues", "a, b under it, c under b, and the layer stops")
 	require.Equal(t, 1+indentWidth, startOf(page, b))
 	require.Equal(t, 1+2*indentWidth, startOf(page, c))
 	require.Equal(t, "", rowOf(page, d), "past the count")
 
 	page = list(t, repo, `{"expand":{"relation":"blocks","expand":0},"query":"map(select(.fields.title == \"a\"))"}`)
-	send(page, "shift+z")
+	send(page, "alt+z")
 	require.Contains(t, plainView(page), "4 issues")
 	require.Equal(t, 1+3*indentWidth, startOf(page, d), "0: every level")
 }
@@ -264,7 +264,7 @@ func TestListChildTableHasItsOwnHeader(t *testing.T) {
 	}
 	require.Equal(t, 0, headers, "folded: no child table, no header")
 
-	send(page, "shift+z")
+	send(page, "alt+z")
 	lines = strings.Split(plainView(page), "\n")
 	require.True(t, strings.HasPrefix(lines[1], " id "), "the top header is the roots'")
 	require.NotContains(t, lines[1], "status")
@@ -303,7 +303,7 @@ func TestListUnfoldingMovesNothing(t *testing.T) {
 	folded := rowOf(page, story)
 	require.Contains(t, folded, "▸ 1")
 
-	send(page, "shift+z")
+	send(page, "alt+z")
 	opened := rowOf(page, story)
 	require.Contains(t, opened, "▾")
 	require.Equal(t, colOf(folded, "short"), colOf(opened, "short"), "the title column stayed put")
@@ -315,7 +315,7 @@ func TestListUnfoldingMovesNothing(t *testing.T) {
 	require.Equal(t, colOf(rowOf(page, task), "a task"), colOf(rowOf(page, sub), "deeper")-indentWidth,
 		"the subtask's table is one indent further in, its title column with it")
 
-	send(page, "shift+z")
+	send(page, "alt+z")
 	require.Equal(t, folded, rowOf(page, story), "folded again, drawn as before")
 }
 
@@ -346,7 +346,7 @@ func TestListKeepsTheChildTableHeaderOnTop(t *testing.T) {
 
 	// back up onto the first task, the header is still the line above it
 	for page.current().id != tasks[0] {
-		send(page, "k")
+		send(page, "up")
 	}
 	lines = strings.Split(plainView(page), "\n")
 	require.True(t, strings.HasPrefix(lines[2], strings.Repeat(" ", indentWidth)+" id "), "the table's header is the first body line: %q", lines[2])
@@ -374,7 +374,7 @@ func TestListLayerGroupsItsOwnRows(t *testing.T) {
 	newTyped(t, repo, "task", map[string]any{"title": "c", "parent": story, "status": "to-do"})
 
 	page := list(t, repo, `{"fields":["title"],"expand":{"relation":"children","group_by":"status"},"query":"map(select(.fields.type == \"story\"))"}`)
-	send(page, "shift+z")
+	send(page, "alt+z")
 	drawn := plainView(page)
 
 	// the groups come in the order they first appear, each heading its own

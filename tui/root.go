@@ -2,7 +2,6 @@ package tui
 
 import (
 	"encoding/json"
-	"strings"
 
 	tea "charm.land/bubbletea/v2"
 
@@ -45,19 +44,14 @@ type root struct {
 	pages         []page
 	width, height int
 
-	// onCall says the cursor is on the call line, where back from the first
-	// view puts it: the line unfolds into the whole command, back from there
-	// quits, and any other key returns to the view
-	// (doc/design/terminal-renderer.md, 2026-09-28).
-	onCall bool
+	// palette says the palette is open over the top page (palette.go,
+	// doc/design/app.md, A1).
+	palette bool
 
 	// answer is what the view returns once the program ends: the id a
 	// standalone `new` created, else nothing (doc/design/create.md, C4).
 	answer json.RawMessage
 }
-
-// callHint is the status line while the cursor is on the call line.
-const callHint = "esc: quit · enter: back · ctrl+c: copy the command"
 
 func (r *root) Init() tea.Cmd {
 	// the terminal's background decides the highlight colours, which have to
@@ -87,8 +81,13 @@ func (r *root) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.String() == "ctrl+q" {
 			return r, tea.Quit
 		}
-		if r.onCall {
-			return r.callKey(msg)
+		if r.palette {
+			return r.paletteKey(msg)
+		}
+		if atRest(r.top()) {
+			if cmd, done := r.restKey(msg); done {
+				return r, cmd
+			}
 		}
 
 	case tea.BackgroundColorMsg:
@@ -106,12 +105,11 @@ func (r *root) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return r, cmd
 
 	case popMsg:
-		// Back from the first view is the one back that loses the view, so it
-		// lands on the call line instead, and quits from there: a stray esc
-		// must not end a session.
+		// Back from the first page is quit: it is the second esc, the first
+		// having opened the palette, so a stray esc still cannot end a
+		// session (doc/design/app.md, A1).
 		if len(r.pages) <= 1 {
-			r.onCall = true
-			return r, r.say(callHint)
+			return r, tea.Quit
 		}
 		r.pages = r.pages[:len(r.pages)-1]
 		return r, nil
@@ -142,29 +140,6 @@ func (r *root) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return r, cmd
 }
 
-// callKey is a key with the cursor on the call line: back quits, copy copies
-// the command, and anything else returns to the view — a direction, enter or
-// tab does only that, and every other key then means what it means there.
-func (r *root) callKey(press tea.KeyPressMsg) (tea.Model, tea.Cmd) {
-	switch {
-	case keys.back.matches(press):
-		return r, tea.Quit
-	case keys.copy.matches(press):
-		call, _, _ := r.top().Call()
-		return r, tea.Batch(tea.SetClipboard(command(call)), r.say("copied the command"))
-	}
-	r.onCall = false
-	cmd := r.say("")
-	switch {
-	case keys.act.matches(press), keys.next.matches(press), keys.previous.matches(press),
-		keys.up.matches(press), keys.down.matches(press), keys.left.matches(press), keys.right.matches(press):
-		return r, cmd
-	}
-	top, more := r.top().Update(press)
-	r.pages[len(r.pages)-1] = top
-	return r, tea.Batch(cmd, more)
-}
-
 // say puts a line in the top page's status line.
 func (r *root) say(status string) tea.Cmd {
 	top, cmd := r.top().Update(statusMsg(status))
@@ -174,32 +149,12 @@ func (r *root) say(status string) tea.Cmd {
 
 func (r *root) View() tea.View {
 	content := r.top().View()
-	if r.onCall {
-		content = r.withCallUnfolded(content)
+	if r.palette {
+		content = r.withPalette(content)
 	}
 	view := tea.NewView(content)
 	view.AltScreen = true
 	return view
-}
-
-// withCallUnfolded replaces the page's first line, the call, with the call
-// unfolded — the query laid out as a pipeline under it — keeping the status
-// line and giving up what is under the call to make the room.
-func (r *root) withCallUnfolded(content string) string {
-	lines := strings.Split(content, "\n")
-	if len(lines) < 2 {
-		return content
-	}
-	call, lead, leadArg := r.top().Call()
-	unfolded := callLines(call, lead, leadArg, r.width)
-	status := lines[len(lines)-1]
-	rest := lines[1 : len(lines)-1]
-	room := max(r.height-len(unfolded)-1, 0)
-	if len(rest) > room {
-		rest = rest[:room]
-	}
-	out := append(unfolded, rest...)
-	return strings.Join(append(out, status), "\n")
 }
 
 func (r *root) top() page {

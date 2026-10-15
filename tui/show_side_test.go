@@ -191,16 +191,16 @@ func TestSideTableLeftRightSwitchTabs(t *testing.T) {
 	for _, stop := range []stopKind{stopFields, stopSide, stopBox, stopTabs} {
 		page.focusStop(stop)
 		was := page.tab
-		send(page, "l")
+		send(page, "right")
 		require.NotEqual(t, was, page.tab, "right on stop %d", stop)
-		send(page, "h")
+		send(page, "left")
 		require.Equal(t, was, page.tab, "left on stop %d", stop)
 		require.Equal(t, stop, page.current().stop)
 	}
 
 	page.focusStop(stopHeader)
 	was := page.cell
-	send(page, "l")
+	send(page, "right")
 	require.NotEqual(t, was, page.cell, "the header walks its cells")
 }
 
@@ -267,7 +267,7 @@ func TestSideTableKeys(t *testing.T) {
 	// now under two, the rows above it ranked so the screen reads as drawn
 	send(page, "space")
 	require.NotNil(t, page.grab)
-	_, cmd = page.Update(press("l"))
+	_, cmd = page.Update(press("right"))
 	require.NotNil(t, cmd, "the bell")
 	require.Equal(t, "stays in its table", page.status)
 	send(page, "down", "space")

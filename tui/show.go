@@ -80,8 +80,6 @@ type showPage struct {
 	row int
 	// tab is the tab drawn under the box.
 	tab tab
-	// afterG says the last key was vim's g, so t and T are gt and gT.
-	afterG bool
 	// warned says leaving has already said a draft would be lost; a second
 	// try leaves anyway.
 	warned bool
@@ -478,20 +476,6 @@ func (p *showPage) key(press tea.KeyPressMsg) (page, tea.Cmd) {
 		return p.textKey(press)
 	}
 
-	// vim's gt and gT: g has already done what g does, scroll to the top,
-	// which a new tab does anyway
-	if p.afterG {
-		p.afterG = false
-		switch press.String() {
-		case "t":
-			p.switchTab(1)
-			return p, nil
-		case "T":
-			p.switchTab(-1)
-			return p, nil
-		}
-	}
-
 	here := p.current()
 	switch {
 	case keys.back.matches(press):
@@ -521,7 +505,6 @@ func (p *showPage) key(press tea.KeyPressMsg) (page, tea.Cmd) {
 		p.offset += max(p.height-4, 1)
 	case keys.top.matches(press):
 		p.offset = 0
-		p.afterG = press.String() == "g"
 	case keys.bottom.matches(press):
 		p.offset = 1 << 30 // the view clamps it to the last screenful
 
@@ -748,11 +731,11 @@ func (p *showPage) submitDescription() tea.Cmd {
 func (p *showPage) leave() (page, tea.Cmd) {
 	if (p.box.draft() != "" || p.descDirty()) && !p.warned {
 		p.warned = true
-		p.status = "esc again drops draft"
+		p.status = "back again drops draft"
 		return p, nil
 	}
-	// the list is underneath, where it was; with nothing underneath, the
-	// stack asks for a second back before it quits
+	// the list is underneath, where it was; with nothing underneath, back
+	// is quit (doc/design/app.md, A1)
 	return p, func() tea.Msg { return popMsg{} }
 }
 
