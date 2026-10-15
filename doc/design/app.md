@@ -123,7 +123,8 @@ Where the sections above are silent, `8a9ea75` and `72285a6` chose:
   a direction, `enter` or `tab` only closes it;
   any other key closes it and then means what it means on the page.
   `esc esc` typed quickly, which arrives as `alt+esc`, is back.
-- **Fold all is `z`**: `Z` was its key, and is text now.
+- **Fold all is `esc z`** (`alt+z`), and nothing else: `Z` was its key, and is text now.
+  It has no key of its own on the page (Luis, 2026-10-15).
 - **`?` and `/` stay keys of their own** and do not start a filter:
   every status line promises `? keys`, and `/` is the empty filter.
   Typing over a filter kept with `enter` adds to it, as `/` reopens it.
@@ -155,7 +156,8 @@ So the palette has **two** fold commands on a nested list or gantt:
 - **`Z`, open everything**: opens every row, the leaves included,
   so every level's "(new)" row is on screen.
 
-`Z` is `alt+Z` like any palette letter (A2).
+Both are palette commands only, `esc z` and `esc Z` (`alt+z`, `alt+Z`, A2);
+neither has a key of its own on the page, where `z` and `Z` are typed text.
 It lands with C8, which is what gives a leaf something to open.
 
 ## A5 — Pickers are typed into, and the issue picker is the finder
