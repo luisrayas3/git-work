@@ -57,6 +57,9 @@ type sideTable struct {
 	// rows are every issue the relation reaches, the query applied, in
 	// (rank, id) order; the filter narrows what is drawn, never this
 	rows []sideRow
+	// link says the table is one of `links`, which is drawn only where its
+	// relation reaches an issue
+	link bool
 }
 
 // sideRow is one issue in a side table.
@@ -102,28 +105,56 @@ func newShowView(repo *cache.RepoCache, call *view.Call) (*showPage, error) {
 		return p, nil
 	}
 
-	s, err := repo.LoadSchema()
-	if err != nil {
-		return nil, err
-	}
-	shownType, _ := issue.String(p.snapshot.Fields[schema.TypeKey])
 	for _, layer := range layers {
-		table := &sideTable{layer: layer}
+		spec := sideSpec{layer: layer}
 		if layer.Query != "" {
 			program, err := jq.Compile(layer.Query)
 			if err != nil {
 				return nil, fmt.Errorf("expand: %w", err)
 			}
-			table.program = program
+			spec.program = program
 		}
-		table.ghost = sideGhost(s, shownType, p.id, layer.Relation)
-		p.tables = append(p.tables, table)
+		p.specs = append(p.specs, spec)
 	}
 	p.call.Args["expand"] = call.Raw("expand")
 	if err := p.load(); err != nil {
 		return nil, err
 	}
 	return p, nil
+}
+
+// sideSpec is one element of show's `expand`, compiled once: a table, or,
+// for `links`, a table per link relation the issue has entries in, which
+// changes with the issue and so is resolved on every load (link-fields.md, L4).
+type sideSpec struct {
+	layer   *view.Layer
+	program *jq.Program
+}
+
+// sideTables resolves the specs into this load's tables: `links` becomes
+// one per link relation, stored first, then inverses, each the spec's layer
+// over that relation; the ones with no entry are dropped once read.
+func (p *showPage) sideTables() []*sideTable {
+	if len(p.specs) == 0 {
+		return nil
+	}
+	s, _ := p.repo.LoadSchema()
+	shownType, _ := issue.String(p.snapshot.Fields[schema.TypeKey])
+	var out []*sideTable
+	for _, spec := range p.specs {
+		if spec.layer.Relation != schema.LinksKey {
+			out = append(out, &sideTable{layer: spec.layer, program: spec.program,
+				ghost: sideGhost(s, shownType, p.id, spec.layer.Relation)})
+			continue
+		}
+		for _, rel := range p.links {
+			layer := *spec.layer
+			layer.Relation = rel.Name
+			out = append(out, &sideTable{layer: &layer, program: spec.program, link: true,
+				ghost: sideGhost(s, shownType, p.id, rel.Name)})
+		}
+	}
+	return out
 }
 
 // sideGhost is the draft a table's ghost opens (S6): the stored field on the
@@ -170,9 +201,12 @@ func sideGhost(s *schema.Schema, shownType, id, relation string) *host.IssueDocu
 // that fails on the data is said in the status line and leaves its table
 // unnarrowed, as a layer's does.
 func (p *showPage) loadSide() {
+	p.tables = p.sideTables()
 	if len(p.tables) == 0 {
 		return
 	}
+	kept := p.tables[:0]
+	defer func() { p.tables = kept }()
 	known := newKinds(p.repo)
 	type issueSet struct {
 		all   map[string]map[string]any
@@ -196,6 +230,12 @@ func (p *showPage) loadSide() {
 				candidates = append(candidates, set.all[id])
 			}
 		}
+		if table.link && len(candidates) == 0 {
+			// a link relation with no entry has no table, and no (none):
+			// the links row already says so (L4)
+			continue
+		}
+		kept = append(kept, table)
 		if table.program != nil && len(candidates) > 0 {
 			picked, err := runLayerQuery(table.program, candidates)
 			if err != nil {

@@ -68,7 +68,22 @@ func parseExpand(raw json.RawMessage) (*Layer, error) {
 	if _, err := asRepeat(raw); err == nil {
 		return nil, fmt.Errorf(`is a number, which repeats the layer it is on, so it cannot be the first one`)
 	}
-	return parseLayer(raw, 1)
+	layer, err := parseLayer(raw, 1)
+	if err != nil {
+		return nil, err
+	}
+	// links is several relations, a show's side tables, and a nested layer
+	// is one (doc/design/link-fields.md, L4)
+	for at, l := 1, layer; l != nil; at, l = at+1, l.Expand {
+		if l.Relation == schema.LinksKey {
+			where := ""
+			if at > 1 {
+				where = fmt.Sprintf("layer %d ", at)
+			}
+			return nil, fmt.Errorf("%snames links, which is every link relation of an issue, drawn as a show's side tables; a nested layer is one relation, so name it (blocks, blocked_by)", where)
+		}
+	}
+	return layer, nil
 }
 
 // asRepeat reads the integer form of a layer's `expand`.
@@ -252,7 +267,11 @@ func checkExpand(s *schema.Schema, root *Layer) error {
 		// a layer with no relation draws the rows listed above it, which can
 		// be of any type
 		types := s.TypeKeys()
-		if layer.Relation != "" {
+		if layer.Relation == schema.LinksKey {
+			// links is a show's side tables, every link relation with
+			// entries; its fields are checked against what any link reaches
+			types = linkRows(s)
+		} else if layer.Relation != "" {
 			var err error
 			types, err = relationRows(s, layer.Relation)
 			if err != nil {
@@ -326,4 +345,42 @@ func relationRows(s *schema.Schema, name string) ([]string, error) {
 			name, relationNames(s, s.TypeKeys()))
 	}
 	return types, nil
+}
+
+// linkRows is what a table of links can list: the types a link field may
+// point at, and the types holding one, whose issues its inverse lists. With
+// no link in the schema it is every type, so that the built-in spec, which
+// names links, is checked as anything else is (link-fields.md, L4).
+func linkRows(s *schema.Schema) []string {
+	var types []string
+	seen := map[string]bool{}
+	add := func(keys ...string) {
+		for _, key := range keys {
+			if _, ok := s.Type(key); ok && !seen[key] {
+				seen[key] = true
+				types = append(types, key)
+			}
+		}
+	}
+	for _, typeKey := range s.TypeKeys() {
+		t, _ := s.Type(typeKey)
+		for _, key := range t.FieldKeys() {
+			field, _ := t.Field(key)
+			if !field.Link || !field.Kind.IsRelation() {
+				continue
+			}
+			if len(field.TargetTypes) == 0 {
+				add(s.TypeKeys()...)
+			} else {
+				add(field.TargetTypes...)
+			}
+			if field.Inverse != "" {
+				add(typeKey)
+			}
+		}
+	}
+	if len(types) == 0 {
+		return s.TypeKeys()
+	}
+	return types
 }

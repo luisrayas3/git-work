@@ -74,23 +74,27 @@ types:
         aliases:
           jira: link:10000
         inverse: is-blocked-by
+        link: true
       clones:
         kind: multi-relation
         name: Clones
         aliases:
           jira: link:10001
         inverse: is-cloned-by
+        link: true
       duplicates:
         kind: multi-relation
         name: Duplicates
         aliases:
           jira: link:10002
         inverse: is-duplicated-by
+        link: true
       relates-to:
         kind: multi-relation
         name: Relates to
         aliases:
           jira: link:10003
+        link: true
       start-date:
         kind: date
         name: Start date
@@ -189,23 +193,27 @@ types:
         aliases:
           jira: link:10000
         inverse: is-blocked-by
+        link: true
       clones:
         kind: multi-relation
         name: Clones
         aliases:
           jira: link:10001
         inverse: is-cloned-by
+        link: true
       duplicates:
         kind: multi-relation
         name: Duplicates
         aliases:
           jira: link:10002
         inverse: is-duplicated-by
+        link: true
       relates-to:
         kind: multi-relation
         name: Relates to
         aliases:
           jira: link:10003
+        link: true
       estimate:
         kind: number
         name: Story point estimate
@@ -309,23 +317,27 @@ types:
         aliases:
           jira: link:10000
         inverse: is-blocked-by
+        link: true
       clones:
         kind: multi-relation
         name: Clones
         aliases:
           jira: link:10001
         inverse: is-cloned-by
+        link: true
       duplicates:
         kind: multi-relation
         name: Duplicates
         aliases:
           jira: link:10002
         inverse: is-duplicated-by
+        link: true
       relates-to:
         kind: multi-relation
         name: Relates to
         aliases:
           jira: link:10003
+        link: true
       estimate:
         kind: number
         name: Story point estimate
@@ -429,23 +441,27 @@ types:
         aliases:
           jira: link:10000
         inverse: is-blocked-by
+        link: true
       clones:
         kind: multi-relation
         name: Clones
         aliases:
           jira: link:10001
         inverse: is-cloned-by
+        link: true
       duplicates:
         kind: multi-relation
         name: Duplicates
         aliases:
           jira: link:10002
         inverse: is-duplicated-by
+        link: true
       relates-to:
         kind: multi-relation
         name: Relates to
         aliases:
           jira: link:10003
+        link: true
       estimate:
         kind: number
         name: Story point estimate
@@ -541,23 +557,27 @@ types:
         aliases:
           jira: link:10000
         inverse: is-blocked-by
+        link: true
       clones:
         kind: multi-relation
         name: Clones
         aliases:
           jira: link:10001
         inverse: is-cloned-by
+        link: true
       duplicates:
         kind: multi-relation
         name: Duplicates
         aliases:
           jira: link:10002
         inverse: is-duplicated-by
+        link: true
       relates-to:
         kind: multi-relation
         name: Relates to
         aliases:
           jira: link:10003
+        link: true
 
 # notes
 # info epic: new type for Jira issue type Epic (10000)
@@ -681,10 +701,10 @@ types:
 # {"action":"create","shape":"field","key":"epic/assignee","set":{"alias_jira":"assignee","kind":"identity","name":"Assignee","ordinal":30}}
 # {"action":"create","shape":"field","key":"epic/labels","set":{"alias_jira":"labels","freeform":true,"kind":"multi-enum","name":"Labels","ordinal":40}}
 # {"action":"create","shape":"field","key":"epic/due","set":{"alias_jira":"duedate","kind":"date","name":"Due date","ordinal":50}}
-# {"action":"create","shape":"field","key":"epic/blocks","set":{"alias_jira":"link:10000","inverse":"is-blocked-by","kind":"multi-relation","name":"Blocks","ordinal":60}}
-# {"action":"create","shape":"field","key":"epic/clones","set":{"alias_jira":"link:10001","inverse":"is-cloned-by","kind":"multi-relation","name":"Clones","ordinal":70}}
-# {"action":"create","shape":"field","key":"epic/duplicates","set":{"alias_jira":"link:10002","inverse":"is-duplicated-by","kind":"multi-relation","name":"Duplicates","ordinal":80}}
-# {"action":"create","shape":"field","key":"epic/relates-to","set":{"alias_jira":"link:10003","kind":"multi-relation","name":"Relates to","ordinal":90}}
+# {"action":"create","shape":"field","key":"epic/blocks","set":{"alias_jira":"link:10000","inverse":"is-blocked-by","kind":"multi-relation","link":true,"name":"Blocks","ordinal":60}}
+# {"action":"create","shape":"field","key":"epic/clones","set":{"alias_jira":"link:10001","inverse":"is-cloned-by","kind":"multi-relation","link":true,"name":"Clones","ordinal":70}}
+# {"action":"create","shape":"field","key":"epic/duplicates","set":{"alias_jira":"link:10002","inverse":"is-duplicated-by","kind":"multi-relation","link":true,"name":"Duplicates","ordinal":80}}
+# {"action":"create","shape":"field","key":"epic/relates-to","set":{"alias_jira":"link:10003","kind":"multi-relation","link":true,"name":"Relates to","ordinal":90}}
 # {"action":"create","shape":"field","key":"epic/start-date","set":{"alias_jira":"customfield_10015","kind":"date","name":"Start date","ordinal":100}}
 # {"action":"create","shape":"field","key":"story/status","set":{"alias_jira":"status","alias_jira/done":"10002","alias_jira/in-progress":"3","alias_jira/ready-for-qa":"10001","alias_jira/to-do":"10000","alias_jira/wont-do":"10003","kind":"enum","name":"Status","ordinal":10,"values/done":{"name":"Done","ordinal":40,"category":"completed"},"values/in-progress":{"name":"In Progress","ordinal":20,"category":"started"},"values/ready-for-qa":{"name":"Ready for QA","ordinal":30,"category":"started"},"values/to-do":{"name":"To Do","ordinal":10,"category":"unstarted"},"values/wont-do":{"name":"Won't Do","ordinal":50,"category":"completed"}}}
 # {"action":"create","shape":"field","key":"story/priority","set":{"alias_jira":"priority","alias_jira/high":"2","alias_jira/highest":"1","alias_jira/low":"4","alias_jira/lowest":"5","alias_jira/medium":"3","kind":"ordinal-enum","name":"Priority","ordinal":20,"values/high":{"name":"High","ordinal":20},"values/highest":{"name":"Highest","ordinal":10},"values/low":{"name":"Low","ordinal":40},"values/lowest":{"name":"Lowest","ordinal":50},"values/medium":{"name":"Medium","ordinal":30}}}
@@ -692,10 +712,10 @@ types:
 # {"action":"create","shape":"field","key":"story/labels","set":{"alias_jira":"labels","freeform":true,"kind":"multi-enum","name":"Labels","ordinal":40}}
 # {"action":"create","shape":"field","key":"story/due","set":{"alias_jira":"duedate","kind":"date","name":"Due date","ordinal":50}}
 # {"action":"create","shape":"field","key":"story/parent","set":{"alias_jira":"parent","inverse":"children","kind":"relation","name":"Parent","ordinal":60,"target_types/epic":{}}}
-# {"action":"create","shape":"field","key":"story/blocks","set":{"alias_jira":"link:10000","inverse":"is-blocked-by","kind":"multi-relation","name":"Blocks","ordinal":70}}
-# {"action":"create","shape":"field","key":"story/clones","set":{"alias_jira":"link:10001","inverse":"is-cloned-by","kind":"multi-relation","name":"Clones","ordinal":80}}
-# {"action":"create","shape":"field","key":"story/duplicates","set":{"alias_jira":"link:10002","inverse":"is-duplicated-by","kind":"multi-relation","name":"Duplicates","ordinal":90}}
-# {"action":"create","shape":"field","key":"story/relates-to","set":{"alias_jira":"link:10003","kind":"multi-relation","name":"Relates to","ordinal":100}}
+# {"action":"create","shape":"field","key":"story/blocks","set":{"alias_jira":"link:10000","inverse":"is-blocked-by","kind":"multi-relation","link":true,"name":"Blocks","ordinal":70}}
+# {"action":"create","shape":"field","key":"story/clones","set":{"alias_jira":"link:10001","inverse":"is-cloned-by","kind":"multi-relation","link":true,"name":"Clones","ordinal":80}}
+# {"action":"create","shape":"field","key":"story/duplicates","set":{"alias_jira":"link:10002","inverse":"is-duplicated-by","kind":"multi-relation","link":true,"name":"Duplicates","ordinal":90}}
+# {"action":"create","shape":"field","key":"story/relates-to","set":{"alias_jira":"link:10003","kind":"multi-relation","link":true,"name":"Relates to","ordinal":100}}
 # {"action":"create","shape":"field","key":"story/estimate","set":{"alias_jira":"customfield_10016","kind":"number","name":"Story point estimate","ordinal":110}}
 # {"action":"create","shape":"field","key":"story/start-date","set":{"alias_jira":"customfield_10015","kind":"date","name":"Start date","ordinal":120}}
 # {"action":"create","shape":"field","key":"task/status","set":{"alias_jira":"status","alias_jira/done":"10002","alias_jira/in-progress":"3","alias_jira/ready-for-qa":"10001","alias_jira/to-do":"10000","alias_jira/wont-do":"10003","kind":"enum","name":"Status","ordinal":10,"values/done":{"name":"Done","ordinal":40,"category":"completed"},"values/in-progress":{"name":"In Progress","ordinal":20,"category":"started"},"values/ready-for-qa":{"name":"Ready for QA","ordinal":30,"category":"started"},"values/to-do":{"name":"To Do","ordinal":10,"category":"unstarted"},"values/wont-do":{"name":"Won't Do","ordinal":50,"category":"completed"}}}
@@ -704,10 +724,10 @@ types:
 # {"action":"create","shape":"field","key":"task/labels","set":{"alias_jira":"labels","freeform":true,"kind":"multi-enum","name":"Labels","ordinal":40}}
 # {"action":"create","shape":"field","key":"task/due","set":{"alias_jira":"duedate","kind":"date","name":"Due date","ordinal":50}}
 # {"action":"create","shape":"field","key":"task/parent","set":{"alias_jira":"parent","inverse":"children","kind":"relation","name":"Parent","ordinal":60,"target_types/epic":{}}}
-# {"action":"create","shape":"field","key":"task/blocks","set":{"alias_jira":"link:10000","inverse":"is-blocked-by","kind":"multi-relation","name":"Blocks","ordinal":70}}
-# {"action":"create","shape":"field","key":"task/clones","set":{"alias_jira":"link:10001","inverse":"is-cloned-by","kind":"multi-relation","name":"Clones","ordinal":80}}
-# {"action":"create","shape":"field","key":"task/duplicates","set":{"alias_jira":"link:10002","inverse":"is-duplicated-by","kind":"multi-relation","name":"Duplicates","ordinal":90}}
-# {"action":"create","shape":"field","key":"task/relates-to","set":{"alias_jira":"link:10003","kind":"multi-relation","name":"Relates to","ordinal":100}}
+# {"action":"create","shape":"field","key":"task/blocks","set":{"alias_jira":"link:10000","inverse":"is-blocked-by","kind":"multi-relation","link":true,"name":"Blocks","ordinal":70}}
+# {"action":"create","shape":"field","key":"task/clones","set":{"alias_jira":"link:10001","inverse":"is-cloned-by","kind":"multi-relation","link":true,"name":"Clones","ordinal":80}}
+# {"action":"create","shape":"field","key":"task/duplicates","set":{"alias_jira":"link:10002","inverse":"is-duplicated-by","kind":"multi-relation","link":true,"name":"Duplicates","ordinal":90}}
+# {"action":"create","shape":"field","key":"task/relates-to","set":{"alias_jira":"link:10003","kind":"multi-relation","link":true,"name":"Relates to","ordinal":100}}
 # {"action":"create","shape":"field","key":"task/estimate","set":{"alias_jira":"customfield_10016","kind":"number","name":"Story point estimate","ordinal":110}}
 # {"action":"create","shape":"field","key":"task/start-date","set":{"alias_jira":"customfield_10015","kind":"date","name":"Start date","ordinal":120}}
 # {"action":"create","shape":"field","key":"bug/status","set":{"alias_jira":"status","alias_jira/done":"10002","alias_jira/in-progress":"3","alias_jira/ready-for-qa":"10001","alias_jira/to-do":"10000","alias_jira/wont-do":"10003","kind":"enum","name":"Status","ordinal":10,"values/done":{"name":"Done","ordinal":40,"category":"completed"},"values/in-progress":{"name":"In Progress","ordinal":20,"category":"started"},"values/ready-for-qa":{"name":"Ready for QA","ordinal":30,"category":"started"},"values/to-do":{"name":"To Do","ordinal":10,"category":"unstarted"},"values/wont-do":{"name":"Won't Do","ordinal":50,"category":"completed"}}}
@@ -716,10 +736,10 @@ types:
 # {"action":"create","shape":"field","key":"bug/labels","set":{"alias_jira":"labels","freeform":true,"kind":"multi-enum","name":"Labels","ordinal":40}}
 # {"action":"create","shape":"field","key":"bug/due","set":{"alias_jira":"duedate","kind":"date","name":"Due date","ordinal":50}}
 # {"action":"create","shape":"field","key":"bug/parent","set":{"alias_jira":"parent","inverse":"children","kind":"relation","name":"Parent","ordinal":60,"target_types/epic":{}}}
-# {"action":"create","shape":"field","key":"bug/blocks","set":{"alias_jira":"link:10000","inverse":"is-blocked-by","kind":"multi-relation","name":"Blocks","ordinal":70}}
-# {"action":"create","shape":"field","key":"bug/clones","set":{"alias_jira":"link:10001","inverse":"is-cloned-by","kind":"multi-relation","name":"Clones","ordinal":80}}
-# {"action":"create","shape":"field","key":"bug/duplicates","set":{"alias_jira":"link:10002","inverse":"is-duplicated-by","kind":"multi-relation","name":"Duplicates","ordinal":90}}
-# {"action":"create","shape":"field","key":"bug/relates-to","set":{"alias_jira":"link:10003","kind":"multi-relation","name":"Relates to","ordinal":100}}
+# {"action":"create","shape":"field","key":"bug/blocks","set":{"alias_jira":"link:10000","inverse":"is-blocked-by","kind":"multi-relation","link":true,"name":"Blocks","ordinal":70}}
+# {"action":"create","shape":"field","key":"bug/clones","set":{"alias_jira":"link:10001","inverse":"is-cloned-by","kind":"multi-relation","link":true,"name":"Clones","ordinal":80}}
+# {"action":"create","shape":"field","key":"bug/duplicates","set":{"alias_jira":"link:10002","inverse":"is-duplicated-by","kind":"multi-relation","link":true,"name":"Duplicates","ordinal":90}}
+# {"action":"create","shape":"field","key":"bug/relates-to","set":{"alias_jira":"link:10003","kind":"multi-relation","link":true,"name":"Relates to","ordinal":100}}
 # {"action":"create","shape":"field","key":"bug/estimate","set":{"alias_jira":"customfield_10016","kind":"number","name":"Story point estimate","ordinal":110}}
 # {"action":"create","shape":"field","key":"bug/start-date","set":{"alias_jira":"customfield_10015","kind":"date","name":"Start date","ordinal":120}}
 # {"action":"create","shape":"field","key":"sub-task/status","set":{"alias_jira":"status","alias_jira/done":"10002","alias_jira/in-progress":"3","alias_jira/to-do":"10000","kind":"enum","name":"Status","ordinal":10,"values/done":{"name":"Done","ordinal":30,"category":"completed"},"values/in-progress":{"name":"In Progress","ordinal":20,"category":"started"},"values/to-do":{"name":"To Do","ordinal":10,"category":"unstarted"}}}
@@ -728,7 +748,7 @@ types:
 # {"action":"create","shape":"field","key":"sub-task/labels","set":{"alias_jira":"labels","freeform":true,"kind":"multi-enum","name":"Labels","ordinal":40}}
 # {"action":"create","shape":"field","key":"sub-task/due","set":{"alias_jira":"duedate","kind":"date","name":"Due date","ordinal":50}}
 # {"action":"create","shape":"field","key":"sub-task/parent","set":{"alias_jira":"parent","inverse":"children","kind":"relation","name":"Parent","ordinal":60,"target_types/bug":{},"target_types/story":{},"target_types/task":{}}}
-# {"action":"create","shape":"field","key":"sub-task/blocks","set":{"alias_jira":"link:10000","inverse":"is-blocked-by","kind":"multi-relation","name":"Blocks","ordinal":70}}
-# {"action":"create","shape":"field","key":"sub-task/clones","set":{"alias_jira":"link:10001","inverse":"is-cloned-by","kind":"multi-relation","name":"Clones","ordinal":80}}
-# {"action":"create","shape":"field","key":"sub-task/duplicates","set":{"alias_jira":"link:10002","inverse":"is-duplicated-by","kind":"multi-relation","name":"Duplicates","ordinal":90}}
-# {"action":"create","shape":"field","key":"sub-task/relates-to","set":{"alias_jira":"link:10003","kind":"multi-relation","name":"Relates to","ordinal":100}}
+# {"action":"create","shape":"field","key":"sub-task/blocks","set":{"alias_jira":"link:10000","inverse":"is-blocked-by","kind":"multi-relation","link":true,"name":"Blocks","ordinal":70}}
+# {"action":"create","shape":"field","key":"sub-task/clones","set":{"alias_jira":"link:10001","inverse":"is-cloned-by","kind":"multi-relation","link":true,"name":"Clones","ordinal":80}}
+# {"action":"create","shape":"field","key":"sub-task/duplicates","set":{"alias_jira":"link:10002","inverse":"is-duplicated-by","kind":"multi-relation","link":true,"name":"Duplicates","ordinal":90}}
+# {"action":"create","shape":"field","key":"sub-task/relates-to","set":{"alias_jira":"link:10003","kind":"multi-relation","link":true,"name":"Relates to","ordinal":100}}

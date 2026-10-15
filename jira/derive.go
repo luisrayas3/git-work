@@ -157,6 +157,7 @@ type want struct {
 	kind     schema.Kind
 	freeform bool
 	inverse  string
+	link     bool // a link type's field, drawn as a link (link-fields.md, L2)
 	targets  []string
 	values   []jiraValue
 	ordered  bool // values follow Jira's order (priority)
@@ -214,7 +215,7 @@ func (d *deriver) wants(it IssueType) []want {
 		if lt.Outward != "" {
 			name = strings.ToUpper(lt.Outward[:1]) + lt.Outward[1:]
 		}
-		w := want{ref: linkPrefix + lt.ID, key: slug(lt.Outward), name: name, kind: schema.KindMultiRelation}
+		w := want{ref: linkPrefix + lt.ID, key: slug(lt.Outward), name: name, kind: schema.KindMultiRelation, link: true}
 		if lt.Inward != lt.Outward {
 			w.inverse = slug(lt.Inward)
 		}
@@ -340,6 +341,9 @@ func (d *deriver) fields(typeKey string, it IssueType) {
 		claimed[key] = true
 		setAlias(&f.Aliases, w.ref)
 		f.Freeform = f.Freeform || w.freeform
+		// a link type's field is marked on every sync, so a store derived
+		// before the mark gets it as an update of each such field
+		f.Link = f.Link || w.link
 		if f.Inverse == "" && w.inverse != "" {
 			f.Inverse = keyFor(w.inverse, w.ref, "f-", func(k string) bool { return k == key || fieldTaken(&t, k) })
 		}

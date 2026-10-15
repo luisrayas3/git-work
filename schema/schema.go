@@ -62,6 +62,11 @@ type Field struct {
 	Inverse string `json:"inverse,omitempty"`
 	// TargetTypes restricts what a relation may point at; empty is anything.
 	TargetTypes []string `json:"target_types,omitempty"`
+	// Link marks a relation as a link (doc/design/link-fields.md, L1):
+	// show draws it folded into one `links` row and its targets as side
+	// tables, and its inverse is a link too. Only the views read it; it is
+	// not a field role, since Go names no field by it.
+	Link bool `json:"link,omitempty"`
 
 	// Aliases are what the field is in other systems, by system (JS2):
 	// for Jira a field reference, `customfield_10016` or `link:10000`.

@@ -200,8 +200,7 @@ var Kinds = map[string][]Arg{
 	KindShow: {
 		{Name: "id", Tier: Required, Kind: Id,
 			Doc: "the issue to show, by id prefix or alias"},
-		{Name: "fields", Tier: Defaulted, Kind: FieldKeys,
-			Doc: "the fields shown, in order; the type's fields in schema order by default"},
+		{Name: "fields", Tier: Defaulted, Kind: FieldKeys, Doc: showFieldsDoc},
 		// expand is the list's, drawn flat beside the fields: one name for
 		// one object on every kind (doc/design/show-side-table.md, S1)
 		{Name: "expand", Tier: Optional, Kind: SideTables, Doc: sideDoc},
@@ -249,7 +248,8 @@ const expandDoc = `the relation nested under a row: "children", or a layer ` +
 	`that row's own unarchived children (the archived too with include_archive, which a layer inherits from ` +
 	`the call or the layer above unless it names its own), the keys it leaves out ` +
 	`are the layer above's, and its expand is ` +
-	`the level below: a layer, or a number of further levels this same layer draws, 0 for every one`
+	`the level below: a layer, or a number of further levels this same layer draws, 0 for every one; ` +
+	`links is refused, being several relations, a show's side tables`
 
 // sideDoc is `expand` on show: the list's spec, drawn as a flat table beside
 // the fields rather than nested under a row (doc/design/show-side-table.md).
@@ -258,7 +258,16 @@ const sideDoc = `the issues a relation reaches from this one, a table each besid
 	`or a layer {"relation":…,"query":…,"include_archive":…,"fields":…}, or a list of them, ` +
 	`one table per element; a relation is a stored one or the inverse name the schema gives one, ` +
 	`the query runs over the unarchived issues it reaches, fields are the columns after id and title, ` +
-	`and details, group_by and expand are refused, a side table being flat`
+	`and details, group_by and expand are refused, a side table being flat; ` +
+	`links (a name, or a layer's relation) is a table per link relation with entries, stored then inverse, ` +
+	`its query, include_archive and fields applying to each`
+
+// showFieldsDoc is `fields` on show, which folds the link fields into one
+// row (doc/design/link-fields.md, L3).
+const showFieldsDoc = `the fields shown, in order; the type's fields in schema order by default, ` +
+	`its link fields folded into one links row, the count of what the issue is linked to by relation, ` +
+	`at the first one's place; naming a link field draws it as a row, and naming links places that row, ` +
+	`which a list of fields without it leaves out`
 
 // showArg is `show` on the list, the gantt and the board, whose Enter opens
 // an issue (doc/design/show-from-a-view.md, V1).

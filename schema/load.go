@@ -200,6 +200,10 @@ func compileField(typeKey, fieldKey string, e Entry) (*Field, error) {
 	if err != nil {
 		return nil, err
 	}
+	link, err := attrBool(e.Attributes, AttrLink)
+	if err != nil {
+		return nil, err
+	}
 
 	field := &Field{
 		Type:        typeKey,
@@ -209,6 +213,7 @@ func compileField(typeKey, fieldKey string, e Entry) (*Field, error) {
 		Description: description,
 		Freeform:    freeform,
 		Inverse:     inverse,
+		Link:        link,
 		Builtin:     IsBuiltin(fieldKey),
 		Configured:  true,
 		EntityId:    e.Id,

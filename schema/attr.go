@@ -21,6 +21,10 @@ const (
 	AttrOrdinal     = "ordinal"
 	AttrFreeform    = "freeform"
 	AttrInverse     = "inverse"
+	// AttrLink marks a relation as a link, `blocks` or `clones`, which the
+	// views draw folded into one `links` row; it changes no storage, no
+	// write and no query (doc/design/link-fields.md, L1).
+	AttrLink = "link"
 
 	// ValuesPrefix folds an enum's values one attribute per member,
 	// `values/<id>`, so two people adding two statuses both keep theirs (E3).

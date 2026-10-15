@@ -54,6 +54,8 @@ type newPage struct {
 
 	// rows is the fields table as drawn, rebuilt on every change
 	rows []tableRow
+	// links are the draft's stored link fields, which the links row counts
+	links []linkRel
 
 	focus  stopKind
 	typing bool
@@ -159,12 +161,15 @@ func (p *newPage) rebuild() {
 	typeKey := p.typeKey()
 	known := newKinds(p.repo)
 
-	var rows []tableRow
-	for _, key := range p.fieldOrder() {
+	// the draft's stored link fields are one links row, as on show; a
+	// draft has no inverses, having no id to be pointed at (link-fields.md, L5)
+	p.links = issueLinks(p.repo, typeKey, "", p.fields)
+	p.rows = linkFieldRows(p.fieldOrder(), p.order, p.links, func(key string) []tableRow {
 		switch key {
 		case schema.TitleKey, schema.TypeKey, issue.ArchivedKey, schema.RankKey:
-			continue
+			return nil
 		}
+		var rows []tableRow
 		value, _ := decodeValue(p.fields[key])
 		if isRelation(known.of(typeKey, key)) {
 			ids := linkIds(value)
@@ -172,16 +177,15 @@ func (p *newPage) rebuild() {
 				rows = append(rows, tableRow{key: key, label: linkLabel(p.repo, id), first: at == 0, link: id})
 			}
 			if len(ids) > 0 {
-				continue
+				return rows
 			}
 		}
 		label := plain(p.fields[key])
 		if isPerson(known.of(typeKey, key)) {
 			label = personText(p.repo, value)
 		}
-		rows = append(rows, tableRow{key: key, label: label, first: true})
-	}
-	p.rows = rows
+		return append(rows, tableRow{key: key, label: label, first: true})
+	})
 	p.row = min(max(p.row, 0), max(len(p.rows)-1, 0))
 }
 
@@ -530,6 +534,15 @@ func (p *newPage) startEdit(fieldKey string, pasted *string) tea.Cmd {
 	if fieldKey == "" {
 		return bell()
 	}
+	if fieldKey == schema.LinksKey {
+		ed, refusal := linkRelationsEditor(p.links)
+		if refusal != "" || pasted != nil {
+			p.status = refusal
+			return bell()
+		}
+		p.editor, p.status = ed, ""
+		return nil
+	}
 	typeKey := p.typeKey()
 	current, _ := decodeValue(p.fields[fieldKey])
 
@@ -570,6 +583,18 @@ func (p *newPage) updateEditor(msg tea.Msg) (page, tea.Cmd) {
 	ed := p.editor
 	p.editor = nil
 	if cancelled {
+		return p, nil
+	}
+	if ed.link != nil {
+		// a relation opens its members; a member chosen is added to the
+		// draft or taken out of it, nothing written until Create
+		chosen := ed.linkChoice()
+		if ed.link.rel == nil {
+			p.editor = linkMembersEditor(p.repo, "", ed.link.rels, ed.link.relation(chosen.value))
+			return p, nil
+		}
+		p.set(ed.link.rel.Name, draftLink(p.fields[ed.link.rel.Name], ed.link.rel, chosen))
+		p.status = ed.link.rel.Name + " set"
 		return p, nil
 	}
 
@@ -809,6 +834,9 @@ func (p *newPage) hintLine() string {
 	var pairs []hint
 	if row.link != "" {
 		pairs = append(pairs, hint{"enter", "go to"})
+	}
+	if row.key == schema.LinksKey {
+		pairs = append(pairs, hint{"space", "edit"})
 	}
 	if edit, ok := editHint(fieldKind(p.repo, p.typeKey(), row.key)); ok {
 		pairs = append(pairs, edit)
