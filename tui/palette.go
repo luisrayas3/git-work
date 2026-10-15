@@ -186,14 +186,14 @@ func repoOf(p page) *cache.RepoCache {
 	return nil
 }
 
-// showsOf is the `show` map the page opens issues by, passed on to the
+// showsOf is the `shows` the page opens issues by, passed on to the
 // creator so that what it opens is opened the same way (show_map.go).
 func showsOf(p page) json.RawMessage {
 	if p, ok := p.(*newPage); ok {
 		return p.shows
 	}
 	call, _, _ := p.Call()
-	return call.Raw("show")
+	return call.Raw("shows")
 }
 
 // openCreator is `n`: the creator on an empty draft, over the page, its type

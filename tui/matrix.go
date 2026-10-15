@@ -781,8 +781,8 @@ func (p *matrixPage) cellCall() (*view.Call, error) {
 	}
 	// the list opens issues by the matrix's map, which the matrix takes
 	// for that alone (doc/design/show-from-a-view.md, V3)
-	if p.call.Has("show") {
-		kwargs["show"] = p.call.Raw("show")
+	if p.call.Has("shows") {
+		kwargs["shows"] = p.call.Raw("shows")
 	}
 	return view.Parse(view.KindList, kwargs)
 }

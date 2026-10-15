@@ -133,13 +133,64 @@ func Reconcile(desired *Document, current []Entry, prune bool) ([]Change, error)
 	return changes, nil
 }
 
+// Apply is what a set of changes makes of the current entries, in memory:
+// the schema an import would leave, for a check that needs the whole of it,
+// such as a type's show spec naming a field the same import adds.
+func Apply(current []Entry, changes []Change) []Entry {
+	index := map[string]int{}
+	out := make([]Entry, 0, len(current)+len(changes))
+	for _, e := range current {
+		attributes := make(map[string]config.Value, len(e.Attributes))
+		for name, value := range e.Attributes {
+			attributes[name] = value
+		}
+		index[string(e.Shape)+" "+e.Key] = len(out)
+		out = append(out, Entry{Id: e.Id, Shape: e.Shape, Key: e.Key, Attributes: attributes})
+	}
+	archived := map[int]bool{}
+	for _, change := range changes {
+		key := string(change.Shape) + " " + change.Key
+		at, exists := index[key]
+		switch change.Action {
+		case ActionCreate:
+			attributes := make(map[string]config.Value, len(change.Set))
+			for name, value := range change.Set {
+				attributes[name] = value
+			}
+			index[key] = len(out)
+			out = append(out, Entry{Shape: change.Shape, Key: change.Key, Attributes: attributes})
+		case ActionUpdate:
+			if !exists {
+				continue
+			}
+			for name, value := range change.Set {
+				out[at].Attributes[name] = value
+			}
+			for _, name := range change.Remove {
+				delete(out[at].Attributes, name)
+			}
+		case ActionArchive:
+			if exists {
+				archived[at] = true
+			}
+		}
+	}
+	kept := out[:0]
+	for at, e := range out {
+		if !archived[at] {
+			kept = append(kept, e)
+		}
+	}
+	return kept
+}
+
 // typeAttributeNames are the attributes an import owns on a type entity.
 // Anything else an entity carries — a newer binary's attribute — is left alone.
 // No alias is owned: an import writes the aliases a document states and never
 // removes one, so an alias-free file unmaps nothing (JS2).
 func typeAttributeNames(name string) bool {
 	switch name {
-	case AttrName, AttrDescription, AttrOrdinal:
+	case AttrName, AttrDescription, AttrOrdinal, AttrShow:
 		return true
 	}
 	return false
@@ -164,6 +215,9 @@ func typeAttributes(t TypeDoc, ordinal int) map[string]config.Value {
 	}
 	if t.Description != "" {
 		attributes[AttrDescription] = mustValue(t.Description)
+	}
+	if t.Show != nil {
+		attributes[AttrShow] = mustValue(t.Show)
 	}
 	aliasAttributes(attributes, t.Aliases, AliasName)
 	return attributes

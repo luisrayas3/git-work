@@ -77,13 +77,13 @@ func TestLinksRow(t *testing.T) {
 
 	// a call's fields naming a link field draws it, and leaves it out of the
 	// count; naming links places the row, and leaving it out drops it
-	page, err = showCall(t, repo, `{"id":"`+story+`","fields":["links","blocks"]}`)
+	page, err = specCall(t, repo, story, `{"fields":["links","blocks"]}`)
 	require.NoError(t, err)
 	require.Contains(t, linksLine(page), "1 · blocked_by 1")
 	require.NotEqual(t, -1, rowAt(page.rows, "blocks"))
 	require.Less(t, rowAt(page.rows, schema.LinksKey), rowAt(page.rows, "blocks"))
 
-	page, err = showCall(t, repo, `{"id":"`+story+`","fields":["status"]}`)
+	page, err = specCall(t, repo, story, `{"fields":["status"]}`)
 	require.NoError(t, err)
 	require.Equal(t, -1, rowAt(page.rows, schema.LinksKey))
 }
@@ -97,7 +97,7 @@ func TestLinksTables(t *testing.T) {
 	story := newTyped(t, repo, "story", map[string]any{"title": "the story", "blocks": []string{one}})
 	blocker := newTyped(t, repo, "story", map[string]any{"title": "the blocker", "blocks": []string{story}})
 
-	page, err := showCall(t, repo, `{"id":"`+story+`","expand":[{"relation":"links","fields":["status"]}]}`)
+	page, err := specCall(t, repo, story, `{"expand":[{"relation":"links","fields":["status"]}]}`)
 	require.NoError(t, err)
 	require.Len(t, page.tables, 2, "blocks and blocked_by, the rest have no entry")
 	require.Equal(t, "blocks", page.tables[0].layer.Relation)
@@ -110,19 +110,24 @@ func TestLinksTables(t *testing.T) {
 	require.Equal(t, stopSide, page.current().stop)
 	require.Equal(t, one, page.sideRowAt(page.sideCurrent()).id)
 
-	// links with no tables to go to rings
+	// a bare show is drawn by the built-in spec, which names links
 	page, err = showCall(t, repo, `{"id":"`+story+`"}`)
+	require.NoError(t, err)
+	require.Len(t, page.tables, 2)
+
+	// links with no tables to go to rings: a spec that leaves them out
+	page, err = specCall(t, repo, story, `{"fields":["status","links"]}`)
 	require.NoError(t, err)
 	page.row = rowAt(page.rows, schema.LinksKey)
 	rings(t, page, "enter")
 
 	// the layer is checked as any is: its fields against what a link reaches
-	_, err = showCall(t, repo, `{"id":"`+story+`","expand":{"relation":"links","fields":["nope"]}}`)
+	_, err = specCall(t, repo, story, `{"expand":{"relation":"links","fields":["nope"]}}`)
 	require.ErrorContains(t, err, "names field nope")
 
 	// an issue with no links draws no table and no (none)
 	lonely := newTyped(t, repo, "story", map[string]any{"title": "alone"})
-	page, err = showCall(t, repo, `{"id":"`+lonely+`","expand":["links"]}`)
+	page, err = specCall(t, repo, lonely, `{"expand":["links"]}`)
 	require.NoError(t, err)
 	require.Empty(t, page.tables)
 }

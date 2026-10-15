@@ -1,6 +1,7 @@
 package schema
 
 import (
+	"encoding/json"
 	"fmt"
 	"sort"
 
@@ -155,12 +156,18 @@ func compileType(e Entry) (*Type, error) {
 		return nil, err
 	}
 
+	var show json.RawMessage
+	if raw, ok := e.Attributes[AttrShow]; ok {
+		show = append(json.RawMessage(nil), raw...)
+	}
+
 	return &Type{
 		Key:         e.Key,
 		Name:        name,
 		Description: description,
 		Ordinal:     ordinal,
 		Aliases:     aliases,
+		Show:        show,
 		Fields:      map[string]*Field{},
 		EntityId:    e.Id,
 	}, nil

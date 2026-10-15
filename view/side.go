@@ -8,9 +8,10 @@ import (
 	"github.com/git-bug/git-bug/schema"
 )
 
-// Show's `expand`: the list's spec, or a list of it, one flat table per
-// element drawn beside the fields (doc/design/show-side-table.md, approved
-// 2026-10-08, Luis).
+// A spec's `expand`: the list's spec, or a list of it, one flat table per
+// element drawn beside show's fields (doc/design/show-side-table.md, approved
+// 2026-10-08, Luis). It was show's own argument until `shows` moved it into
+// the spec of a type (app.md A7).
 //
 // It is the list's argument because it is the list's object: the issues one
 // relation reaches from one row, narrowed and drawn as a table. A nested list
@@ -18,7 +19,7 @@ import (
 // is about. So it is read by the same parser and checked by the same check,
 // and only what a flat table cannot draw is refused on top.
 
-// parseSideTables reads show's `expand`: a relation name, a layer, or a list
+// parseSideTables reads a spec's `expand`: a relation name, a layer, or a list
 // of either, each a table. A layer here needs its relation, since there is no
 // row above to list children, and takes no `details`, `group_by` or `expand`,
 // because a side column is too narrow for a second line, a section or a tree.
@@ -62,52 +63,19 @@ func parseSideTables(raw json.RawMessage) ([]*Layer, error) {
 	return out, nil
 }
 
-// SideTables returns show's `expand` as parsed, nil when it is absent.
-func (c *Call) SideTables() []*Layer {
-	raw, ok := c.Args["expand"]
-	if !ok || c.Kind != KindShow {
-		return nil
-	}
-	tables, err := parseSideTables(raw)
-	if err != nil {
-		return nil
-	}
-	return tables
-}
-
 // CheckSchema checks what a call names against the live schema, where the
-// table alone cannot: `expand`'s layers, whose relations and field keys have
-// to exist, on show a table each, and `show`'s entries, each checked as
-// show's own call is (show.go). It is called once, in host.View, so that
+// table alone cannot: a list's or a gantt's `expand`, whose relations and
+// field keys have to exist, and `shows`, each spec checked against its type
+// as show's own call is (show.go). It is called once, in host.View, so that
 // every surface refuses the same call with the same words before anything
 // is drawn.
 func CheckSchema(call *Call, s *schema.Schema) error {
-	if err := checkLayers(call, s); err != nil {
-		return err
-	}
-	return checkShowMap(call, s)
-}
-
-func checkLayers(call *Call, s *schema.Schema) error {
-	if call.Kind == KindShow {
-		tables := call.SideTables()
-		for at, table := range tables {
-			if err := checkExpand(s, table); err != nil {
-				where := ""
-				if len(tables) > 1 {
-					where = fmt.Sprintf("table %d ", at+1)
-				}
-				return fmt.Errorf("view %s: expand %s%w", call.Kind, where, err)
-			}
-		}
-		return nil
-	}
 	if layer := call.Expand(); layer != nil {
 		if err := checkExpand(s, layer); err != nil {
 			return fmt.Errorf("view %s: expand %w", call.Kind, err)
 		}
 	}
-	return nil
+	return checkShows(call, s)
 }
 
 // InverseSources is what a relation name reads on the child's side, for a

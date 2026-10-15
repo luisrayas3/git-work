@@ -40,6 +40,10 @@ type showPage struct {
 	id    string
 	order []string
 	call  *view.Call
+	// defaulted is the spec the page is drawn by where the call's shows did
+	// not give it, `shows.story={…}`, drawn dim after the call on the first
+	// line, as a defaulted argument is (doc/design/app.md A7)
+	defaulted string
 
 	snapshot *issue.Snapshot
 	log      []cmdjson.IssueOperation
@@ -166,12 +170,9 @@ func newShowPage(repo *cache.RepoCache, id string, fields []string) (*showPage, 
 	p.id = p.snapshot.Id().String()
 
 	// the call this page is, for its first line: whether the command line
-	// made it or the list's enter did, it is the same call
-	args := map[string]json.RawMessage{"id": mustJSON(p.id)}
-	if len(fields) > 0 {
-		args["fields"] = mustJSON(fields)
-	}
-	p.call = &view.Call{Kind: view.KindShow, Args: args}
+	// made it or the list's enter did, it is the same call; the fields are
+	// the spec's, which newShowView adds what it has to say about
+	p.call = &view.Call{Kind: view.KindShow, Args: map[string]json.RawMessage{"id": mustJSON(p.id)}}
 
 	p.box = newCommentBox(p.width)
 	p.focus, p.cell = stopFields, cellTitle
@@ -828,10 +829,10 @@ func (p *showPage) toLinkTables() tea.Cmd {
 	return bell()
 }
 
-// follow opens the issue a link names, over this one, by the call's `show`:
-// the map this page was opened by, or a direct call's (show_map.go).
+// follow opens the issue a link names, over this one, by the call's `shows`:
+// the ones this page was opened by, or a direct call's (show_map.go).
 func (p *showPage) follow(id string) tea.Cmd {
-	return pushShow(p.repo, p.call.Raw("show"), id, &p.status)
+	return pushShow(p.repo, p.call.Raw("shows"), id, &p.status)
 }
 
 func (p *showPage) copyHere(here position) tea.Cmd {
@@ -1040,7 +1041,11 @@ func (p *showPage) View() string {
 
 // topLines is what never scrolls: the call, and the header under it.
 func (p *showPage) topLines(here position) []string {
-	lines := []string{callLine(p.call, humanOf(p.repo, p.snapshot.Id().String()), "id", p.width), ""}
+	first := callLine(p.call, humanOf(p.repo, p.snapshot.Id().String()), "id", 1<<20)
+	if p.defaulted != "" {
+		first += "  " + styleDim.Render(p.defaulted)
+	}
+	lines := []string{fit(first, p.width), ""}
 	lines = append(lines, p.headerLines(here)...)
 	return append(lines, "")
 }

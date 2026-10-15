@@ -675,7 +675,7 @@ func (p *listPage) act() (page, tea.Cmd) {
 		return p, nil
 	}
 	if node := p.node(); node.ghost {
-		return p, openNew(p.repo, p.call.Raw("show"), p.ghostDoc(row, node))
+		return p, openNew(p.repo, p.call.Raw("shows"), p.ghostDoc(row, node))
 	}
 	if links := row.links[p.fieldKey()]; len(links) > 0 {
 		return p, p.push(links[0])
@@ -706,9 +706,9 @@ func (p *listPage) edit() (page, tea.Cmd) {
 	return p, p.startEdit(nil)
 }
 
-// push opens an issue over the list, by the call's `show` (show_map.go).
+// push opens an issue over the list, by the call's `shows` (show_map.go).
 func (p *listPage) push(id string) tea.Cmd {
-	return pushShow(p.repo, p.call.Raw("show"), id, &p.status)
+	return pushShow(p.repo, p.call.Raw("shows"), id, &p.status)
 }
 
 // fieldKey is the field under the column cursor, or "" on the id and on the

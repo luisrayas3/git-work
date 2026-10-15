@@ -101,9 +101,9 @@ func TestHelpCarriesTheTable(t *testing.T) {
 	require.NotContains(t, long, "not drawn yet")
 }
 
-// TestViewChecksShowEntries: each entry of `show` is checked as show's own
-// call is, before the missing terminal, naming the type
-// (doc/design/show-from-a-view.md, V2).
+// TestViewChecksShowEntries: each spec of `shows` is checked against its type
+// as show's own call is, before the missing terminal, naming the type
+// (doc/design/show-from-a-view.md, V2; app.md A7).
 func TestViewChecksShowEntries(t *testing.T) {
 	env := execenv.NewTestEnv(t)
 	me, err := env.Backend.Identities().New("John Doe", "jdoe@example.com")
@@ -113,12 +113,13 @@ func TestViewChecksShowEntries(t *testing.T) {
 	require.NoError(t, err)
 
 	for _, c := range []struct{ kind, kwargs, want string }{
-		{"list", `{"show":{"saga":{}}}`, "show names type saga, which the schema does not have; the types are initiative, epic"},
-		{"board", `{"columns":"status","show":{"epic":{"id":"abc"}}}`, "show epic takes no id"},
-		{"gantt", `{"start":"due","stop":"due","show":{"epic":{"colour":"red"}}}`, "show epic takes no argument colour, an entry takes fields (defaulted), expand (optional)"},
-		{"matrix", `{"rows":"type","columns":"status","show":{"epic":{"expand":"nephews"}}}`, "show epic: view show: expand"},
-		{"show", `{"id":"abc","show":{"epic":{"expand":{"relation":"children","details":["status"]}}}}`, "takes no details"},
-		{"list", `{"show":{"epic":{"expand":{"relation":"children","fields":["colour"]}}}}`, "colour"},
+		{"list", `{"shows":{"saga":{}}}`, "shows names type saga, which the schema does not have; the types are initiative, epic"},
+		{"board", `{"columns":"status","shows":{"epic":{"id":"abc"}}}`, "shows epic takes no key id"},
+		{"gantt", `{"start":"due","stop":"due","shows":{"epic":{"colour":"red"}}}`, "shows epic takes no key colour, a spec takes fields and expand"},
+		{"matrix", `{"rows":"type","columns":"status","shows":{"epic":{"expand":"nephews"}}}`, "shows epic expand names nephews, which is not a relation of epic"},
+		{"show", `{"id":"abc","shows":{"epic":{"expand":{"relation":"children","details":["status"]}}}}`, "takes no details"},
+		{"show", `{"id":"abc","expand":"children"}`, "view show takes no argument expand, it takes id (required), shows (optional)"},
+		{"list", `{"shows":{"epic":{"expand":{"relation":"children","fields":["colour"]}}}}`, "colour"},
 	} {
 		err := runView(env, c.kind, []string{c.kwargs})
 		require.Error(t, err, c.kwargs)
@@ -127,6 +128,6 @@ func TestViewChecksShowEntries(t *testing.T) {
 	}
 
 	// a good map passes the check and meets the missing terminal
-	err = runView(env, "list", []string{`{"show":{"epic":{"expand":"children"}}}`})
+	err = runView(env, "list", []string{`{"shows":{"epic":{"expand":["children","links"]}}}`})
 	require.ErrorIs(t, err, view.ErrNoTerminal)
 }

@@ -323,10 +323,10 @@ func TestViewReachesTheRendererParsed(t *testing.T) {
 	require.Equal(t, []string{"type", "title"}, call.Strings("fields"))
 }
 
-// TestViewShowTakesExpand: show's expand is a list of dicts in Starlark as it
-// is a list of objects on the command line, one to one, and the schema check
-// is host.View's, so a flow is refused as a command is; `children` is gone
-// (doc/design/show-side-table.md, S8).
+// TestViewShowTakesExpand: a spec's expand is a list of dicts in Starlark as
+// it is a list of objects on the command line, one to one, and the schema
+// check is host.View's, so a flow is refused as a command is; show's own
+// expand went into the spec (doc/design/show-side-table.md, S8; app.md A7).
 func TestViewShowTakesExpand(t *testing.T) {
 	repo := testRepo(t)
 	_, _, err := host.SchemaInit(repo, "jira", false)
@@ -339,11 +339,13 @@ func TestViewShowTakesExpand(t *testing.T) {
 
 	_, _, err = runWith(t, repo, renderer, `def story(id):
     """A story and its tasks."""
-    return work.view.show(id=id, expand=[{"relation": "children", "fields": ["status"]}, "blocks"])
+    return work.view.show(id=id, shows={"story": {"expand": [{"relation": "children", "fields": ["status"]}, "blocks"]}})
 `, map[string]json.RawMessage{"id": json.RawMessage(`"` + story.String() + `"`)})
 	require.NoError(t, err)
 	require.Len(t, renderer.calls, 1)
-	tables := renderer.calls[0].SideTables()
+	spec, source := view.SpecFor(renderer.calls[0].Raw("shows"), nil, "story")
+	require.Equal(t, view.SpecFromCall, source)
+	tables := spec.Tables
 	require.Len(t, tables, 2)
 	require.Equal(t, "children", tables[0].Relation)
 	require.Equal(t, []string{"status"}, tables[0].Fields)
@@ -351,24 +353,26 @@ func TestViewShowTakesExpand(t *testing.T) {
 
 	_, _, err = runWith(t, repo, renderer, `def story(id):
     """A relation that is not one."""
-    return work.view.show(id=id, expand="nephews")
+    return work.view.show(id=id, shows={"story": {"expand": "nephews"}})
 `, map[string]json.RawMessage{"id": json.RawMessage(`"` + story.String() + `"`)})
-	require.ErrorContains(t, err, "view show: expand")
+	require.ErrorContains(t, err, "view show: shows story expand")
 	require.ErrorContains(t, err, "nephews")
 	require.Len(t, renderer.calls, 1, "refused before the renderer")
 
-	_, _, err = runWith(t, repo, renderer, `def story(id):
+	for _, gone := range []string{`expand="children"`, `children=[{"relation": "children"}]`} {
+		_, _, err = runWith(t, repo, renderer, `def story(id):
     """The argument that went."""
-    return work.view.show(id=id, children=[{"relation": "children"}])
+    return work.view.show(id=id, `+gone+`)
 `, map[string]json.RawMessage{"id": json.RawMessage(`"` + story.String() + `"`)})
-	require.ErrorContains(t, err, "takes no argument children")
+		require.ErrorContains(t, err, "takes no argument", gone)
+	}
 }
 
-// TestViewTakesShow: `show` is a dict of dicts in Starlark as it is an object
-// of objects on the command line, and each entry is checked as show's own
-// call is, in host.View, before the renderer (doc/design/show-from-a-view.md,
-// V2).
-func TestViewTakesShow(t *testing.T) {
+// TestViewTakesShows: `shows` is a dict of dicts in Starlark as it is an
+// object of objects on the command line, and each spec is checked against
+// its type as show's own call is, in host.View, before the renderer
+// (doc/design/show-from-a-view.md, V2; app.md A7).
+func TestViewTakesShows(t *testing.T) {
 	repo := testRepo(t)
 	_, _, err := host.SchemaInit(repo, "jira", false)
 	require.NoError(t, err)
@@ -376,18 +380,19 @@ func TestViewTakesShow(t *testing.T) {
 
 	_, _, err = runWith(t, repo, renderer, `def epics():
     """Epics that open with their stories beside them."""
-    return work.view.list(expand="children", show={"epic": {"expand": {"relation": "children", "fields": ["status"]}}})
+    return work.view.list(expand="children", shows={"epic": {"expand": {"relation": "children", "fields": ["status"]}}})
 `, nil)
 	require.NoError(t, err)
 	require.Len(t, renderer.calls, 1)
-	require.JSONEq(t, `{"epic":{"expand":{"relation":"children","fields":["status"]}}}`, string(renderer.calls[0].Raw("show")))
+	require.JSONEq(t, `{"epic":{"expand":{"relation":"children","fields":["status"]}}}`, string(renderer.calls[0].Raw("shows")))
 
 	for _, c := range []struct{ call, want string }{
-		{`work.view.list(show={"saga": {}})`, "show names type saga"},
-		{`work.view.board(columns="status", show={"epic": {"id": "abc"}})`, "show epic takes no id"},
-		{`work.view.gantt(start="due", stop="due", show={"epic": {"expand": "nephews"}})`, "show epic: view show: expand"},
-		{`work.view.matrix(rows="type", columns="status", show={"epic": {"children": []}})`, "show epic takes no argument children, an entry takes fields (defaulted), expand (optional)"},
-		{`work.view.show(id="abc", show={"epic": {"expand": {"relation": "children", "group_by": "status"}}})`, "takes no group_by"},
+		{`work.view.list(shows={"saga": {}})`, "shows names type saga"},
+		{`work.view.board(columns="status", shows={"epic": {"id": "abc"}})`, "shows epic takes no key id"},
+		{`work.view.gantt(start="due", stop="due", shows={"epic": {"expand": "nephews"}})`, "shows epic expand names nephews"},
+		{`work.view.matrix(rows="type", columns="status", shows={"epic": {"children": []}})`, "shows epic takes no key children, a spec takes fields and expand"},
+		{`work.view.show(id="abc", shows={"epic": {"expand": {"relation": "children", "group_by": "status"}}})`, "takes no group_by"},
+		{`work.view.show(id="abc", fields=["status"])`, "view show takes no argument fields"},
 	} {
 		_, _, err = runWith(t, repo, renderer, "def bad():\n    \"\"\"A bad show entry.\"\"\"\n    return "+c.call+"\n", nil)
 		require.ErrorContains(t, err, c.want, c.call)

@@ -99,7 +99,7 @@ func archived(excerpt *cache.IssueExcerpt) bool {
 
 // searchPanel is the palette's search (`s`): the finder over every issue,
 // drawn at the foot of the page as the palette is. Choosing an issue pushes
-// its show, opened by the page's own show map, as enter on a row of it would
+// its show, opened by the page's own shows, as enter on a row of it would
 // (show_map.go).
 type searchPanel struct {
 	repo   *cache.RepoCache
