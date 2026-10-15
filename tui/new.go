@@ -751,7 +751,7 @@ func (p *newPage) headerLines(here position) []string {
 func (p *newPage) bodyLines(here position) (lines []string, from, to int) {
 	from, to = -1, -1
 
-	lines, rowLine := tableLines(p.rows, p.row, here.stop == stopFields, p.width)
+	lines, rowLine := tableLines(p.repo, p.rows, p.row, here.stop == stopFields, p.width)
 	if here.stop == stopFields {
 		from, to = rowLine, rowLine
 	}

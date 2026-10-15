@@ -3,6 +3,9 @@ package tui
 import (
 	"strings"
 
+	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
+
 	"github.com/git-bug/git-bug/cache"
 	"github.com/git-bug/git-bug/entity"
 	"github.com/git-bug/git-bug/host"
@@ -44,15 +47,93 @@ func linkIds(value any) []string {
 // An id the store does not have — a link to an issue not pulled yet —
 // is its short id alone, because the link is still true, just not followable.
 func linkLabel(repo *cache.RepoCache, id string) string {
-	short := id
-	if len(short) > idWidth {
-		short = short[:idWidth]
+	human, title, ok := linkParts(repo, id)
+	if !ok {
+		return human
 	}
+	return human + " " + title
+}
+
+// linkParts are linkLabel's two pieces: the id the link is drawn by, and
+// the title, with ok false for an id the store does not have, which is the
+// short id alone.
+func linkParts(repo *cache.RepoCache, id string) (human, title string, ok bool) {
 	excerpt, err := repo.Issues().ResolveExcerpt(entity.Id(id))
 	if err != nil {
-		return short
+		if len(id) > idWidth {
+			id = id[:idWidth]
+		}
+		return id, "", false
 	}
-	return humanOf(repo, id) + " " + excerpt.Title()
+	return humanOf(repo, id), excerpt.Title(), true
+}
+
+// linkStyled is linkText drawn, the one way every view draws a link:
+// list, board, gantt, matrix, show and new alike. The linked id is faint
+// and underlined: the only underline on a page, and the cue that enter
+// follows it. The linked title is plain, so it never outweighs the bold
+// title of the row's own issue, and so are the commas between links.
+//
+// Every piece is drawn over base, which is the wash of the row under the
+// cursor or the reversed cell under the column cursor; on a reversed base
+// nothing is faint, so the cursor reads as plainly on a link as anywhere.
+// A width above zero cuts the whole to it as truncate cuts the plain text,
+// so the text drawn is linkText's cut to the column, the styles kept.
+func linkStyled(repo *cache.RepoCache, ids []string, base lipgloss.Style, width int) string {
+	id := base.Underline(true)
+	if !base.GetReverse() {
+		id = id.Faint(true)
+	}
+	pieces := make([]styledPiece, 0, 3*len(ids))
+	for at, link := range ids {
+		if at > 0 {
+			pieces = append(pieces, styledPiece{", ", base})
+		}
+		human, title, ok := linkParts(repo, link)
+		pieces = append(pieces, styledPiece{human, id})
+		if ok {
+			pieces = append(pieces, styledPiece{" " + title, base})
+		}
+	}
+	return renderPieces(pieces, width)
+}
+
+// styledPiece is a run of text in one style, for a line drawn in several.
+type styledPiece struct {
+	text  string
+	style lipgloss.Style
+}
+
+// renderPieces draws pieces in their styles, cut to a width (none when it
+// is not above zero) exactly as truncate cuts their text joined: what fits
+// in all but the last column, then the ellipsis, in the style of the piece
+// the cut falls in.
+func renderPieces(pieces []styledPiece, width int) string {
+	total := 0
+	for _, piece := range pieces {
+		total += ansi.StringWidth(piece.text)
+	}
+	cut := width > 0 && total > width
+	room := width - 1
+
+	var out strings.Builder
+	for _, piece := range pieces {
+		if piece.text == "" {
+			continue
+		}
+		if !cut {
+			out.WriteString(piece.style.Render(piece.text))
+			continue
+		}
+		if w := ansi.StringWidth(piece.text); w <= room {
+			out.WriteString(piece.style.Render(piece.text))
+			room -= w
+			continue
+		}
+		out.WriteString(piece.style.Render(ansi.Truncate(piece.text, room, "") + "…"))
+		break
+	}
+	return out.String()
 }
 
 // linkText is a whole relation value, drawn.

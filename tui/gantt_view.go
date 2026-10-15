@@ -335,13 +335,17 @@ func (p *ganttPage) rowLine(index, labelWidth, visible int, under, grabbed bool,
 		parts = append(parts, wash.Render(" "), style.Render(cell))
 	}
 	room := max(labelWidth-1-indent-idw-1, 0)
-	// the title is bold, as it is on every view; another label is not
+	// the title is bold, as it is on every view, and a link is drawn as
+	// every link is (linkStyled)
 	label := truncate(b.label, room)
-	style := wash
-	if p.labelKey == schema.TitleKey {
-		style = wash.Bold(true)
+	drawn := wash.Render(label)
+	switch {
+	case p.labelKey == schema.TitleKey:
+		drawn = wash.Bold(true).Render(label)
+	case len(b.labelLinks) > 0:
+		drawn = linkStyled(p.repo, b.labelLinks, wash, room)
 	}
-	parts = append(parts, wash.Render(" "), style.Render(label), wash.Render(pad("", max(room-ansi.StringWidth(label), 0))))
+	parts = append(parts, wash.Render(" "), drawn, wash.Render(pad("", max(room-ansi.StringWidth(label), 0))))
 	parts = append(parts, wash.Faint(true).Render("│"))
 
 	first, last, own, ok := p.span(index)

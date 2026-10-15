@@ -205,14 +205,15 @@ func (p *boardPage) cardLines(c *card, width int, under, grabbed bool) []string 
 			continue
 		}
 		label := key + ":"
-		style := wash
-		if c.links[key] {
-			// a link is faint: the issue it names is read on its own card
-			style = style.Faint(true)
+		room := max(inner-len([]rune(label))-1, 0)
+		text := truncate(value, room)
+		rest := pad("", max(room-ansi.StringWidth(text), 0))
+		drawn := wash.Render(text)
+		if ids := c.links[key]; len(ids) > 0 {
+			// drawn as every link is (linkStyled)
+			drawn = linkStyled(p.repo, ids, wash, room)
 		}
-		text := truncate(value, max(inner-len([]rune(label))-1, 0))
-		rest := pad("", max(inner-len([]rune(label))-1-ansi.StringWidth(text), 0))
-		lines = append(lines, wash.Render(" ")+wash.Faint(true).Render(label)+wash.Render(" ")+style.Render(text)+wash.Render(rest))
+		lines = append(lines, wash.Render(" ")+wash.Faint(true).Render(label)+wash.Render(" ")+drawn+wash.Render(rest))
 	}
 	return lines
 }

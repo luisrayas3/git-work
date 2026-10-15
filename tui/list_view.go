@@ -231,9 +231,9 @@ func (p *listPage) groupLine(node *treeRow) string {
 // which says that edit and copy act on that one. The id is a cell like the
 // others, and the one the cursor starts on. The title is bold, the one
 // field every issue has and the one a row is read by; a cell that links
-// other issues is faint, since the issues it names are read on rows of their
-// own, and enter follows it. The tree cell is the one after the id: the
-// fold arrow and the count of what a fold is hiding (treeCell).
+// other issues is drawn as every link is (linkStyled), its ids faint and
+// underlined because enter follows them. The tree cell is the one after
+// the id: the fold arrow and the count of what a fold is hiding (treeCell).
 func (p *listPage) rowLine(row *listRow, node *treeRow, widths [][]int, ids []int, tree int, under bool, grabbed bool) string {
 	// every piece is styled on its own, the wash included: a style ends in
 	// a reset, and a reset inside the row would end the wash with it
@@ -288,20 +288,19 @@ func (p *listPage) rowLine(row *listRow, node *treeRow, widths [][]int, ids []in
 		gap := strings.Repeat(" ", max(sizes[at]-ansi.StringWidth(text), 0))
 		// the cursor cell is reversed over its whole width, padding
 		// included, so an empty cell still shows where the cursor is;
-		// the bold and the faint stay on the text alone, and the cursor
-		// cell is never faint, so the cursor reads as plainly on a link
+		// the bold and a link's styles stay on the text alone
 		style, fill := wash, wash
-		cursor := under && at+p.firstFieldCol() == p.column
-		if cursor {
+		if under && at+p.firstFieldCol() == p.column {
 			style, fill = styleCell, styleCell
 		}
+		drawn := style.Render(text)
 		switch {
 		case key == schema.TitleKey && !node.ghost:
-			style = style.Bold(true)
-		case len(row.links[key]) > 0 && !cursor:
-			style = style.Faint(true)
+			drawn = style.Bold(true).Render(text)
+		case len(row.links[key]) > 0:
+			drawn = linkStyled(p.repo, row.links[key], style, sizes[at])
 		}
-		parts = append(parts, style.Render(text)+fill.Render(gap))
+		parts = append(parts, drawn+fill.Render(gap))
 		used += 1 + sizes[at]
 	}
 	switch {

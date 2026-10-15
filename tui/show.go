@@ -1101,7 +1101,7 @@ func (p *showPage) blockLines(here position) ([]string, int) {
 	sideWidth := p.width - left - 3
 
 	if sideWidth >= p.sideNeeds() {
-		fields, fieldLine := tableLines(p.rows, p.row, here.stop == stopFields, left)
+		fields, fieldLine := tableLines(p.repo, p.rows, p.row, here.stop == stopFields, left)
 		if len(fields) > 0 {
 			fields = fields[:len(fields)-1] // the blank under the table
 		}
@@ -1151,13 +1151,14 @@ func (p *showPage) descFooter() string {
 // fieldLines is the fields table (tableLines), the row under the cursor
 // marked while the cursor is in it.
 func (p *showPage) fieldLines(here position) ([]string, int) {
-	return tableLines(p.rows, p.row, here.stop == stopFields, p.width)
+	return tableLines(p.repo, p.rows, p.row, here.stop == stopFields, p.width)
 }
 
 // tableLines is a fields table as show and new draw it: the key, then the
-// value, a link underlined; the row at cursor marked while on is set. It
-// says which line the cursor is on, or -1.
-func tableLines(rows []tableRow, cursor int, on bool, width int) ([]string, int) {
+// value, a link drawn as every link is (linkStyled); the row at cursor
+// marked while on is set, its value reversed. It says which line the
+// cursor is on, or -1.
+func tableLines(repo *cache.RepoCache, rows []tableRow, cursor int, on bool, width int) ([]string, int) {
 	if len(rows) == 0 {
 		return nil, -1
 	}
@@ -1171,17 +1172,18 @@ func tableLines(rows []tableRow, cursor int, on bool, width int) ([]string, int)
 		}
 		value := row.label
 		style := styleDim.Faint(false)
-		if row.link != "" {
-			style = styleLink
-		}
 		marker := " "
 		if on && at == cursor {
 			marker = "›"
 			cursorLine = len(lines)
-			style = styleCell.Underline(row.link != "")
+			style = styleCell
 			value = pad(value, max(ansi.StringWidth(value), 1))
 		}
-		lines = append(lines, fit(marker+styleDim.Render(pad(key, 16))+style.Render(value), width))
+		drawn := style.Render(value)
+		if row.link != "" {
+			drawn = linkStyled(repo, []string{row.link}, style, 0)
+		}
+		lines = append(lines, fit(marker+styleDim.Render(pad(key, 16))+drawn, width))
 	}
 	return append(lines, ""), cursorLine
 }

@@ -84,9 +84,9 @@ type card struct {
 	fields  map[string]any
 
 	// cells is what the card draws, by card key; a relation is the issues it
-	// names, and links says which cells are relations
+	// names, and links are the ids a relation cell names, by card key
 	cells map[string]string
-	links map[string]bool
+	links map[string][]string
 
 	// value is the columns field, "" for none; group the swimlane's.
 	value string
@@ -202,14 +202,16 @@ func (p *boardPage) newCard(item map[string]any, known *kinds) card {
 		typeKey: host.StringOr(fields[schema.TypeKey], ""),
 		fields:  fields,
 		cells:   map[string]string{},
-		links:   map[string]bool{},
+		links:   map[string][]string{},
 	}
 	if c.human == "" && len(c.id) > idWidth {
 		c.human = c.id[:idWidth]
 	}
 
 	for _, key := range p.cardKeys {
-		c.links[key] = isRelation(known.of(c.typeKey, key))
+		if isRelation(known.of(c.typeKey, key)) {
+			c.links[key] = linkIds(fields[key])
+		}
 		c.cells[key] = known.cellText(c.typeKey, key, fields[key])
 	}
 
@@ -391,7 +393,7 @@ func (p *boardPage) addGhosts() {
 				typeKey: typeKey,
 				fields:  map[string]any{},
 				cells:   map[string]string{schema.TitleKey: ghostLabel},
-				links:   map[string]bool{},
+				links:   map[string][]string{},
 				value:   column.value,
 				group:   la.group,
 				ghost:   true,

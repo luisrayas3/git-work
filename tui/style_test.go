@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"charm.land/lipgloss/v2"
 	"github.com/stretchr/testify/require"
 )
 
@@ -92,41 +93,107 @@ func TestEveryGroupHeaderCarriesARule(t *testing.T) {
 	})
 }
 
-func TestTitlesAreBoldAndLinksFaint(t *testing.T) {
+// requireLink checks a link drawn on a line: its id faint and underlined
+// (under the cursor reversed and underlined, nothing faint), its title in
+// none of bold, faint or underline, and nothing else on the line
+// underlined.
+//
+// It reads the line a column at a time (cells), because lipgloss draws an
+// underlined run one rune per escape.
+func requireLink(t *testing.T, line, human, title string, cursor bool) {
+	t.Helper()
+	text, attrs := cells(line)
+	plain := string(text)
+	at := strings.Index(plain, human)
+	require.GreaterOrEqual(t, at, 0, "the id is drawn: %q", line)
+	start := len([]rune(plain[:at]))
+	idEnd := start + len([]rune(human))
+	for c := start; c < idEnd; c++ {
+		require.True(t, attrs[c][4], "the linked id is underlined: %q", line)
+		require.Equal(t, !cursor, attrs[c][2], "faint, but never under the cursor: %q", line)
+		require.Equal(t, cursor, attrs[c][7], "reversed under the cursor alone: %q", line)
+	}
+	if title != "" {
+		require.True(t, strings.HasPrefix(plain[at+len(human):], " "+title), "the title follows the id: %q", line)
+		for c := idEnd; c < idEnd+1+len([]rune(title)); c++ {
+			require.False(t, attrs[c][1] || attrs[c][2] || attrs[c][4], "the linked title is plain: %q", line)
+			require.Equal(t, cursor, attrs[c][7], "reversed under the cursor alone: %q", line)
+		}
+	}
+	for c := range text {
+		if c < start || c >= idEnd {
+			require.False(t, attrs[c][4], "only the id is underlined, not column %d: %q", c, line)
+		}
+	}
+}
+
+// cells reads a drawn line as runes, each with the SGR attributes it is
+// drawn in (sgrBefore's reading of every escape since the last reset).
+func cells(line string) ([]rune, []map[int]bool) {
+	var text []rune
+	var attrs []map[int]bool
+	on := map[int]bool{}
+	escape := regexp.MustCompile(`^\x1b\[([0-9;]*)m`)
+	for line != "" {
+		if m := escape.FindStringSubmatch(line); m != nil {
+			if m[1] == "" || m[1] == "0" {
+				on = map[int]bool{}
+			} else {
+				for n := range sgrBefore(m[0], "") {
+					on[n] = true
+				}
+			}
+			line = line[len(m[0]):]
+			continue
+		}
+		r := []rune(line)[0]
+		text = append(text, r)
+		copied := map[int]bool{}
+		for n := range on {
+			copied[n] = true
+		}
+		attrs = append(attrs, copied)
+		line = line[len(string(r)):]
+	}
+	return text, attrs
+}
+
+func TestTitlesAreBoldAndLinksAreOneStyle(t *testing.T) {
 	repo := testRepo(t)
 	withDates(t, repo)
 	story := newTyped(t, repo, "story", map[string]any{"title": "the story"})
-	newTyped(t, repo, "task", map[string]any{"title": "the task", "parent": story, "start": "2026-09-07", "stop": "2026-09-13"})
-	link := humanOf(repo, story) + " the story"
+	task := newTyped(t, repo, "task", map[string]any{"title": "the task", "parent": story, "status": "to-do",
+		"start": "2026-09-07", "stop": "2026-09-13"})
+	human := humanOf(repo, story)
 
 	t.Run("list", func(t *testing.T) {
 		page := list(t, repo, `{"fields":["title","parent"],"query":"map(select(.fields.type == \"task\"))"}`)
 		line := rawLine(t, page.View(), "the task")
 		require.True(t, sgrBefore(line, "the task")[1], "the title is bold: %q", line)
-		attrs := sgrBefore(line, link)
-		require.True(t, attrs[2], "the link is faint: %q", line)
-		require.False(t, attrs[4], "and not underlined: %q", line)
+		requireLink(t, line, human, "the story", false)
 
 		// under the column cursor the title is reversed and still bold,
-		// and the link is reversed and not faint
+		// and the link is reversed, its id still underlined
 		send(page, "l")
 		line = rawLine(t, page.View(), "the task")
-		attrs = sgrBefore(line, "the task")
+		attrs := sgrBefore(line, "the task")
 		require.True(t, attrs[1] && attrs[7], "the title cell: %q", line)
 		send(page, "l")
-		line = rawLine(t, page.View(), "the task")
-		attrs = sgrBefore(line, link)
-		require.True(t, attrs[7], "the link cell is reversed: %q", line)
-		require.False(t, attrs[2] || attrs[4], "and neither faint nor underlined: %q", line)
+		requireLink(t, rawLine(t, page.View(), "the task"), human, "the story", true)
 	})
 	t.Run("board", func(t *testing.T) {
 		page := board(t, repo, `{"columns":"status","card":["title","parent"],"query":"map(select(.fields.type == \"task\"))"}`)
 		drawn := page.View()
 		require.True(t, sgrBefore(rawLine(t, drawn, "the task"), "the task")[1], "the title is bold")
-		line := rawLine(t, drawn, "parent:")
-		attrs := sgrBefore(line, truncate(link, page.colWidth-len(" parent: ")))
-		require.True(t, attrs[2], "the link is faint: %q", line)
-		require.False(t, attrs[4], "and not underlined: %q", line)
+		requireLink(t, rawLine(t, drawn, "parent:"), human, "", false)
+		require.Contains(t, ansiPattern.ReplaceAllString(drawn, ""), "parent: "+human+" the")
+	})
+	t.Run("show", func(t *testing.T) {
+		// the cursor opens on the first row of the fields
+		page := show(t, repo, task, []string{"status", "parent"})
+		requireLink(t, rawLine(t, page.View(), "parent"), human, "the story", false)
+		page = show(t, repo, task, []string{"parent", "status"})
+		requireLink(t, rawLine(t, page.View(), "parent"), human, "the story", true)
 	})
 	t.Run("gantt", func(t *testing.T) {
 		page := gantt(t, repo, `{"start":"start","stop":"stop","from":"2026-09-07","query":"map(select(.fields.type == \"task\"))"}`)
@@ -134,7 +201,28 @@ func TestTitlesAreBoldAndLinksFaint(t *testing.T) {
 		require.True(t, sgrBefore(line, "the task")[1], "the title is bold: %q", line)
 
 		page = gantt(t, repo, `{"start":"start","stop":"stop","from":"2026-09-07","label":"parent","query":"map(select(.fields.type == \"task\"))"}`)
-		line = rawLine(t, page.View(), "the story")
-		require.False(t, sgrBefore(line, link)[1], "another label is not: %q", line)
+		requireLink(t, rawLine(t, page.View(), "the story"), human, "the story", false)
+	})
+	t.Run("matrix", func(t *testing.T) {
+		page := matrix(t, repo, `{"rows":"parent","columns":"status","query":"map(select(.fields.type == \"task\"))"}`)
+		requireLink(t, rawLine(t, page.View(), "the story"), human, "the story", false)
+	})
+	t.Run("an id that does not resolve", func(t *testing.T) {
+		missing := strings.Repeat("ab", 32)
+		drawn := linkStyled(repo, []string{missing, story}, lipgloss.NewStyle(), 0)
+		require.Equal(t, missing[:idWidth]+", "+human+" the story", ansiPattern.ReplaceAllString(drawn, ""))
+		// the comma is drawn plain, outside any style, and either side of
+		// it is a link of its own
+		comma := strings.Index(drawn, "\x1b[m, \x1b[")
+		require.Greater(t, comma, 0, "%q", drawn)
+		requireLink(t, drawn[:comma+len("\x1b[m")], missing[:idWidth], "", false)
+		requireLink(t, drawn[comma+len("\x1b[m, "):], human, "the story", false)
+	})
+	t.Run("cut to a width", func(t *testing.T) {
+		full := linkText(repo, []string{story, story})
+		for width := 1; width <= len(full)+1; width++ {
+			drawn := linkStyled(repo, []string{story, story}, lipgloss.NewStyle(), width)
+			require.Equal(t, truncate(full, width), ansiPattern.ReplaceAllString(drawn, ""), "width %d", width)
+		}
 	})
 }
