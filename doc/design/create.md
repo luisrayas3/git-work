@@ -188,6 +188,183 @@ each child table gets its own with the child follow-on.
 There is no `n` key: a letter is a bad universal key on pages that open in a text box,
 and the ghost is where the prefill comes from.
 
+## C8 — The child ghost and the matrix cell (`b9a9b62`, 2026-10-15)
+
+Decided 2026-10-15 (Luis): all of `b9a9b62`.
+It takes C7's *the roots' only, for now* away,
+and settles two items of Deferred below, the child ghost and the matrix cell.
+It also overturns one sentence of `show-side-table.md` S6: why, below.
+
+### One ghost per scope, at every level
+
+A **scope** is a set of siblings and a group among them:
+the roots, or one opened parent's drawn children,
+and, where that level's layer has a `group_by`, one group of them.
+Every scope ends in a ghost, at every level of a nested list and of a gantt,
+so an opened parent's child table ends in one, and so does each group of it.
+A level that groups gets one ghost per group, exactly as the roots do:
+a child table is a list, and every level is arranged the same way (`arrange`).
+
+There is **one placement path**, and the roots are not a special case of it.
+Today's `addGhosts` reads layer 0 and `rootGroups`;
+it becomes one walk over the drawn tree that yields every scope — level, parent, group —
+and one draft per scope, the roots' scope being the one whose parent is no row.
+The reason is visual as much as structural:
+the ghost at the foot of an opened parent's child table,
+drawn at the children's indent,
+is also what divides that parent's subtree from the next root,
+so a tree opened in several places reads as blocks,
+and it must look and behave the same at every depth.
+
+- **Folded, no ghost.** A child table folded away is hidden with its ghost;
+  the fold's count counts issues, never the ghost,
+  and a gantt's folded envelope is drawn from bars, which a ghost has not.
+- **A leaf has no child table, so no ghost.**
+  A row whose layer below reaches nothing draws no fold cell and no table (`treeCell`),
+  and giving every leaf an empty table to hold a `+` would double a tree of leaves.
+  The first child of a leaf is made from its show, whose side table ends in the same ghost.
+- **The filter** hides a child ghost as it hides the roots':
+  a ghost has no text, so a non-empty filter narrows it away.
+- **Never a rank sibling**, at any level (C7):
+  a grabbed child carried down stops above its table's ghost,
+  and a carry across a child table's groups steps over the ghost between them as a root's does.
+- **No ghost where there is nothing to write.**
+  A parent with no id (a keyed row, `query-rows.md` R1),
+  a layer whose rows above list their own `children` (R3),
+  and a relation whose write set below cannot be named
+  have no ghost: a `+` that cannot put the issue where it stands would break the one promise it makes.
+- **Arrows and `Enter`, nothing else.** A child ghost is reached with the arrows and the moves that walk a level,
+  and opened with `Enter`, as the roots' is.
+  It has no letter key and depends on no meaning of `Esc`,
+  because `app.md` A1 and A3 are changing both: letters start the filter, and `Esc` opens a palette.
+
+### The prefill is the drop's write set, per scope
+
+C6 holds at every level, with the parent as one more coordinate.
+A child scope's draft is:
+
+- **the relation**, written on the side it is stored on (below);
+- **the group**: the scope's layer's `group_by`, prefilled as the roots' is (`groupPrefill`),
+  read off the layer and not the call, since a level groups because it was asked to;
+- **the type**: the type every row of the scope shares, when it is one that can hold the relation;
+  otherwise the one type the schema says can, as S6 reads it;
+  otherwise none, and the page opens on the type cell.
+  The rows are still the best witness (C6),
+  and the schema is the fallback for a scope whose rows disagree;
+- **no rank**, and nothing a gantt would read off the cursor's column:
+  the ghost has no bar, and a null rank sorts last, where it stood.
+
+Which side the relation is stored on is decided per parent type,
+the way `view.InverseSources` already decides it for show:
+when the parent's type has a stored relation field of that name, it is that field;
+otherwise it is the inverse, stored on the child.
+
+- **Stored on the child** (`children` read through `parent`, as `childrenIndex` reads it):
+  the draft holds the stored field set to the parent's id,
+  or a set holding it for a `multi-relation` (`blocks` under `blocked_by`).
+  Create commits it in the issue's one operation, and nothing else is written.
+  Where the types that hold the inverse disagree on its key,
+  the scope's shared type picks the key; with no shared type there is no ghost (S6).
+- **Stored on the parent** (the parent's own field lists its children):
+  the draft holds nothing of the relation,
+  and once Create has committed the issue,
+  **the parent's field is written to hold the new id**:
+  `issue add` for a `multi-relation`,
+  whose set semantics merge with anyone else's concurrent add
+  where a set of the whole list would lose it;
+  `issue set` for a single `relation`, whose ghost is drawn only while the field is empty,
+  since a `+` that replaced what is there would be a move, not an add.
+
+### The parent-side write is an ordinary write
+
+It is not a second mechanism, and not *two writes* of one thing.
+A relation stored on the parent is a single relation write
+that happens to land on another issue:
+the same `issue add` (or `set`) a person would type,
+through `host` and `cache/` like every edit,
+one commit on one entity, after the create's one commit on another.
+Nothing batches them: there is no atomic multi-entity commit, and none is added.
+It is the principle of `link-fields.md` L5 as revised the same day, and of `app.md` A6:
+linking `is-blocked-by X` from show on Y is `issue add X '{"blocks":[Y]}'`,
+one commit to X, checked against X's type.
+The inverse is written as the other issue's stored field, in one commit,
+and the parent-side write here is that write with the new issue as Y:
+`issue add P '{"<field>":["<new id>"]}'`.
+
+S6 gave a stored relation of the shown issue no ghost
+because *the new issue would have to be added to this issue's field, a second commit on a second entity*.
+That reason is withdrawn by the same principle:
+a commit on the other entity is what writing a relation already is,
+eventually consistent, like Jira (AGENTS.md).
+So show's tables over a stored relation of the shown issue get the ghost too,
+through the same write set, and S6's ghosts become this section's.
+
+**One API.** No verb does create-and-link, and none is added.
+The writers are the existing `host.IssueAdd` (and `host.IssueSet` for a single `relation`),
+which `git work issue add`/`set` and `work.issue.add`/`set` already are,
+and the composition is two calls that exist on both sides:
+
+```python
+id = work.view.new(doc=d)
+if id:
+    work.issue.add(parent, {"blocks": [id]})
+```
+
+and the same two commands in a shell.
+The ghost is the renderer making those two calls on the person's behalf, as a drop makes its writes.
+`new` takes no argument naming a second write:
+the page has no write path of its own (C1), a view that wrote a second entity would be one,
+and an argument that is two existing calls is sugar (`cli-convention.md`).
+The link is the opener's, not the creator's:
+the page the ghost stood on writes it on `createdMsg`, before it reloads,
+so the reload already has the new row under its parent.
+An abandoned draft writes nothing, link included.
+
+**When the parent's write fails** — the parent's field refuses the type the person picked
+(its `target_types`), or the parent is gone — the issue stays created:
+it is complete and correct on its own, the commit is not undone,
+and an archive would leave a tombstone for a link that failed (C2's reason against placeholders).
+The status line says both halves:
+*created abc1234; not added to def5678's blocks: <the refusal>*,
+and the cursor goes to the new issue where the view still shows it — among the roots, say — and otherwise stays on the ghost.
+That is C4's rule, *the issue appears where the ghost was, or is named*, applied to one more way of not being there:
+the failure is said where the person is looking, and the fix is one edit on the parent.
+Between the two commits another reader can see the issue unlinked;
+the next refresh shows it linked, as any two edits are seen.
+
+### The matrix's empty cell
+
+`Enter` on an **empty data cell** opens the creator with the allocation its axes name,
+where it opened an empty drill-down before (`allocations.md`, A9):
+an empty list is nothing to look at, and the cell is the place to add.
+A cell with issues still drills down, and a totals cell still opens its row, column or lot:
+a total names one axis or none, so it is no place to add.
+The empty cell stays blank, because blank is how the matrix says *nothing here* against a `0` (A6);
+under the cursor it draws a dim `+`, and the hint line says *enter: new*.
+
+Its draft is the drop's write set of a place with two coordinates, and a third with `group_by`:
+
+- **each axis field** prefilled as a group is (`groupPrefill`), with the cell's row value and column value,
+  `(none)` leaving it null;
+  a multi-valued axis gets a set of the one value, which unlike a drop is not ambiguous,
+  since a draft has nothing to replace;
+- **the block's `group_by` value** the same way;
+- **the type** every issue on the matrix shares, the query's rows being C6's witness;
+- **no `value`**: the form invents no number (C5), and the person types the points.
+
+Create pops back to the matrix, which keeps the cursor by its axis values (A11),
+so the cursor is on the cell, now holding the new issue's number.
+An issue the axes or the query no longer place is named, as C4 names it.
+
+This takes up the item `allocations.md` defers,
+which said a cell with none *could create the allocation the axes describe*
+and left it to *actions injected into views*.
+It is not an injected action: it is the ghost, the one creation path every kind has, standing in a cell.
+Editing a cell's number in place stays deferred there.
+**Open:** a cell that already holds an allocation —
+two people on one story in one sprint, the usual case — has no ghost of its own;
+its drill-down's root ghost cannot invert the cell's query, so it prefills only the type.
+
 ## Deferred
 
 - **A multi-value picker**: a picker whose `Space` toggles a mark and whose `Enter` accepts the set.
