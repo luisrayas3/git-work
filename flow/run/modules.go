@@ -50,6 +50,7 @@ func (r *runtime) work() *starlarkstruct.Module {
 			verb("log", r.issueLog),
 			verb("archive", r.issueArchive),
 			verb("rm", r.issueRm),
+			verb("search", r.issueSearch),
 			sub("comment",
 				verb("new", r.issueCommentNew),
 				verb("edit", r.issueCommentEdit),
@@ -319,6 +320,24 @@ func (r *runtime) issueRm(thread *starlark.Thread, b *starlark.Builtin, args sta
 		return nil, err
 	}
 	return starlark.None, nil
+}
+
+// work.issue.search(text, include_archive=False) —
+// `git work issue search TEXT [--include-archive]`;
+// returns the list of matching excerpts, best match first.
+func (r *runtime) issueSearch(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+	var text string
+	var includeArchive bool
+	if err := starlark.UnpackArgs(b.Name(), args, kwargs,
+		"text", &text, "include_archive?", &includeArchive); err != nil {
+		return nil, err
+	}
+
+	found, err := host.IssueSearch(r.repo, text, includeArchive)
+	if err != nil {
+		return nil, err
+	}
+	return toStarlark(found)
 }
 
 // work.issue.comment.new(id, body) — returns the new comment's id.

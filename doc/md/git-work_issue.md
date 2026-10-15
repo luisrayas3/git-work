@@ -64,5 +64,6 @@ git work issue 'map(select(.fields.status != "done"))' --at 7d
 * [git-work issue new](git-work_issue_new.md)	 - Create a new issue from a JSON document
 * [git-work issue remove](git-work_issue_remove.md)	 - Remove items from list-valued fields of an issue
 * [git-work issue rm](git-work_issue_rm.md)	 - Remove an issue from the local repository
+* [git-work issue search](git-work_issue_search.md)	 - Find the issues whose id, alias, title or description contain TEXT
 * [git-work issue set](git-work_issue_set.md)	 - Set fields of an issue
 
