@@ -192,10 +192,10 @@ func (p *boardPage) cardLines(c *card, width int, under, grabbed bool) []string 
 
 	if title, ok := c.cells[schema.TitleKey]; ok && title != "" {
 		for _, line := range strings.Split(ansi.Wrap(title, inner, ""), "\n") {
-			// the title is bold, as it is on every view
+			// the title is underlined, as it is on every view (ownTitle)
 			text := truncate(line, inner)
 			rest := pad("", max(inner-ansi.StringWidth(text), 0))
-			lines = append(lines, wash.Render(" ")+wash.Bold(true).Render(text)+wash.Render(rest))
+			lines = append(lines, wash.Render(" ")+ownTitle(wash, text)+wash.Render(rest))
 		}
 	}
 
