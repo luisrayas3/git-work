@@ -193,7 +193,7 @@ and the ghost is where the prefill comes from.
 Decided 2026-10-15 (Luis): all of `b9a9b62`.
 It takes C7's *the roots' only, for now* away,
 and settles two items of Deferred below, the child ghost and the matrix cell —
-the cell not as Deferred words it, by a creating cell, but through its drill-down, and a new list argument, `doc`.
+the cell not as Deferred words it, by a creating cell, but through its drill-down and the `draft` argument (C9).
 It also overturns one sentence of `show-side-table.md` S6: why, below.
 Revised the same day with Luis's answers on the matrix, leaves, a single relation on the parent, and show (`app.md` A7).
 
@@ -240,10 +240,20 @@ and it must look and behave the same at every depth.
     One rule for every table is worth the line.
   - **The cost** on a tree of leaves is nothing until a fold opens: folded is the default (`nest`),
     and a folded leaf is the one line it already was.
-    The palette's *fold all* (`app.md` A1–A4; it was `Z`) and the call's `open` (R4)
-    open the rows that have children and leave leaves folded:
-    they mean *show me the tree*, and an empty table under every leaf is not the tree.
-    A leaf is opened by its own fold cell, `Space`, or by `Tab` into it, which lands on the ghost.
+    **Two palette commands** open many at once (`app.md` A4, *Two folds*, 2026-10-15, Luis),
+    both palette-only, `esc z` / `alt+z` and `esc Z` / `alt+Z`,
+    with no key on the page, where `z` and `Z` are typed text (A3):
+    *fold all* opens every row that has children, or folds them all, and leaves leaves folded,
+    because it means *show me the tree*, and an empty table under every leaf is not the tree;
+    *open everything* opens the leaves too, so every level's ghost is on the screen,
+    for the person who is about to add under many of them.
+    The second lands with this section's code, in `pageCommands` beside the first,
+    and only where something nests.
+  - The call's **`open`** (`query-rows.md` R4) keeps its meaning, the rows with children:
+    it is the state a view opens in, which is a summary,
+    and nothing a flow opens a view for needs an empty table under every leaf;
+    a person who wants them is one palette command away.
+  - A single leaf is opened by its own fold cell, `Space`, or by `Tab` into it, which lands on the ghost.
 - **The filter** hides a child ghost as it hides the roots':
   a ghost has no text, so a non-empty filter narrows it away.
 - **Never a rank sibling**, at any level (C7):
@@ -346,7 +356,7 @@ which `git work issue add`/`set` and `work.issue.add`/`set` already are,
 and the composition is two calls that exist on both sides:
 
 ```python
-id = work.view.new(doc=d)
+id = work.view.new(draft=d)  # `doc` before C9
 if id:
     work.issue.add(parent, {"blocks": [id]})
 ```
@@ -386,41 +396,11 @@ a blank cell stays the matrix's *nothing here* against a `0` (A6),
 and a cell has one meaning under `Enter`, not two by its contents.
 A totals cell drills down the same way and carries only the axes it names.
 
-The list learns the cell from **a new argument, `doc`**:
-the `issue new` document every root ghost's draft starts from.
-
-| Argument | Tier | Kind | Meaning |
-| --- | --- | --- | --- |
-| `doc` | feature | object | an `issue new` document, `{"fields": {…}, "body": "…", "aliases": {…}}`, partial; the base of every root ghost's draft |
-
-- **Its shape is `new`'s `doc` (C1)**, and so is its name, because it is the same thing:
-  the document a creation starts from, with what is already decided filled in.
-  On `new` the creation is the page; on a list it is each root ghost, which opens `new` with it.
-  One name, one meaning across kinds, which is C1's own rule for choosing `doc`;
-  and a document rather than a bare fields object, so that a flow can seed a body or an alias as `new` can,
-  and so that the list hands `new` exactly what `new` takes.
-  It does not start with `show`, which since `app.md` A7 is `shows`, how each type is shown, and nothing to do with creation.
-- It is **checked at open as `new`'s is** (C1): keys fields of the type when one is given, values fitting their kinds,
-  through the same `host.IssueDraft`, so a list call carrying a document `new` would refuse is refused at the call.
-- **It is not sugar** (`cli-convention.md`).
-  Sugar is a second spelling of something already expressible;
-  this is information the list cannot get any other way.
-  The query is a jq program and cannot be inverted (C6),
-  so a list over `map(select(.fields.work == "…")) | map(select(.fields.iteration == "…"))`
-  cannot read off it what an issue must hold to be selected;
-  the caller that wrote the predicate knows, and says so.
-  It is plumbing: one JSON value in the one KWARGS object, the same on the command line and as `work.view.list(doc=…)`,
-  parsed against the argument table in package `view`, so a flow can pass it as the matrix does.
-- **How it composes** with the list's own ghosts: it is the **base**, and each root scope layers on top of it,
-  in C6's order: the type its rows share where `doc` names none,
-  then the group's `group_by` value, which wins on that one key because the ghost stands in that group.
-  A child scope does not inherit it: a child table's rows are what the relation reached, not what the query selected,
-  and the document describes the latter.
-  The person edits any of it in the creator, as every prefill (C6).
-- It is a **list** argument. The gantt and the board take none for now:
-  nothing pushes them over a predicate, and when something does, it is the same name with the same meaning.
-
-What the matrix puts in `doc`, for the cell under the cursor, is the cell's write set:
+The list learns the cell the way any list learns what its ghosts cannot see:
+from the call's **`draft`** (C9).
+The matrix is one caller of it, not the reason it exists:
+the drill-down is an ordinary list call, built exactly as a hand-written one would be.
+What the matrix puts in `draft`, for the cell under the cursor, is the cell's write set:
 
 - **each axis field** with the cell's row value and column value, as a group prefills (`groupPrefill`),
   `(none)` leaving it out;
@@ -431,15 +411,106 @@ What the matrix puts in `doc`, for the cell under the cursor, is the cell's writ
   so an empty cell's drill-down, with no rows of its own, still knows it;
 - **no `value`**: the form invents no number (C5), and the person types the points.
 
-The pushed list's call line carries the `doc`, so copying it there still gives a legal `git work view list` call (A9).
+The pushed list's call line carries the `draft`, so copying it there still gives a legal `git work view list` call (A9).
 Create pops back to the drill-down, the cursor on the new row;
-Going back to the matrix finds the cell's number changed, the cursor kept by axis values (A11).
+going back to the matrix finds the cell's number changed, the cursor kept by axis values (A11).
 
 This takes up the item `allocations.md` defers,
 which said a cell with none *could create the allocation the axes describe*
 and left it to *actions injected into views*.
 It is not an injected action: it is the list's ghost, the one creation path every kind has,
 told where it stands. Editing a cell's number in place stays deferred there.
+
+## C9 — `draft`: what an issue created in a view starts with (2026-10-15)
+
+Decided 2026-10-15 (Luis), with C8.
+Every kind that draws a ghost takes **`draft`**, and `new`'s `doc` is renamed `draft`.
+
+| Argument | Kinds | Tier | Kind | Meaning |
+| --- | --- | --- | --- | --- |
+| `draft` | `list`, `gantt`, `board` | feature | issue document | partial; the base every ghost's draft starts from |
+| `draft` | `new` | optional | issue document | the draft to open on (C1's `doc`, renamed) |
+
+The value is an `issue new` document, `{"fields": {…}, "body": "…", "aliases": {…}}`,
+with what is already decided filled in.
+
+### Why a view needs it
+
+A ghost knows only what its view **arranges**:
+the group it stands in, the relation of the layer it is under, the type its scope's rows share.
+It never reads the view's query, because a jq program cannot be inverted (C6).
+So a hand-written list over sprint 41,
+`map(select(.fields.iteration == "<41>"))`,
+has the same gap the matrix's drill-down has:
+its ghost cannot know that what it makes belongs to sprint 41,
+and the issue it makes falls out of the view the moment it is created (C4's *not in this view*).
+The caller that wrote the predicate knows; `draft` is where it says so.
+
+**It is not sugar** (`cli-convention.md`).
+Sugar is a second spelling of something already expressible;
+this is information the view has no other way to get.
+It is plumbing: one JSON value in the one KWARGS object,
+the same on the command line and as `work.view.list(draft=…)`,
+parsed against the argument table in package `view`,
+so a flow, a shell and the matrix pass it the same way.
+It is checked at open as `new`'s is (C1), through the same `host.IssueDraft`,
+so a call carrying a document `new` would refuse is refused before anything draws.
+
+**List, gantt and board take it now**, not the list alone:
+all three draw ghosts, and on all three the ghost cannot read the query.
+It is one argument with one meaning on every kind that has something to create,
+and leaving two of them without it would make the same flow work on a list and silently prefill less on a board.
+
+### One construction, every ghost
+
+Every ghost's draft is built in one order, roots and child scopes alike:
+
+1. the call's **`draft`**;
+2. the **type** its scope's rows share, where `draft` names none (C6);
+3. the **group** value, where the scope's layer groups (on a board, the column's and the lane's), which wins on its key,
+   because the ghost stands in that group;
+4. for a child scope, the **relation write** (C8): the stored key on the child, or the link on the parent.
+
+**A child scope inherits `draft`**, because `draft` is *what an issue created in this view starts with*,
+and an issue made under a parent is made in this view.
+A list of sprint 41's stories, expanded into their tasks, makes a task in sprint 41 too,
+which is what a person standing there means.
+One step keeps the construction honest where a child is a different kind of issue:
+after the four steps, **what the scope's issue cannot hold is dropped**, as C3 drops it on a change of type.
+A `draft` type that cannot hold the child relation's stored key —
+or that the parent's field does not admit, for a relation stored on the parent —
+gives way to the scope's own type (step 2's, or C8's schema fallback);
+then a field the resulting type does not have is dropped.
+At the roots nothing is ever dropped, because `draft` was checked at open against its own type,
+so this is not a case for children but the same rule finding nothing to do.
+
+The person edits any of it in the creator, as every prefill (C6).
+
+### `new`'s `doc` is renamed `draft`
+
+C1 named `new`'s argument `doc`, so that it would not mean two things across kinds.
+With a second kind taking the same document for the same purpose,
+the name that says what it is is `draft`:
+the document a creation starts from, whether the creation is the page (`new`)
+or each ghost that opens it (`list`, `gantt`, `board`).
+`doc` would read on a list as the list's own document;
+`draft` is already the page's word for what it holds (C2, C3, C5).
+This supersedes C1's name; C1's reasons for a document, rather than `fields`, stand.
+
+The rename lands with the code, and touches:
+
+- `view/kinds.go` (the `new` kind's argument, and `draft` on list, gantt and board);
+- `host/view.go` (the open-time check, `call.Has("doc")`);
+- `tui/ghost.go` (`openNew` builds `{"doc": …}`), and through it `tui/palette.go`'s `n`;
+- `tui/new.go` (`call.Raw("doc")`, twice);
+- the tests that spell it: `tui/new_test.go`, `tui/show_map_test.go`, `view/view_test.go`;
+- `host/quickstart.md` (`git work view new '{"doc":{…}}'`);
+- the generated `doc/md/git-work_view_new.md`, `doc/man/git-work-view-new.1`
+  and the completions, by `go generate`.
+
+No flow in `flows/` passes `doc=`.
+Earlier sections of this document keep the name of their day.
+
 
 ## Deferred
 
