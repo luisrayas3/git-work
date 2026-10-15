@@ -1,0 +1,298 @@
+# The app: one keymap, a palette, a finder, and a home
+
+**Outcome:** git-work in a terminal is an application rather than a set of flows.
+`git work` opens a home page;
+from any page an issue is one search away,
+and opens expanded the way its type says;
+every command a page has is listed on a menu one key away;
+and every picker narrows as it is typed into.
+
+**Serves:** story `087decb`.
+It revises `terminal-renderer.md` (There is no `tui` command; Navigation and editing),
+`show-from-a-view.md` (V1, V3, and Out of scope, a default per type in the schema),
+`show-side-table.md` (S1, show's `expand`),
+and takes in `link-fields.md`, revised the same day to fit.
+
+**Status:** approved 2026-10-15.
+
+## The problem
+
+A flow is the only way onto a page.
+What `Enter` opens is whatever the flow's `show` map says,
+so a story the flow did not plan for opens bare,
+and there is no way from one page to an issue it does not link to.
+There is no search at all:
+`/` narrows the rows a page already has.
+
+The keys are three families, standard, vim and emacs,
+and most commands are a letter that only `?` lists,
+which is a tool for whoever already knows it.
+
+Pickers narrow only after `/`,
+so linking to an issue, or choosing a person, among thousands,
+means knowing to press it first.
+
+## A1 — Core keys, and the rest on a palette
+
+The keys a person needs with no menu are the ones every program has:
+arrows, `enter` (open, follow), `space` (edit, grab),
+`tab` and `shift+tab` (next and previous stop),
+page up and down, home and end.
+Every other command is on the **palette**.
+
+**`esc` opens the palette**, a panel at the foot of the page:
+
+- **Where you are**: the stack as a breadcrumb
+  (`home › overview › show 3a2279e`),
+  then the top page's whole call, query included —
+  what the first line cuts in a narrow window, here in full.
+- **This page's commands**: filter, fold all, copy cell, copy id,
+  change what is expanded, link and unlink (A6), edit the query.
+- **Everywhere's commands**: search (A3), new, home, run a flow, help, quit.
+
+Each command is drawn with its letter,
+and **a letter means one thing on every page** (`s` is always search, `n` always new),
+so the menu teaches the keys it lists.
+The precedent is Helix's space menu and Emacs's which-key.
+
+**A second `esc` goes back**: out of the palette and off the page.
+From the first page it is quit,
+so one stray `esc` still cannot end a session,
+which is what the call line's double press was for (`terminal-renderer.md`, 2026-09-28);
+the call line becomes the palette's first section.
+
+**While editing**, `esc` cancels the edit and nothing else,
+and the editor's own keys are on the status line, as `hints.go` draws them now.
+
+## A2 — `esc x` is `alt+x`
+
+A terminal sends `alt+x` as the bytes `ESC x`,
+which is also what `esc` then `x` typed quickly sends,
+and a lone `esc` is `ESC` with nothing after it.
+Without the kitty keyboard protocol the program cannot tell them apart,
+and Bubble Tea decides by waiting a moment after `ESC`.
+
+So the two are **one key, by definition, on every terminal**:
+`alt+s` is search, as `esc s` is.
+The kitty protocol is requested where the terminal has it,
+which removes the wait and tells `shift+enter` from `enter`,
+but no key means something different because of it.
+
+This is why the palette's letters agree with emacs's `alt` keys (A4):
+they are the same keys.
+
+## A3 — One keymap; vim's modal keys are gone
+
+The three families become one.
+**Emacs's `ctrl` and `alt` keys stay**,
+because they never collide with typed text;
+**vim's single letters go** (`hjkl`, `g`, `G`, `y`, `Y`, `p`, `q`, `gt`, `gT`),
+because a letter at the top level is now worth more as text:
+
+**Typing on a page filters it.**
+A printable key on a list, a board or a gantt starts the filter with that character,
+so `/` is no longer needed to start one (it stays on the palette as `f`, and as itself).
+
+## A4 — The palette's letters
+
+The letters emacs gives `alt` keep emacs's meaning (A2):
+
+| key | command |
+| --- | --- |
+| `w` | copy cell |
+| `c` | copy id |
+| `v` | page up |
+| `<` `>` | first, last |
+
+The rest take letters emacs leaves free:
+`s` search, `n` new, `h` home, `r` run a flow, `f` filter,
+`e` change what is expanded, `l` link, `u` unlink,
+`q` quit, `?` help.
+The full table is the help's, generated from the keymap as it is now.
+
+On macOS `alt` reaches the program only when the terminal sends Option as Meta;
+the palette works either way.
+
+## A5 — Pickers are typed into, and the issue picker is the finder
+
+Every picker opens **with its input focused**:
+typing narrows, arrows move, `enter` chooses,
+the first `esc` clears the text and the second cancels.
+
+- **People** match on name, login and email.
+- **Issues** match on id prefix, alias (a Jira key), title,
+  and the description once A8 lands.
+
+The issue picker is **the finder**,
+and it is one widget in three places:
+a relation field's picker,
+the target of a link (A6),
+and the palette's search,
+where choosing an issue pushes its show (A7).
+A relation's picker keeps its narrowing to the field's target types.
+
+## A6 — Linking from the palette, inverses included
+
+`l` on a show page picks a relation by typing (`blo` is `blocks`),
+then its target in the finder;
+`u` picks one of the issue's links to remove.
+
+**Inverses are offered.**
+Adding `is-blocked-by X` writes `X.blocks += this`:
+one commit to one entity, the other one,
+and nothing on this side is stored, so nothing has to be atomic.
+That revises `link-fields.md` L5, which refused them
+on the grounds that it is a second entity;
+it is a second entity, but it is the only one written
+("a reverse relation is just a single relation write, just on another issue", Luis).
+There is no verb for it: it is `issue add` on the other issue,
+and `create.md` C8 writes a child stored on its parent the same way.
+The finder narrows to issues whose type has the stored field,
+the write is checked against that type's schema as any write is,
+and the status line says which issue was written.
+
+## A7 — `shows`: how each type is shown, one map for every view
+
+Every view kind's call has two parts.
+The **core** is what this view is:
+`query`, `fields`, `group_by`, `columns`, `start`, `open` and the rest of its table.
+**`shows`** is how each issue *type* is shown, whichever view meets it:
+
+```python
+work.view.list(
+    query = OPEN,
+    fields = ["type", "status", "title"],
+    shows = {
+        "story": {"expand": [{"relation": "children", "fields": ["status", "title"]}, "links"]},
+        "task":  {"fields": ["status", "priority", "parent"]},
+    },
+)
+```
+
+A **spec**, the value under a type, is **exactly what show takes**, less the issue:
+`fields`, the rows of its fields table,
+and `expand`, the related issues drawn with it,
+each element a relation name or a flat layer
+(`relation`, `query`, `include_archive`, `fields`, `details`, `group_by`).
+`show` itself takes `id` and `shows`, and nothing else:
+it draws the issue by its type's spec,
+and every page it opens — a link followed, a side-table row entered —
+is `show` with that issue's id and the same `shows`.
+
+It replaces two things, and leaves a third alone:
+
+- **`show`, the map `Enter` opens by (`show-from-a-view.md` V1), becomes `shows`**,
+  on list, gantt, board, matrix and show,
+  and what V3 carried from page to page is simply the same map, passed on.
+- **`fields` and `expand` on show** move into the spec of the issue's type.
+- **`expand` on list and gantt stays**, as it is (`terminal-renderer.md`, Nesting).
+  Nesting is part of what a list *is* —
+  its rows, and what folds under them —
+  so it is the core's, and a spec says nothing about it.
+  A spec's `expand` is the side tables on a show page, and only that.
+
+So a story is shown one way across a flow:
+its page opened from a list, from a board, from search,
+or from a link on another page, is all its spec.
+
+**Where a type's spec comes from**, most specific first,
+**the whole spec, not merged key by key**:
+
+1. the call's `shows[type]`;
+2. the type's `show` in the schema;
+3. the built-in spec, `{"expand": ["links"]}`, every field in schema order.
+
+```yaml
+types:
+  story:
+    show:
+      expand: [children, links]
+```
+
+Whole rather than merged because a spec is read as one sentence
+("a story is drawn with its children and its links");
+a call that says `{"fields":[…]}` and silently inherits the schema's `expand`
+is drawing something it never said.
+A call that wants the schema's and one change spells the whole spec.
+
+A spec is checked as show's own call is (`show-from-a-view.md` V2),
+against the type it is keyed under,
+and a key that is not a type is refused naming the types.
+
+The type's `show` in the schema
+reverses `show-from-a-view.md`'s Out of scope,
+"A default per type in the schema.
+`show-side-table.md` already places a type's usual tables with the flow."
+That held while every show was opened by a flow.
+Search (A5) and `git work view show '{"id":…}'` open pages no flow called,
+and they need a default as much as a flow does.
+The precedent is `link-fields.md` L1:
+a schema attribute that the views alone read,
+which changes no storage, no write and no query.
+
+A spec that came from the schema or the built-in is **drawn dim on the first line**,
+as a defaulted argument is, so the first line is still the call that drew the page.
+
+`e` on a show page changes the spec of its issue's type,
+for this page and the pages it opens,
+from the relations the schema gives the type, stored and inverse, and `links`.
+
+## A8 — `git work` is `git work flow run home`
+
+Bare `git work` runs the flow named `home`.
+With no `home` flow, or no terminal, it prints the help, as today.
+
+`home` calls a new view kind, **`home`**:
+
+```python
+def home():
+    work.view.home(flows=["overview", "board", "report"])
+```
+
+It draws the flows it names, each with its docstring's first line,
+and `enter` on one runs it, the view it opens pushed onto the same stack.
+`work.view.home(flows=…)` is `git work view home '{"flows":[…]}'`,
+with an argument table like any kind.
+
+**Flows call views; views never call flows**, and this one does not:
+`enter` hands the flow's name to the host, which runs it,
+as `enter` on a row hands an id to the host, which opens it.
+The view names a call; it does not make one.
+`r` on the palette offers every flow, not only home's.
+
+## A9 — Search over descriptions, sized for thousands
+
+`git work issue search TEXT` and `work.issue.search(text)`:
+the issues whose id, alias, title or description contain TEXT,
+as excerpts, as `issue list` prints them.
+The finder calls the same function.
+
+The description is comment 0, and the excerpt carries only a comment count,
+so the excerpt gains the **description's text**.
+A few thousand descriptions of a few KB each is a few MB held in memory,
+a substring scan over it is milliseconds,
+and the excerpt is already rebuilt when its issue changes,
+so there is no second structure to keep coherent.
+It stays out of the JSON `issue list` prints:
+a program that wants it reads the issue.
+
+Comments stay unsearched.
+bleve, kept behind the pristine `RepoIndex` (`0578918`),
+is the way to them, and to ranking or stemming,
+when a workflow asks.
+
+## Order
+
+The palette and keymap first (A1–A4): every later decision is an entry on it.
+Then the finder (A5), then linking (A6), then `shows` and home (A7, A8),
+the link fields' L1–L3 before A7, since the built-in spec names `links`.
+Search over descriptions (A9) is last.
+
+## Out of scope
+
+- **The mouse**, still deferred (`terminal-renderer.md`).
+- **Actions a flow injects** into a page, still deferred;
+  the palette is where they would appear.
+- **Searching comments** (A9).
+- **A recent-issues list** in the finder;
+  wanted once the finder is used enough to show what it misses.
