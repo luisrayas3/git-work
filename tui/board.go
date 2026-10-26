@@ -36,7 +36,10 @@ type boardPage struct {
 	// emptyGroups adds the swimlanes no card falls in, and empty holds them,
 	// resolved on every load (empty_groups.go).
 	emptyGroups bool
-	empty       []lane
+	// draft is the call's `draft`, what every ghost's draft starts from
+	// (create.md C9)
+	draft host.IssueDocument
+	empty []lane
 	// colWidth is the narrowest a column goes before the board scrolls
 	// sideways instead (`column_width`, view/kinds.go, which is the
 	// authority on its default).
@@ -142,6 +145,11 @@ func newBoardPage(repo *cache.RepoCache, call *view.Call) (*boardPage, error) {
 	if len(p.cardKeys) == 0 {
 		p.cardKeys = []string{schema.TitleKey}
 	}
+	draft, err := callDraft(repo, call)
+	if err != nil {
+		return nil, err
+	}
+	p.draft = draft
 	if err := p.load(); err != nil {
 		return nil, err
 	}
@@ -404,27 +412,31 @@ func (p *boardPage) addGhosts() {
 	}
 }
 
-// ghostDoc is the draft a ghost opens: the type its lane's cards share, the
-// `columns` field as the column, and the `group_by` field as a drop into
-// the lane would write it (C6).
+// ghostDoc is the draft a ghost opens, built as every ghost's is (C9): the
+// call's `draft`, the type its lane's cards share where that names none,
+// then the `columns` field as the column and the `group_by` field as a drop
+// into the lane would write it, which win on their keys.
 func (p *boardPage) ghostDoc(ghost *card) host.IssueDocument {
-	doc := host.IssueDocument{Fields: map[string]issue.Value{}}
-	if ghost.typeKey != "" {
-		doc.Fields[schema.TypeKey] = issue.StringValue(ghost.typeKey)
-	}
+	prefill := map[string]issue.Value{}
 	if ghost.value != "" {
-		doc.Fields[p.columnsKey] = issue.StringValue(ghost.value)
+		prefill[p.columnsKey] = issue.StringValue(ghost.value)
 	}
 	for _, la := range p.lanes {
 		if p.groupBy == "" || la.group != ghost.group {
 			continue
 		}
 		if value, ok := groupPrefill(p.repo, la.typeKey, p.groupBy, ghost.group, la.raw); ok {
-			doc.Fields[p.groupBy] = value
+			prefill[p.groupBy] = value
 		}
 		break
 	}
-	return doc
+	var types []string
+	if ghost.typeKey != "" {
+		types = []string{ghost.typeKey}
+	}
+	s, _ := p.repo.LoadSchema()
+	place, _ := composeDraft(s, p.draft, types, prefill, nil)
+	return place.draft
 }
 
 // realLen is how many cards a stack holds before its ghost.
@@ -539,15 +551,13 @@ func (p *boardPage) Update(msg tea.Msg) (page, tea.Cmd) {
 		// a draft opened from here was created: the issue appears where the
 		// ghost stood, the cursor on it (doc/design/create.md, C4), or is
 		// named when the query does not keep it
+		failed := linkCreated(p.repo, msg)
 		if err := p.load(); err != nil {
 			p.status = err.Error()
 			return p, nil
 		}
 		p.putCursorOn(msg.id)
-		p.status = "created " + human(msg.id)
-		if p.currentId() != msg.id {
-			p.status += ", not in this view"
-		}
+		p.status = createdStatus(failed, msg.id, p.currentId() == msg.id)
 		return p, nil
 
 	case refreshMsg:

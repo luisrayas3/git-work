@@ -129,9 +129,9 @@ func descHints() []hint {
 }
 
 // foldHints are the tree's keys on the row under the cursor, nothing on a
-// row with no children.
+// row that can have no children.
 func foldHints(node *treeRow) []hint {
-	if node == nil || node.children == 0 {
+	if node == nil || !node.foldable() {
 		return nil
 	}
 	fold := hint{"space", "fold"}

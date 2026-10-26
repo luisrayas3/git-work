@@ -34,6 +34,9 @@ type listPage struct {
 	// call's own fields, details and group_by.
 	nest    *nesting
 	groupBy string
+	// draft is the call's `draft`, what every ghost's draft starts from
+	// (create.md C9)
+	draft host.IssueDocument
 
 	// items is what the query returned last, kept so that folding a row
 	// rebuilds the tree without asking the store again
@@ -100,6 +103,10 @@ type listRow struct {
 	// holds, which enter follows
 	cells map[string]string
 	links map[string][]string
+
+	// place is a ghost's: the draft it opens and the parent write after
+	// Create (ghost.go); nil on every other row
+	place *placement
 }
 
 func (p *listPage) Call() (*view.Call, string, string) {
@@ -135,6 +142,9 @@ func newListPage(repo *cache.RepoCache, call *view.Call) (*listPage, error) {
 		return nil, err
 	}
 	p.nest = n
+	if p.draft, err = callDraft(repo, call); err != nil {
+		return nil, err
+	}
 
 	if err := p.load(); err != nil {
 		return nil, err
@@ -258,48 +268,31 @@ func (p *listPage) rebuild() {
 	p.putCursorOn(was)
 }
 
-// addGhosts puts a ghost at the foot of each group of roots, one for the
-// whole list when nothing groups it (ghost.go). It is appended after every
-// row and carries no rank, so the order draws it last in its group.
+// addGhosts puts a ghost at the foot of every scope: each group of the
+// roots, one for the whole list when nothing groups it, and each group of
+// every opened parent's child table (ghost.go, create.md C8). It is appended
+// after every row and carries no rank, so the order draws it last in its
+// group.
 func (p *listPage) addGhosts() {
-	layer := p.layer(0)
-	groups, types := rootGroups(p.nodes, func(index int) string { return p.rows[index].typeKey })
-	for _, group := range groups {
-		row := listRow{
-			key:     ghostId(group),
-			human:   ghostPrefix,
-			typeKey: sharedType(types[group]),
-			fields:  map[string]any{},
-			cells:   map[string]string{},
-			links:   map[string][]string{},
-		}
-		if len(layer.fields) > 0 {
-			row.cells[layer.fields[0]] = ghostLabel
-		}
-		node := treeRow{key: row.key, group: group, grouped: layer.groupBy != "", ghost: true}
-		p.rows = append(p.rows, row)
-		p.nodes = append(p.nodes, node)
-	}
-}
-
-// ghostDoc is the draft a ghost opens: the type its group's rows share, and
-// the `group_by` field as a drop into the group would write it (C6).
-func (p *listPage) ghostDoc(ghost *listRow, node *treeRow) host.IssueDocument {
-	doc := host.IssueDocument{Fields: map[string]issue.Value{}}
-	if ghost.typeKey != "" {
-		doc.Fields[schema.TypeKey] = issue.StringValue(ghost.typeKey)
-	}
-	for index, other := range p.nodes {
-		if other.ghost || other.level != 0 || other.group != node.group {
-			continue
-		}
+	ghosts := treeGhosts(p.repo, p.nodes, p.nest, p.draft, func(index int) scopeRow {
 		row := &p.rows[index]
-		if value, ok := groupPrefill(p.repo, row.typeKey, p.groupBy, node.group, row.fields[p.groupBy]); ok {
-			doc.Fields[p.groupBy] = value
+		return scopeRow{key: row.key, id: row.id, typeKey: row.typeKey, fields: row.fields}
+	})
+	for _, ghost := range ghosts {
+		row := listRow{
+			key:    ghost.node.key,
+			human:  ghostPrefix,
+			fields: map[string]any{},
+			cells:  map[string]string{},
+			links:  map[string][]string{},
+			place:  ghost.place,
 		}
-		break
+		if fields := p.layer(ghost.node.level).fields; len(fields) > 0 {
+			row.cells[fields[0]] = ghost.place.label(p.repo)
+		}
+		p.rows = append(p.rows, row)
+		p.nodes = append(p.nodes, ghost.node)
 	}
-	return doc
 }
 
 // total is how many issues the query returned: the rows, less the ghosts.
@@ -362,6 +355,7 @@ func (p *listPage) newRow(n nested, known *kinds) (listRow, treeRow) {
 		children: n.children,
 		folded:   n.folded,
 		hidden:   n.hidden,
+		nestable: n.nestable,
 		group:    known.groupLabel(row.typeKey, layer.groupBy, fields),
 		grouped:  layer.groupBy != "",
 	}
@@ -461,18 +455,17 @@ func (p *listPage) Update(msg tea.Msg) (page, tea.Cmd) {
 		return p, nil
 
 	case createdMsg:
-		// a draft opened from here was created: the issue appears where the
+		// a draft opened from here was created: a relation stored on the
+		// parent is written first (C8), then the issue appears where the
 		// ghost stood, the cursor on it (doc/design/create.md, C4), or is
 		// named when the query does not keep it
+		failed := linkCreated(p.repo, msg)
 		if err := p.load(); err != nil {
 			p.status = err.Error()
 			return p, nil
 		}
 		p.putCursorOn(msg.id)
-		p.status = "created " + human(msg.id)
-		if p.currentId() != msg.id {
-			p.status += ", not in this view"
-		}
+		p.status = createdStatus(failed, msg.id, p.currentId() == msg.id)
 		return p, nil
 
 	case refreshMsg:
@@ -558,6 +551,8 @@ func (p *listPage) key(press tea.KeyPressMsg) (page, tea.Cmd) {
 		p.toParent()
 	case keys.foldAll.matches(press):
 		p.toggleAll()
+	case keys.openEverything.matches(press):
+		p.openAll()
 
 	case keys.act.matches(press):
 		return p.act()
@@ -612,10 +607,11 @@ func (p *listPage) moveAtLevel(by int) {
 }
 
 // intoChild is tab: onto the row's first child, unfolding it on the way,
-// and onto its id, the cell a row is read from.
+// and onto its id, the cell a row is read from; into a leaf's empty table,
+// that is its ghost.
 func (p *listPage) intoChild() {
 	node := p.node()
-	if node == nil || node.children == 0 {
+	if node == nil || !node.foldable() {
 		return
 	}
 	if node.folded {
@@ -646,10 +642,11 @@ func (p *listPage) toParent() {
 }
 
 // toggleFold is space on the tree cell: a parent's children shown or
-// hidden. A leaf has nothing to fold and rings.
+// hidden, a leaf's empty table and its ghost too. A row that can have no
+// children has nothing to fold and rings.
 func (p *listPage) toggleFold() tea.Cmd {
 	node := p.node()
-	if node == nil || node.children == 0 {
+	if node == nil || !node.foldable() {
 		p.status = "nothing to fold"
 		return bell()
 	}
@@ -666,6 +663,13 @@ func (p *listPage) toggleAll() {
 	p.rebuild()
 }
 
+// openAll is open everything: every row opened, the leaves too, so every
+// level's ghost is on the screen (app.md A4, Two folds).
+func (p *listPage) openAll() {
+	p.open = openEverything(p.nodes)
+	p.rebuild()
+}
+
 // act is enter, which opens and never edits: on a relation cell the issue it
 // names, the first of several, and on any other cell the row's own issue
 // (doc/design/terminal-renderer.md, 2026-10-02).
@@ -675,7 +679,7 @@ func (p *listPage) act() (page, tea.Cmd) {
 		return p, nil
 	}
 	if node := p.node(); node.ghost {
-		return p, openNew(p.repo, p.call.Raw("shows"), p.ghostDoc(row, node))
+		return p, openNewAt(p.repo, p.call.Raw("shows"), row.place)
 	}
 	if links := row.links[p.fieldKey()]; len(links) > 0 {
 		return p, p.push(links[0])

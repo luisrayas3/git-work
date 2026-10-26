@@ -165,7 +165,12 @@ func TestTheMapIsCarried(t *testing.T) {
 	require.JSONEq(t, epicShows, string(draft.shows))
 	require.Len(t, pushedShow(t, draft.follow(epic)).tables, 1, "the parent the draft names")
 
-	// Esc back up the stack: every page kept its tables
+	// Esc back up the stack: every page kept its tables; the draft has its
+	// type from the table's rows (create.md C8), so it opened typing the
+	// title, and the first esc leaves that
+	if draft.editor != nil {
+		back(stack)
+	}
 	back(stack)
 	require.Len(t, stack.top().(*showPage).tables, 1)
 	back(stack)

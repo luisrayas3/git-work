@@ -45,6 +45,9 @@ type ganttPage struct {
 	// nest is `expand` resolved: the layer per level, level 0 being the
 	// call's own group_by (nest.go).
 	nest *nesting
+	// draft is the call's `draft`, what every ghost's draft starts from
+	// (create.md C9)
+	draft host.IssueDocument
 
 	items []map[string]any
 	// open is the parents folded open, by key: a tree opens folded, so what
@@ -120,6 +123,10 @@ type bar struct {
 
 	progress    float64
 	hasProgress bool
+
+	// place is a ghost's: the draft it opens and the parent write after
+	// Create (ghost.go); nil on every other row
+	place *placement
 }
 
 // today is the day the chart marks as now, and the chart's extent when
@@ -159,6 +166,9 @@ func newGanttPage(repo *cache.RepoCache, call *view.Call) (*ganttPage, error) {
 		return nil, err
 	}
 	p.nest = n
+	if p.draft, err = callDraft(repo, call); err != nil {
+		return nil, err
+	}
 	if p.labelKey == "" {
 		p.labelKey = schema.TitleKey
 	}
@@ -294,6 +304,7 @@ func (p *ganttPage) newBar(n nested, known *kinds) (bar, treeRow) {
 		children: n.children,
 		folded:   n.folded,
 		hidden:   n.hidden,
+		nestable: n.nestable,
 		group:    known.groupLabel(b.typeKey, layer.groupBy, fields),
 		grouped:  layer.groupBy != "",
 	}
@@ -665,36 +676,20 @@ func (p *ganttPage) count() int {
 	return n
 }
 
-// addGhosts puts a ghost at the foot of each group of roots, one for the
-// whole chart when nothing groups it (ghost.go), as the list does.
+// addGhosts puts a ghost at the foot of every scope, as the list does:
+// each group of the roots, and each group of every opened parent's children
+// (ghost.go, create.md C8).
 func (p *ganttPage) addGhosts() {
-	groups, types := rootGroups(p.nodes, func(index int) string { return p.bars[index].typeKey })
-	for _, group := range groups {
-		b := bar{key: ghostId(group), human: ghostPrefix, typeKey: sharedType(types[group]), fields: map[string]any{}, label: ghostLabel}
-		node := treeRow{key: b.key, group: group, grouped: p.groupBy != "", ghost: true}
-		p.bars = append(p.bars, b)
-		p.nodes = append(p.nodes, node)
-	}
-}
-
-// ghostDoc is the draft a ghost opens: the type its group's rows share, and
-// the `group_by` field as a drop into the group would write it (C6).
-func (p *ganttPage) ghostDoc(ghost *bar, node *treeRow) host.IssueDocument {
-	doc := host.IssueDocument{Fields: map[string]issue.Value{}}
-	if ghost.typeKey != "" {
-		doc.Fields[schema.TypeKey] = issue.StringValue(ghost.typeKey)
-	}
-	for index, other := range p.nodes {
-		if other.ghost || other.level != 0 || other.group != node.group {
-			continue
-		}
+	ghosts := treeGhosts(p.repo, p.nodes, p.nest, p.draft, func(index int) scopeRow {
 		b := &p.bars[index]
-		if value, ok := groupPrefill(p.repo, b.typeKey, p.groupBy, node.group, b.fields[p.groupBy]); ok {
-			doc.Fields[p.groupBy] = value
-		}
-		break
+		return scopeRow{key: b.key, id: b.id, typeKey: b.typeKey, fields: b.fields}
+	})
+	for _, ghost := range ghosts {
+		b := bar{key: ghost.node.key, human: ghostPrefix, fields: map[string]any{},
+			label: ghost.place.label(p.repo), place: ghost.place}
+		p.bars = append(p.bars, b)
+		p.nodes = append(p.nodes, ghost.node)
 	}
-	return doc
 }
 
 func (p *ganttPage) Update(msg tea.Msg) (page, tea.Cmd) {
@@ -715,18 +710,17 @@ func (p *ganttPage) Update(msg tea.Msg) (page, tea.Cmd) {
 		return p, nil
 
 	case createdMsg:
-		// a draft opened from here was created: the issue appears where the
+		// a draft opened from here was created: a relation stored on the
+		// parent is written first (C8), then the issue appears where the
 		// ghost stood, the cursor on it (doc/design/create.md, C4), or is
 		// named when the query does not keep it
+		failed := linkCreated(p.repo, msg)
 		if err := p.load(); err != nil {
 			p.status = err.Error()
 			return p, nil
 		}
 		p.putCursorOn(msg.id)
-		p.status = "created " + human(msg.id)
-		if p.currentId() != msg.id {
-			p.status += ", not in this view"
-		}
+		p.status = createdStatus(failed, msg.id, p.currentId() == msg.id)
 		return p, nil
 
 	case refreshMsg:
@@ -808,11 +802,13 @@ func (p *ganttPage) key(press tea.KeyPressMsg) (page, tea.Cmd) {
 		p.toParent()
 	case keys.foldAll.matches(press):
 		p.toggleAll()
+	case keys.openEverything.matches(press):
+		p.openAll()
 
 	case keys.act.matches(press):
 		if b := p.current(); b != nil {
 			if node := p.node(); node.ghost {
-				return p, openNew(p.repo, p.call.Raw("shows"), p.ghostDoc(b, node))
+				return p, openNewAt(p.repo, p.call.Raw("shows"), b.place)
 			}
 			if b.id == "" {
 				// a row that stands for no issue has nothing to open (R2)
@@ -869,10 +865,11 @@ func (p *ganttPage) rowsPerPage() int {
 	return max(p.height-6, 1)
 }
 
-// intoChild is tab: onto the row's first child, unfolding it on the way.
+// intoChild is tab: onto the row's first child, unfolding it on the way;
+// into a leaf's empty scope, that is its ghost.
 func (p *ganttPage) intoChild() {
 	node := p.node()
-	if node == nil || node.children == 0 {
+	if node == nil || !node.foldable() {
 		return
 	}
 	if node.folded {
@@ -902,10 +899,11 @@ func (p *ganttPage) toParent() {
 }
 
 // toggleFold is space on the arrow cell: a parent's children shown or
-// hidden. A leaf has nothing to fold and rings.
+// hidden, a leaf's empty scope and its ghost too. A row that can have no
+// children has nothing to fold and rings.
 func (p *ganttPage) toggleFold() tea.Cmd {
 	node := p.node()
-	if node == nil || node.children == 0 {
+	if node == nil || !node.foldable() {
 		p.status = "nothing to fold"
 		return bell()
 	}
@@ -918,6 +916,12 @@ func (p *ganttPage) toggleFold() tea.Cmd {
 // them opened (foldAll).
 func (p *ganttPage) toggleAll() {
 	p.open = foldAll(p.nodes, p.open)
+	p.rebuild()
+}
+
+// openAll is open everything: every row opened, the leaves too (openEverything).
+func (p *ganttPage) openAll() {
+	p.open = openEverything(p.nodes)
 	p.rebuild()
 }
 

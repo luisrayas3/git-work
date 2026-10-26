@@ -314,10 +314,11 @@ func (p *ganttPage) rowLine(index, labelWidth, visible int, under, grabbed bool,
 	}
 
 	if node.ghost {
-		// the ghost is a place to add, drawn dim, with no bar
+		// the ghost is a place to add, drawn dim, with no bar, at its
+		// scope's indent
 		parts := []string{marker, wash.Faint(true).Render(pad(b.human, idw))}
 		if indent > 0 {
-			parts = append(parts, wash.Render(" "), wash.Render(pad("", indent)))
+			parts = append(parts, wash.Render(" "), wash.Render(pad(strings.Repeat(" ", indentWidth*node.level), indent)))
 		}
 		room := max(labelWidth-1-indent-idw-1, 0)
 		parts = append(parts, wash.Faint(true).Render(" "+pad(b.label, room)), wash.Faint(true).Render("│"))
@@ -329,6 +330,9 @@ func (p *ganttPage) rowLine(index, labelWidth, visible int, under, grabbed bool,
 	if indent > 0 {
 		cell := pad(strings.Repeat(" ", indentWidth*node.level)+treeCell(*node), indent)
 		style := wash
+		if leafFold(*node) {
+			style = wash.Faint(true)
+		}
 		if under && p.col < 0 {
 			style = styleMark()
 		}

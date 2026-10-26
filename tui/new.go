@@ -41,6 +41,10 @@ type newPage struct {
 	// cell and the page after Create open by it (show_map.go); a
 	// standalone creator has none, and opens bare shows
 	shows json.RawMessage
+	// link is the opener's write on a parent that stores the relation,
+	// which the page never makes: it hands it back with the id, and the
+	// view the ghost stood on writes it (create.md C8)
+	link  *parentLink
 	order []string
 
 	// fields is the draft: the title and the type included, as `issue new`
@@ -77,6 +81,9 @@ type newPage struct {
 type createdMsg struct {
 	id    string
 	shown page
+	// link is the parent write the ghost's opener makes now (C8), nil
+	// where the relation is stored on the child or there is no parent
+	link *parentLink
 }
 
 // newNewPage is the page a `new` call describes.
@@ -677,7 +684,8 @@ func (p *newPage) create() tea.Cmd {
 		p.status = err.Error()
 		return bell()
 	}
-	return func() tea.Msg { return createdMsg{id: id.String(), shown: shown} }
+	link := p.link
+	return func() tea.Msg { return createdMsg{id: id.String(), shown: shown, link: link} }
 }
 
 // pointAt puts the cursor on the first row whose key a refusal names.

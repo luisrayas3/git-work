@@ -334,6 +334,6 @@ func TestShowHintsNameWhatIsUnderTheCursor(t *testing.T) {
 	none, err := specCall(t, repo, other, `{"expand":"blocks"}`)
 	require.NoError(t, err)
 	runHints(t, func() page { return none }, []hintCase{
-		{what: "an empty table with no ghost", at: toSide, line: helpHint},
+		{what: "an empty table over a stored relation: its ghost (create.md C8)", at: toSide, line: "enter: new issue · ? keys"},
 	})
 }

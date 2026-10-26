@@ -420,17 +420,18 @@ func (p *showPage) Update(msg tea.Msg) (page, tea.Cmd) {
 
 	case createdMsg:
 		// a draft the ghost opened was created: it appears in its table,
-		// the cursor on it (doc/design/create.md, C4)
+		// the cursor on it (doc/design/create.md, C4); a relation stored on
+		// this issue is written here first (C8)
+		failed := linkCreated(p.repo, msg)
 		if err := p.load(); err != nil {
 			p.status = err.Error()
 			return p, nil
 		}
-		p.status = "created " + human(msg.id)
-		if p.putSideOn(msg.id) {
+		shown := p.putSideOn(msg.id)
+		if shown {
 			p.focusStop(stopSide)
-		} else {
-			p.status += ", not in this view"
 		}
+		p.status = createdStatus(failed, msg.id, shown)
 		return p, nil
 
 	case tea.KeyPressMsg:

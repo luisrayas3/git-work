@@ -52,10 +52,12 @@ const sideFieldMax = 24
 type sideTable struct {
 	layer   *view.Layer
 	program *jq.Program
-	// ghost is the draft the table's ghost opens, nil where there is none:
-	// a table over a stored relation of the shown issue, or an inverse whose
-	// types disagree on the stored key (S6)
-	ghost *host.IssueDocument
+	// ghost is where the table's ghost puts the issue it creates, nil where
+	// there is none: an inverse whose types disagree on the stored key, the
+	// rows sharing no type to pick it (S6, create.md C8). A stored relation
+	// of the shown issue has one: its link is written on this issue after
+	// Create.
+	ghost *placement
 	// rows are every issue the relation reaches, the query applied, in
 	// (rank, id) order; the filter narrows what is drawn, never this
 	rows []sideRow
@@ -157,62 +159,45 @@ func (p *showPage) sideTables() []*sideTable {
 	if len(p.specs) == 0 {
 		return nil
 	}
-	s, _ := p.repo.LoadSchema()
-	shownType, _ := issue.String(p.snapshot.Fields[schema.TypeKey])
 	var out []*sideTable
 	for _, spec := range p.specs {
 		if spec.layer.Relation != schema.LinksKey {
-			out = append(out, &sideTable{layer: spec.layer, program: spec.program,
-				ghost: sideGhost(s, shownType, p.id, spec.layer.Relation)})
+			out = append(out, &sideTable{layer: spec.layer, program: spec.program})
 			continue
 		}
 		for _, rel := range p.links {
 			layer := *spec.layer
 			layer.Relation = rel.Name
-			out = append(out, &sideTable{layer: &layer, program: spec.program, link: true,
-				ghost: sideGhost(s, shownType, p.id, rel.Name)})
+			out = append(out, &sideTable{layer: &layer, program: spec.program, link: true})
 		}
 	}
 	return out
 }
 
-// sideGhost is the draft a table's ghost opens (S6): the stored field on the
-// child that resolves the inverse, set to this issue's id, and the type when
-// that field belongs to one type. A stored relation of the shown issue has
-// no ghost, because the new issue would have to be written into this one, a
-// second commit; nor has an inverse whose types disagree on the key, since
-// nothing could be filled without the type.
-func sideGhost(s *schema.Schema, shownType, id, relation string) *host.IssueDocument {
-	sources := view.InverseSources(s, shownType, relation)
-	if len(sources) == 0 {
+// sideGhost is where a table's ghost puts the issue it creates: the same
+// write set as a nested layer's (create.md C8), with the shown issue as the
+// parent, the table's relation, and its rows as the type witness. Over an
+// inverse it is the stored field on the child set to this issue's id; over
+// a stored relation of this issue it is this issue's field, written after
+// Create, `(new, replacing …)` where a single relation is set. Show takes
+// no `draft`, so it starts from nothing.
+func (p *showPage) sideGhost(s *schema.Schema, table *sideTable, types []string) *placement {
+	shownType, _ := issue.String(p.snapshot.Fields[schema.TypeKey])
+	parent := &scopeParent{id: p.id, typeKey: shownType, relation: table.layer.Relation,
+		held: func(field string) []string {
+			if ids, ok := issue.Strings(p.snapshot.Fields[field]); ok {
+				return ids
+			}
+			if id, ok := issue.String(p.snapshot.Fields[field]); ok && id != "" {
+				return []string{id}
+			}
+			return nil
+		}}
+	place, ok := composeDraft(s, host.IssueDocument{Fields: map[string]issue.Value{}}, types, nil, parent)
+	if !ok {
 		return nil
 	}
-	var key string
-	var multi bool
-	types := make([]string, 0, len(sources))
-	for typeKey, keys := range sources {
-		types = append(types, typeKey)
-		for _, k := range keys {
-			field, _ := s.Field(typeKey, k)
-			switch {
-			case key == "":
-				key, multi = k, field.Kind.IsMulti()
-			case key != k || multi != field.Kind.IsMulti():
-				return nil
-			}
-		}
-	}
-
-	doc := host.IssueDocument{Fields: map[string]issue.Value{}}
-	if multi {
-		doc.Fields[key] = issue.MustValue([]string{id})
-	} else {
-		doc.Fields[key] = issue.StringValue(id)
-	}
-	if len(types) == 1 {
-		doc.Fields[schema.TypeKey] = issue.StringValue(types[0])
-	}
-	return &doc
+	return place
 }
 
 // loadSide reads every table's rows off the store: the issues its relation
@@ -226,6 +211,7 @@ func (p *showPage) loadSide() {
 	}
 	kept := p.tables[:0]
 	defer func() { p.tables = kept }()
+	s, _ := p.repo.LoadSchema()
 	known := newKinds(p.repo)
 	type issueSet struct {
 		all   map[string]map[string]any
@@ -265,6 +251,7 @@ func (p *showPage) loadSide() {
 		}
 
 		rows := make([]sideRow, 0, len(candidates))
+		types := make([]string, 0, len(candidates))
 		for _, item := range candidates {
 			id := host.RowId(item)
 			if id == "" {
@@ -272,6 +259,7 @@ func (p *showPage) loadSide() {
 			}
 			fields, _ := item["fields"].(map[string]any)
 			typeKey := host.StringOr(fields[schema.TypeKey], "")
+			types = append(types, typeKey)
 			cells := []string{host.StringOr(item["human_id"], humanOf(p.repo, id)), host.StringOr(fields[schema.TitleKey], "")}
 			for _, key := range table.layer.Fields {
 				value := fields[key]
@@ -288,6 +276,7 @@ func (p *showPage) loadSide() {
 			return lessByRank(rows[i].rank, rows[i].id, rows[j].rank, rows[j].id)
 		})
 		table.rows = rows
+		table.ghost = p.sideGhost(s, table, types)
 	}
 }
 
@@ -362,7 +351,7 @@ func (p *showPage) sideAct() tea.Cmd {
 	case item == nil:
 		return bell()
 	case item.ghost:
-		return openNew(p.repo, p.call.Raw("shows"), cloneDoc(*p.tables[item.table].ghost))
+		return openNewAt(p.repo, p.call.Raw("shows"), p.tables[item.table].ghost)
 	case item.row < 0:
 		p.status = "no issue"
 		return bell()
@@ -376,7 +365,7 @@ func cloneDoc(doc host.IssueDocument) host.IssueDocument {
 	for key, value := range doc.Fields {
 		fields[key] = value
 	}
-	return host.IssueDocument{Fields: fields}
+	return host.IssueDocument{Fields: fields, Body: doc.Body, Aliases: doc.Aliases}
 }
 
 // sideCopy copies the row's id, whichever copy key: a row is one issue, and
@@ -658,7 +647,7 @@ func (p *showPage) sideLines(width int, here position) []sideLine {
 			if on && item == p.side {
 				marker, style = "›", styleCell
 			}
-			text := pad(ghostPrefix, widths[0]) + "  " + ghostLabel
+			text := pad(ghostPrefix, widths[0]) + "  " + p.tables[t].ghost.label(p.repo)
 			out = append(out, sideLine{text: fit(marker+style.Render(text), width), item: item, table: t})
 		}
 	}

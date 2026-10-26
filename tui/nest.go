@@ -171,6 +171,11 @@ type nested struct {
 	// a folded parent can still draw the envelope of its children, and it
 	// is never drawn itself.
 	hidden bool
+	// nestable says the row could have children of the layer below: the
+	// layer exists, and its relation's write set can be named for the row
+	// (create.md C8), so a leaf draws a fold cell, `▸ 0`, and unfolds to an
+	// empty child table ending in a ghost.
+	nestable bool
 }
 
 // nest unfolds the rows the query returned along the layers of `expand`.
@@ -266,6 +271,30 @@ func nest(repo *cache.RepoCache, items []map[string]any, n *nesting, open map[st
 	type candidate struct {
 		row   map[string]any
 		store bool
+	}
+
+	// whether a row of a type could have children of a layer: the layer
+	// reads a relation, and its write set can be named for the type (C8)
+	s, _ := repo.LoadSchema()
+	writable := map[string]bool{}
+	nestable := func(item map[string]any, id string, level int) bool {
+		layer := n.at(level + 1)
+		if layer == nil || layer.relation == "" || id == "" {
+			return false
+		}
+		if _, own := host.RowChildren(item); own {
+			// a row that lists its own children is no relation's (R3)
+			return false
+		}
+		fields, _ := item["fields"].(map[string]any)
+		typeKey := host.StringOr(fields[schema.TypeKey], "")
+		memo := typeKey + "\x00" + layer.relation
+		can, seen := writable[memo]
+		if !seen {
+			_, can = relationSideOf(s, typeKey, layer.relation)
+			writable[memo] = can
+		}
+		return can
 	}
 
 	var failed error
@@ -386,6 +415,7 @@ func nest(repo *cache.RepoCache, items []map[string]any, n *nesting, open map[st
 			folded:   !open[key],
 			hidden:   hidden,
 		}
+		node.nestable = nestable(item, node.id, level)
 		out = append(out, node)
 
 		for _, kid := range below {
@@ -583,6 +613,8 @@ type treeRow struct {
 	children int
 	folded   bool
 	hidden   bool
+	// nestable says a leaf still has a fold cell (nested.nestable)
+	nestable bool
 
 	group string
 	// groupSort is where the group goes among its siblings' groups (group.go).
@@ -610,6 +642,12 @@ func (r treeRow) tie() string {
 		return r.id
 	}
 	return r.key
+}
+
+// foldable says the row draws a fold cell: it has children, or it could
+// have them and unfolds to an empty child table (create.md C8).
+func (r treeRow) foldable() bool {
+	return !r.ghost && (r.children > 0 || r.nestable)
 }
 
 // keyed says the row stands for a share of an issue or for none — its key is
@@ -844,15 +882,17 @@ func crossGroup(rows []treeRow, order []int, at, by int) (int, bool) {
 // empty, rings. The indent is not the cell's: on the list it is the child
 // table's margin, on the gantt the label column's.
 
-// foldAll is `Z`: every parent folded shut, or, where none of them is open,
-// every parent opened.
+// foldAll is `esc z`: every row folded shut, or, where none of them is
+// open, every parent opened — the rows with children, and never a leaf,
+// because it means "show me the tree", and an empty table under every leaf
+// is not the tree (app.md A4, Two folds).
 //
 // Folding wins the tie, because the tree a list opens with is the summary,
 // and getting back to it is what a reader of a tree opened all over wants.
 func foldAll(rows []treeRow, open map[string]bool) map[string]bool {
 	anyOpen := false
 	for _, row := range rows {
-		if row.children > 0 && !row.folded {
+		if row.foldable() && !row.folded {
 			anyOpen = true
 			break
 		}
@@ -864,6 +904,19 @@ func foldAll(rows []treeRow, open map[string]bool) map[string]bool {
 	out := make(map[string]bool, len(rows))
 	for _, row := range rows {
 		if row.children > 0 {
+			out[row.key] = true
+		}
+	}
+	return out
+}
+
+// openEverything is `esc Z`: every row opened, the leaves included, so that
+// every level's ghost is on the screen, for the person about to add under
+// many of them (app.md A4, Two folds; create.md C8).
+func openEverything(rows []treeRow) map[string]bool {
+	out := make(map[string]bool, len(rows))
+	for _, row := range rows {
+		if row.foldable() {
 			out[row.key] = true
 		}
 	}
@@ -921,10 +974,12 @@ func reveal(rows []treeRow, open map[string]bool, key string) bool {
 }
 
 // treeCell is one row's tree column: its arrow, and the count of what
-// folding it hides. A leaf's is empty.
+// folding it hides. A leaf that could have children reads `▸ 0` folded,
+// zero being the truth, and is drawn faint (leafFold); one that cannot has
+// an empty cell.
 func treeCell(row treeRow) string {
 	switch {
-	case row.children == 0:
+	case !row.foldable():
 		return ""
 	case row.folded:
 		return "▸ " + strconv.Itoa(row.children)
@@ -940,23 +995,34 @@ func treeWidth(rows []treeRow, expanded bool) int {
 	if !expanded {
 		return 0
 	}
-	most := 0
+	most, counted := 0, false
 	for _, row := range rows {
 		most = max(most, row.children)
+		counted = counted || row.foldable()
 	}
 	width := 1
-	if most > 0 {
+	if counted {
 		width += 1 + len(strconv.Itoa(most))
 	}
 	return width
 }
 
+// leafFold says the row's fold cell is a leaf's `▸ 0`, which is drawn faint,
+// so that a column of leaves does not read as a column of parents.
+func leafFold(row treeRow) bool {
+	return row.foldable() && row.children == 0 && row.folded
+}
+
 // deepest is the deepest level any row sits at, hidden or drawn, so that an
-// indent sized by it never changes with a fold.
+// indent sized by it never changes with a fold: a leaf that unfolds to an
+// empty table counts the level its ghost would stand at (create.md C8).
 func deepest(rows []treeRow) int {
 	level := 0
 	for _, row := range rows {
 		level = max(level, row.level)
+		if row.nestable {
+			level = max(level, row.level+1)
+		}
 	}
 	return level
 }
