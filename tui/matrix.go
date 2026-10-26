@@ -11,6 +11,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/git-bug/git-bug/cache"
+	"github.com/git-bug/git-bug/entities/issue"
 	"github.com/git-bug/git-bug/entity"
 	"github.com/git-bug/git-bug/host"
 	"github.com/git-bug/git-bug/schema"
@@ -52,6 +53,9 @@ type matrixPage struct {
 	sums [][][]cellSum
 	// count is how many issues the query returned, for the status line.
 	count int
+	// typeKey is the type every issue on the matrix shares, "" where they
+	// differ: what a cell's drill-down puts in its `draft` (create.md C8)
+	typeKey string
 
 	// drawn is the rows as they are drawn: the data rows of each group, each
 	// group's subtotal, and the grand total last. rows and cols are what the
@@ -201,10 +205,14 @@ func (p *matrixPage) load() error {
 // build resolves both axes and the groups, then fills the grid.
 func (p *matrixPage) build(items []map[string]any) {
 	onMatrix := map[string]bool{}
+	types := make([]string, 0, len(items))
 	for _, item := range items {
 		fields, _ := item["fields"].(map[string]any)
-		onMatrix[host.StringOr(fields[schema.TypeKey], "")] = true
+		typeKey := host.StringOr(fields[schema.TypeKey], "")
+		onMatrix[typeKey] = true
+		types = append(types, typeKey)
 	}
+	p.typeKey = sharedType(types)
 
 	p.rowAxis = p.resolveAxis(p.rowsKey, p.call.Strings("row_values"), items, onMatrix)
 	p.colAxis = p.resolveAxis(p.columnsKey, p.call.Strings("column_values"), items, onMatrix)
@@ -747,21 +755,44 @@ func (p *matrixPage) open() tea.Cmd {
 // The predicate, never the ids that happen to be in the cell today: the list
 // it opens is a live view like every other, and it has to re-run to the same
 // cell after somebody writes.
+//
+// Its `draft` is the cell's write set (create.md C8, C9), so the list's
+// ghost already holds the cell: each axis the cell names with its value, the
+// block's group_by value, and the type every issue on the matrix shares —
+// never the value field, since the form invents no number (C5). Every cell
+// drills down, an empty one included, and its drill-down's ghost is where
+// its first issue is added.
 func (p *matrixPage) cellCall() (*view.Call, error) {
 	if p.row >= len(p.drawn) {
 		return nil, errNothingHere
 	}
 	row := p.drawn[p.row]
 
+	draft := map[string]issue.Value{}
+	if p.typeKey != "" {
+		draft[schema.TypeKey] = issue.StringValue(p.typeKey)
+	}
 	query := p.query
 	if row.kind == rowData {
-		query += "\n| " + axisClause(p.rowAxis, p.rowAxis.values[row.value])
+		value := p.rowAxis.values[row.value]
+		query += "\n| " + axisClause(p.rowAxis, value)
+		if v, ok := axisDraft(p.rowAxis, value); ok {
+			draft[p.rowsKey] = v
+		}
 	}
 	if p.col < len(p.cols) {
-		query += "\n| " + axisClause(p.colAxis, p.colAxis.values[p.cols[p.col]])
+		value := p.colAxis.values[p.cols[p.col]]
+		query += "\n| " + axisClause(p.colAxis, value)
+		if v, ok := axisDraft(p.colAxis, value); ok {
+			draft[p.columnsKey] = v
+		}
 	}
 	if p.groupBy != "" && row.group >= 0 && row.kind != rowGrand {
-		query += "\n| map(select(" + fieldPath(p.groupBy) + " == " + string(p.groups[row.group].raw) + "))"
+		g := p.groups[row.group]
+		query += "\n| map(select(" + fieldPath(p.groupBy) + " == " + string(g.raw) + "))"
+		if v, ok := blockDraft(g); ok {
+			draft[p.groupBy] = v
+		}
 	}
 
 	fields := make([]string, 0, 4)
@@ -784,7 +815,54 @@ func (p *matrixPage) cellCall() (*view.Call, error) {
 	if p.call.Has("shows") {
 		kwargs["shows"] = p.call.Raw("shows")
 	}
+	if len(draft) > 0 {
+		kwargs["draft"] = mustJSON(host.IssueDocument{Fields: draft})
+	}
 	return view.Parse(view.KindList, kwargs)
+}
+
+// axisDraft is what a cell's draft holds for one axis: the value as the
+// field stores it, a set of the one value for a set-valued axis — which,
+// unlike a drop, is not ambiguous, a draft having nothing to replace — and
+// nothing for (none).
+func axisDraft(a axis, value axisValue) (issue.Value, bool) {
+	if value.none {
+		return nil, false
+	}
+	switch {
+	case a.multi:
+		return issue.MustValue([]string{value.value}), true
+	case a.kind == schema.KindNumber:
+		number, err := strconv.ParseFloat(value.value, 64)
+		if err != nil {
+			return nil, false
+		}
+		return issue.MustValue(number), true
+	case a.kind == schema.KindBool:
+		flag, err := strconv.ParseBool(value.value)
+		if err != nil {
+			return nil, false
+		}
+		return issue.MustValue(flag), true
+	}
+	return issue.StringValue(value.value), true
+}
+
+// blockDraft is what a cell's draft holds for its block's group_by: the
+// value as stored, as a group prefills it (groupPrefill), nothing for (none)
+// or a set.
+func blockDraft(g group) (issue.Value, bool) {
+	if g.none || len(g.raw) == 0 {
+		return nil, false
+	}
+	var value any
+	if err := json.Unmarshal(g.raw, &value); err != nil || value == nil {
+		return nil, false
+	}
+	if _, set := value.([]any); set {
+		return nil, false
+	}
+	return issue.MustValue(value), true
 }
 
 // axisClause selects the issues on one row or column: an equality for a
