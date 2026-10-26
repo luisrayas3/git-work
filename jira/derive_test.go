@@ -286,6 +286,25 @@ func TestDeriveExcluded(t *testing.T) {
 	require.False(t, ok, "an excluded type maps nothing")
 }
 
+// A type's show spec is the team's, not Jira's: deriving keeps it, and the
+// sync's re-import of the result removes nothing.
+func TestDeriveKeepsShow(t *testing.T) {
+	p, _ := discover(t, "company")
+	start := starts(t)["repo"]
+	task := typeDoc(t, start, "task")
+	show := &schema.ShowDoc{Fields: []string{"status", "area"}, Expand: "children"}
+	task.Show = show
+	start.SetType("task", task)
+
+	s, doc, _, _ := derived(t, start, p)
+	for _, d := range []*schema.Document{doc, s.export(t)} {
+		require.Equal(t, show, typeDoc(t, d, "task").Show)
+	}
+	again, _, err := Derive(s.export(t), p)
+	require.NoError(t, err)
+	require.Empty(t, s.importDoc(t, again))
+}
+
 // D7: a person marks Won't Do canceled once and every derivation keeps it;
 // Jira moving the status out of the done class resets it and warns.
 func TestDeriveCategories(t *testing.T) {

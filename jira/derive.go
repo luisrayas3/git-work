@@ -548,7 +548,15 @@ func copyDocument(src *schema.Document) *schema.Document {
 	}
 	for _, key := range src.Types.Keys() {
 		t, _ := src.Types.Get(key)
-		c := schema.TypeDoc{Name: t.Name, Description: t.Description, Aliases: maps.Clone(t.Aliases)}
+		// The whole value, so an attribute a type gains is carried too.
+		c := t
+		c.Aliases = maps.Clone(t.Aliases)
+		if t.Show != nil {
+			show := *t.Show
+			show.Fields = slices.Clone(show.Fields)
+			c.Show = &show
+		}
+		c.Fields = nil
 		for _, fk := range t.Fields.Keys() {
 			f, _ := t.Fields.Get(fk)
 			f.Aliases = maps.Clone(f.Aliases)
