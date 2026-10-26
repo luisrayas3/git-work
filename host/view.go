@@ -41,9 +41,12 @@ func View(ctx context.Context, repo *cache.RepoCache, renderer view.Renderer, ki
 		}
 	}
 
-	if call.Kind == view.KindNew && call.Has("doc") {
-		if _, err := IssueDraft(repo, call.Raw("doc")); err != nil {
-			return nil, fmt.Errorf("view new: doc %w", err)
+	// `draft`, on new and on every kind that draws a ghost, is checked as
+	// `issue new` would check it, so a flow learns at the call and not
+	// after the person has typed (doc/design/create.md, C1 and C9)
+	if call.Has("draft") {
+		if _, err := IssueDraft(repo, call.Raw("draft")); err != nil {
+			return nil, fmt.Errorf("view %s: draft %w", call.Kind, err)
 		}
 	}
 

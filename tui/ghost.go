@@ -82,7 +82,7 @@ func openNew(repo *cache.RepoCache, shows json.RawMessage, doc host.IssueDocumen
 	if err != nil {
 		return nil
 	}
-	call, err := view.Parse(view.KindNew, map[string]json.RawMessage{"doc": raw})
+	call, err := view.Parse(view.KindNew, map[string]json.RawMessage{"draft": raw})
 	if err != nil {
 		return nil
 	}

@@ -46,12 +46,12 @@ func TestNewOpensOnTheTitleTyping(t *testing.T) {
 	repo := testRepo(t)
 	story := newIssue(t, repo, map[string]any{"title": "the story", "type": "story"})
 
-	page := newView(t, repo, `{"doc":{"fields":{"type":"task","parent":"`+story+`"},"body":"why"}}`)
+	page := newView(t, repo, `{"draft":{"fields":{"type":"task","parent":"`+story+`"},"body":"why"}}`)
 	require.NotNil(t, page.editor, "the title's editor is open on arrival")
 	require.Equal(t, "title", page.editor.key)
 
 	drawn := plainView(page)
-	require.Contains(t, drawn, "new  doc=", "the first line is the call")
+	require.Contains(t, drawn, "new  draft=", "the first line is the call")
 	require.Contains(t, drawn, "task  (no title)")
 	require.Contains(t, drawn, "the story", "the prefilled parent is drawn as the issue it names")
 	require.Contains(t, drawn, "status", "the type's fields are the rows")
@@ -102,7 +102,7 @@ func TestNewCreatesOnEnter(t *testing.T) {
 	story := newIssue(t, repo, map[string]any{"title": "the story", "type": "story"})
 	before := len(repo.Issues().AllIds())
 
-	page := newView(t, repo, `{"doc":{"fields":{"type":"task","parent":"`+story+`"},"body":"why"}}`)
+	page := newView(t, repo, `{"draft":{"fields":{"type":"task","parent":"`+story+`"},"body":"why"}}`)
 	page = typeText(page, "do the thing").(*newPage)
 
 	// a field edited in the draft: status, the first row
@@ -146,7 +146,7 @@ func TestNewStoresAPrefixAsTheFullId(t *testing.T) {
 	repo := testRepo(t)
 	story := newIssue(t, repo, map[string]any{"title": "the story", "type": "story"})
 
-	page := newView(t, repo, `{"doc":{"fields":{"type":"task","parent":"`+story[:7]+`"}}}`)
+	page := newView(t, repo, `{"draft":{"fields":{"type":"task","parent":"`+story[:7]+`"}}}`)
 	page = typeText(page, "do the thing").(*newPage)
 	for range 10 {
 		if page.current().stop == stopCreate {
@@ -171,7 +171,7 @@ func TestNewStoresAPrefixAsTheFullId(t *testing.T) {
 func TestNewStandaloneBecomesShow(t *testing.T) {
 	repo := testRepo(t)
 
-	draft := newView(t, repo, `{"doc":{"fields":{"type":"task"}}}`)
+	draft := newView(t, repo, `{"draft":{"fields":{"type":"task"}}}`)
 	stack := &root{pages: []page{draft}, width: 100, height: 40}
 	stack.Update(tea.WindowSizeMsg{Width: 100, Height: 40})
 
@@ -201,7 +201,7 @@ func TestNewFromAViewPopsBack(t *testing.T) {
 	stack := &root{pages: []page{under}, width: 100, height: 40}
 	stack.Update(tea.WindowSizeMsg{Width: 100, Height: 40})
 
-	draft := newView(t, repo, `{"doc":{"fields":{"type":"task"}}}`)
+	draft := newView(t, repo, `{"draft":{"fields":{"type":"task"}}}`)
 	stack.Update(pushMsg{page: draft})
 	require.Len(t, stack.pages, 2)
 
@@ -220,7 +220,7 @@ func TestNewFromAViewPopsBack(t *testing.T) {
 	// a query that leaves the new issue out says so instead
 	narrow := list(t, repo, `{"query":"map(select(.fields.title == \"first\"))"}`)
 	stack = &root{pages: []page{narrow}, width: 100, height: 40}
-	draft = newView(t, repo, `{"doc":{"fields":{"type":"task"}}}`)
+	draft = newView(t, repo, `{"draft":{"fields":{"type":"task"}}}`)
 	stack.Update(pushMsg{page: draft})
 	typed = typeText(draft, "third").(*newPage)
 	typed = send(typed, "tab", "tab", "tab").(*newPage)
@@ -242,7 +242,7 @@ func TestNewRefusesWhatThePlannerRefuses(t *testing.T) {
 	require.Equal(t, stopHeader, page.current().stop)
 	require.Equal(t, cellType, page.cell)
 
-	page = newView(t, repo, `{"doc":{"fields":{"type":"task"}}}`)
+	page = newView(t, repo, `{"draft":{"fields":{"type":"task"}}}`)
 	page.editor = nil
 	page.focusStop(stopCreate)
 	_, cmd = page.Update(press("enter"))
@@ -251,30 +251,59 @@ func TestNewRefusesWhatThePlannerRefuses(t *testing.T) {
 	require.Equal(t, cellTitle, page.cell)
 }
 
-// TestNewDocIsCheckedAtTheCall: a document the planner would refuse is
+// TestNewDraftIsCheckedAtTheCall: a draft the planner would refuse is
 // refused before anything draws, as children and expand are (C1).
-func TestNewDocIsCheckedAtTheCall(t *testing.T) {
+func TestNewDraftIsCheckedAtTheCall(t *testing.T) {
 	repo := testRepo(t)
 
 	_, err := host.View(context.Background(), repo, nil, view.KindNew,
-		map[string]json.RawMessage{"doc": json.RawMessage(`{"fields":{"type":"task","colour":"red"}}`)})
+		map[string]json.RawMessage{"draft": json.RawMessage(`{"fields":{"type":"task","colour":"red"}}`)})
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "colour")
 
 	_, err = host.View(context.Background(), repo, nil, view.KindNew,
-		map[string]json.RawMessage{"doc": json.RawMessage(`{"fields":{"type":"task","status":"nope"}}`)})
+		map[string]json.RawMessage{"draft": json.RawMessage(`{"fields":{"type":"task","status":"nope"}}`)})
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "nope")
 
 	// a good one reaches the renderer, which here is none
 	_, err = host.View(context.Background(), repo, nil, view.KindNew,
-		map[string]json.RawMessage{"doc": json.RawMessage(`{"fields":{"type":"task","status":"to-do"}}`)})
+		map[string]json.RawMessage{"draft": json.RawMessage(`{"fields":{"type":"task","status":"to-do"}}`)})
 	require.ErrorIs(t, err, view.ErrNoTerminal)
 
 	// and no type is no check: the page is where one is picked
 	_, err = host.View(context.Background(), repo, nil, view.KindNew,
-		map[string]json.RawMessage{"doc": json.RawMessage(`{"fields":{"status":"to-do"}}`)})
+		map[string]json.RawMessage{"draft": json.RawMessage(`{"fields":{"status":"to-do"}}`)})
 	require.ErrorIs(t, err, view.ErrNoTerminal)
+}
+
+// TestViewDraftIsCheckedAtTheCall: list, gantt and board take `draft` too,
+// checked as new's is, before anything draws (C9); `doc` is gone.
+func TestViewDraftIsCheckedAtTheCall(t *testing.T) {
+	repo := testRepo(t)
+
+	for _, kind := range []string{view.KindList, view.KindGantt, view.KindBoard} {
+		kwargs := map[string]json.RawMessage{
+			"draft": json.RawMessage(`{"fields":{"type":"task","status":"nope"}}`),
+		}
+		switch kind {
+		case view.KindGantt:
+			kwargs["start"], kwargs["stop"] = json.RawMessage(`"due"`), json.RawMessage(`"due"`)
+		case view.KindBoard:
+			kwargs["columns"] = json.RawMessage(`"status"`)
+		}
+		_, err := host.View(context.Background(), repo, nil, kind, kwargs)
+		require.ErrorContains(t, err, "nope", kind)
+		require.ErrorContains(t, err, "view "+kind+": draft", kind)
+
+		kwargs["draft"] = json.RawMessage(`{"fields":{"type":"task","status":"to-do"},"body":"why"}`)
+		_, err = host.View(context.Background(), repo, nil, kind, kwargs)
+		require.ErrorIs(t, err, view.ErrNoTerminal, kind)
+	}
+
+	_, err := host.View(context.Background(), repo, nil, view.KindNew,
+		map[string]json.RawMessage{"doc": json.RawMessage(`{"fields":{"type":"task"}}`)})
+	require.ErrorContains(t, err, "doc", "new's doc is renamed draft")
 }
 
 // TestNewEscAsksTwiceWithADraft: back from a draft drops it, so a draft is
@@ -282,13 +311,13 @@ func TestNewDocIsCheckedAtTheCall(t *testing.T) {
 func TestNewEscAsksTwiceWithADraft(t *testing.T) {
 	repo := testRepo(t)
 
-	page := newView(t, repo, `{"doc":{"fields":{"type":"task"}}}`)
+	page := newView(t, repo, `{"draft":{"fields":{"type":"task"}}}`)
 	page.editor = nil
 	_, cmd := page.Update(press("esc"))
 	require.NotNil(t, cmd)
 	require.IsType(t, popMsg{}, cmd(), "nothing typed: back is back")
 
-	page = newView(t, repo, `{"doc":{"fields":{"type":"task"}}}`)
+	page = newView(t, repo, `{"draft":{"fields":{"type":"task"}}}`)
 	page = typeText(page, "half").(*newPage)
 	_, cmd = page.Update(press("esc"))
 	require.Nil(t, cmd)
@@ -304,7 +333,7 @@ func TestNewRetypeKeepsSharedFields(t *testing.T) {
 	repo := testRepo(t)
 	sprint := newIssue(t, repo, map[string]any{"title": "sprint 1", "type": "iteration"})
 
-	page := newView(t, repo, `{"doc":{"fields":{"type":"task","status":"to-do","iteration":"`+sprint+`"}}}`)
+	page := newView(t, repo, `{"draft":{"fields":{"type":"task","status":"to-do","iteration":"`+sprint+`"}}}`)
 	page.editor = nil
 	page.focusStop(stopHeader)
 	page.cell = cellType
@@ -327,7 +356,7 @@ func TestNewRetypeKeepsSharedFields(t *testing.T) {
 func TestNewFieldsNarrowTheRows(t *testing.T) {
 	repo := testRepo(t)
 
-	page := newView(t, repo, `{"doc":{"fields":{"type":"task"}},"fields":["estimate","status"]}`)
+	page := newView(t, repo, `{"draft":{"fields":{"type":"task"}},"fields":["estimate","status"]}`)
 	require.Len(t, page.rows, 2)
 	require.Equal(t, "estimate", page.rows[0].key)
 	require.Equal(t, "status", page.rows[1].key)
@@ -338,7 +367,7 @@ func TestNewFieldsNarrowTheRows(t *testing.T) {
 func TestNewDescriptionBoxHasNoFooter(t *testing.T) {
 	repo := testRepo(t)
 
-	page := newView(t, repo, `{"doc":{"fields":{"type":"task","title":"one"}}}`)
+	page := newView(t, repo, `{"draft":{"fields":{"type":"task","title":"one"}}}`)
 	page.editor = nil
 	page.focusStop(stopBox)
 	drawn := plainView(page)
@@ -355,7 +384,7 @@ func TestNewDescriptionBoxHasNoFooter(t *testing.T) {
 func TestNewArrowsNeverCrossTheBox(t *testing.T) {
 	repo := testRepo(t)
 
-	page := newView(t, repo, `{"doc":{"fields":{"type":"task","title":"one"}},"fields":["status","priority"]}`)
+	page := newView(t, repo, `{"draft":{"fields":{"type":"task","title":"one"}},"fields":["status","priority"]}`)
 	page.editor = nil
 	page.focusStop(stopFields)
 	page.row = len(page.rows) - 1

@@ -206,7 +206,7 @@ func TestLinksOnADraft(t *testing.T) {
 	repo := testRepo(t)
 	one := newTyped(t, repo, "task", map[string]any{"title": "blocked task"})
 
-	page := newView(t, repo, `{"doc":{"fields":{"type":"story","title":"draft","blocks":["`+one+`"]}}}`)
+	page := newView(t, repo, `{"draft":{"fields":{"type":"story","title":"draft","blocks":["`+one+`"]}}}`)
 	send(page, "esc") // out of the title's editor
 	require.Contains(t, linksLine(page), "1 · blocks 1")
 	require.Equal(t, -1, rowAt(page.rows, "blocks"))

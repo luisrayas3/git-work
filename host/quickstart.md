@@ -273,7 +273,7 @@ and an `optional` one is off until it is named.
   and a keyed row's drag is kept by the view, never written.
 - A nested view opens folded; `"open":true` opens every parent,
   a number that many levels from the roots.
-- `git work view new '{"doc":{…}}'` opens the creator on an `issue new` document,
+- `git work view new '{"draft":{…}}'` opens the creator on an `issue new` document,
   every value still editable, and prints the id it creates;
   in a list, a gantt or a board the dim `+ (new)` row at the foot of a group
   opens it prefilled with that group's values.

@@ -179,7 +179,7 @@ func TestTheMapIsCarried(t *testing.T) {
 // show on the new issue by that map when it stands alone (V3).
 func TestThePageAfterCreateOpensByTheMap(t *testing.T) {
 	repo := testRepo(t)
-	draft := newView(t, repo, `{"doc":{"fields":{"type":"epic"}}}`)
+	draft := newView(t, repo, `{"draft":{"fields":{"type":"epic"}}}`)
 	draft.shows = json.RawMessage(epicShows)
 	typed := typeText(draft, "a new epic").(*newPage)
 	typed = send(typed, "tab", "tab", "tab").(*newPage)

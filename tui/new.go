@@ -23,7 +23,7 @@ import (
 // yet (doc/design/create.md).
 //
 // It is the interactive `issue new`: the page holds a draft — the document
-// `issue new` takes, opened on whatever the call's `doc` filled in — and
+// `issue new` takes, opened on whatever the call's `draft` filled in — and
 // nothing is written until Create, which commits the draft through
 // host.IssueNew as the one operation the command commits. An abandoned draft
 // costs nothing, and the Jira sync first sees the issue in its final form.
@@ -81,7 +81,7 @@ type createdMsg struct {
 
 // newNewPage is the page a `new` call describes.
 func newNewPage(repo *cache.RepoCache, call *view.Call) (*newPage, error) {
-	doc, err := host.IssueDraft(repo, call.Raw("doc"))
+	doc, err := host.IssueDraft(repo, call.Raw("draft"))
 	if err != nil {
 		return nil, err
 	}
@@ -201,7 +201,7 @@ func (p *newPage) dirty() bool {
 		}
 	}
 	var body string
-	if raw := p.call.Raw("doc"); raw != nil {
+	if raw := p.call.Raw("draft"); raw != nil {
 		var doc struct {
 			Body string `json:"body"`
 		}
