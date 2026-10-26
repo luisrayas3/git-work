@@ -10,7 +10,7 @@ one operation; the created id is printed, or nothing when the form is left.
 
 KWARGS is a JSON object of this view's arguments, read from standard
 input when it is "-":
-  doc              issue document                   optional           the draft to open on, as issue new takes it: {"fields":{"type":"task","parent":"abc1234"},"body":"…"}; every value stays editable
+  draft            issue document                   optional           the draft to open on, as issue new takes it: {"fields":{"type":"task","parent":"abc1234"},"body":"…"}; every value stays editable
   fields           field keys                       defaulted          the fields shown, in order; the type's fields in schema order by default
 
 An `optional` argument has no default: name it and the view does that

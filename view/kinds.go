@@ -72,9 +72,10 @@ const (
 	// OpenLevels is `open`: true for every level, false for none, or a whole
 	// number of levels from the roots (doc/design/query-rows.md, R4).
 	OpenLevels ValueKind = "bool or levels"
-	// Document is `new`'s `doc`: the document `git work issue new` takes,
+	// Document is `draft`, on `new` and on every kind that draws a ghost:
+	// the document `git work issue new` takes,
 	// {"fields":{…},"body":"…","aliases":{…}}, with what is already decided
-	// filled in (doc/design/create.md, C1).
+	// filled in (doc/design/create.md, C1 and C9).
 	Document ValueKind = "issue document"
 	// Shows is `shows`: type keys, each mapped to a spec, what show takes
 	// less the id, which is how an issue of that type is shown wherever it
@@ -125,6 +126,7 @@ var Kinds = map[string][]Arg{
 			Doc: "the field whose value starts a new section, in the value's own order (an enum's schema order, a relation's issues by rank); the rows with no value at all are the last section, (none)"},
 		{Name: "expand", Tier: Optional, Kind: ExpandSpec, Doc: expandDoc},
 		openArg,
+		draftArg,
 		showsArg,
 	},
 	KindBoard: {
@@ -144,6 +146,7 @@ var Kinds = map[string][]Arg{
 			Doc: "with group_by, add the swimlanes no card falls in, by the field's kind: every value an enum lists, " +
 				"false and true for a bool, and for a relation the siblings of the lanes the cards are in, the other issues whose own group_by holds what theirs holds (an epic's fellow epics under its initiative); " +
 				"text, number, date and identity get none, and (none) is still drawn only when a card has no value; false by default"},
+		draftArg,
 		showsArg,
 	},
 	KindGantt: {
@@ -168,6 +171,7 @@ var Kinds = map[string][]Arg{
 			Doc: "the field whose value starts a new row group, in the value's own order (an enum's schema order, a relation's issues by rank); the rows with no value at all are the last group, (none)"},
 		{Name: "expand", Tier: Optional, Kind: ExpandSpec, Doc: expandDoc},
 		openArg,
+		draftArg,
 		showsArg,
 	},
 	// matrix is the two-axis summary: rows of one field by columns of
@@ -204,9 +208,10 @@ var Kinds = map[string][]Arg{
 	// does not exist yet, nothing written until Create, which commits the
 	// draft as the one operation `issue new` commits (doc/design/create.md).
 	// It takes the document `issue new` takes, with what is already decided
-	// filled in; `fields` keeps show's meaning, so `doc` is the name.
+	// filled in, as `draft`, the name every kind that creates gives it
+	// (create.md C9); `fields` keeps show's meaning.
 	KindNew: {
-		{Name: "doc", Tier: Optional, Kind: Document,
+		{Name: "draft", Tier: Optional, Kind: Document,
 			Doc: `the draft to open on, as issue new takes it: {"fields":{"type":"task","parent":"abc1234"},"body":"…"}; every value stays editable`},
 		{Name: "fields", Tier: Defaulted, Kind: FieldKeys,
 			Doc: "the fields shown, in order; the type's fields in schema order by default"},
@@ -243,6 +248,18 @@ const expandDoc = `the relation nested under a row: "children", or a layer ` +
 	`are the layer above's, and its expand is ` +
 	`the level below: a layer, or a number of further levels this same layer draws, 0 for every one; ` +
 	`links is refused, being several relations, a show's side tables`
+
+// draftArg is `draft` on the kinds that draw a ghost (doc/design/create.md,
+// C9): what an issue created in the view starts with, the base every ghost's
+// draft is built on, because a ghost cannot read the view's query.
+var draftArg = Arg{Name: "draft", Tier: Optional, Kind: Document, Doc: draftDoc}
+
+// draftDoc says what `draft` is and what is built on it.
+const draftDoc = `what an issue created in this view starts with, as issue new takes it: ` +
+	`{"fields":{"iteration":"abc1234"},"body":"…"}; every ghost's draft starts from it, ` +
+	`then takes the type its scope's rows share where it names none, its group's value, ` +
+	`and under a parent the relation to it, dropping what the resulting type has no field for; ` +
+	`a child scope inherits it, and every value stays editable`
 
 // showsArg is `shows` on every kind that opens an issue, and on show itself
 // (doc/design/app.md A7): how each type is shown, whichever view meets it.

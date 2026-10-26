@@ -282,7 +282,7 @@ func (a Arg) check(raw json.RawMessage) (json.RawMessage, error) {
 	return compact(raw), nil
 }
 
-// checkDocument is the shape of `new`'s `doc`: the keys `issue new` reads
+// checkDocument is the shape of `draft`: the keys `issue new` reads
 // and nothing else, fields an object, body a string, aliases strings by
 // name. What the values mean is the schema's to say, in host.View, where
 // the planner's check runs before anything draws (doc/design/create.md, C1).
