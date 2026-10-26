@@ -511,6 +511,27 @@ The rename lands with the code, and touches:
 No flow in `flows/` passes `doc=`.
 Earlier sections of this document keep the name of their day.
 
+### Settled in building C8 and C9 (2026-10-26)
+
+Where C8 and C9 are silent, or a word of theirs had gone stale, the code chose:
+
+- **`draft`'s tier is `optional`.** C9's table says *feature*,
+  the tier's name until `f9c991e` renamed it `optional` (`view/kinds.go`, `Tier`).
+- **A child scope with no rows in a level that groups** has one ghost, in `(none)`,
+  under a `(none)` group line, as the roots with no rows already had:
+  one rule for every scope, the roots included.
+- **A child stored in a set** (`blocks` under `blocked_by`) joins the parent's id
+  to whatever set `draft` already gave the key, rather than replacing it.
+- **The fold cell's width and the gantt's indent** count a leaf that could have children
+  one level deeper, so opening a leaf to its empty table moves no column.
+- **Show's side ghost takes the rows' shared type**, as C8 says every scope does,
+  where S6 filled the type only when one type held the stored field;
+  that remains the fallback.
+- **The matrix's cell type** is the type every issue the matrix's query returned shares;
+  a number axis is written as a number, a bool as a bool, a set as a set of the one value.
+- **A grabbed child still cannot cross its table's groups** (`crossGroup`, roots only),
+  so C8's *steps over the ghost between them* has nothing to do yet.
+
 
 ## Deferred
 
