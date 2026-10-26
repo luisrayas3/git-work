@@ -276,6 +276,9 @@ func (p *listPage) rowLine(row *listRow, node *treeRow, widths [][]int, ids []in
 	if tree > 0 {
 		cell := pad(treeCell(*node), tree)
 		style := wash
+		if leafFold(*node) {
+			style = wash.Faint(true)
+		}
 		if under && p.column == p.treeCol() {
 			style = styleCell
 		}

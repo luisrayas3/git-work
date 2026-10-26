@@ -65,19 +65,20 @@ func everywhere() []paletteEntry {
 func pageCommands(p page) []paletteEntry {
 	filter := entry(keys.filter, "filter")
 	foldAll := entry(keys.foldAll, "fold all")
+	openEverything := entry(keys.openEverything, "open everything")
 	copyCell := entry(keys.copy)
 	copyId := entry(keys.copyId)
 	switch p := p.(type) {
 	case *listPage:
 		out := []paletteEntry{filter}
 		if len(p.call.Raw("expand")) > 0 {
-			out = append(out, foldAll)
+			out = append(out, foldAll, openEverything)
 		}
 		return append(out, copyCell, copyId)
 	case *ganttPage:
 		out := []paletteEntry{filter}
 		if len(p.call.Raw("expand")) > 0 {
-			out = append(out, foldAll)
+			out = append(out, foldAll, openEverything)
 		}
 		return append(out, copyId)
 	case *boardPage:

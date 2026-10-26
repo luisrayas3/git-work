@@ -307,8 +307,10 @@ func TestSideTableKeys(t *testing.T) {
 }
 
 // TestSideTableGhost: a table over an inverse ends in a ghost whose draft
-// sets the stored field to this issue's id, and the type where one type
-// holds that field; a stored relation of the shown issue has none (S6).
+// sets the stored field to this issue's id, and the type its rows share,
+// else the type where one type holds that field (S6, create.md C8); a stored
+// relation of the shown issue has one too, written on this issue after
+// Create (C8, superseding S6's "no ghost").
 func TestSideTableGhost(t *testing.T) {
 	repo := testRepo(t)
 	story, _, _, _ := storyWithTasks(t, repo)
@@ -326,27 +328,59 @@ func TestSideTableGhost(t *testing.T) {
 	require.True(t, ok)
 	require.Equal(t, issue.StringValue(story), created.fields["parent"])
 	_, typed := created.fields[schema.TypeKey]
-	require.False(t, typed, "a task's parent and a subtask's: two types, no type filled")
+	require.False(t, typed, "tasks and a subtask share no type, and two types store parent")
+	require.Nil(t, created.link, "the relation is stored on the child: nothing to write after")
+
+	// a story with no children: a task's parent and a subtask's, two types,
+	// no type filled
+	bare := newTyped(t, repo, "story", map[string]any{"title": "bare"})
+	empty, err := specCall(t, repo, bare, `{"expand":"children"}`)
+	require.NoError(t, err)
+	_, typed = empty.tables[0].ghost.draft.Fields[schema.TypeKey]
+	require.False(t, typed)
+
+	// a story whose children are all tasks: the rows are the type's witness
+	tasked := newTyped(t, repo, "story", map[string]any{"title": "tasked"})
+	newTyped(t, repo, "task", map[string]any{"title": "only a task", "parent": tasked})
+	witness, err := specCall(t, repo, tasked, `{"expand":"children"}`)
+	require.NoError(t, err)
+	require.Equal(t, issue.StringValue("task"), witness.tables[0].ghost.draft.Fields[schema.TypeKey])
+	require.Equal(t, issue.StringValue(bare), empty.tables[0].ghost.draft.Fields["parent"])
 
 	// on a task, children are subtasks alone: the type is filled
 	task := page.sideRowAt(&page.sideItems()[0]).id
 	sub, err := specCall(t, repo, task, `{"expand":"children"}`)
 	require.NoError(t, err)
-	require.Equal(t, issue.StringValue("subtask"), sub.tables[0].ghost.Fields[schema.TypeKey])
+	require.Equal(t, issue.StringValue("subtask"), sub.tables[0].ghost.draft.Fields[schema.TypeKey])
 
 	// blocked_by is read through blocks, a set: the ghost holds a set
 	blocked, err := specCall(t, repo, story, `{"expand":"blocked_by"}`)
 	require.NoError(t, err)
-	require.Equal(t, issue.MustValue([]string{story}), blocked.tables[0].ghost.Fields["blocks"])
+	require.Equal(t, issue.MustValue([]string{story}), blocked.tables[0].ghost.draft.Fields["blocks"])
 
-	// a stored relation of the shown issue: no ghost, and `(none)` stands
+	// a stored relation of the shown issue: a ghost whose link is this
+	// issue's own field, added to after Create (C8)
 	stored, err := specCall(t, repo, story, `{"expand":"blocks"}`)
 	require.NoError(t, err)
-	require.Nil(t, stored.tables[0].ghost)
-	require.Contains(t, plainView(stored), noGroup)
+	require.NotNil(t, stored.tables[0].ghost)
+	require.Equal(t, &parentLink{parent: story, field: "blocks", multi: true}, stored.tables[0].ghost.link)
+	_, holds := stored.tables[0].ghost.draft.Fields["blocks"]
+	require.False(t, holds, "nothing of the relation is in the draft")
 	send(stored, "tab")
+	require.True(t, stored.sideCurrent().ghost)
 	_, cmd = stored.Update(press("enter"))
-	require.NotNil(t, cmd, "the bell on (none)")
+	require.NotNil(t, cmd)
+	opened := cmd().(pushMsg).page.(*newPage)
+	require.Equal(t, stored.tables[0].ghost.link, opened.link, "the creator carries the link back, and writes nothing")
+
+	blocker := newTyped(t, repo, "task", map[string]any{"title": "blocker made here"})
+	stored.Update(createdMsg{id: blocker, link: opened.link})
+	snap, err := host.IssueSnapshot(repo, story)
+	require.NoError(t, err)
+	ids, _ := issue.Strings(snap.Fields["blocks"])
+	require.Equal(t, []string{blocker}, ids, "issue add on the story")
+	require.Equal(t, blocker, stored.sideRowAt(stored.sideCurrent()).id)
+	require.Equal(t, "created "+blocker[:idWidth], stored.status)
 
 	// what the ghost created lands under the cursor when the creator pops
 	made := newTyped(t, repo, "task", map[string]any{"title": "made here", "parent": story})

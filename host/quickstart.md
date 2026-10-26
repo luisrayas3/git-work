@@ -273,10 +273,18 @@ and an `optional` one is off until it is named.
   and a keyed row's drag is kept by the view, never written.
 - A nested view opens folded; `"open":true` opens every parent,
   a number that many levels from the roots.
+  A row that could have children reads `▸ 0` and opens to an empty table;
+  `esc z` folds or opens every parent, `esc Z` opens every row, leaves too.
 - `git work view new '{"draft":{…}}'` opens the creator on an `issue new` document,
   every value still editable, and prints the id it creates;
-  in a list, a gantt or a board the dim `+ (new)` row at the foot of a group
-  opens it prefilled with that group's values.
+  in a list, a gantt or a board the dim `+ (new)` row at the foot of every group,
+  and of every opened parent's child table, opens it prefilled with where it stands:
+  the group's values, the type the rows share, and the parent —
+  where the parent's own field holds the relation, the parent is written after Create,
+  and a set single relation reads `(new, replacing abc1234)`.
+  A list, a gantt or a board takes `draft` too, the same document,
+  which every one of those rows starts from:
+  what the query decides and the row cannot see, such as the sprint.
 - `git work view home '{"flows":["overview","report"]}'` draws those flows,
   each with its docstring's first line, a name the store lacks refused;
   `Enter` runs one with its defaults, its view opening over home,

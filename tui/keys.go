@@ -63,7 +63,7 @@ func (c *chord) on(letter string) *chord {
 
 // shiftedLetters are the palette's letters typed with shift, as the key
 // under them.
-var shiftedLetters = map[string]string{"<": ",", ">": ".", "?": "/"}
+var shiftedLetters = map[string]string{"<": ",", ">": ".", "?": "/", "Z": "z"}
 
 func (c *chord) show(spelling string) *chord {
 	c.shown = spelling
@@ -124,6 +124,7 @@ type keymap struct {
 	filter                *chord
 	grab                  *chord
 	foldAll               *chord
+	openEverything        *chord
 	expand, link, unlink  *chord
 	nextTab, previousTab  *chord
 	newIssue, search      *chord
@@ -188,6 +189,10 @@ var keys = keymap{
 	// (A3). Tab and shift-tab, the next and previous stop, are into the
 	// first child and up to the parent.
 	foldAll: newChord("fold / unfold every row (nested)").on("z"),
+	// Open everything opens the leaves too, each to an empty child table
+	// and its ghost, which fold all leaves folded (app.md A4, Two folds;
+	// create.md C8). Palette only, as fold all is.
+	openEverything: newChord("open every row, leaves too (nested)").on("Z"),
 	// Show's own: what its issue's type is expanded by, for this page and
 	// the ones it opens, and a link added or removed, inverses written to
 	// the other issue (A6, A7; show_palette.go).
@@ -221,7 +226,7 @@ func helpRows() []*chord {
 		keys.next, keys.previous,
 		keys.act, keys.edit, keys.grab, keys.newline,
 		keys.copy, keys.copyId, keys.paste,
-		keys.filter, keys.foldAll, keys.expand, keys.link, keys.unlink, keys.nextTab, keys.previousTab,
+		keys.filter, keys.foldAll, keys.openEverything, keys.expand, keys.link, keys.unlink, keys.nextTab, keys.previousTab,
 		keys.search, keys.newIssue, keys.home, keys.runFlow, keys.back, keys.help, keys.quit,
 	}
 }

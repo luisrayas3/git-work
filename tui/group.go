@@ -294,25 +294,3 @@ func placeGroups(repo *cache.RepoCache, nodes []treeRow, groupByAt func(level in
 		node.groupSort = orders[groupBy].sortOf(fields[groupBy], node.group)
 	}
 }
-
-// rootGroups is the groups a list's or a gantt's roots fall in, in the order
-// they first appear (arrange draws them in their own order), and the types of the roots in each, which is what a
-// ghost per group is made of (ghost.go): one group, (none), when there are
-// no roots at all.
-func rootGroups(nodes []treeRow, typeOf func(index int) string) ([]string, map[string][]string) {
-	groups := []string{}
-	types := map[string][]string{}
-	for index, node := range nodes {
-		if node.level != 0 || node.ghost {
-			continue
-		}
-		if _, seen := types[node.group]; !seen {
-			groups = append(groups, node.group)
-		}
-		types[node.group] = append(types[node.group], typeOf(index))
-	}
-	if len(groups) == 0 {
-		groups = append(groups, noGroup)
-	}
-	return groups, types
-}

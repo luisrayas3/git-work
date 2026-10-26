@@ -87,7 +87,7 @@ func TestListNestsChildrenUnderTheirParent(t *testing.T) {
 	require.Equal(t, 1, startOf(page, story), "a root's table is flush")
 	require.Equal(t, 1+indentWidth, startOf(page, one), "the child table is indented as a unit")
 	require.Equal(t, 1+indentWidth, startOf(page, two))
-	require.Contains(t, rowOf(page, other), other[:idWidth]+"   ", "a leaf's tree cell is empty")
+	require.Contains(t, rowOf(page, other), other[:idWidth]+" ▸ 0", "a leaf that could have children reads ▸ 0 (create.md C8)")
 	require.Less(t, indexOf(drawn, other[:idWidth]), indexOf(drawn, story[:idWidth]))
 	require.Less(t, indexOf(drawn, story[:idWidth]), indexOf(drawn, one[:idWidth]))
 	require.Less(t, indexOf(drawn, one[:idWidth]), indexOf(drawn, two[:idWidth]))
@@ -110,13 +110,20 @@ func TestListNestsChildrenUnderTheirParent(t *testing.T) {
 	require.Equal(t, story, page.current().id)
 	require.Equal(t, page.treeCol(), page.column, "shift-tab lands on the parent's arrow")
 
-	// space on the arrow folds it again; on a leaf's tree cell it rings
+	// space on the arrow folds it again; on a leaf that could have children
+	// it opens its empty table (create.md C8); on a row that cannot have
+	// any it rings
 	send(page, "space")
 	require.Contains(t, plainView(page), "2 issues")
 	require.Contains(t, rowOf(page, story), "▸ 2")
 	require.Equal(t, "", rowOf(page, one))
 	send(page, "up", "space")
-	require.Equal(t, "nothing to fold", page.status)
+	require.Contains(t, rowOf(page, other), other[:idWidth]+" ▾")
+	require.Contains(t, plainView(page), "2 issues", "the empty table counts no ghost")
+	send(page, "down", "space", "tab", "right")
+	require.Equal(t, one, page.current().id)
+	send(page, "space")
+	require.Equal(t, "nothing to fold", page.status, "a task has no layer below: no fold cell")
 }
 
 // TestListFoldsEveryRowAtOnce: alt+z (esc z) folds every parent, and again where none
