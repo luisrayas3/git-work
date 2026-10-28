@@ -2,6 +2,7 @@ package gitcli
 
 import (
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -17,6 +18,8 @@ const (
 	// system, global, local, worktree and command-line,
 	// in that precedence.
 	scopeAny scope = iota
+	// scopeLocal reads the repository's own config:
+	// local, then worktree, which overrides it.
 	scopeLocal
 	scopeGlobal
 )
@@ -24,14 +27,25 @@ const (
 // flag returns the arguments selecting the scope.
 // git only follows include.* directives by default when searching all files;
 // a specific scope needs --includes explicitly.
+// git has no flag for local and worktree together,
+// so scopeLocal searches all files and keeps what sees allows.
 func (s scope) flag() []string {
 	switch s {
-	case scopeLocal:
-		return []string{"--local", "--includes"}
 	case scopeGlobal:
 		return []string{"--global", "--includes"}
 	default:
 		return nil
+	}
+}
+
+// sees reports whether a value git reports from the named scope
+// (as --show-scope names it) belongs to s.
+func (s scope) sees(name string) bool {
+	switch s {
+	case scopeLocal:
+		return name == "local" || name == "worktree"
+	default:
+		return true
 	}
 }
 
@@ -86,6 +100,9 @@ func (r *reader) values(key string, extra ...string) ([]string, error) {
 	var values []string
 	lastScope := ""
 	for i := 0; i < len(fields); i += 2 {
+		if !r.scope.sees(fields[i]) {
+			continue
+		}
 		if fields[i] != lastScope {
 			// git lists scopes in ascending precedence;
 			// a new scope supersedes.
@@ -115,7 +132,7 @@ func (r *reader) single(key string, extra ...string) (string, error) {
 }
 
 func (r *reader) ReadAll(keyPrefix string) (map[string]string, error) {
-	out, code, err := r.config("-z", "--list")
+	out, code, err := r.config("-z", "--show-scope", "--list")
 	if err != nil {
 		return nil, err
 	}
@@ -123,9 +140,18 @@ func (r *reader) ReadAll(keyPrefix string) (map[string]string, error) {
 		return nil, fmt.Errorf("git config: exit status %d", code)
 	}
 
+	// Output alternates a scope and a key-value entry.
+	fields := splitNul(out)
+	if len(fields)%2 != 0 {
+		return nil, fmt.Errorf("git config: unexpected output")
+	}
+
 	result := make(map[string]string)
-	for _, entry := range splitNul(out) {
-		key, value := splitEntry(entry)
+	for i := 0; i < len(fields); i += 2 {
+		if !r.scope.sees(fields[i]) {
+			continue
+		}
+		key, value := splitEntry(fields[i+1])
 		if strings.HasPrefix(key, keyPrefix) {
 			// Later entries win,
 			// which is git's own precedence order.
@@ -176,8 +202,95 @@ func splitEntry(entry string) (string, string) {
 
 var _ repository.Config = &config{}
 
-// config pairs a CLI-backed reader with the wrapped repository's writer.
+// config pairs a CLI-backed reader with a writer:
+// the CLI-backed one for the local scope,
+// the wrapped repository's for the global scope.
 type config struct {
 	repository.ConfigRead
 	repository.ConfigWrite
+}
+
+var _ repository.ConfigWrite = &writer{}
+
+// writer implements repository.ConfigWrite for the local scope
+// by invoking `git config --local`,
+// so a value lands in the repository's own config file, as git puts it.
+// go-git's writer cannot be trusted with it:
+// once a config.worktree exists,
+// go-git's config drops every section it does not model
+// and its writes go to config.worktree instead.
+type writer struct {
+	git runner
+}
+
+// config runs `git config --local` with the given arguments,
+// treating any non-zero exit as an error.
+func (w *writer) config(args ...string) error {
+	_, code, err := w.git.output(append([]string{"config", "--local"}, args...)...)
+	if err != nil {
+		return err
+	}
+	if code != 0 {
+		return fmt.Errorf("git config: exit status %d", code)
+	}
+	return nil
+}
+
+func (w *writer) StoreString(key, value string) error {
+	if !strings.Contains(key, ".") {
+		return fmt.Errorf("invalid key")
+	}
+	return w.config("--replace-all", "--", key, value)
+}
+
+func (w *writer) StoreTimestamp(key string, value time.Time) error {
+	return w.StoreString(key, strconv.Itoa(int(value.Unix())))
+}
+
+func (w *writer) StoreBool(key string, value bool) error {
+	return w.StoreString(key, strconv.FormatBool(value))
+}
+
+// RemoveAll removes the key named keyPrefix,
+// the section or subsection named keyPrefix,
+// and, for a bare section name, every subsection of it;
+// an empty keyPrefix removes everything.
+// This is what go-git's writer removes.
+func (w *writer) RemoveAll(keyPrefix string) error {
+	out, code, err := w.git.output("config", "--local", "-z", "--name-only", "--list")
+	if err != nil {
+		return err
+	}
+	if code != 0 {
+		return fmt.Errorf("git config: exit status %d", code)
+	}
+
+	var keys, sections []string
+	for _, key := range splitNul(out) {
+		section := key[:strings.LastIndex(key, ".")]
+		switch {
+		case key == keyPrefix:
+			if !slices.Contains(keys, key) {
+				keys = append(keys, key)
+			}
+		case keyPrefix == "",
+			section == keyPrefix,
+			!strings.Contains(keyPrefix, ".") && strings.HasPrefix(section, keyPrefix+"."):
+			if !slices.Contains(sections, section) {
+				sections = append(sections, section)
+			}
+		}
+	}
+
+	for _, key := range keys {
+		if err := w.config("--unset-all", "--", key); err != nil {
+			return err
+		}
+	}
+	for _, section := range sections {
+		if err := w.config("--remove-section", "--", section); err != nil {
+			return err
+		}
+	}
+	return nil
 }

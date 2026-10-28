@@ -210,3 +210,17 @@ func TestGetCoreEditor(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "from-config", ed)
 }
+
+// TestLocalConfigWrite holds the CLI-backed writer to the contract
+// go-git's writer is held to.
+func TestLocalConfigWrite(t *testing.T) {
+	_, wrapped, _, _ := setup(t)
+
+	repository.RepoConfigTest(t, wrapped)
+
+	// A value that looks like a flag is still a value.
+	require.NoError(t, wrapped.LocalConfig().StoreString("section.key", "-value"))
+	val, err := wrapped.LocalConfig().ReadString("section.key")
+	require.NoError(t, err)
+	require.Equal(t, "-value", val)
+}

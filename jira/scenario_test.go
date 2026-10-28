@@ -450,7 +450,7 @@ func TestLinkRequests(t *testing.T) {
 // E14: two clones on one site, exchanging through a bare remote, converge:
 // B edits before pulling A's import of a Jira edit, and both values survive.
 //
-// Each side diverges by one commit before a merge: entity/dag (pristine)
+// Each side diverges by one commit before a merge: entity/dag
 // misreads a merged history whose branches have unequal lengths ("creation
 // lamport time not set"), independently of the sync.
 func TestTwoClones(t *testing.T) {

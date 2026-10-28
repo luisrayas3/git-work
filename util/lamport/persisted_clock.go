@@ -7,7 +7,6 @@ import (
 	"os"
 
 	"github.com/go-git/go-billy/v6"
-	"github.com/go-git/go-billy/v6/util"
 )
 
 var ErrClockNotExist = errors.New("clock doesn't exist")
@@ -104,7 +103,23 @@ func (pc *PersistedClock) read() error {
 	return nil
 }
 
-func (pc *PersistedClock) Write() error {
+// Write stores the clock's value.
+// It does not sync the file:
+// the clock is written on every increment and witness,
+// and go-billy's util.WriteFile, which syncs since v6, makes that slow.
+func (pc *PersistedClock) Write() (err error) {
 	data := []byte(fmt.Sprintf("%d", pc.counter))
-	return util.WriteFile(pc.root, pc.filePath, data, 0644)
+
+	f, err := pc.root.OpenFile(pc.filePath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if closeErr := f.Close(); err == nil {
+			err = closeErr
+		}
+	}()
+
+	_, err = f.Write(data)
+	return err
 }

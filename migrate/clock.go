@@ -12,7 +12,7 @@ import (
 // dag.Entity.Commit takes both lamport times from the repository,
 // one Increment per pack for the edit clock
 // and one more for the create clock on the first pack,
-// and nothing else in the pristine packages lets a caller choose them.
+// and nothing else in entity/dag or repository lets a caller choose them.
 // Witnessing the real clock to one below the wanted time
 // only works while the wanted times never repeat,
 // and two clones can legally produce the same time;

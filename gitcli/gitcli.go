@@ -10,6 +10,9 @@
 //     user.email in a per-machine or per-directory include — is invisible
 //     (upstream git-bug #1475). `git config` is the only implementation that
 //     evaluates gitdir:/onbranch:/hasconfig: conditions exactly as git does.
+//     Local writes go through it too: go-git (as of v6.0.0-beta.1), once a
+//     config.worktree exists, drops every section it does not model and
+//     writes to config.worktree where `git config` writes .git/config.
 //
 //   - Remote transport. go-git's SSH transport ignores ~/.ssh/config and the
 //     default identity files; its DefaultAuthBuilder only offers keys held by
@@ -24,8 +27,7 @@
 //     their remotes' (jira-sync.md, JS3).
 //
 // Everything else — objects, trees, refs, clocks, browsing — is local object
-// access, where go-git is both fast and correct, and is left to it. Config
-// writes also stay on go-git: nothing is lost by writing through it.
+// access, where go-git is both fast and correct, and is left to it.
 package gitcli
 
 import (

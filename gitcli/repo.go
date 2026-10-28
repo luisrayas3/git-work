@@ -39,7 +39,7 @@ func WrapRepo(r repository.ClockedRepo, dir string) repository.ClockedRepo {
 func (r *repo) LocalConfig() repository.Config {
 	return &config{
 		ConfigRead:  &reader{git: r.git, scope: scopeLocal},
-		ConfigWrite: r.ClockedRepo.LocalConfig(),
+		ConfigWrite: &writer{git: r.git},
 	}
 }
 
