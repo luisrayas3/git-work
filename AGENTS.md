@@ -65,10 +65,13 @@ util/lamport   util/text   util/timestamp
 
 If you believe you must, **stop and flag it**:
 it is an architectural decision.
-Two are on record:
+Three are on record:
 three ref-name constants in `entities/identity` (the migration, `bf6f392`),
-and a fix to `entity/dag`'s commit ordering (`7cb8b39`, `doc/design/dag-read-order.md`),
-which is worth offering upstream.
+a fix to `entity/dag`'s commit ordering (`7cb8b39`, `doc/design/dag-read-order.md`),
+which is worth offering upstream,
+and the move of `repository` and `util/lamport` to go-git v6
+(import paths and v6's API changes),
+to open repositories that enable `extensions.worktreeConfig`.
 Read the upstream package you build on before changing its callers.
 
 ## Architectural rules

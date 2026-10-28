@@ -8,19 +8,20 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/ProtonMail/go-crypto/openpgp"
-	"github.com/go-git/go-billy/v5/osfs"
-	gogit "github.com/go-git/go-git/v5"
-	"github.com/go-git/go-git/v5/config"
-	"github.com/go-git/go-git/v5/plumbing"
-	"github.com/go-git/go-git/v5/plumbing/filemode"
-	fdiff "github.com/go-git/go-git/v5/plumbing/format/diff"
-	"github.com/go-git/go-git/v5/plumbing/object"
+	"github.com/go-git/go-billy/v6/osfs"
+	gogit "github.com/go-git/go-git/v6"
+	"github.com/go-git/go-git/v6/config"
+	"github.com/go-git/go-git/v6/plumbing"
+	"github.com/go-git/go-git/v6/plumbing/filemode"
+	fdiff "github.com/go-git/go-git/v6/plumbing/format/diff"
+	"github.com/go-git/go-git/v6/plumbing/object"
 	lru "github.com/hashicorp/golang-lru/v2"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/singleflight"
@@ -452,7 +453,7 @@ func (repo *GoGitRepo) resolveRemote(remote string, fetch bool) (string, error) 
 			}
 
 			for _, u := range cfg.URLs {
-				if strings.HasPrefix(url, u.InsteadOf) {
+				if slices.ContainsFunc(u.InsteadOfs, func(p string) bool { return strings.HasPrefix(url, p) }) {
 					url = u.ApplyInsteadOf(url)
 					break
 				}
@@ -712,7 +713,7 @@ func (repo *GoGitRepo) StoreSignedCommit(treeHash Hash, signKey *openpgp.Entity,
 		if err := openpgp.ArmoredDetachSign(&sig, signKey, r, nil); err != nil {
 			return "", err
 		}
-		commit.PGPSignature = sig.String()
+		commit.Signature = sig.String()
 	}
 
 	obj := repo.r.Storer.NewEncodedObject()
@@ -824,7 +825,7 @@ func (repo *GoGitRepo) ReadCommit(hash Hash) (Commit, error) {
 		TreeHash: Hash(commit.TreeHash.String()),
 	}
 
-	if commit.PGPSignature != "" {
+	if commit.Signature != "" {
 		// I can't find a way to just remove the signature when reading the encoded commit so we need to
 		// re-encode the commit without signature.
 
@@ -839,7 +840,7 @@ func (repo *GoGitRepo) ReadCommit(hash Hash) (Commit, error) {
 			return Commit{}, err
 		}
 
-		result.Signature, err = deArmorSignature(strings.NewReader(commit.PGPSignature))
+		result.Signature, err = deArmorSignature(strings.NewReader(commit.Signature))
 		if err != nil {
 			return Commit{}, err
 		}

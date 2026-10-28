@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/ProtonMail/go-crypto/openpgp"
-	"github.com/go-git/go-billy/v5"
+	"github.com/go-git/go-billy/v6"
 
 	"github.com/git-bug/git-bug/util/lamport"
 )
