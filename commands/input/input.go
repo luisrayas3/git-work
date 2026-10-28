@@ -13,7 +13,7 @@ import (
 	"os/exec"
 	"path/filepath"
 
-	"github.com/go-git/go-billy/v5/util"
+	"github.com/go-git/go-billy/v6/util"
 
 	"github.com/git-bug/git-bug/repository"
 )

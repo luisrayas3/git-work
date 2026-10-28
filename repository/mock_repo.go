@@ -11,7 +11,7 @@ import (
 
 	"github.com/99designs/keyring"
 	"github.com/ProtonMail/go-crypto/openpgp"
-	"github.com/go-git/go-billy/v5/memfs"
+	"github.com/go-git/go-billy/v6/memfs"
 
 	"github.com/git-bug/git-bug/util/lamport"
 )
