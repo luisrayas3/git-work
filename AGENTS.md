@@ -52,28 +52,6 @@ They read git-bug's frozen `refs/issues/*`, not the tracker.
 Do not extend them;
 `entities/bug` stays as `migrate`'s decoder.
 
-## The pristine packages
-
-git-bug's op-based CRDT engine is git-work's foundation,
-and it is kept as close to upstream as possible.
-**Never edit these seven packages:**
-
-```
-entity/dag   entity   repository   entities/identity
-util/lamport   util/text   util/timestamp
-```
-
-If you believe you must, **stop and flag it**:
-it is an architectural decision.
-Three are on record:
-three ref-name constants in `entities/identity` (the migration, `bf6f392`),
-a fix to `entity/dag`'s commit ordering (`7cb8b39`, `doc/design/dag-read-order.md`),
-which is worth offering upstream,
-and the move of `repository` and `util/lamport` to go-git v6
-(import paths and v6's API changes),
-to open repositories that enable `extensions.worktreeConfig`.
-Read the upstream package you build on before changing its callers.
-
 ## Architectural rules
 
 - **Every write goes through `cache/`.**
@@ -118,7 +96,7 @@ Read the upstream package you build on before changing its callers.
   Anything periodic is an external cron calling the CLI.
 - **Jira is canonical**,
   and the model is one team, one repository, one Jira project.
-- **go-git's gaps go in `gitcli`**, never in `repository`:
+- **go-git's gaps go in `gitcli`**:
   where go-git reimplements git's environment (config, transport, credentials)
   and gets it wrong,
   add an exec-backed override there.

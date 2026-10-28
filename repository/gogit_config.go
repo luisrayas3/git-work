@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -8,7 +9,42 @@ import (
 
 	gogit "github.com/go-git/go-git/v6"
 	"github.com/go-git/go-git/v6/config"
+	"github.com/go-git/go-git/v6/x/plugin"
+	xconfig "github.com/go-git/go-git/v6/x/plugin/config"
 )
+
+func init() {
+	err := plugin.Register(plugin.ConfigLoader(), hostConfigSource)
+	if err != nil {
+		panic(err)
+	}
+}
+
+// hostConfigSource loads the global and system config as go-git's default does,
+// but reads the files through hostFS:
+// go-billy's sandboxed filesystem refuses a config reached through an absolute symlink,
+// such as a ~/.config/git/config that home-manager links into /nix/store.
+func hostConfigSource() plugin.ConfigSource {
+	return xconfig.NewAuto(xconfig.WithFilesystem(hostFS{}))
+}
+
+// errWorktreeConfig is returned for a local config go-git cannot represent.
+var errWorktreeConfig = errors.New("go-git cannot read a local config that has a config.worktree")
+
+// localConfig returns the repository's local config.
+// When a config.worktree exists,
+// go-git merges it into a config that has lost every section go-git does not model,
+// so that config is refused rather than read or written back.
+func localConfig(repo *gogit.Repository) (*config.Config, error) {
+	cfg, err := repo.Config()
+	if err != nil {
+		return nil, err
+	}
+	if cfg.Raw == nil {
+		return nil, errWorktreeConfig
+	}
+	return cfg, nil
+}
 
 var _ Config = &goGitConfig{}
 
@@ -19,19 +55,21 @@ type goGitConfig struct {
 
 func newGoGitLocalConfig(repo *gogit.Repository) *goGitConfig {
 	return &goGitConfig{
-		ConfigRead:  &goGitConfigReader{getConfig: repo.Config},
+		ConfigRead: &goGitConfigReader{getConfig: func() (*config.Config, error) {
+			return localConfig(repo)
+		}},
 		ConfigWrite: &goGitConfigWriter{repo: repo},
 	}
 }
 
 func newGoGitGlobalConfig() *goGitConfig {
-	// TODO: replace that with go-git native implementation once it's supported
-	// see: https://github.com/go-git/go-git
-	// see: https://github.com/src-d/go-git/issues/760
-
 	return &goGitConfig{
 		ConfigRead: &goGitConfigReader{getConfig: func() (*config.Config, error) {
-			return config.LoadConfig(config.GlobalScope)
+			storer, err := hostConfigSource().Load(config.GlobalScope)
+			if err != nil {
+				return nil, err
+			}
+			return storer.Config()
 		}},
 		ConfigWrite: &configPanicWriter{},
 	}
@@ -166,7 +204,7 @@ type goGitConfigWriter struct {
 }
 
 func (cw *goGitConfigWriter) StoreString(key, value string) error {
-	cfg, err := cw.repo.Config()
+	cfg, err := localConfig(cw.repo)
 	if err != nil {
 		return err
 	}
@@ -197,7 +235,7 @@ func (cw *goGitConfigWriter) StoreBool(key string, value bool) error {
 }
 
 func (cw *goGitConfigWriter) RemoveAll(keyPrefix string) error {
-	cfg, err := cw.repo.Config()
+	cfg, err := localConfig(cw.repo)
 	if err != nil {
 		return err
 	}

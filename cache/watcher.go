@@ -36,8 +36,7 @@ func (c *RepoCache) Watch() (func(), error) {
 	}
 
 	// LocalStorage is rooted at <repo>/.git/<namespace>, so its parent is the
-	// git directory. The pristine repository interface exposes no path of its
-	// own, and adding one is not ours to do.
+	// git directory. The repository interface exposes no path of its own.
 	gitDir := filepath.Dir(c.repo.LocalStorage().Root())
 
 	// The git directory itself covers packed-refs, which is where `git gc` and

@@ -2,8 +2,10 @@ package repository
 
 import (
 	"errors"
+	"os"
 
 	"github.com/go-git/go-billy/v6"
+	"github.com/go-git/go-billy/v6/osfs"
 	"github.com/go-git/go-billy/v6/util"
 )
 
@@ -19,8 +21,12 @@ func (b billyLocalStorage) RemoveAll(path string) error {
 		return err
 	}
 
-	// go-billy v6 refuses to remove the base directory itself,
-	// so empty it instead.
+	// go-billy v6 refuses to remove the base directory itself.
+	// On disk, remove it directly;
+	// in memory, where there is no directory to remove, empty it.
+	if _, ok := b.Filesystem.(*osfs.BoundOS); ok {
+		return os.RemoveAll(b.Root())
+	}
 	entries, err := b.Filesystem.ReadDir(path)
 	if err != nil {
 		return err
