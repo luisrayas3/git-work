@@ -385,6 +385,18 @@ func (r *mockRepoDataBrowse) ListRefs(refPrefix string) ([]string, error) {
 	return keys, nil
 }
 
+func (r *mockRepoDataBrowse) ListRefHashes(refPrefix string) (map[string]Hash, error) {
+	refs := make(map[string]Hash)
+
+	for k, h := range r.refs {
+		if strings.HasPrefix(k, refPrefix) {
+			refs[k] = h
+		}
+	}
+
+	return refs, nil
+}
+
 func (r *mockRepoDataBrowse) RefExist(ref string) (bool, error) {
 	_, exist := r.refs[ref]
 	return exist, nil

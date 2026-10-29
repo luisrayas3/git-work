@@ -5,6 +5,8 @@ package dag
 import (
 	"encoding/json"
 	"fmt"
+	"maps"
+	"slices"
 	"sort"
 
 	"github.com/pkg/errors"
@@ -90,6 +92,13 @@ func read[EntityT entity.Interface](def Definition, wrapper func(e *Entity) Enti
 		return *new(EntityT), err
 	}
 
+	return readAt[EntityT](def, wrapper, repo, resolvers, rootHash)
+}
+
+// readAt decodes the Entity whose latest commit is rootHash.
+// It serves a caller that already resolved the ref,
+// usually from a ListRefHashes over the whole namespace.
+func readAt[EntityT entity.Interface](def Definition, wrapper func(e *Entity) EntityT, repo repository.ClockedRepo, resolvers entity.Resolvers, rootHash repository.Hash) (EntityT, error) {
 	// Perform a breadth-first search to get a topological order of the DAG where we discover the
 	// parents commit and go back in time up to the chronological root
 
@@ -191,7 +200,7 @@ func read[EntityT entity.Interface](def Definition, wrapper func(e *Entity) Enti
 
 	// The clocks are fine, we witness them
 	for _, opp := range oppMap {
-		err = repo.Witness(fmt.Sprintf(creationClockPattern, def.Namespace), opp.CreateTime)
+		err := repo.Witness(fmt.Sprintf(creationClockPattern, def.Namespace), opp.CreateTime)
 		if err != nil {
 			return *new(EntityT), err
 		}
@@ -283,19 +292,11 @@ func parentsFirst(BFSOrder []repository.Commit) []repository.Commit {
 	return order
 }
 
-// readClockNoCheck fetch from git, read and witness the clocks of an Entity at an arbitrary git reference.
+// readClockNoCheck fetch from git, read and witness the clocks of an Entity whose latest commit is rootHash.
 // Note: readClockNoCheck does not verify the integrity of the Entity and could witness incorrect or incomplete
 // clocks if so. If data integrity check is a requirement, a flow similar to read without actually reading/decoding
 // operation blobs can be implemented instead.
-func readClockNoCheck(def Definition, repo repository.ClockedRepo, ref string) error {
-	rootHash, err := repo.ResolveRef(ref)
-	if err == repository.ErrNotFound {
-		return entity.NewErrNotFound(def.Typename)
-	}
-	if err != nil {
-		return err
-	}
-
+func readClockNoCheck(def Definition, repo repository.ClockedRepo, rootHash repository.Hash) error {
 	commit, err := repo.ReadCommit(rootHash)
 	if err != nil {
 		return err
@@ -347,7 +348,8 @@ func ReadAll[EntityT entity.Interface](def Definition, wrapper func(e *Entity) E
 
 		refPrefix := fmt.Sprintf("refs/%s/", def.Namespace)
 
-		refs, err := repo.ListRefs(refPrefix)
+		// one pass over the refs: resolving each one would scan packed-refs per ref
+		refs, err := repo.ListRefHashes(refPrefix)
 		if err != nil {
 			out <- entity.StreamedEntity[EntityT]{Err: err}
 			return
@@ -356,8 +358,8 @@ func ReadAll[EntityT entity.Interface](def Definition, wrapper func(e *Entity) E
 		total := int64(len(refs))
 		current := int64(1)
 
-		for _, ref := range refs {
-			e, err := read[EntityT](def, wrapper, repo, resolvers, ref)
+		for _, ref := range slices.Sorted(maps.Keys(refs)) {
+			e, err := readAt[EntityT](def, wrapper, repo, resolvers, refs[ref])
 
 			if err != nil {
 				out <- entity.StreamedEntity[EntityT]{Err: err}
@@ -381,13 +383,13 @@ func ReadAll[EntityT entity.Interface](def Definition, wrapper func(e *Entity) E
 func ReadAllClocksNoCheck(def Definition, repo repository.ClockedRepo) error {
 	refPrefix := fmt.Sprintf("refs/%s/", def.Namespace)
 
-	refs, err := repo.ListRefs(refPrefix)
+	refs, err := repo.ListRefHashes(refPrefix)
 	if err != nil {
 		return err
 	}
 
-	for _, ref := range refs {
-		err = readClockNoCheck(def, repo, ref)
+	for _, hash := range refs {
+		err = readClockNoCheck(def, repo, hash)
 		if err != nil {
 			return err
 		}

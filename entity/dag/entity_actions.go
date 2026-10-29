@@ -2,6 +2,7 @@ package dag
 
 import (
 	"fmt"
+	"maps"
 	"slices"
 
 	"github.com/pkg/errors"
@@ -76,15 +77,26 @@ func MergeAll[EntityT entity.Interface](def Definition, wrapper func(e *Entity) 
 	go func() {
 		defer close(out)
 
+		// One pass over each side's refs rather than a lookup per ref:
+		// with packed refs, every lookup scans the whole packed-refs file.
+		// Each id is merged once,
+		// so a hash listed here is still current when its merge runs.
 		remoteRefSpec := fmt.Sprintf("refs/remotes/%s/%s/", remote, def.Namespace)
-		remoteRefs, err := repo.ListRefs(remoteRefSpec)
+		remoteRefs, err := repo.ListRefHashes(remoteRefSpec)
 		if err != nil {
 			out <- entity.MergeResult{Err: err}
 			return
 		}
 
-		for _, remoteRef := range remoteRefs {
-			out <- merge[EntityT](def, wrapper, repo, resolvers, remoteRef, author)
+		localRefs, err := repo.ListRefHashes(fmt.Sprintf("refs/%s/", def.Namespace))
+		if err != nil {
+			out <- entity.MergeResult{Err: err}
+			return
+		}
+
+		for _, remoteRef := range slices.Sorted(maps.Keys(remoteRefs)) {
+			localRef := fmt.Sprintf("refs/%s/%s", def.Namespace, entity.RefToId(remoteRef))
+			out <- merge[EntityT](def, wrapper, repo, resolvers, remoteRef, remoteRefs[remoteRef], localRefs[localRef], author)
 		}
 	}()
 
@@ -92,15 +104,17 @@ func MergeAll[EntityT entity.Interface](def Definition, wrapper func(e *Entity) 
 }
 
 // merge perform a merge to make sure a local Entity is up-to-date.
+// remoteCommit is the hash remoteRef points to,
+// and localCommit the local ref's, or empty if there is no local ref.
 // See MergeAll for more details.
-func merge[EntityT entity.Interface](def Definition, wrapper func(e *Entity) EntityT, repo repository.ClockedRepo, resolvers entity.Resolvers, remoteRef string, author identity.Interface) entity.MergeResult {
+func merge[EntityT entity.Interface](def Definition, wrapper func(e *Entity) EntityT, repo repository.ClockedRepo, resolvers entity.Resolvers, remoteRef string, remoteCommit, localCommit repository.Hash, author identity.Interface) entity.MergeResult {
 	id := entity.RefToId(remoteRef)
 
 	if err := id.Validate(); err != nil {
 		return entity.NewMergeInvalidStatus(id, errors.Wrap(err, "invalid ref").Error())
 	}
 
-	remoteEntity, err := read[EntityT](def, wrapper, repo, resolvers, remoteRef)
+	remoteEntity, err := readAt[EntityT](def, wrapper, repo, resolvers, remoteCommit)
 	if err != nil {
 		return entity.NewMergeInvalidStatus(id,
 			errors.Wrapf(err, "remote %s is not readable", def.Typename).Error())
@@ -117,29 +131,14 @@ func merge[EntityT entity.Interface](def Definition, wrapper func(e *Entity) Ent
 	// SCENARIO 1
 	// if the remote Entity doesn't exist locally, it's created
 
-	localExist, err := repo.RefExist(localRef)
-	if err != nil {
-		return entity.NewMergeError(err, id)
-	}
-
-	if !localExist {
+	if localCommit == "" {
 		// the bug is not local yet, simply create the reference
-		err := repo.CopyRef(remoteRef, localRef)
+		err := repo.UpdateRef(localRef, remoteCommit)
 		if err != nil {
 			return entity.NewMergeError(err, id)
 		}
 
 		return entity.NewMergeNewStatus(id, remoteEntity)
-	}
-
-	localCommit, err := repo.ResolveRef(localRef)
-	if err != nil {
-		return entity.NewMergeError(err, id)
-	}
-
-	remoteCommit, err := repo.ResolveRef(remoteRef)
-	if err != nil {
-		return entity.NewMergeError(err, id)
 	}
 
 	// SCENARIO 2
@@ -198,7 +197,7 @@ func merge[EntityT entity.Interface](def Definition, wrapper func(e *Entity) Ent
 			"%s %s has diverged and requires a merge commit", def.Typename, id.Human()), id)
 	}
 
-	localEntity, err := read[EntityT](def, wrapper, repo, resolvers, localRef)
+	localEntity, err := readAt[EntityT](def, wrapper, repo, resolvers, localCommit)
 	if err != nil {
 		return entity.NewMergeError(err, id)
 	}
