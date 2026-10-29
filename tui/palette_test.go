@@ -56,12 +56,26 @@ func TestHelpIsTheKeymap(t *testing.T) {
 	page = send(page, "?").(*listPage)
 	drawn := plainView(page)
 	for _, spelling := range []string{
-		"pgup alt+v", "home alt+<", "end alt+>", "enter", "ctrl+c", "alt+w", "alt+c", "ctrl+pgdown",
-		"ctrl+p", "ctrl+b", "ctrl+s", "ctrl+g", "ctrl+y", "ctrl+q alt+q",
+		"pgup", "alt+v", "home", "alt+<", "end", "alt+>", "enter", "ctrl+c", "alt+w", "alt+c", "ctrl+pgdown",
+		"ctrl+p", "ctrl+b", "ctrl+s", "ctrl+g", "ctrl+y", "ctrl+q", "alt+q",
 		"esc w", "esc c", "esc f", "esc z", "esc n", "esc ?", "esc q",
 	} {
 		require.Contains(t, drawn, spelling)
 	}
+	// each alternative is a column: the second keys line up, and so do the
+	// alt keys and the palette's letters
+	column := func(of, in string) int {
+		for _, line := range strings.Split(drawn, "\n") {
+			if strings.Contains(line, in) {
+				return strings.Index(line, of)
+			}
+		}
+		t.Fatalf("no line with %q", in)
+		return -1
+	}
+	require.Equal(t, column("ctrl+p", "ctrl+p"), column("cmd+c", "copy cell"))
+	require.Equal(t, column("alt+v", "page up"), column("alt+w", "copy cell"))
+	require.Equal(t, column("esc v", "page up"), column("esc n", "new issue"))
 	for _, gone := range []string{"standard", "vim", "emacs", "ctrl+u", "ctrl+d", "gt", "ctrl+enter", "f2"} {
 		require.NotContains(t, drawn, gone)
 	}
