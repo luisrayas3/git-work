@@ -297,9 +297,15 @@ the first `Esc` clears the text and the second cancels.
 
 ## Sync and Jira
 
-- `git work pull` and `git work push` carry every namespace over the git remote,
+- `git work pull` and `git work push` carry the tracker's namespaces over the git remote
+  (`work-issues`, `work-flows`, `work-schema`, `work-users`),
   and `git work sync` does both in one run.
   Pushing publishes the tracker, so do it only when asked to.
+- None of them carries git-bug's frozen store (`refs/issues/*`, `refs/identities/*`).
+  To import a git-bug repository,
+  `git work migrate --from REMOTE` fetches that store from the remote
+  and then migrates it, once, into the tracker;
+  `--dry-run` fetches it too and prints the plan.
 - The tracker's refs are outside `refs/heads`,
   so any `git fetch --prune` drops their remote-tracking copies
   and the next pull fetches everything again.

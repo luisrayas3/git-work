@@ -236,8 +236,8 @@ func TestCachePushPull(t *testing.T) {
 	err = cacheB.Pull("origin")
 	require.NoError(t, err)
 
-	// Create a bug in A
-	_, _, err = cacheA.Bugs().New("bug1", "message")
+	// Create an issue in A
+	_, _, err = cacheA.Issues().New("issue1", "message", nil)
 	require.NoError(t, err)
 
 	// A --> remote --> B
@@ -247,7 +247,7 @@ func TestCachePushPull(t *testing.T) {
 	err = cacheB.Pull("origin")
 	require.NoError(t, err)
 
-	require.Len(t, cacheB.Bugs().AllIds(), 1)
+	require.Len(t, cacheB.Issues().AllIds(), 1)
 
 	// retrieve and set identity
 	reneB, err := cacheB.Identities().Resolve(reneA.Id())
@@ -257,7 +257,7 @@ func TestCachePushPull(t *testing.T) {
 	require.NoError(t, err)
 
 	// B --> remote --> A
-	_, _, err = cacheB.Bugs().New("bug2", "message")
+	_, _, err = cacheB.Issues().New("issue2", "message", nil)
 	require.NoError(t, err)
 
 	_, err = cacheB.Push("origin")
@@ -266,7 +266,7 @@ func TestCachePushPull(t *testing.T) {
 	err = cacheA.Pull("origin")
 	require.NoError(t, err)
 
-	require.Len(t, cacheA.Bugs().AllIds(), 2)
+	require.Len(t, cacheA.Issues().AllIds(), 2)
 }
 
 // Pulling into a fresh repo must not require a user identity, otherwise it's
@@ -283,7 +283,7 @@ func TestCachePullWithoutIdentity(t *testing.T) {
 	err = cacheA.SetUserIdentity(reneA)
 	require.NoError(t, err)
 
-	_, _, err = cacheA.Bugs().New("bug1", "message")
+	_, _, err = cacheA.Issues().New("issue1", "message", nil)
 	require.NoError(t, err)
 
 	_, err = cacheA.Push("origin")
@@ -297,7 +297,7 @@ func TestCachePullWithoutIdentity(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Len(t, cacheB.Identities().AllIds(), 1)
-	require.Len(t, cacheB.Bugs().AllIds(), 1)
+	require.Len(t, cacheB.Issues().AllIds(), 1)
 
 	// adopt the pulled identity
 	reneB, err := cacheB.Identities().Resolve(reneA.Id())
@@ -309,8 +309,8 @@ func TestCachePullWithoutIdentity(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, reneA.Id(), userB.Id())
 
-	// concurrent edition of the bug on both sides
-	bugA, err := cacheA.Bugs().ResolvePrefix("")
+	// concurrent edition of the issue on both sides
+	bugA, err := cacheA.Issues().ResolvePrefix("")
 	require.NoError(t, err)
 	_, _, err = bugA.AddComment("from A")
 	require.NoError(t, err)
@@ -318,7 +318,7 @@ func TestCachePullWithoutIdentity(t *testing.T) {
 	_, err = cacheA.Push("origin")
 	require.NoError(t, err)
 
-	bugB, err := cacheB.Bugs().Resolve(bugA.Id())
+	bugB, err := cacheB.Issues().Resolve(bugA.Id())
 	require.NoError(t, err)
 	_, _, err = bugB.AddComment("from B")
 	require.NoError(t, err)
@@ -338,6 +338,45 @@ func TestCachePullWithoutIdentity(t *testing.T) {
 	}
 	require.Len(t, mergeErrs, 1)
 	require.ErrorIs(t, mergeErrs[0], identity.ErrNoIdentitySet)
+}
+
+// TestCachePushPullSkipsLegacy: git-bug's frozen refs/issues/* is neither
+// pushed nor fetched (6274f33); git work migrate --from fetches it.
+func TestCachePushPullSkipsLegacy(t *testing.T) {
+	repoA, repoB, remote := repository.SetupGoGitReposAndRemote(t)
+
+	cacheA := createTestRepoCacheNoEvents(t, repoA)
+	cacheB := createTestRepoCacheNoEvents(t, repoB)
+
+	reneA, err := cacheA.Identities().New("René Descartes", "rene@descartes.fr")
+	require.NoError(t, err)
+	require.NoError(t, cacheA.SetUserIdentity(reneA))
+
+	_, _, err = cacheA.Bugs().New("legacy", "message")
+	require.NoError(t, err)
+	_, _, err = cacheA.Issues().New("live", "message", nil)
+	require.NoError(t, err)
+
+	_, err = cacheA.Push("origin")
+	require.NoError(t, err)
+
+	legacy, err := remote.ListRefs("refs/issues/")
+	require.NoError(t, err)
+	require.Empty(t, legacy)
+	live, err := remote.ListRefs("refs/work-issues/")
+	require.NoError(t, err)
+	require.Len(t, live, 1)
+
+	// the legacy refs reach the remote by other means; a pull leaves them there
+	_, err = repoA.PushRefs("origin", "issues")
+	require.NoError(t, err)
+
+	require.NoError(t, cacheB.Pull("origin"))
+	require.Len(t, cacheB.Issues().AllIds(), 1)
+	require.Empty(t, cacheB.Bugs().AllIds())
+	fetched, err := repoB.ListRefs("refs/remotes/origin/issues/")
+	require.NoError(t, err)
+	require.Empty(t, fetched)
 }
 
 func TestRemove(t *testing.T) {

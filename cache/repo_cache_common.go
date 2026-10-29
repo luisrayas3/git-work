@@ -94,13 +94,20 @@ func (c *RepoCache) StoreData(data []byte) (repository.Hash, error) {
 	return c.repo.StoreData(data)
 }
 
-// Fetch retrieve updates from a remote
-// This does not change the local bugs or identities state
-func (c *RepoCache) Fetch(remote string) (string, error) {
-	prefixes := make([]string, len(c.subcaches))
-	for i, subcache := range c.subcaches {
+// syncedNamespaces are the namespaces a remote carries,
+// those of c.synced.
+func (c *RepoCache) syncedNamespaces() []string {
+	prefixes := make([]string, len(c.synced))
+	for i, subcache := range c.synced {
 		prefixes[i] = subcache.GetNamespace()
 	}
+	return prefixes
+}
+
+// Fetch retrieves the synced namespaces from a remote,
+// leaving the local entities as they are.
+func (c *RepoCache) Fetch(remote string) (string, error) {
+	prefixes := c.syncedNamespaces()
 
 	// fetch everything at once, to have a single auth step if required.
 	return c.repo.FetchRefs(remote, prefixes...)
@@ -119,7 +126,7 @@ func (c *RepoCache) RemoveAll() error {
 	return nil
 }
 
-// MergeAll will merge all the available remote bug and identities
+// MergeAll merges the synced namespaces fetched from a remote.
 func (c *RepoCache) MergeAll(remote string) <-chan entity.MergeResult {
 	out := make(chan entity.MergeResult)
 
@@ -131,7 +138,7 @@ func (c *RepoCache) MergeAll(remote string) <-chan entity.MergeResult {
 	dependency := [][]cacheMgmt{
 		{c.identities},
 		{c.schema},
-		{c.bugs, c.issues},
+		{c.issues},
 		{c.flows},
 	}
 
@@ -157,12 +164,9 @@ func (c *RepoCache) MergeAll(remote string) <-chan entity.MergeResult {
 	return out
 }
 
-// Push update a remote with the local changes
+// Push publishes the synced namespaces to a remote.
 func (c *RepoCache) Push(remote string) (string, error) {
-	prefixes := make([]string, len(c.subcaches))
-	for i, subcache := range c.subcaches {
-		prefixes[i] = subcache.GetNamespace()
-	}
+	prefixes := c.syncedNamespaces()
 
 	// push everything at once, to have a single auth step if required
 	return c.repo.PushRefs(remote, prefixes...)

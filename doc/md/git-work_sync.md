@@ -4,10 +4,12 @@ Pull from a git remote, then push back to it
 
 ### Synopsis
 
-Run git work pull, then git work push, against one remote: the whole store in
-and the whole store out, in the one order that works, since pushing over a
+Run git work pull, then git work push, against one remote: the whole tracker in
+and the whole tracker out, in the one order that works, since pushing over a
 tracker that was never pulled is rejected anyway. The remote is the argument,
-else the git-work.remote config, else origin.
+else the git-work.remote config, else origin. The tracker is the work-*
+namespaces; git-bug's frozen refs/issues/* is not carried (git work migrate
+--from fetches it).
 
 With --jira, git work jira sync runs between the two, so one run takes Jira's
 changes in and publishes the store with them. The Jira step is opt-in: without

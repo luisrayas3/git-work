@@ -102,3 +102,44 @@ func TestSyncOneRemoteOnly(t *testing.T) {
 	require.Error(t, err)
 	require.True(t, strings.Contains(err.Error(), "one remote"))
 }
+
+// TestPullPushSkipLegacy: pull and push carry the work-* namespaces only;
+// git-bug's frozen refs/issues/* stays where it is (6274f33).
+func TestPullPushSkipLegacy(t *testing.T) {
+	env := execenv.NewTestEnv(t)
+	remote := repository.CreateGoGitTestRepo(t, true)
+	repo := env.Repo.(repository.TestedRepo)
+	require.NoError(t, repo.AddRemote("origin", remote.GetLocalRemote()))
+
+	me, err := env.Backend.Identities().New("Alice", "alice@example.com")
+	require.NoError(t, err)
+	require.NoError(t, env.Backend.SetUserIdentity(me))
+	_, _, err = env.Backend.Bugs().New("legacy", "message")
+	require.NoError(t, err)
+	_, _, err = env.Backend.Issues().New("live", "message", nil)
+	require.NoError(t, err)
+
+	require.NoError(t, runPush(env, nil))
+	legacy, err := remote.ListRefs("refs/issues/")
+	require.NoError(t, err)
+	require.Empty(t, legacy)
+	live, err := remote.ListRefs("refs/work-issues/")
+	require.NoError(t, err)
+	require.Len(t, live, 1)
+
+	// the legacy refs reach the remote by other means; a pull leaves them there
+	_, err = repo.PushRefs("origin", "issues")
+	require.NoError(t, err)
+
+	other := execenv.NewTestEnv(t)
+	otherRepo := other.Repo.(repository.TestedRepo)
+	require.NoError(t, otherRepo.AddRemote("origin", remote.GetLocalRemote()))
+	require.NoError(t, runPull(other, nil))
+
+	require.Len(t, other.Backend.Issues().AllIds(), 1)
+	for _, prefix := range []string{"refs/issues/", "refs/remotes/origin/issues/"} {
+		refs, err := otherRepo.ListRefs(prefix)
+		require.NoError(t, err)
+		require.Empty(t, refs, prefix)
+	}
+}
