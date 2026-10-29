@@ -88,16 +88,29 @@ func TestIssueUnequalDivergence(t *testing.T) {
 
 // TestBugUnequalDivergence is the same fork on git-bug's own bug entity,
 // with git-bug's own cache calls, to show the defect is upstream's.
+// Push and Pull no longer carry refs/issues/* (6274f33),
+// so the bug namespace goes over the remote by hand.
 func TestBugUnequalDivergence(t *testing.T) {
+	push := func(t *testing.T, repo repository.TestedRepo) {
+		_, err := repo.PushRefs("origin", "issues")
+		require.NoError(t, err)
+	}
+	pull := func(t *testing.T, c *RepoCache, repo repository.TestedRepo) {
+		_, err := repo.FetchRefs("origin", "issues")
+		require.NoError(t, err)
+		for result := range c.bugs.MergeAll("origin") {
+			require.NoError(t, result.Err)
+		}
+	}
+
 	for _, d := range divergences {
 		t.Run(fmt.Sprintf("local%d_remote%d", d.local, d.remote), func(t *testing.T) {
-			a, b, _, _ := twoClones(t)
+			a, b, repoA, repoB := twoClones(t)
 
 			ba, _, err := a.Bugs().New("shared", "")
 			require.NoError(t, err)
-			_, err = a.Push("origin")
-			require.NoError(t, err)
-			require.NoError(t, b.Pull("origin"))
+			push(t, repoA)
+			pull(t, b, repoB)
 			bb, err := b.Bugs().Resolve(ba.Id())
 			require.NoError(t, err)
 
@@ -111,10 +124,9 @@ func TestBugUnequalDivergence(t *testing.T) {
 				require.NoError(t, err)
 				require.NoError(t, bb.Commit())
 			}
-			_, err = b.Push("origin")
-			require.NoError(t, err)
+			push(t, repoB)
 
-			require.NoError(t, a.Pull("origin"))
+			pull(t, a, repoA)
 			got, err := a.Bugs().Resolve(ba.Id())
 			require.NoError(t, err)
 			require.Len(t, got.Snapshot().Comments, 1+d.local+d.remote)

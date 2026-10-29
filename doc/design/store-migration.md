@@ -171,6 +171,28 @@ which every command needs after the constants change anyway.
 The command was to leave with `entities/bug`;
 since 2026-09-28 both stay, for importing other git-bug repositories (`01c6231`).
 
+**The old store leaves the default sync** (Luis, 2026-10-29, `6274f33`).
+`git work pull`, `push` and `sync` carried every subcache's namespace,
+the bug subcache's `refs/issues/*` included,
+so the frozen store was fetched, merged and pushed again on every sync,
+and since no saved refspec covers it,
+every `git remote prune origin` dropped its remote-tracking copies
+for the next sync to bring back.
+Now they carry the `work-*` namespaces only.
+Fetching the old store is opt-in,
+and belongs to the one command that reads it:
+`git work migrate --from REMOTE` fetches `refs/issues/*` and `refs/identities/*`,
+merges them into the local refs under the write lock,
+and then migrates as before.
+The merge only creates or fast-forwards,
+since a frozen store never needs a merge commit.
+`--dry-run --from` fetches too:
+fetching is not migrating,
+and the plan is only worth printing over the store it will migrate.
+A `--legacy` flag on pull, push and sync was the alternative;
+it would have kept extending a store that is being deleted,
+for the one reader that needs it.
+
 ## What is not done here
 
 Nothing on origin is deleted;

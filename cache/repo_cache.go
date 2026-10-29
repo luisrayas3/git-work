@@ -75,6 +75,13 @@ type RepoCache struct {
 
 	subcaches []cacheMgmt
 
+	// synced are the subcaches Fetch, Push and MergeAll carry over a remote:
+	// every one but the legacy bug subcache (6274f33).
+	// refs/issues/* is git-bug's frozen store, read only to migrate it,
+	// so nothing publishes it again;
+	// git work migrate --from fetches it instead.
+	synced []cacheMgmt
+
 	// the user identity's id, if known
 	muUserIdentity sync.RWMutex
 	userIdentityId entity.Id
@@ -119,6 +126,8 @@ func NewNamedRepoCache(r repository.ClockedRepo, name string) (*RepoCache, chan 
 	// schema the config subcache holds (bb9e89e, E8).
 	c.issues = NewRepoCacheIssue(r, c.getResolvers, c.GetUserIdentity, c.Checker)
 	c.subcaches = append(c.subcaches, c.issues)
+
+	c.synced = []cacheMgmt{c.identities, c.schema, c.flows, c.issues}
 
 	c.resolvers = entity.Resolvers{
 		&IdentityCache{}:   entity.ResolverFunc[*IdentityCache](c.identities.Resolve),
