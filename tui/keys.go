@@ -3,6 +3,8 @@ package tui
 import (
 	"strings"
 
+	"github.com/charmbracelet/x/ansi"
+
 	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
 )
@@ -35,7 +37,7 @@ type chord struct {
 	letter string
 	// shown replaces the keys in the help where they are not keys the
 	// program reads: the terminal's own paste arrives as a paste, not a key.
-	shown string
+	shown []string
 
 	binding key.Binding
 }
@@ -65,8 +67,8 @@ func (c *chord) on(letter string) *chord {
 // under them.
 var shiftedLetters = map[string]string{"<": ",", ">": ".", "?": "/", "Z": "z"}
 
-func (c *chord) show(spelling string) *chord {
-	c.shown = spelling
+func (c *chord) show(spellings ...string) *chord {
+	c.shown = spellings
 	return c
 }
 
@@ -75,13 +77,13 @@ func (c *chord) matches(press tea.KeyPressMsg) bool {
 	return key.Matches(press, c.binding)
 }
 
-// spelling is how the action's keys read in the help: its keys, then its
-// alt key where it has a letter.
-func (c *chord) spelling() string {
-	if c.shown != "" {
+// spellings are how the action's keys read in the help, one per
+// alternative; its alt key is the help's own column, not one of these.
+func (c *chord) spellings() []string {
+	if c.shown != nil {
 		return c.shown
 	}
-	parts := make([]string, 0, len(c.keys)+1)
+	parts := make([]string, 0, len(c.keys))
 	for _, k := range c.keys {
 		// two spellings of one key are one key to a person reading
 		if _, doubled := doubles[k]; doubled {
@@ -89,10 +91,7 @@ func (c *chord) spelling() string {
 		}
 		parts = append(parts, readable(k))
 	}
-	if c.letter != "" {
-		parts = append(parts, "alt+"+c.letter)
-	}
-	return strings.Join(parts, " ")
+	return parts
 }
 
 // doubles are the second spellings of a key: a terminal sends either, so
@@ -178,7 +177,7 @@ var keys = keymap{
 	// clipboard over OSC 52. ctrl+v stays emacs's page down: a standard
 	// user's ctrl+v is the terminal's paste, or ^V, and never a paste here.
 	paste: newChord("paste into field", "super+v", "ctrl+shift+v", "super+shift+v", "ctrl+y").
-		show("terminal paste, ctrl+y"),
+		show("terminal paste", "ctrl+y"),
 
 	// Typing filters a list, a board or a gantt too (A3); `/` starts the
 	// filter with nothing typed.
@@ -241,16 +240,44 @@ func (h *help) Update(press tea.KeyPressMsg) (closed bool) {
 	return keys.back.matches(press) || keys.quit.matches(press) || keys.help.matches(press)
 }
 
-// View is one row per action: its keys, its letter on the palette, and what
-// it does.
+// View is one row per action: its keys, each alternative in a column of its
+// own, its alt key, its letter on the palette, and what it does.
 func (h *help) View(width int) string {
-	lines := []string{styleHeader.Render("keys"), ""}
-	for _, row := range helpRows() {
-		letter := ""
-		if row.letter != "" {
-			letter = "esc " + row.letter
+	rows := helpRows()
+	var widths []int
+	altWidth := 0
+	for _, row := range rows {
+		for i, k := range row.spellings() {
+			if i == len(widths) {
+				widths = append(widths, 0)
+			}
+			widths[i] = max(widths[i], ansi.StringWidth(k))
 		}
-		lines = append(lines, fit("  "+pad(row.spelling(), 32)+pad(letter, 8)+row.what, width))
+		if row.letter != "" {
+			altWidth = max(altWidth, ansi.StringWidth("alt+"+row.letter))
+		}
+	}
+	const gap = 2
+	lines := []string{styleHeader.Render("keys"), ""}
+	for _, row := range rows {
+		var line strings.Builder
+		line.WriteString("  ")
+		spelled := row.spellings()
+		for i, w := range widths {
+			k := ""
+			if i < len(spelled) {
+				k = spelled[i]
+			}
+			line.WriteString(pad(k, w+gap))
+		}
+		alt, letter := "", ""
+		if row.letter != "" {
+			alt, letter = "alt+"+row.letter, "esc "+row.letter
+		}
+		line.WriteString(pad(alt, altWidth+gap))
+		line.WriteString(pad(letter, len("esc x")+gap))
+		line.WriteString(row.what)
+		lines = append(lines, fit(line.String(), width))
 	}
 	lines = append(lines, "",
 		styleDim.Render(fit("  esc x is alt+x · esc ?: close", width)))
