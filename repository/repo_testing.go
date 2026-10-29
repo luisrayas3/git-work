@@ -221,6 +221,14 @@ func RepoDataTest(t *testing.T, repo RepoData) {
 	require.NoError(t, err)
 	require.ElementsMatch(t, []string{"refs/bugs/ref1", "refs/bugs/ref2"}, ls)
 
+	hashes, err := repo.ListRefHashes("refs/bugs/")
+	require.NoError(t, err)
+	require.Equal(t, map[string]Hash{"refs/bugs/ref1": commit2, "refs/bugs/ref2": commit2}, hashes)
+
+	hashes, err = repo.ListRefHashes("refs/nothing/")
+	require.NoError(t, err)
+	require.Empty(t, hashes)
+
 	commits, err := repo.ListCommits("refs/bugs/ref2")
 	require.NoError(t, err)
 	require.Equal(t, []Hash{commit1, commit2}, commits)

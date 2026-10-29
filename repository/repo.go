@@ -185,6 +185,13 @@ type RepoData interface {
 	// ListRefs will return a list of Git ref matching the given refspec
 	ListRefs(refPrefix string) ([]string, error)
 
+	// ListRefHashes returns every Git ref matching the given prefix,
+	// mapped to the hash of its target commit.
+	// It reads the refs in one pass,
+	// so it is the way to resolve a whole namespace:
+	// a ResolveRef per ref may cost a scan of packed-refs each.
+	ListRefHashes(refPrefix string) (map[string]Hash, error)
+
 	// RefExist will check if a reference exists in Git
 	RefExist(ref string) (bool, error)
 

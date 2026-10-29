@@ -774,6 +774,33 @@ func (repo *GoGitRepo) ListRefs(refPrefix string) ([]string, error) {
 	return refs, nil
 }
 
+// ListRefHashes returns every Git ref matching the given prefix,
+// mapped to the hash of its target commit.
+// One iteration reads packed-refs once,
+// where go-git's Reference scans the whole file on every lookup.
+func (repo *GoGitRepo) ListRefHashes(refPrefix string) (map[string]Hash, error) {
+	refIter, err := repo.r.References()
+	if err != nil {
+		return nil, err
+	}
+
+	refs := make(map[string]Hash)
+
+	err = refIter.ForEach(func(ref *plumbing.Reference) error {
+		name := ref.Name().String()
+		// a symbolic ref has no hash of its own; entity refs are never symbolic
+		if ref.Type() == plumbing.HashReference && strings.HasPrefix(name, refPrefix) {
+			refs[name] = Hash(ref.Hash().String())
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return refs, nil
+}
+
 // RefExist will check if a reference exist in Git
 func (repo *GoGitRepo) RefExist(ref string) (bool, error) {
 	_, err := repo.r.Reference(plumbing.ReferenceName(ref), false)

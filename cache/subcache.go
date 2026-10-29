@@ -268,17 +268,14 @@ func (sc *SubCache[EntityT, ExcerptT, CacheT]) Refresh() error {
 func (sc *SubCache[EntityT, ExcerptT, CacheT]) currentRefs() (map[entity.Id]repository.Hash, error) {
 	prefix := fmt.Sprintf("refs/%s/", sc.namespace)
 
-	refs, err := sc.repo.ListRefs(prefix)
+	// one pass over the refs: resolving each one would scan packed-refs per ref
+	refs, err := sc.repo.ListRefHashes(prefix)
 	if err != nil {
 		return nil, err
 	}
 
 	out := make(map[entity.Id]repository.Hash, len(refs))
-	for _, ref := range refs {
-		hash, err := sc.repo.ResolveRef(ref)
-		if err != nil {
-			return nil, err
-		}
+	for ref, hash := range refs {
 		out[entity.Id(strings.TrimPrefix(ref, prefix))] = hash
 	}
 
