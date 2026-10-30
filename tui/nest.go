@@ -346,7 +346,7 @@ func nest(repo *cache.RepoCache, items []map[string]any, n *nesting, open map[st
 			for at, c := range candidates {
 				rows[at] = c.row
 			}
-			picked, err := runLayerQuery(layer.program, rows)
+			picked, err := runLayerQuery(repo, layer.program, rows)
 			if err != nil {
 				fail(err)
 			} else {
@@ -507,13 +507,17 @@ func checkLevels(repo *cache.RepoCache, tree []nested) error {
 // view's query runs over the array of every issue, so the two are written the
 // same way and a layer can say `map(select(.fields.status != "done"))`
 // without knowing anything about the row it is under.
-func runLayerQuery(program *jq.Program, candidates []map[string]any) ([]map[string]any, error) {
+//
+// The schema is the program's `$schema` (doc/design/schema-in-jq.md); a
+// schema that does not load is no schema, where its functions read null.
+func runLayerQuery(repo *cache.RepoCache, program *jq.Program, candidates []map[string]any) ([]map[string]any, error) {
 	input := make([]any, 0, len(candidates))
 	for _, row := range candidates {
 		input = append(input, row)
 	}
 
-	values, err := program.Run(input)
+	schema, _ := host.SchemaValue(repo)
+	values, err := program.Run(input, schema)
 	if err != nil {
 		return nil, err
 	}

@@ -249,6 +249,23 @@ func TestListLayerQueryAndFields(t *testing.T) {
 	require.NotContains(t, topHeader(page), "status")
 }
 
+// TestListLayerQueryReadsTheSchema: a layer's query runs with `$schema`
+// bound, so it says "not done" by category, not by naming the values
+// (doc/design/schema-in-jq.md).
+func TestListLayerQueryReadsTheSchema(t *testing.T) {
+	repo := testRepo(t)
+	story := newTyped(t, repo, "story", map[string]any{"title": "the story"})
+	open := newTyped(t, repo, "task", map[string]any{"title": "open one", "parent": story, "status": "to-do"})
+	done := newTyped(t, repo, "task", map[string]any{"title": "done one", "parent": story, "status": "done"})
+
+	spec := `{"relation":"children","query":"map(select(category(\"status\") | done | not))"}`
+	page := list(t, repo, `{"fields":["title"],"expand":`+spec+`,"query":"map(select(.fields.type == \"story\"))"}`)
+	require.Contains(t, rowOf(page, story), "▸ 1")
+	send(page, "right", "space")
+	require.NotEqual(t, "", rowOf(page, open))
+	require.Equal(t, "", rowOf(page, done), "its category is completed")
+}
+
 // TestListChildTableHasItsOwnHeader: the rows under every opened parent are
 // a table of their own — a header line above the first child at the table's
 // indent, the same columns and widths under every parent — and a folded

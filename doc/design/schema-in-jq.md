@@ -8,7 +8,7 @@ so a program written once stays right when the schema's values change.
 
 **Serves:** `a3a8dc9`, the schema in jq.
 
-**Status:** proposed 2026-10-30.
+**Status:** approved and built 2026-10-30.
 
 ## Problem
 
@@ -144,3 +144,17 @@ Nothing here learns that `status` or `priority` is special.
 - Tests: each function on a missing field, an unknown value, a `multi-enum`,
   a value of each category; `done` against `Category.Done` for every category;
   a compiled program re-run after a schema import sees the new order.
+
+### Settled in building (2026-10-30)
+
+- **The export is not cached.**
+  `host.SchemaValue` loads and exports the schema on each run,
+  because nothing caches a schema load to hang it on:
+  every other read, the write path's checker included, loads it afresh.
+  A cache is for when a profile asks for one.
+- **A nil `$schema` is allowed**: a caller with no schema,
+  or a schema that does not load under a TUI layer, runs the program anyway,
+  and every helper reads null.
+  The command line and Starlark fail on a schema that does not load,
+  as any read of it does.
+- **`ordinal` is a jq number**, an integer in Go, and prints as `0`, not `0.0`.

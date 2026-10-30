@@ -84,6 +84,29 @@ func SchemaExport(repo *cache.RepoCache) (*schema.Document, []string, error) {
 	return schema.Export(s), warnings, nil
 }
 
+// SchemaValue is the live schema as a jq program reads it, `$schema`
+// (doc/design/schema-in-jq.md, J1): the document SchemaExport returns, in
+// the shape `git work schema export --format json` prints.
+//
+// It is the schema now, under `--at` too: the schema has no history to replay.
+// Each call loads the schema afresh, as every other read of it does, so a
+// program re-run after an import reads the import.
+func SchemaValue(repo *cache.RepoCache) (any, error) {
+	s, err := repo.LoadSchema()
+	if err != nil {
+		return nil, err
+	}
+	raw, err := schema.Export(s).Marshal("json")
+	if err != nil {
+		return nil, err
+	}
+	var out any
+	if err := json.Unmarshal(raw, &out); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // SchemaImport writes what a document differs from the store by.
 //
 // The whole document is validated before anything is written, then reconcile

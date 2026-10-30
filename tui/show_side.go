@@ -242,7 +242,7 @@ func (p *showPage) loadSide() {
 		}
 		kept = append(kept, table)
 		if table.program != nil && len(candidates) > 0 {
-			picked, err := runLayerQuery(table.program, candidates)
+			picked, err := runLayerQuery(p.repo, table.program, candidates)
 			if err != nil {
 				p.status = err.Error()
 			} else {
