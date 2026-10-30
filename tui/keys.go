@@ -129,6 +129,7 @@ type keymap struct {
 	nextTab, previousTab  *chord
 	newIssue, search      *chord
 	home, runFlow         *chord
+	closePalette          *chord
 	help                  *chord
 	back                  *chord
 	quit                  *chord
@@ -214,6 +215,10 @@ var keys = keymap{
 	home:    newChord("home").on("h"),
 	runFlow: newChord("run a flow").on("r"),
 	help:    newChord("help", "?").on("?"),
+	// g closes the palette and does nothing else, as emacs's C-g quits what
+	// is half typed; esc g typed quickly is alt+g, which is so nothing on a
+	// page (2026-10-30).
+	closePalette: newChord("close the palette").on("g"),
 	// esc opens the palette, and a second esc is back: out of a filter, out
 	// of an issue, and from the first page out of the program (A1).
 	back: newChord("commands; twice: back (first page: quit)", "esc", "ctrl+g"),
@@ -232,7 +237,7 @@ func helpRows() []*chord {
 		keys.act, keys.edit, keys.grab, keys.newline,
 		keys.copy, keys.copyId, keys.paste,
 		keys.filter, keys.foldAll, keys.openEverything, keys.expand, keys.link, keys.unlink, keys.editQuery, keys.resetQuery, keys.nextTab, keys.previousTab,
-		keys.search, keys.newIssue, keys.home, keys.runFlow, keys.back, keys.help, keys.quit,
+		keys.search, keys.newIssue, keys.home, keys.runFlow, keys.closePalette, keys.back, keys.help, keys.quit,
 	}
 }
 

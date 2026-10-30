@@ -317,7 +317,7 @@ In a view `Enter` opens, `Space` edits or grabs a row to move it,
 typing (or `/`) filters a list, a board or a gantt, and `C-q` quits.
 `Esc` opens the palette: where you are, the whole call,
 and every command under a letter that is the same on every page
-(`w` copy cell, `c` copy id, `s` search, `n` new, `h` home, `r` run a flow, `q` quit;
+(`w` copy cell, `c` copy id, `s` search, `n` new, `h` home, `r` run a flow, `q` quit, `g` close;
 `esc x` is `alt+x`);
 `esc j` edits the page's query and draws it again, and `esc J` puts back the one it was called with;
 a second `Esc` goes back, and quits from the first page.

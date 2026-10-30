@@ -50,7 +50,8 @@ func entry(c *chord, what ...string) paletteEntry {
 }
 
 // everywhere is the palette's last section: the commands that mean the same
-// on every page, in A1's order: search, new, home, run a flow, help, quit.
+// on every page, in A1's order: search, new, home, run a flow, help, quit;
+// then close, which is the palette's own.
 func everywhere() []paletteEntry {
 	return []paletteEntry{
 		entry(keys.search, "search"),
@@ -59,6 +60,7 @@ func everywhere() []paletteEntry {
 		entry(keys.runFlow),
 		entry(keys.help, "help"),
 		entry(keys.quit, "quit"),
+		entry(keys.closePalette, "close"),
 	}
 }
 
@@ -508,6 +510,9 @@ func (r *root) restKey(press tea.KeyPressMsg) (tea.Cmd, bool) {
 		return r.openQueryEditor(), true
 	case keys.resetQuery.matches(press):
 		return r.resetQuery(), true
+	case keys.closePalette.matches(press):
+		// the palette is closed already, or was never open
+		return nil, true
 	case keys.help.matches(press), keys.filter.matches(press):
 		return nil, false
 	}
