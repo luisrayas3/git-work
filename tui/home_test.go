@@ -150,7 +150,7 @@ func TestThePaletteRunsFlows(t *testing.T) {
 	require.NotNil(t, stack.search, "the picker is open over the page")
 	require.Len(t, stack.search.picker.items, 4, "every stored flow")
 	drawn := drawnStack(stack)
-	require.Contains(t, drawn, "run a flow\n")
+	require.Contains(t, drawn, "│ run a flow ")
 	require.Contains(t, drawn, "What changed.")
 	require.Len(t, stack.pages, 1)
 

@@ -170,20 +170,19 @@ func (s *searchPanel) heading() string {
 	return "search"
 }
 
-// withSearch draws the search over the foot of the page, as the palette is
-// drawn: the page keeps its first lines.
+// withSearch draws the search as the palette is drawn, a box in the middle
+// of the page (2026-10-29). The box is as tall with one match as with many,
+// so that it does not move under the text as it is typed.
 func (r *root) withSearch(content string) string {
-	lines := strings.Split(content, "\n")
-	height := max(r.height, len(lines))
-	panel := append([]string{
-		styleRule.Render(strings.Repeat("─", max(r.width, 1))),
-		styleHeader.Render(r.search.heading()),
-	}, r.search.picker.lines(r.width)...)
-	keep := min(max(height-1-len(panel), 0), len(lines)-1)
-	out := append([]string{}, lines[:max(keep, 0)]...)
-	for len(out) < height-1-len(panel) {
-		out = append(out, "")
+	inner, room := r.boxRoom(content)
+	inside := append([]string{styleHeader.Render(r.search.heading())}, r.search.picker.lines(inner)...)
+	// the heading, the input, a window of matches and the line saying how
+	// many more
+	for len(inside) < min(pickerRows+3, room) {
+		inside = append(inside, "")
 	}
-	out = append(out, panel...)
-	return strings.Join(append(out, bottomLine(r.search.hints(), "", r.width)), "\n")
+	for at, line := range inside {
+		inside[at] = pad(line, inner)
+	}
+	return r.withBox(content, inside, r.search.hints())
 }
