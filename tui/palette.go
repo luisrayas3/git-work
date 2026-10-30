@@ -5,14 +5,16 @@ import (
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/git-bug/git-bug/cache"
 	"github.com/git-bug/git-bug/host"
 )
 
-// The palette is the panel `esc` opens at the foot of the page
-// (doc/design/app.md, A1, A4, 2026-10-15): where you are, this page's
+// The palette is the box `esc` opens in the middle of the page
+// (doc/design/app.md, A1, A4, 2026-10-15; drawn as a box, 2026-10-29):
+// where you are, this page's
 // commands, and everywhere's commands, each drawn with its letter.
 //
 // The keys a person needs with no menu are the ones every program has —
@@ -262,45 +264,86 @@ func section(name string, commands []paletteEntry, width int) []string {
 	return append(lines, fit(line, width))
 }
 
-// paletteLines is the panel: a rule, where you are — the stack, and the top
+// paletteLines is the box's inside: where you are — the stack, and the top
 // page's whole call, its query formatted — then this page's commands and
-// everywhere's. The call gives up its query's last lines where the window
-// cannot hold all of it.
-func (r *root) paletteLines(room int) []string {
+// everywhere's, all of it width wide. The call gives up its query's last
+// lines where room cannot hold all of it.
+func (r *root) paletteLines(width, room int) []string {
 	top := r.top()
 	call, lead, leadArg := top.Call()
-	where := callLines(call, lead, leadArg, r.width)
-	commands := append(section("this page", pageCommands(top), r.width),
-		section("everywhere", everywhere(), r.width)...)
+	where := callLines(call, lead, leadArg, width)
+	commands := append(section("this page", pageCommands(top), width),
+		section("everywhere", everywhere(), width)...)
 
-	fixed := 2 + len(commands) // the rule and the breadcrumb
+	fixed := 2 + len(commands) // the breadcrumb, and the blank over the commands
 	if spare := room - fixed; len(where) > spare {
 		where = where[:max(spare, 1)]
 	}
-	lines := []string{
-		styleRule.Render(strings.Repeat("─", max(r.width, 1))),
-		fit(breadcrumb(r.pages), r.width),
-	}
+	lines := []string{fit(breadcrumb(r.pages), width)}
 	lines = append(lines, where...)
+	lines = append(lines, "")
 	return append(lines, commands...)
 }
 
-// withPalette draws the palette over the foot of the page, above a status
-// line of its own: the page keeps its first lines, the call among them.
+// paletteWidth is the widest the box's inside is drawn: wide enough for a
+// formatted query, narrow enough to read as a box over the page and not a
+// page of its own.
+const paletteWidth = 80
+
+// stylePalette is the palette's box.
+var stylePalette = lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).Padding(0, 1)
+
+// withPalette draws the palette as a box in the middle of the page, over a
+// status line of its own (2026-10-29): the page stays in sight around it, so
+// the palette reads as a menu over the page, and not as the page's foot
+// changed under it.
 func (r *root) withPalette(content string) string {
+	inner, room := r.boxRoom(content)
+	return r.withBox(content, r.paletteLines(inner, room), paletteHints())
+}
+
+// boxRoom is the inside of a box drawn over the page: how wide, and how many
+// lines it can hold.
+func (r *root) boxRoom(content string) (width, room int) {
+	height := max(r.height, strings.Count(content, "\n")+1)
+	width = max(min(paletteWidth, r.width-stylePalette.GetHorizontalFrameSize()-2), 10)
+	room = max(height-1-stylePalette.GetVerticalFrameSize(), 1)
+	return width, room
+}
+
+// withBox draws inside, in a box, in the middle of the page, and hints as
+// the status line under both: the palette and the search are drawn so.
+func (r *root) withBox(content string, inside []string, hints string) string {
 	lines := strings.Split(content, "\n")
 	height := max(r.height, len(lines))
-	panel := r.paletteLines(height - 1)
-	keep := max(height-1-len(panel), 0)
-	if keep > len(lines)-1 {
-		keep = len(lines) - 1
+	page := lines[:max(len(lines)-1, 0)] // the page's status line is the box's
+	for len(page) < height-1 {
+		page = append(page, "")
 	}
-	out := append([]string{}, lines[:max(keep, 0)]...)
-	for len(out) < height-1-len(panel) {
-		out = append(out, "")
+	box := strings.Split(stylePalette.Render(strings.Join(inside, "\n")), "\n")
+	return strings.Join(append(overlay(page, box, r.width), bottomLine(hints, "", r.width)), "\n")
+}
+
+// overlay draws box over the middle of page, which keeps its lines and its
+// height: what is under the box is hidden, what is around it stays.
+func overlay(page, box []string, width int) []string {
+	boxWidth := 0
+	for _, line := range box {
+		boxWidth = max(boxWidth, ansi.StringWidth(line))
 	}
-	out = append(out, panel...)
-	return strings.Join(append(out, bottomLine(paletteHints(), "", r.width)), "\n")
+	x := max((width-boxWidth)/2, 0)
+	y := max((len(page)-len(box))/2, 0)
+	out := append([]string{}, page...)
+	for at, line := range box {
+		if y+at >= len(out) {
+			break
+		}
+		under := out[y+at]
+		left := pad(ansi.Truncate(under, x, ""), x)
+		right := ansi.TruncateLeft(under, x+boxWidth, "")
+		out[y+at] = left + "\x1b[m" + pad(line, boxWidth) + "\x1b[m" + right
+	}
+	return out
 }
 
 // paletteKey is a key with the palette open: esc goes back, a letter runs

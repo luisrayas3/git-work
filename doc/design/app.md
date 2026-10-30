@@ -143,6 +143,22 @@ Where the sections above are silent, `8a9ea75` and `72285a6` chose:
 - A draft on show or new warns *back again drops draft* on the first back,
   since back is now two presses.
 - The matrix's `c` keeps what `alt+c` did there, copying the command.
+
+### The palette is a box in the middle (2026-10-29)
+
+A1 drew the palette as a panel at the foot of the page.
+It is now **a bordered box in the middle of the page**,
+with the page still drawn around it and the palette's own status line under both.
+At the foot it read as the page's last lines changing,
+not as a menu opened over the page,
+and the page's bottom rows — the ones nearest the status line,
+where the eye already is — were the ones it hid.
+The box is at most 80 columns inside, enough for a formatted query,
+and shrinks to the window;
+what it holds, and every key on it, is as A1 and A4 say.
+The search (`s`, A5) and the flow picker (`r`) are drawn the same way,
+in a box as tall with one match as with many,
+so that it stays where it is while the text is typed.
 - Bubble Tea v2 already requests the kitty protocol's disambiguation on every terminal,
   so nothing is added for A2.
 

@@ -2,6 +2,8 @@ package tui
 
 import (
 	"fmt"
+	"slices"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -134,12 +136,19 @@ func TestThePalettesSearchOpensAShow(t *testing.T) {
 	drawn := drawnStack(stack)
 	require.Contains(t, drawn, "search")
 	require.Contains(t, drawn, "open story")
+	// a box in the middle, which stays where it is as the matches narrow
+	boxAt := func(drawn string) int {
+		return slices.IndexFunc(strings.Split(drawn, "\n"), func(line string) bool { return strings.Contains(line, "╭") })
+	}
+	opened := boxAt(drawn)
+	require.Greater(t, opened, 0, "the box is not at the top")
 
 	for _, r := range "the task" {
 		run(stack, string(r))
 	}
 	require.Equal(t, []string{task}, pickerValues(stack.search.picker))
 	require.Contains(t, drawnStack(stack), "/the task")
+	require.Equal(t, opened, boxAt(drawnStack(stack)), "the box does not move as the text is typed")
 
 	// the first esc clears, the second closes, and nothing was pushed
 	run(stack, "esc")

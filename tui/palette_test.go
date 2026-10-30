@@ -1,10 +1,12 @@
 package tui
 
 import (
+	"slices"
 	"strings"
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/stretchr/testify/require"
 )
 
@@ -129,8 +131,8 @@ func TestABoardAndAGanttFilterAsTyped(t *testing.T) {
 }
 
 // TestEscOpensThePalette: where you are, the whole call, this page's
-// commands and everywhere's, each with its letter; the page keeps its first
-// lines and its height (A1).
+// commands and everywhere's, each with its letter, in a box in the middle of
+// the page; the page keeps its first lines and its height (A1, 2026-10-29).
 func TestEscOpensThePalette(t *testing.T) {
 	repo := testRepo(t)
 	newIssue(t, repo, map[string]any{"title": "one"})
@@ -143,20 +145,29 @@ func TestEscOpensThePalette(t *testing.T) {
 	lines := strings.Split(drawn, "\n")
 	require.Len(t, lines, 20, "the page keeps its height")
 	require.True(t, strings.HasPrefix(lines[0], "list  group_by=status"), "the first line is still the call")
-	require.Contains(t, drawn, "\nlist\n", "the stack, one page deep")
+	require.Contains(t, drawn, "│ list ", "the stack, one page deep")
+	// a box, in the middle: the page is drawn around it
+	top := slices.IndexFunc(lines, func(line string) bool { return strings.Contains(line, "╭") })
+	require.Greater(t, top, 3, "the box is not at the top")
+	require.Greater(t, strings.Index(lines[top], "╭"), 0, "the box is not at the left edge")
+	require.True(t, strings.HasPrefix(lines[0], "list"), "the page is still drawn above it")
 	// the call in full, its query unfolded as the pipeline it is
 	require.Contains(t, drawn, "› list  group_by=status")
-	require.Contains(t, drawn, "\n  sort_by(.edit_time.lamport, .edit_time.timestamp)")
-	require.Contains(t, drawn, "\n  | reverse")
+	require.Contains(t, drawn, "│   sort_by(.edit_time.lamport, .edit_time.timestamp)")
+	require.Contains(t, drawn, "│   | reverse")
 	for _, entry := range []string{"f filter", "w copy cell", "c copy id", "n new", "? help", "q quit"} {
 		require.Contains(t, drawn, entry)
 	}
 	require.NotContains(t, drawn, "z fold all", "nothing nests here")
 	require.Contains(t, lines[19], "esc: back")
 
-	// narrow, it still keeps its height
+	// narrow, it still keeps its height, and the box fits the window
 	stack.Update(tea.WindowSizeMsg{Width: 30, Height: 20})
-	require.Len(t, strings.Split(drawnStack(stack), "\n"), 20)
+	narrow := strings.Split(drawnStack(stack), "\n")
+	require.Len(t, narrow, 20)
+	for _, line := range narrow {
+		require.LessOrEqual(t, ansi.StringWidth(line), 30, line)
+	}
 }
 
 // TestTheSecondEscIsBack: from the first page it quits; from a page over
