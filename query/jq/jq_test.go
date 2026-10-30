@@ -14,28 +14,28 @@ func TestRun(t *testing.T) {
 	require.NoError(t, err)
 
 	// one value out: the whole projected array
-	values, err := Run(`map(.id)`, input)
+	values, err := Run(`map(.id)`, input, nil)
 	require.NoError(t, err)
 	require.Equal(t, []any{[]any{"a", "b"}}, values)
 
 	// several values out: one per element
-	values, err = Run(`.[] | .id`, input)
+	values, err = Run(`.[] | .id`, input, nil)
 	require.NoError(t, err)
 	require.Equal(t, []any{"a", "b"}, values)
 
 	// sorting and selecting, the shape the default program has
-	values, err = Run(`map(select(.n > 1)) | sort_by(.n) | reverse | map(.id)`, input)
+	values, err = Run(`map(select(.n > 1)) | sort_by(.n) | reverse | map(.id)`, input, nil)
 	require.NoError(t, err)
 	require.Equal(t, []any{[]any{"a"}}, values)
 }
 
 func TestRunErrors(t *testing.T) {
 	// a program that does not parse
-	_, err := Run(`map(`, nil)
+	_, err := Run(`map(`, nil, nil)
 	require.Error(t, err)
 
 	// a program that fails at runtime
-	_, err = Run(`.[] | .a`, "not an array")
+	_, err = Run(`.[] | .a`, "not an array", nil)
 	require.Error(t, err)
 }
 

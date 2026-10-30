@@ -100,6 +100,28 @@ and prints one line per issue (id, status, title), for a human.
 a view takes it as `"include_archive": true`,
 and `work.issue.list`, `work.issue.log` and `work.issue.search` as `include_archive=True`.
 
+Every program, the listing's and every view's and layer's `query`,
+runs with the schema bound as `$schema`,
+the document `git work schema export --format json` prints,
+and three functions over it,
+so a program orders and filters by what a value means
+and stays right when the schema's values change:
+
+- `ordinal(f)` on an issue is the position, from 0,
+  of its field `f`'s value in that field's values;
+- `category(f)` on an issue is that value's category;
+- `done` on a category is whether the work is over, `completed` or `canceled`.
+
+Each is null where the schema says nothing:
+an unset field, a type without it, an unlisted value, a multi-enum.
+`$schema` is today's schema under `--at` too.
+Open work first, by priority, unset last
+(the parentheses are needed, since `|` binds looser than `,`):
+
+```sh
+git work issue list 'sort_by((category("status") | done), ordinal("priority") == null, ordinal("priority"))'
+```
+
 `git work issue search TEXT` finds issues without a program:
 the ones whose id (by prefix), alias, title or description contain TEXT,
 case ignored, as the same excerpts in one array.
@@ -391,7 +413,7 @@ EOF
 Everything still open, grouped by type:
 
 ```sh
-git work issue list 'map(select(.fields.status != "done")) | group_by(.fields.type)'
+git work issue list 'map(select(category("status") | done | not)) | group_by(.fields.type)'
 ```
 
 One story's tasks, one line each for a human (`issue list` for the JSON):

@@ -73,8 +73,12 @@ func IssueListAt(repo *cache.RepoCache, program string, at time.Time, includeArc
 	if err != nil {
 		return nil, err
 	}
+	schema, err := SchemaValue(repo)
+	if err != nil {
+		return nil, err
+	}
 
-	return jq.Run(program, input)
+	return jq.Run(program, input, schema)
 }
 
 // IssueListInputAt is IssueListInput as of `at`: every issue replayed to that
