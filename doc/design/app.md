@@ -162,6 +162,17 @@ so that it stays where it is while the text is typed.
 - Bubble Tea v2 already requests the kitty protocol's disambiguation on every terminal,
   so nothing is added for A2.
 
+### `g` closes the palette (2026-10-30, Luis)
+
+`esc g` closes the palette and does nothing else,
+as emacs's `C-g` quits what is half typed.
+A direction, `enter` or `tab` still only close it too (A1),
+but `enter` means open everywhere else, and is a key to be wary of.
+By A2 `g` is `alt+g`, which nothing else binds,
+the text widgets included,
+so `esc g` typed quickly arrives on the page as `alt+g` and does nothing there.
+It is listed last under `everywhere`.
+
 ### Two folds (2026-10-15, Luis)
 
 `create.md` C8 (`b9a9b62`) draws a fold cell on a leaf, `▸ 0`,

@@ -239,6 +239,19 @@ func TestAPaletteLetterIsItsAltKey(t *testing.T) {
 	require.False(t, stack.palette)
 	require.Equal(t, cursor, stack.top().(*listPage).cursor)
 
+	// g closes it, and only that; alt+g, which esc g typed quickly is, does
+	// nothing on the page, and a g typed there is still text
+	run(stack, "esc")
+	require.Nil(t, run(stack, "g"))
+	require.False(t, stack.palette)
+	require.Nil(t, run(stack, "alt+g"))
+	require.False(t, stack.palette)
+	require.Nil(t, stack.top().(*listPage).filtering)
+	require.Equal(t, cursor, stack.top().(*listPage).cursor)
+	run(stack, "g")
+	require.Equal(t, "g", stack.top().(*listPage).filter)
+	run(stack, "esc")
+
 	// esc q quits, as alt+q does
 	run(stack, "esc")
 	require.IsType(t, tea.QuitMsg{}, run(stack, "q"))
