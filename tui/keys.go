@@ -65,7 +65,7 @@ func (c *chord) on(letter string) *chord {
 
 // shiftedLetters are the palette's letters typed with shift, as the key
 // under them.
-var shiftedLetters = map[string]string{"<": ",", ">": ".", "?": "/", "Z": "z"}
+var shiftedLetters = map[string]string{"<": ",", ">": ".", "?": "/", "Z": "z", "J": "j"}
 
 func (c *chord) show(spellings ...string) *chord {
 	c.shown = spellings
@@ -125,6 +125,7 @@ type keymap struct {
 	foldAll               *chord
 	openEverything        *chord
 	expand, link, unlink  *chord
+	editQuery, resetQuery *chord
 	nextTab, previousTab  *chord
 	newIssue, search      *chord
 	home, runFlow         *chord
@@ -195,10 +196,15 @@ var keys = keymap{
 	// Show's own: what its issue's type is expanded by, for this page and
 	// the ones it opens, and a link added or removed, inverses written to
 	// the other issue (A6, A7; show_palette.go).
-	expand:   newChord("show: change what is expanded").on("e"),
-	link:     newChord("show: link to an issue").on("l"),
-	unlink:   newChord("show: unlink an issue").on("u"),
-	newIssue: newChord("new issue").on("n"),
+	expand: newChord("show: change what is expanded").on("e"),
+	link:   newChord("show: link to an issue").on("l"),
+	unlink: newChord("show: unlink an issue").on("u"),
+	// The query is edited in the palette and the page drawn again from it;
+	// the shifted letter undoes it, as Z is z's further step (A10,
+	// query_edit.go).
+	editQuery:  newChord("edit the query").on("j"),
+	resetQuery: newChord("reset the query to the call's").on("J"),
+	newIssue:   newChord("new issue").on("n"),
 	// search is the finder over every issue; enter on one opens it
 	// (doc/design/app.md, A5)
 	search: newChord("search issues").on("s"),
@@ -225,7 +231,7 @@ func helpRows() []*chord {
 		keys.next, keys.previous,
 		keys.act, keys.edit, keys.grab, keys.newline,
 		keys.copy, keys.copyId, keys.paste,
-		keys.filter, keys.foldAll, keys.openEverything, keys.expand, keys.link, keys.unlink, keys.nextTab, keys.previousTab,
+		keys.filter, keys.foldAll, keys.openEverything, keys.expand, keys.link, keys.unlink, keys.editQuery, keys.resetQuery, keys.nextTab, keys.previousTab,
 		keys.search, keys.newIssue, keys.home, keys.runFlow, keys.back, keys.help, keys.quit,
 	}
 }

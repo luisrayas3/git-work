@@ -23,7 +23,14 @@ import (
 // lead is what follows the kind before the arguments, and replaces the one
 // argument it names: `show abc1234` rather than `show id=abc1234`.
 func callLine(call *view.Call, lead, leadArg string, width int) string {
-	head, query, dim := callParts(call, lead, leadArg)
+	head := []string{styleHeader.Render(call.Kind)}
+	if lead != "" {
+		head = append(head, styleHeader.Render(lead))
+	}
+	args, query, dim := callParts(call, leadArg)
+	for _, arg := range args {
+		head = append(head, arg.render(arg.name+"="+arg.value))
+	}
 	if query != "" {
 		if dim {
 			query = styleDim.Render(query)
@@ -33,15 +40,27 @@ func callLine(call *view.Call, lead, leadArg string, width int) string {
 	return fit(strings.Join(head, "  "), width)
 }
 
-// callParts is the call line in pieces: the kind, the lead and every named
-// argument, rendered; the query as plain text on one line; and whether the
-// query is the default.
-func callParts(call *view.Call, lead, leadArg string) (head []string, query string, dim bool) {
-	head = []string{styleHeader.Render(call.Kind)}
-	if lead != "" {
-		head = append(head, styleHeader.Render(lead))
-	}
+// callArg is one named argument as it reads: its name, its value, and
+// whether it is the default.
+type callArg struct {
+	name, value string
+	dim         bool
+}
 
+// render draws text dim where the argument is the default, so the ones
+// somebody chose stand out.
+func (a callArg) render(text string) string {
+	if a.dim {
+		return styleDim.Render(text)
+	}
+	return text
+}
+
+// callParts is the call's arguments in pieces: every named argument but the
+// lead's; the query as plain text on one line; and whether the query is the
+// default. The kind and the lead are the caller's to draw: the call line
+// leads with them, and the palette's breadcrumb already ends in them.
+func callParts(call *view.Call, leadArg string) (args []callArg, query string, dim bool) {
 	for _, arg := range view.Kinds[call.Kind] {
 		if arg.Name == leadArg || arg.Name == "fields" || arg.Name == "card" {
 			continue
@@ -60,49 +79,31 @@ func callParts(call *view.Call, lead, leadArg string) (head []string, query stri
 			query, dim = argText(raw), defaulted
 			continue
 		}
-		part := arg.Name + "=" + argText(raw)
-		if defaulted {
-			part = styleDim.Render(part)
-		}
-		head = append(head, part)
+		args = append(args, callArg{name: arg.Name, value: argText(raw), dim: defaulted})
 	}
-	return head, query, dim
+	return args, query, dim
 }
 
-// callLines is the call line unfolded, the palette's first section: the
-// same first line, less the query, marked and reversed as the cell under
-// the cursor is, and under it the query formatted to the window by
-// jq.Format — a pipeline one stage per line, and anything else broken only
-// where it does not fit — because a jq program folded onto one line is a
-// readability nightmare (Luis, 2026-09-28). A program that does not parse
-// is cut at its top-level pipes instead, which is the best a scanner can do.
-func callLines(call *view.Call, lead, leadArg string, width int) []string {
-	head, query, dim := callParts(call, lead, leadArg)
-	inner := max(width-2, 10)
-	lines := []string{"› " + styleCell.Render(pad(strings.Join(head, "  "), inner))}
-
-	style := styleDim.Faint(false)
-	if dim {
-		style = styleDim
-	}
+// queryLines is a query formatted to a width by jq.Format — a pipeline one
+// stage per line, and anything else broken only where it does not fit —
+// because a jq program folded onto one line is a readability nightmare
+// (Luis, 2026-09-28). A program that does not parse is cut at its top-level
+// pipes instead, which is the best a scanner can do. A line that still does
+// not fit — one string, one long name — wraps, indented under itself.
+func queryLines(query string, width int) []string {
 	var body []string
-	if query == "" {
-		// show has no query: the call is the one line
-		return lines
-	}
-	if formatted, err := jq.Format(query, inner-2); err == nil {
+	if formatted, err := jq.Format(query, width-2); err == nil {
 		body = strings.Split(formatted, "\n")
 	} else {
 		body = pipeline(query)
 	}
+	var lines []string
 	for _, line := range body {
-		// a line that still does not fit — one string, one long name — wraps
-		for at, wrapped := range strings.Split(ansi.Hardwrap(line, inner-2, false), "\n") {
-			indent := "    "
-			if at == 0 {
-				indent = "  "
+		for at, wrapped := range strings.Split(ansi.Hardwrap(line, width-2, false), "\n") {
+			if at > 0 {
+				wrapped = "  " + wrapped
 			}
-			lines = append(lines, fit(indent+style.Render(wrapped), width))
+			lines = append(lines, wrapped)
 		}
 	}
 	return lines

@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"encoding/json"
 	"slices"
 	"strings"
 	"testing"
@@ -151,14 +152,18 @@ func TestEscOpensThePalette(t *testing.T) {
 	require.Greater(t, top, 3, "the box is not at the top")
 	require.Greater(t, strings.Index(lines[top], "╭"), 0, "the box is not at the left edge")
 	require.True(t, strings.HasPrefix(lines[0], "list"), "the page is still drawn above it")
-	// the call in full, its query unfolded as the pipeline it is
-	require.Contains(t, drawn, "› list  group_by=status")
-	require.Contains(t, drawn, "│   sort_by(.edit_time.lamport, .edit_time.timestamp)")
-	require.Contains(t, drawn, "│   | reverse")
-	for _, entry := range []string{"f filter", "w copy cell", "c copy id", "n new", "? help", "q quit"} {
+	// the call in full: the kind once, in the breadcrumb, then each
+	// argument a line, and the query a section of its own, unfolded as the
+	// pipeline it is (2026-10-30)
+	require.Equal(t, 1, strings.Count(drawn, "│ list "), "the kind is said once")
+	require.Contains(t, drawn, "│ group_by    status ", "each argument named in the left column")
+	require.Contains(t, drawn, "│ query       sort_by(.edit_time.lamport, .edit_time.timestamp)")
+	require.Contains(t, drawn, "│             | reverse")
+	for _, entry := range []string{"f filter", "w copy cell", "c copy id", "j edit query", "n new", "? help", "q quit"} {
 		require.Contains(t, drawn, entry)
 	}
 	require.NotContains(t, drawn, "z fold all", "nothing nests here")
+	require.NotContains(t, drawn, "J reset query", "the query is the call's")
 	require.Contains(t, lines[19], "esc: back")
 
 	// narrow, it still keeps its height, and the box fits the window
@@ -299,4 +304,80 @@ func TestAShowPagesCommands(t *testing.T) {
 	require.Contains(t, drawn, "show "+id[:7])
 	require.Contains(t, drawn, "c copy id")
 	require.NotContains(t, drawn, "f filter")
+}
+
+// TestThePaletteCutsALongQuery: a query longer than twelve lines shows its
+// first eleven and how many more there are (2026-10-30).
+func TestThePaletteCutsALongQuery(t *testing.T) {
+	repo := testRepo(t)
+	newIssue(t, repo, map[string]any{"title": "one"})
+
+	stages := make([]string, 0, 20)
+	for range 20 {
+		stages = append(stages, ".")
+	}
+	query, _ := json.Marshal(strings.Join(stages, " | "))
+	stack := stackOf(list(t, repo, `{"query":`+string(query)+`}`), 200, 60)
+	run(stack, "esc")
+	drawn := drawnStack(stack)
+	require.Equal(t, 11, strings.Count(drawn, "│ query       .")+strings.Count(drawn, "│             | ."))
+	require.Contains(t, drawn, "… 9 more lines")
+}
+
+// TestEditTheQuery: esc j opens the query in the palette, enter draws the
+// page from what was typed, a query that does not draw keeps the editor and
+// says why, and esc J puts back the call's own (A10).
+func TestEditTheQuery(t *testing.T) {
+	repo := testRepo(t)
+	newIssue(t, repo, map[string]any{"title": "one"})
+	newIssue(t, repo, map[string]any{"title": "two"})
+
+	stack := stackOf(list(t, repo, `{"query":"map(select(.fields.title == \"one\"))"}`), 120, 40)
+	require.Contains(t, plainView(stack.top()), "1 issue")
+	run(stack, "esc")
+	run(stack, "j")
+	require.NotNil(t, stack.query)
+	require.False(t, stack.palette)
+	require.Contains(t, drawnStack(stack), `map(select(.fields.title == "one"))`, "the query, ready to edit")
+	require.Contains(t, drawnStack(stack), "enter: draw")
+
+	// enter with nothing changed draws nothing new
+	run(stack, "enter")
+	require.Nil(t, stack.query)
+	require.Empty(t, stack.called)
+
+	// a query that does not parse: the editor stays, saying why
+	run(stack, "alt+j")
+	stack.query.box.area.SetValue("map(")
+	run(stack, "enter")
+	require.NotNil(t, stack.query)
+	require.NotEmpty(t, stack.query.failed)
+	require.Contains(t, plainView(stack.top()), "1 issue", "the page is as it was")
+
+	// cleared, it is the default: every issue
+	stack.query.box.area.SetValue("")
+	run(stack, "enter")
+	require.Nil(t, stack.query)
+	require.Contains(t, plainView(stack.top()), "2 issues")
+	call, _, _ := stack.top().Call()
+	require.Contains(t, command(call), "sort_by", "the copied command is the call drawn")
+
+	run(stack, "esc")
+	require.Contains(t, drawnStack(stack), "J reset query")
+	run(stack, "J")
+	require.Contains(t, plainView(stack.top()), "1 issue", "the call's own query again")
+	require.Empty(t, stack.called)
+	run(stack, "esc")
+	require.NotContains(t, drawnStack(stack), "J reset query")
+
+	// a show has no query, and no j
+	run(stack, "esc")
+	pushInto(t, stack, "enter")
+	require.IsType(t, &showPage{}, stack.top())
+	run(stack, "esc")
+	require.NotContains(t, drawnStack(stack), "j edit query")
+	run(stack, "up") // closes the palette, and only that
+	_, cmd := stack.Update(press("alt+j"))
+	require.Nil(t, stack.query)
+	require.NotNil(t, cmd)
 }
