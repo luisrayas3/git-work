@@ -459,6 +459,51 @@ bleve, kept behind the pristine `RepoIndex` (`0578918`),
 is the way to them, and to ranking or stemming,
 when a workflow asks.
 
+## A10 — The call on the palette, and its query edited (2026-10-30, Luis)
+
+The whole call on the palette (A1) was too much for the views real flows draw:
+the arguments on one reversed line that repeated the breadcrumb's last step,
+and a flow's query, formatted, taking the rest of the box.
+A show's call, which is short, read well, and still does.
+
+- **The kind is said once.**
+  The breadcrumb ends in the top page's kind and lead (`show 3a2279e`),
+  so the call under it starts with the arguments.
+- **One argument a line**, its name in the left column
+  where `query`, `this page` and `everywhere` are,
+  and its value in the column the query's starts in;
+  the column widens to the longest name the call draws (`include_archive`).
+  A default is dim, and a long value wraps rather than being cut,
+  since the palette is where a call is read in full.
+- **The query is a section of its own**, labeled `query`,
+  a blank line above it.
+  It is **at most twelve lines**:
+  past that the twelfth says how many more there are.
+  Where the window is shorter still, it gives up lines first, as before.
+- **`esc j` edits the query** on every kind that takes one
+  (list, board, gantt, matrix):
+  the query section becomes a text box in the palette, the query formatted in it.
+  `enter` draws the page again from its call with that query in place,
+  `alt+enter` is a newline, as in the comment box,
+  and `esc` leaves it as it was.
+  An empty query is the default.
+  A query that does not parse, or that the page refuses, keeps the box open
+  with the reason under it, so nothing typed is lost to a typo.
+- **`esc J` resets it** to the query the page was called with,
+  and is on the palette only once the query was edited:
+  `J` is `j`'s undo, as `Z` is `z`'s further step.
+  `j` is free in emacs's `alt` keys and reads as jq.
+- **The page is rebuilt from the call**, as the renderer built it,
+  in the same place in the stack:
+  the call is the page (`cli-convention.md`),
+  so a page with another query is another page,
+  and `ctrl+c` on the palette copies the call now drawn.
+  The cursor, folds and filter start over.
+  The call the page was opened with is the stack's to keep, by place,
+  so every kind with a query has the reset without knowing of it,
+  and a flow waiting on the page still gets its answer when it leaves.
+  Only the top-level `query` is edited; a layer's is still the call's.
+
 ## Order
 
 The palette and keymap first (A1–A4): every later decision is an entry on it.

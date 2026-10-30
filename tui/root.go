@@ -55,6 +55,12 @@ type root struct {
 	// search is the palette's search, open over the top page (finder.go,
 	// A5), or nil
 	search *searchPanel
+	// query is the palette's query editor, open over the top page
+	// (query_edit.go, A10), or nil
+	query *queryEditor
+	// called are the calls the pages were drawn from before their query
+	// was edited, by their place in the stack: what `J` puts back
+	called map[int]*view.Call
 
 	// answer is what the view returns once the program ends: the id a
 	// standalone `new` created, else nothing (doc/design/create.md, C4).
@@ -95,6 +101,9 @@ func (r *root) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// ctrl+c, which copies (doc/design/terminal-renderer.md).
 		if msg.String() == "ctrl+q" {
 			return r, tea.Quit
+		}
+		if r.query != nil {
+			return r.queryKey(msg)
 		}
 		if r.palette {
 			return r.paletteKey(msg)
@@ -139,6 +148,9 @@ func (r *root) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return r, nil
 
 	case tea.PasteMsg:
+		if r.query != nil {
+			return r, r.query.box.Update(msg)
+		}
 		if r.search != nil {
 			r.search.picker.setText(msg.Content)
 			return r, nil
@@ -164,6 +176,7 @@ func (r *root) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// program's answer (doc/design/create.md, C4).
 		if len(r.pages) <= 1 {
 			r.pages = []page{msg.shown}
+			r.called = nil
 			r.answer, _ = json.Marshal(msg.id)
 			_, cmd := r.top().Update(tea.WindowSizeMsg{Width: r.width, Height: r.height})
 			return r, tea.Batch(cmd, r.say("created "+human(msg.id)))
@@ -190,6 +203,7 @@ func (r *root) popTo(n int, answer json.RawMessage) {
 			delete(r.waiting, at)
 		}
 		answer = nil
+		delete(r.called, at)
 	}
 	r.pages = r.pages[:n]
 }
@@ -204,6 +218,8 @@ func (r *root) say(status string) tea.Cmd {
 func (r *root) View() tea.View {
 	content := r.top().View()
 	switch {
+	case r.query != nil:
+		content = r.withQueryEditor(content)
 	case r.palette:
 		content = r.withPalette(content)
 	case r.search != nil:

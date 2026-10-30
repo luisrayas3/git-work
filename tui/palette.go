@@ -2,6 +2,7 @@ package tui
 
 import (
 	"encoding/json"
+	"fmt"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
@@ -61,7 +62,21 @@ func everywhere() []paletteEntry {
 	}
 }
 
-// pageCommands is the palette's middle section: what this page answers.
+// pageCommands is the palette's middle section: what this page answers,
+// then edit the query (j) where the kind has one, and reset it (J) where it
+// was edited (A10, query_edit.go).
+func (r *root) pageCommands() []paletteEntry {
+	out := pageCommands(r.top())
+	if hasQuery(r.top()) {
+		out = append(out, entry(keys.editQuery, "edit query"))
+		if _, edited := r.called[len(r.pages)-1]; edited {
+			out = append(out, entry(keys.resetQuery, "reset query"))
+		}
+	}
+	return out
+}
+
+// pageCommands is what a page answers of its own.
 // A show page adds change what is expanded (e), link (l) and unlink (u)
 // (A6, A7; show_palette.go).
 func pageCommands(p page) []paletteEntry {
@@ -236,13 +251,13 @@ func breadcrumb(pages []page) string {
 }
 
 // section is one of the palette's command lines: its name, then its
-// commands, wrapped to the window.
-func section(name string, commands []paletteEntry, width int) []string {
+// commands from column col, wrapped to the window.
+func section(name string, commands []paletteEntry, col, width int) []string {
 	if len(commands) == 0 {
 		return nil
 	}
-	label := pad(name, 12)
-	indent := strings.Repeat(" ", 12)
+	label := pad(name, col)
+	indent := strings.Repeat(" ", col)
 	var lines []string
 	line := label
 	used := ansi.StringWidth(label)
@@ -264,25 +279,107 @@ func section(name string, commands []paletteEntry, width int) []string {
 	return append(lines, fit(line, width))
 }
 
-// paletteLines is the box's inside: where you are — the stack, and the top
-// page's whole call, its query formatted — then this page's commands and
-// everywhere's, all of it width wide. The call gives up its query's last
-// lines where room cannot hold all of it.
+// paletteLines is the box's inside: where you are — the stack, whose last
+// step is the top page's kind and lead, then the rest of its call, one
+// argument a line, and its query in a section of its own — then this page's
+// commands and everywhere's, all of it width wide (2026-10-30). Every name,
+// an argument's or a section's, is in the left column, and what it names
+// starts in the one column after it.
 func (r *root) paletteLines(width, room int) []string {
 	top := r.top()
-	call, lead, leadArg := top.Call()
-	where := callLines(call, lead, leadArg, width)
-	commands := append(section("this page", pageCommands(top), width),
-		section("everywhere", everywhere(), width)...)
+	col := r.labelWidth()
+	commands := append(section("this page", r.pageCommands(), col, width),
+		section("everywhere", everywhere(), col, width)...)
+	head := r.callHead(col, width)
+	query := paletteQuery(top, col, width)
 
-	fixed := 2 + len(commands) // the breadcrumb, and the blank over the commands
-	if spare := room - fixed; len(where) > spare {
-		where = where[:max(spare, 1)]
+	// the query gives up its last lines where room cannot hold all of it
+	fixed := len(head) + 1 + len(commands) // the blank over the commands
+	if len(query) > 0 {
+		fixed++ // the blank over the query
 	}
-	lines := []string{fit(breadcrumb(r.pages), width)}
-	lines = append(lines, where...)
+	if spare := room - fixed; len(query) > spare {
+		query = cutQuery(query, max(spare, 1), col, width)
+	}
+	lines := head
+	if len(query) > 0 {
+		lines = append(append(lines, ""), query...)
+	}
 	lines = append(lines, "")
 	return append(lines, commands...)
+}
+
+// callHead is the palette's first lines: the breadcrumb, then every argument
+// of the top page's call but its lead and its query, one a line, its name in
+// the left column and its value from col, as the query's is. The breadcrumb
+// ends in the kind and the lead, so they are not said again (2026-10-30). An
+// argument too long for the box wraps rather than being cut: here is where
+// it is read in full.
+func (r *root) callHead(col, width int) []string {
+	call, _, leadArg := r.top().Call()
+	args, _, _ := callParts(call, leadArg)
+	lines := []string{fit(breadcrumb(r.pages), width)}
+	for _, arg := range args {
+		label := arg.render(arg.name) + strings.Repeat(" ", col-ansi.StringWidth(arg.name))
+		for _, wrapped := range strings.Split(ansi.Hardwrap(arg.value, width-col, false), "\n") {
+			lines = append(lines, fit(label+arg.render(wrapped), width))
+			label = strings.Repeat(" ", col)
+		}
+	}
+	return lines
+}
+
+// labelWidth is the palette's left column, where every name is: wide enough
+// for the section names, and for the longest argument name the top page's
+// call draws, with two spaces after it.
+func (r *root) labelWidth() int {
+	call, _, leadArg := r.top().Call()
+	args, _, _ := callParts(call, leadArg)
+	width := len("everywhere  ")
+	for _, arg := range args {
+		width = max(width, ansi.StringWidth(arg.name)+2)
+	}
+	return width
+}
+
+// queryMaxLines is the most of a query the palette draws: enough for the
+// query a person typed, short of a flow's whole program, whose tail is
+// summed up as the lines left out (2026-10-30). The query editor holds all
+// of it.
+const queryMaxLines = 12
+
+// paletteQuery is the palette's query section: the top page's query
+// formatted, under the label query, dim where it is the default, at most
+// queryMaxLines long. A kind with no query has no section.
+func paletteQuery(p page, col, width int) []string {
+	call, _, leadArg := p.Call()
+	_, query, dim := callParts(call, leadArg)
+	if query == "" {
+		return nil
+	}
+	style := styleDim.Faint(false)
+	if dim {
+		style = styleDim
+	}
+	body := queryLines(call.String("query"), width-col)
+	lines := make([]string, 0, len(body))
+	label := pad("query", col)
+	for _, line := range body {
+		lines = append(lines, fit(label+style.Render(line), width))
+		label = strings.Repeat(" ", col)
+	}
+	return cutQuery(lines, queryMaxLines, col, width)
+}
+
+// cutQuery keeps a query section's first lines, n at most, the last of them
+// saying how many more there are.
+func cutQuery(lines []string, n, col, width int) []string {
+	if len(lines) <= n {
+		return lines
+	}
+	kept := append([]string{}, lines[:n-1]...)
+	more := fmt.Sprintf("… %d more lines", len(lines)-n+1)
+	return append(kept, fit(strings.Repeat(" ", col)+styleDim.Render(more), width))
 }
 
 // paletteWidth is the widest the box's inside is drawn: wide enough for a
@@ -407,6 +504,10 @@ func (r *root) restKey(press tea.KeyPressMsg) (tea.Cmd, bool) {
 		return r.goHome(), true
 	case keys.runFlow.matches(press):
 		return r.openFlowPicker(), true
+	case keys.editQuery.matches(press):
+		return r.openQueryEditor(), true
+	case keys.resetQuery.matches(press):
+		return r.resetQuery(), true
 	case keys.help.matches(press), keys.filter.matches(press):
 		return nil, false
 	}

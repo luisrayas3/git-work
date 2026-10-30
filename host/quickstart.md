@@ -319,6 +319,7 @@ typing (or `/`) filters a list, a board or a gantt, and `C-q` quits.
 and every command under a letter that is the same on every page
 (`w` copy cell, `c` copy id, `s` search, `n` new, `h` home, `r` run a flow, `q` quit;
 `esc x` is `alt+x`);
+`esc j` edits the page's query and draws it again, and `esc J` puts back the one it was called with;
 a second `Esc` goes back, and quits from the first page.
 `esc s` finds any issue as `git work issue search` does, and `Enter` opens it.
 A picker is typed into at once: typing narrows, `Enter` chooses,

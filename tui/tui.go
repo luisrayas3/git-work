@@ -133,24 +133,7 @@ func (r *Renderer) drive(ctx context.Context, repo *cache.RepoCache, stack *root
 
 // page builds the first screen of a call, or says which renderer is missing.
 func (r *Renderer) page(repo *cache.RepoCache, call *view.Call) (page, error) {
-	switch call.Kind {
-	case view.KindList:
-		return newListPage(repo, call)
-	case view.KindShow:
-		return newShowView(repo, call)
-	case view.KindBoard:
-		return newBoardPage(repo, call)
-	case view.KindGantt:
-		return newGanttPage(repo, call)
-	case view.KindMatrix:
-		return newMatrixPage(repo, call)
-	case view.KindNew:
-		return newNewPage(repo, call)
-	case view.KindHome:
-		return newHomePage(repo, call)
-	default:
-		return nil, fmt.Errorf("the terminal renderer does not draw a %s", call.Kind)
-	}
+	return pageFor(repo, call)
 }
 
 // openInput returns the terminal to read keys from.
