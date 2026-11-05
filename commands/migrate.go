@@ -35,7 +35,8 @@ The command refuses when refs/work-issues/* holds anything.
 git work pull does not carry git-bug's store (6274f33).
 With --from REMOTE, the command first fetches refs/issues/* and
 refs/identities/* from that remote and merges them into the local refs,
-then migrates as it would without it.
+then migrates as it would without it. REMOTE is a configured remote's name,
+as git work pull's is; for a URL, git remote add NAME URL first.
 The merge only creates or fast-forwards: a local history that diverged
 from the remote's is an error. --dry-run fetches and merges them too,
 since fetching is not migrating; it still writes nothing under
@@ -115,6 +116,11 @@ func runMigrate(env *execenv.Env, options migrateOptions) error {
 // fetchLegacy brings git-bug's store in from a remote (6274f33),
 // under the write lock, as it writes local refs.
 func fetchLegacy(env *execenv.Env, remote string) error {
+	// the fetched refs are named after the remote, as a pull's are
+	if err := env.Backend.CheckRemote(remote); err != nil {
+		return err
+	}
+
 	unlock, err := cache.LockWrite(env.Repo)
 	if err != nil {
 		return err

@@ -3,7 +3,6 @@ package gitcli
 import (
 	"fmt"
 	"slices"
-	"strings"
 )
 
 // FetchRefspecs is the tracker's lines in a remote's fetch configuration.
@@ -26,14 +25,6 @@ type FetchRefspecs interface {
 
 var _ FetchRefspecs = &repo{}
 
-// ErrRemoteNotConfigured is a remote name with no remote.<name> section,
-// such as a URL given where a remote's name could go.
-type ErrRemoteNotConfigured struct{ Remote string }
-
-func (e ErrRemoteNotConfigured) Error() string {
-	return fmt.Sprintf("remote %q is not configured", e.Remote)
-}
-
 // TrackerRefspec is the fetch refspec that maps one tracker namespace
 // to its remote-tracking refs.
 func TrackerRefspec(remote, namespace string) string {
@@ -41,20 +32,13 @@ func TrackerRefspec(remote, namespace string) string {
 }
 
 func (r *repo) MissingFetchRefspecs(remote string, namespaces ...string) ([]string, error) {
-	out, code, err := r.git.output("remote")
-	if err != nil {
+	if err := r.CheckRemote(remote); err != nil {
 		return nil, err
-	}
-	if code != 0 {
-		return nil, fmt.Errorf("git remote: exit status %d", code)
-	}
-	if !slices.Contains(strings.Fields(string(out)), remote) {
-		return nil, ErrRemoteNotConfigured{Remote: remote}
 	}
 
 	// remote.<name>.fetch is multi-valued and git uses the lines of every
 	// scope together, so all of them count.
-	out, code, err = r.git.output("config", "-z", "--get-all", "remote."+remote+".fetch")
+	out, code, err := r.git.output("config", "-z", "--get-all", "remote."+remote+".fetch")
 	if err != nil {
 		return nil, err
 	}

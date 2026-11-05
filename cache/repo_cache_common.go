@@ -126,9 +126,34 @@ func (c *RepoCache) InstallRefspecs(remote string) error {
 	return specs.AddFetchRefspecs(remote, c.syncedNamespaces()...)
 }
 
+// CheckRemote returns gitcli.ErrRemoteNotConfigured when remote is not the
+// name of a configured remote, such as a URL (gitcli.Remotes): the
+// remote-tracking refs a fetch writes and a merge reads are named after it.
+// Fetch and Push check it themselves; a command checks it first only to
+// refuse before it prints anything.
+//
+// Without the git CLI, go-git's list of remotes is what is read.
+func (c *RepoCache) CheckRemote(remote string) error {
+	if remotes, ok := c.repo.(gitcli.Remotes); ok {
+		return remotes.CheckRemote(remote)
+	}
+	remotes, err := c.repo.GetRemotes()
+	if err != nil {
+		return err
+	}
+	if _, ok := remotes[remote]; !ok {
+		return gitcli.ErrRemoteNotConfigured{Remote: remote}
+	}
+	return nil
+}
+
 // Fetch retrieves the synced namespaces from a remote,
 // leaving the local entities as they are.
+// A remote that is not configured is gitcli.ErrRemoteNotConfigured.
 func (c *RepoCache) Fetch(remote string) (string, error) {
+	if err := c.CheckRemote(remote); err != nil {
+		return "", err
+	}
 	prefixes := c.syncedNamespaces()
 
 	// fetch everything at once, to have a single auth step if required.
@@ -187,7 +212,11 @@ func (c *RepoCache) MergeAll(remote string) <-chan entity.MergeResult {
 }
 
 // Push publishes the synced namespaces to a remote.
+// A remote that is not configured is gitcli.ErrRemoteNotConfigured.
 func (c *RepoCache) Push(remote string) (string, error) {
+	if err := c.CheckRemote(remote); err != nil {
+		return "", err
+	}
 	prefixes := c.syncedNamespaces()
 
 	// push everything at once, to have a single auth step if required

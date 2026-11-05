@@ -73,8 +73,13 @@ func TestFetchRefspecsUnconfiguredRemote(t *testing.T) {
 	rawA, _, remote, a, _ := setupRemote(t)
 	specs := a.(FetchRefspecs)
 
+	require.NoError(t, a.(Remotes).CheckRemote("origin"))
 	for _, name := range []string{"nosuchremote", remote.GetLocalRemote()} {
-		_, err := specs.MissingFetchRefspecs(name, trackerNamespaces...)
+		err := a.(Remotes).CheckRemote(name)
+		require.ErrorAs(t, err, &ErrRemoteNotConfigured{})
+		require.ErrorContains(t, err, "git remote add NAME URL")
+
+		_, err = specs.MissingFetchRefspecs(name, trackerNamespaces...)
 		require.ErrorAs(t, err, &ErrRemoteNotConfigured{})
 
 		err = specs.AddFetchRefspecs(name, trackerNamespaces...)

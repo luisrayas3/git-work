@@ -46,8 +46,9 @@ func runInstall(env *execenv.Env, args []string) error {
 	return env.Backend.InstallRefspecs(remote)
 }
 
-// remoteArg is the remote install acts on, resolved as pull and push resolve
-// theirs: the argument, else the git-work.remote config, else origin.
+// remoteArg is the remote install, pull and push act on: the argument, else
+// the git-work.remote config, else origin. Whether it is configured is
+// checked by the cache (cache.RepoCache.CheckRemote).
 func remoteArg(env *execenv.Env, args []string) (string, error) {
 	if len(args) == 1 {
 		return args[0], nil
@@ -56,10 +57,11 @@ func remoteArg(env *execenv.Env, args []string) (string, error) {
 }
 
 // hintRefspecs tells, on stderr, that remote's fetch configuration lacks the
-// tracker's refspecs, and how to add them. It never edits the config, and says
-// nothing for a remote that is not a configured name, such as a URL
-// (gitcli.ErrRemoteNotConfigured). A hint is advisory, so a failure to read
-// the config is no reason to stop a pull: it says nothing then too.
+// tracker's refspecs, and how to add them. It never edits the config. Pull
+// refuses a remote that is not a configured name before it gets here; should
+// one reach it, it says nothing, since the pull is about to fail with
+// gitcli.ErrRemoteNotConfigured. A hint is advisory, so a failure to read the
+// config is no reason to stop a pull: it says nothing then too.
 func hintRefspecs(env *execenv.Env, remote string) {
 	missing, err := env.Backend.MissingRefspecs(remote)
 	if err != nil || len(missing) == 0 {

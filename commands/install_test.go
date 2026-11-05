@@ -113,8 +113,8 @@ func TestPullNoHintForURL(t *testing.T) {
 	url, err := env.Repo.AnyConfig().ReadString("remote.origin.url")
 	require.NoError(t, err)
 
-	// The hint alone: a pull from a URL fails later, at the fetch, since the
-	// remote-tracking refs it would write are named after the remote.
+	// The hint alone: a pull from a URL is refused before the hint
+	// (TestRemoteNotConfigured), and the hint stays silent should one reach it.
 	hintRefspecs(env, url)
 	require.Empty(t, env.Err.String())
 }

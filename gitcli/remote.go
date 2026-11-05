@@ -3,9 +3,50 @@ package gitcli
 import (
 	"fmt"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 )
+
+// Remotes checks a REMOTE argument before anything is fetched or pushed.
+//
+// The tracker's remote-tracking refs, refs/remotes/<remote>/<ns>/*, and the
+// merge that reads them are keyed by the remote's name, so a URL given in its
+// place lands inside a ref name: git rejects the fetch refspec, and a push
+// cannot record what it pushed (45f7009). Every command that takes a REMOTE
+// refuses anything but a configured remote's name.
+type Remotes interface {
+	// CheckRemote returns ErrRemoteNotConfigured when remote is not the name
+	// of a configured remote.
+	CheckRemote(remote string) error
+}
+
+var _ Remotes = &repo{}
+
+// ErrRemoteNotConfigured is a remote name with no remote.<name> section,
+// such as a URL given where a remote's name could go.
+type ErrRemoteNotConfigured struct{ Remote string }
+
+func (e ErrRemoteNotConfigured) Error() string {
+	return fmt.Sprintf("%q is not a configured remote: git work takes a remote's name, "+
+		"not a URL; add one with git remote add NAME URL", e.Remote)
+}
+
+// CheckRemote looks remote up among `git remote`'s names,
+// which come from every config scope.
+func (r *repo) CheckRemote(remote string) error {
+	out, code, err := r.git.output("remote")
+	if err != nil {
+		return err
+	}
+	if code != 0 {
+		return fmt.Errorf("git remote: exit status %d", code)
+	}
+	if !slices.Contains(strings.Fields(string(out)), remote) {
+		return ErrRemoteNotConfigured{Remote: remote}
+	}
+	return nil
+}
 
 // upToDate is what FetchRefs and PushRefs report when git transferred nothing.
 // repository.GoGitRepo returns this string for gogit.NoErrAlreadyUpToDate

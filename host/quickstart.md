@@ -332,6 +332,9 @@ the first `Esc` clears the text and the second cancels.
   (`work-issues`, `work-flows`, `work-schema`, `work-users`),
   and `git work sync` does both in one run.
   Pushing publishes the tracker, so do it only when asked to.
+- Every `REMOTE` they take is a configured remote's name, never a URL:
+  the remote-tracking refs are named after it.
+  `git remote add NAME URL` gives a URL a name.
 - None of them carries git-bug's frozen store (`refs/issues/*`, `refs/identities/*`).
   To import a git-bug repository,
   `git work migrate --from REMOTE` fetches that store from the remote

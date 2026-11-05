@@ -8,13 +8,19 @@ import (
 	"github.com/git-bug/git-bug/commands/completion"
 	"github.com/git-bug/git-bug/commands/execenv"
 	"github.com/git-bug/git-bug/entity"
-	"github.com/git-bug/git-bug/repository"
 )
 
 func newPullCommand(env *execenv.Env) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:     "pull [REMOTE]",
-		Short:   "Pull updates from a git remote",
+		Use:   "pull [REMOTE]",
+		Short: "Pull updates from a git remote",
+		Long: `Fetch the tracker's work-* namespaces from a remote into
+refs/remotes/<REMOTE>/work-*, then merge them into the local tracker.
+
+The remote is the argument, else the git-work.remote config, else origin. It
+must be a configured remote's name: the remote-tracking refs are named after
+it, so a URL is refused before anything is fetched. git remote add NAME URL
+gives a URL a name.`,
 		PreRunE: execenv.LoadBackend(env),
 		RunE: execenv.CloseBackend(env, func(cmd *cobra.Command, args []string) error {
 			return runPull(env, args)
@@ -26,18 +32,17 @@ func newPullCommand(env *execenv.Env) *cobra.Command {
 }
 
 func runPull(env *execenv.Env, args []string) error {
-	var remote string
-	switch {
-	case len(args) > 1:
+	if len(args) > 1 {
 		return errors.New("Only pulling from one remote at a time is supported")
-	case len(args) == 1:
-		remote = args[0]
-	default:
-		v, err := repository.GetDefaultString("git-work.remote", env.Repo.AnyConfig(), "origin")
-		if err != nil {
-			return err
-		}
-		remote = v
+	}
+	remote, err := remoteArg(env, args)
+	if err != nil {
+		return err
+	}
+	// refused here, before the hint and the progress lines, though Fetch
+	// would refuse it too
+	if err := env.Backend.CheckRemote(remote); err != nil {
+		return err
 	}
 
 	hintRefspecs(env, remote)
