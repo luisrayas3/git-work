@@ -99,12 +99,11 @@ so a `git fetch --prune`,
 by hand, from an editor or from a sync tool,
 drops their remote-tracking copies,
 and the next `git work pull` fetches the whole tracker again.
-Add one fetch refspec per namespace, once:
+Run this once per clone,
+to add one fetch refspec per namespace to the remote's config:
 
 ```sh
-for ns in work-issues work-flows work-schema work-users; do
-  git config --add remote.origin.fetch "+refs/$ns/*:refs/remotes/origin/$ns/*"
-done
+git work install
 ```
 
 Plain `git fetch` then carries the tracker along,

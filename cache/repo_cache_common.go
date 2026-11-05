@@ -104,6 +104,28 @@ func (c *RepoCache) syncedNamespaces() []string {
 	return prefixes
 }
 
+// MissingRefspecs returns the tracker's fetch refspecs, one per synced
+// namespace, that remote.<remote>.fetch lacks (gitcli.FetchRefspecs).
+// A remote that is not configured is gitcli.ErrRemoteNotConfigured.
+func (c *RepoCache) MissingRefspecs(remote string) ([]string, error) {
+	specs, ok := c.repo.(gitcli.FetchRefspecs)
+	if !ok {
+		return nil, errors.New("a remote's fetch refspecs need the git CLI on PATH")
+	}
+	return specs.MissingFetchRefspecs(remote, c.syncedNamespaces()...)
+}
+
+// InstallRefspecs adds the tracker's missing fetch refspecs to
+// remote.<remote>.fetch, so that pruning the remote keeps the tracker's
+// remote-tracking refs (gitcli.FetchRefspecs). Other lines stay as they are.
+func (c *RepoCache) InstallRefspecs(remote string) error {
+	specs, ok := c.repo.(gitcli.FetchRefspecs)
+	if !ok {
+		return errors.New("a remote's fetch refspecs need the git CLI on PATH")
+	}
+	return specs.AddFetchRefspecs(remote, c.syncedNamespaces()...)
+}
+
 // Fetch retrieves the synced namespaces from a remote,
 // leaving the local entities as they are.
 func (c *RepoCache) Fetch(remote string) (string, error) {

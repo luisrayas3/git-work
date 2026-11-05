@@ -40,6 +40,8 @@ func runPull(env *execenv.Env, args []string) error {
 		remote = v
 	}
 
+	hintRefspecs(env, remote)
+
 	env.Out.Println("Fetching remote ...")
 
 	stdout, err := env.Backend.Fetch(remote)

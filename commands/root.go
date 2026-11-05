@@ -77,6 +77,7 @@ In a terminal, bare ` + "`git work`" + ` runs the flow named home, as
 	addCmdWithGroup(newSyncCommand(env), remoteGroup)
 	addCmdWithGroup(newPullCommand(env), remoteGroup)
 	addCmdWithGroup(newPushCommand(env), remoteGroup)
+	addCmdWithGroup(newInstallCommand(env), remoteGroup)
 	addCmdWithGroup(jiracmd.NewJiraCommand(env), remoteGroup)
 	addCmdWithGroup(bridgecmd.NewBridgeCommand(env), remoteGroup)
 

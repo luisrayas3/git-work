@@ -254,9 +254,10 @@ It is named for the stream and not for an action,
 because `work.log` beside `work.issue.log` and `work.flow.log`
 would read as a history.
 
-The other exception to the one-to-one rule:
+The other exceptions to the one-to-one rule:
 `git work user new` and `git work user adopt` are interactive identity setup,
-a thing a human does once to a checkout, and are not bound in Starlark.
+and `git work install` adds the tracker's fetch refspecs to a remote's config (e66709b);
+each is a thing a human does once to a checkout, and none is bound in Starlark.
 
 ## Gone
 

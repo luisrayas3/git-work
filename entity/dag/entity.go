@@ -77,7 +77,7 @@ func readRemote[EntityT entity.Interface](def Definition, wrapper func(e *Entity
 		return *new(EntityT), errors.Wrap(err, "invalid id")
 	}
 
-	ref := fmt.Sprintf("refs/remotes/%s/%s/%s", def.Namespace, remote, id.String())
+	ref := fmt.Sprintf("refs/remotes/%s/%s/%s", remote, def.Namespace, id.String())
 
 	return read[EntityT](def, wrapper, repo, resolvers, ref)
 }

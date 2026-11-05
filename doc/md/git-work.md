@@ -30,6 +30,7 @@ git-work [flags]
 * [git-work bridge](git-work_bridge.md)	 - List bridges to other bug trackers
 * [git-work bug](git-work_bug.md)	 - List issues (old format)
 * [git-work flow](git-work_flow.md)	 - List the flows, one line each
+* [git-work install](git-work_install.md)	 - Add the tracker's fetch refspecs to a remote's configuration
 * [git-work issue](git-work_issue.md)	 - List issues, one line each
 * [git-work jira](git-work_jira.md)	 - Sync with a Jira Cloud project
 * [git-work label](git-work_label.md)	 - List valid labels
