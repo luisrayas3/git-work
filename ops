@@ -1,1 +1,1 @@
-{"author":{"id":"7674679dac9170669f752d932f8b5955b1d55717359e13b1c1e687003c7bb99f"},"ops":[{"type":9,"timestamp":1793917842,"nonce":"EJwe7qjtevLnGnbST3PQEU3J75E=","key":"status","value":"in-progress"},{"type":9,"timestamp":1793917842,"nonce":"le87xU58OqtzSzgMQznSejP6jGA=","key":"title","value":"git work install adds the tracker's fetch refspecs; pull hints when they are missing"}]}
+{"author":{"id":"7674679dac9170669f752d932f8b5955b1d55717359e13b1c1e687003c7bb99f"},"ops":[{"type":9,"timestamp":1793918391,"nonce":"3dtfxa0LxIgOME/JJLWBdM9XKYI=","key":"status","value":"done"}]}
