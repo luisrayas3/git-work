@@ -89,6 +89,12 @@ type showPage struct {
 	row int
 	// tab is the tab drawn under the box.
 	tab tab
+	// comment is the comment under the cursor on the comments tab, 0 the
+	// newest, as they are drawn; reveal says it just moved, so the next
+	// frame scrolls its heading onto the screen and no later one holds it
+	// there, so that a long comment still pages (comment-delete.md CD9).
+	comment int
+	reveal  bool
 	// warned says leaving has already said a draft would be lost; a second
 	// try leaves anyway.
 	warned bool
@@ -551,6 +557,8 @@ func (p *showPage) key(press tea.KeyPressMsg) (page, tea.Cmd) {
 		return p, p.startUnlink()
 	case keys.expand.matches(press):
 		return p, p.startExpand("")
+	case keys.deleteComment.matches(press):
+		return p, p.deleteComment()
 
 	case keys.help.matches(press):
 		p.help = &help{}
@@ -588,6 +596,12 @@ func (p *showPage) down(here position) tea.Cmd {
 	case stopBox:
 		return bell()
 	case stopTabs:
+		// on the comments tab down is the next comment, and past the last
+		// one it scrolls, as on the other tabs
+		if p.tab == tabComments && p.commentAt() < p.comments()-1 {
+			p.comment, p.reveal = p.commentAt()+1, true
+			return nil
+		}
 		p.offset++
 	}
 	return nil
@@ -611,6 +625,10 @@ func (p *showPage) up(here position) tea.Cmd {
 		// the row drawn above the box is not where the person came from
 		return bell()
 	case stopTabs:
+		if p.tab == tabComments && p.commentAt() > 0 {
+			p.comment, p.reveal = p.commentAt()-1, true
+			return nil
+		}
 		if p.offset > p.tabBarLine() {
 			p.offset--
 			return nil
@@ -1041,6 +1059,7 @@ func (p *showPage) View() string {
 	if p.offset > len(body)-room {
 		p.offset = max(0, len(body)-room)
 	}
+	p.reveal = false
 
 	lines := make([]string, 0, p.height)
 	lines = append(lines, top...)
@@ -1130,7 +1149,12 @@ func (p *showPage) body(here position) (lines []string, from, to int) {
 	lines = append(lines, tabStrip(p.tab, here.stop == stopTabs, p.width)...)
 	switch p.tab {
 	case tabComments:
-		lines = append(lines, p.commentLines()...)
+		start := len(lines)
+		said, heads := p.commentLines(here.stop == stopTabs)
+		lines = append(lines, said...)
+		if p.reveal && here.stop == stopTabs && len(heads) > 0 {
+			from, to = start+heads[p.commentAt()], start+heads[p.commentAt()]
+		}
 	case tabDescription:
 		lines = append(lines, p.descriptionLines()...)
 	case tabLog:
@@ -1294,21 +1318,68 @@ func tabStrip(active tab, focused bool, width int) []string {
 // Newest is last in the timeline, which is the operations' causal order, not
 // the comments' wall-clock times: those are for display only, never for
 // ordering (entities/issue).
-func (p *showPage) commentLines() []string {
-	if len(p.snapshot.Comments) <= 1 {
-		return []string{styleDim.Render(" (no comments)")}
+//
+// With the cursor on the tabs, the comment under it has the row marker on
+// its heading; heads is the line of each heading, in the order drawn.
+func (p *showPage) commentLines(focused bool) (lines []string, heads []int) {
+	if p.comments() == 0 {
+		return []string{styleDim.Render(" (no comments)")}, nil
 	}
-	var lines []string
 	said := p.snapshot.Comments[1:]
 	for at := len(said) - 1; at >= 0; at-- {
 		comment := said[at]
 		if at < len(said)-1 {
 			lines = append(lines, "")
 		}
-		lines = append(lines, styleHeader.Render(fit(fmt.Sprintf(" %s  %s", comment.Author.DisplayName(), comment.FormatTimeRel()), p.width)))
+		marker := " "
+		if focused && len(heads) == p.commentAt() {
+			marker = "›"
+		}
+		heads = append(heads, len(lines))
+		lines = append(lines, styleHeader.Render(fit(fmt.Sprintf("%s%s  %s", marker, comment.Author.DisplayName(), comment.FormatTimeRel()), p.width)))
 		lines = append(lines, prose(comment.Message, p.width)...)
 	}
-	return lines
+	return lines, heads
+}
+
+// comments is how many comments the comments tab draws: all but the first,
+// which is the description.
+func (p *showPage) comments() int {
+	return max(len(p.snapshot.Comments)-1, 0)
+}
+
+// commentAt is the comment under the cursor, kept within the comments there
+// are, which a delete or a pull may have made fewer.
+func (p *showPage) commentAt() int {
+	return min(max(p.comment, 0), max(p.comments()-1, 0))
+}
+
+// onComment says the cursor is on a comment: the comments tab, focused,
+// with something on it.
+func (p *showPage) onComment() bool {
+	return p.tab == tabComments && p.current().stop == stopTabs && p.comments() > 0
+}
+
+// deleteComment is `esc d`: the comment under the cursor is deleted, at
+// once, with no question first (comment-delete.md CD9), and the page reads
+// the store again. Its text stays in the issue's log.
+func (p *showPage) deleteComment() tea.Cmd {
+	if !p.onComment() {
+		p.status = "no comment under the cursor"
+		return bell()
+	}
+	said := p.snapshot.Comments[1:]
+	target := said[len(said)-1-p.commentAt()]
+	if err := host.IssueCommentDelete(p.repo, target.CombinedId().String()); err != nil {
+		p.status = err.Error()
+		return bell()
+	}
+	p.status = "deleted comment"
+	if err := p.load(); err != nil {
+		p.status = err.Error()
+	}
+	p.comment = p.commentAt()
+	return nil
 }
 
 // descriptionLines is the issue's body, the first comment, which it always
@@ -1385,6 +1456,9 @@ func (p *showPage) hintLine() string {
 		if p.tab == tabDescription {
 			return hints(hint{"space", "edit"}, hint{"←→", "tab"})
 		}
+		if p.onComment() {
+			return hints(hint{"esc d", "delete"}, hint{"←→", "tab"})
+		}
 		return hints(hint{"←→", "tab"})
 	case stopHeader:
 		typeKey, _ := issue.String(p.snapshot.Fields[schema.TypeKey])
@@ -1438,6 +1512,8 @@ func opSummary(entry cmdjson.IssueOperation) string {
 		return "commented: " + truncate(strings.SplitN(op.Message, "\n", 2)[0], 60)
 	case "edit-comment":
 		return "edited comment"
+	case "delete-comment":
+		return "deleted comment"
 	case "set-field":
 		if value := plain(op.Value); value != "" {
 			return fmt.Sprintf("set %s to %s", op.Key, value)

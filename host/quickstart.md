@@ -288,6 +288,10 @@ and an `optional` one is off until it is named.
   `esc l` is that picker from anywhere on the page,
   and `esc u` picks one of the issue's links to remove.
   A spec's `fields` naming a link field draws it as a row, and naming `links` places the row.
+- On show's comments tab, with the cursor on the tabs,
+  `↑` and `↓` walk the comments, newest first,
+  and `esc d` deletes the one under the cursor as `git work issue comment delete` does:
+  at once, with no question, its text kept in the log tab.
 - On a list and a gantt a row the query makes may carry a top-level `key`,
   its identity on the screen, so one issue can be drawn twice;
   its `id` stays the issue it acts on, and may be left out beside a key,

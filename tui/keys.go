@@ -125,6 +125,7 @@ type keymap struct {
 	foldAll               *chord
 	openEverything        *chord
 	expand, link, unlink  *chord
+	deleteComment         *chord
 	editQuery, resetQuery *chord
 	nextTab, previousTab  *chord
 	newIssue, search      *chord
@@ -200,6 +201,10 @@ var keys = keymap{
 	expand: newChord("show: change what is expanded").on("e"),
 	link:   newChord("show: link to an issue").on("l"),
 	unlink: newChord("show: unlink an issue").on("u"),
+	// Delete is final and replicated, so it is a chord, never one stray
+	// key, and asks nothing first: there is no confirmation yet
+	// (comment-delete.md CD9).
+	deleteComment: newChord("show: delete the comment under the cursor (comments tab)").on("d"),
 	// The query is edited in the palette and the page drawn again from it;
 	// the shifted letter undoes it, as Z is z's further step (A10,
 	// query_edit.go).
@@ -236,7 +241,7 @@ func helpRows() []*chord {
 		keys.next, keys.previous,
 		keys.act, keys.edit, keys.grab, keys.newline,
 		keys.copy, keys.copyId, keys.paste,
-		keys.filter, keys.foldAll, keys.openEverything, keys.expand, keys.link, keys.unlink, keys.editQuery, keys.resetQuery, keys.nextTab, keys.previousTab,
+		keys.filter, keys.foldAll, keys.openEverything, keys.expand, keys.link, keys.unlink, keys.deleteComment, keys.editQuery, keys.resetQuery, keys.nextTab, keys.previousTab,
 		keys.search, keys.newIssue, keys.home, keys.runFlow, keys.closePalette, keys.back, keys.help, keys.quit,
 	}
 }

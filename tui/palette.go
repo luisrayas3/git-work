@@ -106,6 +106,9 @@ func pageCommands(p page) []paletteEntry {
 		return []paletteEntry{filter, copyCell, entry(keys.copyId, "copy command")}
 	case *showPage:
 		own := []paletteEntry{entry(keys.expand, "expand"), entry(keys.link, "link"), entry(keys.unlink, "unlink")}
+		if p.onComment() {
+			own = append(own, entry(keys.deleteComment, "delete comment"))
+		}
 		if p.current().stop == stopSide {
 			return append([]paletteEntry{filter, copyCell, copyId}, own...)
 		}
