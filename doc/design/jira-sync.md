@@ -755,6 +755,10 @@ operation against the type the operation list sets, not the snapshot's old
 one. A local type change on a linked issue is pending: "change the type in
 Jira".
 
+Superseded in part on 2026-11-07 by `type-change.md`: a local type change
+is refused unless the type's `retype_targets` lists the new type, and an
+allowed one is exported.
+
 ### JS19 — Deletes and moves: `Gone`, found only under `--full`
 
 Polling by `updated` never sees an issue vanish. Under `--full` the search
