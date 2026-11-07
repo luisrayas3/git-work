@@ -144,3 +144,27 @@ func TestCheckerRetype(t *testing.T) {
 
 	require.NoError(t, c.CheckNew(fields("type", `"epic"`, "title", `"t"`)))
 }
+
+// TestCheckRetypeSystems: a target must sync to every system the type
+// syncs to; an unaliased type, or one aliased "" only, is unconstrained
+// (type-change.md, TC6).
+func TestCheckRetypeSystems(t *testing.T) {
+	s, err := Compile([]Entry{
+		entry("1", config.ShapeType, "story", map[string]interface{}{AliasName("jira"): "1", AliasName("linear"): "a",
+			AttrRetypeTargets: []string{"task", "bug", "spike"}}),
+		entry("2", config.ShapeType, "task", map[string]interface{}{AliasName("jira"): "2", AliasName("linear"): "b"}),
+		entry("3", config.ShapeType, "bug", map[string]interface{}{AliasName("jira"): "3"}),
+		entry("4", config.ShapeType, "spike", map[string]interface{}{AliasName("jira"): ""}),
+		entry("5", config.ShapeType, "note", map[string]interface{}{AttrRetypeTargets: []string{"spike", "story"}}),
+		entry("6", config.ShapeType, "chore", map[string]interface{}{AliasName("jira"): "", AttrRetypeTargets: []string{"note"}}),
+	})
+	require.NoError(t, err)
+	err = s.CheckRetypeSystems()
+	var p *Problems
+	require.ErrorAs(t, err, &p)
+	require.Equal(t, []string{
+		"type story: retype target bug does not sync to linear, as story does",
+		"type story: retype target spike does not sync to jira, as story does",
+		"type story: retype target spike does not sync to linear, as story does",
+	}, p.List)
+}

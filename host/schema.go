@@ -134,7 +134,16 @@ func SchemaImport(repo *cache.RepoCache, doc *schema.Document, prune bool, dryRu
 	if err != nil {
 		return nil, nil, err
 	}
-	if err := checkTypeShows(doc, current, changes); err != nil {
+	after, err := schema.Compile(schema.Apply(current, changes))
+	if err != nil {
+		return nil, nil, err
+	}
+	if err := checkTypeShows(doc, after); err != nil {
+		return nil, nil, err
+	}
+	// a synced type's retype targets sync too, checked on what the import
+	// leaves, so a partial file meets the types in the store (type-change.md, TC6)
+	if err := after.CheckRetypeSystems(); err != nil {
 		return nil, nil, err
 	}
 
@@ -150,8 +159,7 @@ func SchemaImport(repo *cache.RepoCache, doc *schema.Document, prune bool, dryRu
 // `shows` entry is checked, against the schema the import would leave, so
 // that a spec naming a field the same file adds is fine and one naming a
 // field nobody has is refused before anything is written (app.md A7).
-func checkTypeShows(doc *schema.Document, current []schema.Entry, changes []schema.Change) error {
-	var after *schema.Schema
+func checkTypeShows(doc *schema.Document, after *schema.Schema) error {
 	problems := &schema.Problems{}
 	add := func(format string, args ...any) {
 		problems.List = append(problems.List, fmt.Sprintf(format, args...))
@@ -160,13 +168,6 @@ func checkTypeShows(doc *schema.Document, current []schema.Entry, changes []sche
 		t, _ := doc.Types.Get(typeKey)
 		if t.Show == nil {
 			continue
-		}
-		if after == nil {
-			compiled, err := schema.Compile(schema.Apply(current, changes))
-			if err != nil {
-				return err
-			}
-			after = compiled
 		}
 		raw, err := json.Marshal(t.Show)
 		if err != nil {

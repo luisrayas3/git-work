@@ -157,6 +157,42 @@ func (t *Type) MayBecome(typeKey string) (bool, []string) {
 	return false, *t.RetypeTargets
 }
 
+// CheckRetypeSystems refuses a type that syncs to a system listing a retype
+// target that does not (type-change.md, TC6): a type with a non-empty alias
+// for a system may become only types with a non-empty alias for that same
+// system, or an issue linked there could be retyped out of the sync. A type
+// with no aliases is unconstrained, and nothing here knows what a system is.
+// An import checks the schema it would leave, so that a partial file is
+// checked against the types already in the store.
+func (s *Schema) CheckRetypeSystems() error {
+	problems := &Problems{}
+	for _, key := range s.TypeKeys() {
+		t := s.Types[key]
+		if t.RetypeTargets == nil {
+			continue
+		}
+		systems := make([]string, 0, len(t.Aliases))
+		for system, alias := range t.Aliases {
+			if alias != "" {
+				systems = append(systems, system)
+			}
+		}
+		sort.Strings(systems)
+		for _, target := range *t.RetypeTargets {
+			other, ok := s.Types[target]
+			if !ok {
+				continue // a dangling target is reported on compile (D4)
+			}
+			for _, system := range systems {
+				if other.Aliases[system] == "" {
+					problems.add("type %s: retype target %s does not sync to %s, as %s does", key, target, system, key)
+				}
+			}
+		}
+	}
+	return problems.err()
+}
+
 // Field returns one field of the type by key.
 func (t *Type) Field(key string) (*Field, bool) {
 	f, ok := t.Fields[key]
