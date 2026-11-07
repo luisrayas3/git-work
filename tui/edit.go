@@ -44,7 +44,8 @@ type editor struct {
 }
 
 // picker is a list of choices: an enum's values, the repository's people, or
-// the issues a relation may name (doc/design/app.md, A5).
+// the issues a relation may name (doc/design/tui.md, "Pickers are typed
+// into").
 //
 // It opens with its input focused: typing narrows at once, the arrows move,
 // enter chooses, the first esc clears the text and the second cancels. A
@@ -126,8 +127,9 @@ func editable(repo *cache.RepoCache, issueId, typeKey, fieldKey string, current 
 
 	case schema.KindMultiRelation:
 		// changing the set is add and remove, two host calls, so two
-		// commits, which one edit must not be (doc/design/terminal-renderer.md,
-		// 2026-09-29); enter on a line still goes to its issue
+		// commits, which one edit must not be (doc/design/tui.md, "Edit picks
+		// its widget from the schema"); enter on a line still goes to its
+		// issue
 		return nil, fmt.Sprintf("%s: use git work issue add/remove", fieldKey), nil
 
 	case schema.KindText, schema.KindNumber, schema.KindDate:
@@ -208,7 +210,8 @@ func identityChoices(repo *cache.RepoCache) ([]choice, error) {
 		}
 		// the label is the name a cell draws the value as, so the picker
 		// opens on the one the cell showed
-		// matched on name, login and email (doc/design/app.md, A5)
+		// matched on name, login and email (doc/design/tui.md, "Pickers are
+		// typed into")
 		out = append(out, choice{label: host.UserName(repo, id.String()), dim: identity.Email(), also: identity.Login(), value: id.String()})
 	}
 	out = append(out, choice{label: "(nobody)", dim: "clear", value: ""})
@@ -220,7 +223,7 @@ func identityChoices(repo *cache.RepoCache) ([]choice, error) {
 // and then (none), which clears it. The current value is listed even where
 // the narrowing would leave it out — archived, or of a type no longer a
 // target — since the picker opens on what the cell showed, whatever it is
-// (doc/design/include-archive.md, I5).
+// (doc/design/query.md, "Layers and pickers follow the input").
 func relationFinder(repo *cache.RepoCache, issueId, typeKey, fieldKey, current string) (*picker, error) {
 	s, err := repo.LoadSchema()
 	if err != nil {

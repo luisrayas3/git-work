@@ -7,19 +7,21 @@ import (
 
 // `empty_groups` on the board adds the swimlanes no card falls in, so that a
 // lane is somewhere to put work and not only a heading over work that exists
-// (doc/design/empty-groups.md). Which values, by the field's kind (E2):
+// (doc/design/views.md, "Empty swimlanes"). Which values, by the field's
+// kind:
 //
 //   - an enum: every value the schema lists, over the types on the board as
 //     the columns read them;
 //   - a bool: false and true;
-//   - a relation: the siblings of the lanes the cards are in (E3);
+//   - a relation: the siblings of the lanes the cards are in
+//     (doc/design/views.md, "A relation's empty lanes are siblings");
 //   - anything else, and `type`: none, there being no set of values to draw
 //     or, for the type, no value a drop writes.
 //
 // (none) is not one of them: it stays a lane only while a card has no value.
 // Each lane carries its stored value, so a drop into it and its ghosts write
-// that (E5); where it goes among the others is the order every group takes
-// (group.go, E4).
+// that; where it goes among the others is the order every group takes
+// (group.go; doc/design/views.md, "Group order").
 
 // emptyLanes is every lane the field could hold here, as values; arrange
 // draws the ones no card is in. Nothing when empty_groups is off.
@@ -106,15 +108,16 @@ func (p *boardPage) laneField(onBoard map[string]bool) (typeKey string, targets 
 	return typeKey, targets
 }
 
-// siblings is a relation's empty lanes (E3): the query cannot be read for its
-// scope, so the scope is read from the lanes it produced. The lanes the cards
-// are in are issues; their own `group_by` values, read from the store, are
-// the anchors; and the empty lanes are the other issues whose `group_by`
-// value is an anchor, of a type the field may point at, unarchived unless
-// the board's include_archive says otherwise. A lane issue with no value
-// anchors on "no value", whose siblings are the target issues with none
-// either. It reaches one level and no further, and names no field but the
-// one the board was given.
+// siblings is a relation's empty lanes (doc/design/views.md, "A relation's
+// empty lanes are siblings"): the query cannot be read for its scope, so the
+// scope is read from the lanes it produced. The lanes the cards are in are
+// issues; their own `group_by` values, read from the store, are the anchors;
+// and the empty lanes are the other issues whose `group_by` value is an
+// anchor, of a type the field may point at, unarchived unless the board's
+// include_archive says otherwise. A lane issue with no value anchors on "no
+// value", whose siblings are the target issues with none either. It reaches
+// one level and no further, and names no field but the one the board was
+// given.
 func (p *boardPage) siblings(targets map[string]bool) []string {
 	values, err := host.IssueList(p.repo, "", true)
 	if err != nil {

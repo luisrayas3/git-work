@@ -274,8 +274,9 @@ func TestTransitionUnavailable(t *testing.T) {
 	require.Equal(t, "status", lines[0].Pending[0].Key)
 }
 
-// JS22: an issue with nothing to do is counted unchanged, not skipped; a
-// body is reported by its first line; a run with no cursor prints none.
+// an issue with nothing to do is counted unchanged, not skipped; a body is
+// reported by its first line; a run with no cursor prints none
+// (doc/design/jira.md, "The report").
 func TestReportShapes(t *testing.T) {
 	w := newWorld(t)
 	_, sum := w.mustSync(jira.Options{DryRun: true})
@@ -316,9 +317,10 @@ func TestJiraDeleteGone(t *testing.T) {
 	require.NotEmpty(t, lines[0].Pending)
 }
 
-// JS19: a GET finding a linked issue deleted is not a failure: an
-// incremental run reports it pending, and --full marks it gone even while
-// the lagging index still returns it (review2 #2).
+// a GET finding a linked issue deleted is not a failure: an incremental run
+// reports it pending, and --full marks it gone even while the lagging index
+// still returns it (review2 #2)
+// (doc/design/jira.md, "Deletes and moves are Gone").
 func TestJiraDeleteSeenByGet(t *testing.T) {
 	w := newWorld(t)
 	key, ic := w.imported("Edited, then deleted")
@@ -500,9 +502,9 @@ func TestBadCredential(t *testing.T) {
 	}
 }
 
-// JS12: a crash after POST …/comment, before the commit. The comment's
+// a crash after POST …/comment, before the commit. The comment's
 // git-work property names the local op, so the next run pairs it and posts
-// nothing.
+// nothing (doc/design/jira.md, "Comments pair by id").
 func TestCrashAfterCommentPost(t *testing.T) {
 	w := newWorld(t)
 	key, ic := w.imported("Crash")
@@ -544,8 +546,8 @@ func TestRateLimitExhausted(t *testing.T) {
 	w.byKey(key)
 }
 
-// A10: a second run while one holds the sync lock does nothing and says so;
-// two runs would both POST one new issue.
+// a second run while one holds the sync lock does nothing and says so; two runs
+// would both POST one new issue (doc/design/jira.md, "One run at a time").
 func TestConcurrentRunRefused(t *testing.T) {
 	w := newWorld(t)
 	w.newLocal("Once", "", nil)
@@ -565,10 +567,11 @@ func TestConcurrentRunRefused(t *testing.T) {
 	require.Len(t, w.srv.Keys(), 1)
 }
 
-// pull-schema-check.md: a value Jira holds that the derived schema's policy
-// refuses — here a Sub-task under an Epic, where the schema allows only a
-// level-0 parent — is written and reported off-schema, not left pending
-// forever; a local write of the same value is still refused.
+// a value Jira holds that the derived schema's policy refuses — here a Sub-task
+// under an Epic, where the schema allows only a level-0 parent — is written and
+// reported off-schema, not left pending forever; a local write of the same
+// value is still refused
+// (doc/design/jira.md, "A pull is checked for shape, not policy").
 func TestPullOffSchemaWritten(t *testing.T) {
 	w := newWorld(t, jiratest.WithLooseHierarchy())
 	epic := w.srv.CreateIssue(jiratest.IssueSpec{Project: "PROJ", Type: "Epic", Summary: "Epic"})

@@ -8,8 +8,8 @@ import (
 	"github.com/git-bug/git-bug/util/sorted"
 )
 
-// The one canonical form (JS7): what the merge compares, the base records
-// and the report prints.
+// The one canonical form (doc/design/jira.md, "Canonical values"): what the
+// merge compares, the base records and the report prints.
 
 var null = issue.Value("null")
 

@@ -2,7 +2,7 @@ package host
 
 import "fmt"
 
-// Rows a view's query makes (doc/design/query-rows.md, 2026-10-08).
+// Rows a view's query makes (doc/design/query.md, "Rows a query makes").
 //
 // A row is an issue as `git work issue list` prints it, or as a program shaped it,
 // with two top-level keys an issue never has:
@@ -13,7 +13,7 @@ import "fmt"
 // such a row stands for nothing, and only draws.
 
 // KeyPrefix starts the ghost's key, which no row a query makes may start
-// with (doc/design/create.md, C6).
+// with (doc/design/query.md, "A row's key").
 const KeyPrefix = "+"
 
 // ViewRows reads what a view's query emitted as rows, and reports whether
@@ -159,7 +159,8 @@ func CheckRowKeys(rows []map[string]any) error {
 }
 
 // IssueRows is ViewRows for a view that draws issues and nothing else, the
-// board and the matrix (doc/design/query-rows.md, Out of scope): `key` and
+// board and the matrix
+// (doc/design/query.md, "The board and the matrix draw issues"): `key` and
 // `children` mean nothing there, a row with no id is dropped, and an issue
 // two rows stand for is drawn once, the first, because a board shows each
 // issue in one place and a matrix that counted it twice would be wrong.

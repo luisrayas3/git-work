@@ -70,16 +70,19 @@ const (
 	// the list's own arguments and an `expand` of its own (expand.go).
 	ExpandSpec ValueKind = "relation or layer"
 	// OpenLevels is `open`: true for every level, false for none, or a whole
-	// number of levels from the roots (doc/design/query-rows.md, R4).
+	// number of levels from the roots (doc/design/query.md, "`open` unfolds
+	// the tree").
 	OpenLevels ValueKind = "bool or levels"
 	// Document is `draft`, on `new` and on every kind that draws a ghost:
 	// the document `git work issue new` takes,
 	// {"fields":{…},"body":"…","aliases":{…}}, with what is already decided
-	// filled in (doc/design/create.md, C1 and C9).
+	// filled in (doc/design/views.md, "`new` is a view kind";
+	// doc/design/views.md, "`draft` on a view").
 	Document ValueKind = "issue document"
 	// Shows is `shows`: type keys, each mapped to a spec, what show takes
 	// less the id, which is how an issue of that type is shown wherever it
-	// is opened (doc/design/app.md A7; show.go).
+	// is opened (doc/design/views.md, "`shows` maps a type to a spec";
+	// show.go).
 	Shows ValueKind = "type to spec"
 )
 
@@ -175,8 +178,9 @@ var Kinds = map[string][]Arg{
 		showsArg,
 	},
 	// matrix is the two-axis summary: rows of one field by columns of
-	// another, a sum in each cell (doc/design/allocations.md). It reads any
-	// issue set, so allocations and story points are the same call.
+	// another, a sum in each cell (doc/design/views.md, "A matrix sums any
+	// number over any issues"). It reads any issue set, so allocations and
+	// story points are the same call.
 	KindMatrix: {
 		queryArg,
 		includeArchiveArg,
@@ -193,12 +197,13 @@ var Kinds = map[string][]Arg{
 		{Name: "group_by", Tier: Optional, Kind: FieldKey,
 			Doc: "the field whose value starts a new block of rows, in the value's own order (an enum's schema order, a relation's issues by rank); the rows with no value at all are the last block, (none)"},
 		// the list a cell's Enter opens inherits it, and the matrix uses it
-		// for nothing else (doc/design/show-from-a-view.md, V3)
+		// for nothing else (doc/design/views.md, "Every page carries the map")
 		showsArg,
 	},
 	// show is the one kind that is about a single issue,
 	// so it takes an id where every other kind takes a query; how it draws
-	// the issue is its type's spec in shows (doc/design/app.md A7)
+	// the issue is its type's spec in shows (doc/design/views.md, "`shows`
+	// maps a type to a spec")
 	KindShow: {
 		{Name: "id", Tier: Required, Kind: Id,
 			Doc: "the issue to show, by id prefix or alias"},
@@ -206,10 +211,11 @@ var Kinds = map[string][]Arg{
 	},
 	// new is the interactive `issue new`: show's page over an issue that
 	// does not exist yet, nothing written until Create, which commits the
-	// draft as the one operation `issue new` commits (doc/design/create.md).
-	// It takes the document `issue new` takes, with what is already decided
-	// filled in, as `draft`, the name every kind that creates gives it
-	// (create.md C9); `fields` keeps show's meaning.
+	// draft as the one operation `issue new` commits (doc/design/views.md,
+	// "Nothing is written until Create"). It takes the document `issue new`
+	// takes, with what is already decided filled in, as `draft`, the name
+	// every kind that creates gives it (doc/design/views.md, "`new` is a view
+	// kind"); `fields` keeps show's meaning.
 	KindNew: {
 		{Name: "draft", Tier: Optional, Kind: Document,
 			Doc: `the draft to open on, as issue new takes it: {"fields":{"type":"task","parent":"abc1234"},"body":"…"}; every value stays editable`},
@@ -218,7 +224,7 @@ var Kinds = map[string][]Arg{
 	},
 	// home is the page `git work` opens on: flows by name, each run by
 	// Enter, which hands the name to the renderer and never calls the flow
-	// itself (doc/design/app.md, A8).
+	// itself (doc/design/flows.md, "The home view names flows").
 	KindHome: {
 		{Name: "flows", Tier: Required, Kind: StringList,
 			Doc: "the flows drawn, in order, each by name with its docstring's first line, every one a stored flow; " +
@@ -229,7 +235,7 @@ var Kinds = map[string][]Arg{
 // minColumnWidth is the floor under the board's `column_width`:
 // a column narrower than this cannot draw a card's id line,
 // so the board would scroll sideways past something unreadable
-// (doc/design/terminal-renderer.md, Board).
+// (doc/design/views.md, "Column width").
 const minColumnWidth = 10
 
 // expandDoc is `expand` on the list and the gantt, which take one spec.
@@ -249,9 +255,10 @@ const expandDoc = `the relation nested under a row: "children", or a layer ` +
 	`the level below: a layer, or a number of further levels this same layer draws, 0 for every one; ` +
 	`links is refused, being several relations, a show's side tables`
 
-// draftArg is `draft` on the kinds that draw a ghost (doc/design/create.md,
-// C9): what an issue created in the view starts with, the base every ghost's
-// draft is built on, because a ghost cannot read the view's query.
+// draftArg is `draft` on the kinds that draw a ghost (doc/design/views.md,
+// "`draft` on a view"): what an issue created in the view starts with, the
+// base every ghost's draft is built on, because a ghost cannot read the
+// view's query.
 var draftArg = Arg{Name: "draft", Tier: Optional, Kind: Document, Doc: draftDoc}
 
 // draftDoc says what `draft` is and what is built on it.
@@ -262,11 +269,13 @@ const draftDoc = `what an issue created in this view starts with, as issue new t
 	`a child scope inherits it, and every value stays editable`
 
 // showsArg is `shows` on every kind that opens an issue, and on show itself
-// (doc/design/app.md A7): how each type is shown, whichever view meets it.
+// (doc/design/views.md, "`shows` maps a type to a spec"): how each type is
+// shown, whichever view meets it.
 var showsArg = Arg{Name: "shows", Tier: Optional, Kind: Shows, Doc: showsDoc}
 
 // showsDoc says what a spec is, which is what show used to take as its own
-// fields and expand (link-fields.md, L3 and L4; show-side-table.md).
+// fields and expand (doc/design/views.md, "The links row";
+// doc/design/views.md, "Side tables are `expand`").
 const showsDoc = `how each issue type is shown, on the page Enter opens and every page opened from there: ` +
 	`{"story":{"fields":["status","links"],"expand":["children","links"]}} maps a type key to a spec, ` +
 	`what show takes less the id, checked against that type; ` +
@@ -281,9 +290,10 @@ const showsDoc = `how each issue type is shown, on the page Enter opens and ever
 	`links is a table per link relation with entries, stored then inverse; ` +
 	`a type the call leaves out is shown by its show in the schema, else by {"expand":["links"]}, whole, never merged`
 
-// openArg is how unfolded a nested view is drawn (doc/design/query-rows.md,
-// R4): a call argument and not a layer key, because it is how the view
-// opens, which is the call's, and the folds after that are the person's.
+// openArg is how unfolded a nested view is drawn (doc/design/query.md,
+// "`open` unfolds the tree"): a call argument and not a layer key, because
+// it is how the view opens, which is the call's, and the folds after that
+// are the person's.
 var openArg = Arg{
 	Name: "open", Tier: Optional, Kind: OpenLevels,
 	Doc: "how unfolded a nested view opens: true every parent, a number that many levels from the roots, false or absent folded",
@@ -297,9 +307,9 @@ var queryArg = Arg{
 }
 
 // rowsQueryArg is `query` on the kinds that nest, whose rows may be more
-// than issues (doc/design/query-rows.md): a top-level key is a row's
-// identity on the screen, its id optional beside one, and a top-level
-// children lists what nests under it.
+// than issues (doc/design/query.md, "Rows a query makes"): a top-level key
+// is a row's identity on the screen, its id optional beside one, and a
+// top-level children lists what nests under it.
 var rowsQueryArg = Arg{
 	Name: "query", Tier: Defaulted, Kind: Query, Default: defaultQueryJSON,
 	Doc: "the jq program the rows come from, over every unarchived issue; the default is all of them, last edited first; " +
@@ -309,7 +319,7 @@ var rowsQueryArg = Arg{
 
 // includeArchiveArg brings the archived back into the input `query` runs
 // over, the archived being left out of it otherwise
-// (doc/design/include-archive.md).
+// (doc/design/query.md, "The switch is `include_archive`").
 //
 // Its default, false, is the absence of the argument rather than a value the
 // table applies, so that a call that does not name it neither says it on the

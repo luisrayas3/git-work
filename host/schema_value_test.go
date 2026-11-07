@@ -12,7 +12,7 @@ import (
 
 // TestListReadsTheSchemaAsItIs: `$schema` is the schema each run loads, so
 // the same program orders by the new values once an import changes them
-// (doc/design/schema-in-jq.md, J1).
+// (doc/design/query.md, "`$schema` is bound on every run").
 func TestListReadsTheSchemaAsItIs(t *testing.T) {
 	repo, author := atTestRepo(t)
 

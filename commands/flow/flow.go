@@ -1,15 +1,16 @@
 // Package flowcmd is the `git work flow` command tree, over the flow config
 // entities of refs/work-flows.
 //
-// A flow is one Starlark function (`3556569` E2, `b511c63`):
+// A flow is one Starlark function (doc/design/flows.md, "A flow is one function"):
 // its name is the entity's key,
 // its docstring the description,
 // its parameters the arguments it takes.
 // The refs are the runtime source of truth and the `.star` files in a tree are
-// authoring files, so `import` is the only way from one to the other (E1).
+// authoring files, so `import` is the only way from one to the other
+// (doc/design/flows.md, "Refs are the runtime truth; import is the way in").
 //
 // This tree is the entity's surface — list, run, import, export, log,
-// archive and rm, to the map in doc/design/cli-convention.md,
+// archive and rm, to the map in doc/design/cli.md, "The map",
 // the bare noun being the human form of list —
 // and it reaches the store through package `host`, as a script does;
 // `flow/run` is the Starlark runtime `run` calls.
@@ -29,7 +30,8 @@ import (
 )
 
 // The flow entity's attributes, its listing shape and the parsing behind them
-// live in package host, because a script reaches them too (cli-convention.md).
+// live in package host, because a script reaches them too
+// (doc/design/cli.md, "The command line and Starlark are one API").
 const (
 	attrScript      = host.AttrScript
 	attrDescription = host.AttrDescription
@@ -41,7 +43,7 @@ type flowListOptions struct {
 
 // NewFlowCommand is the bare `git work flow`: the human form of `flow list`,
 // one line per flow, with --format json still there
-// (decided 2026-10-08, doc/design/cli-convention.md).
+// (doc/design/cli.md, "The bare noun is the human form of list").
 // It has no Starlark name; work.flow.list() mirrors `flow list`.
 func NewFlowCommand(env *execenv.Env) *cobra.Command {
 	options := flowListOptions{}
@@ -138,7 +140,8 @@ func runFlowList(env *execenv.Env, opts flowListOptions) error {
 	}
 }
 
-// warnDuplicates prints the flows a key silently resolves to one of (E7).
+// warnDuplicates prints the flows a key silently resolves to one of
+// (doc/design/flows.md, "Two flows with one name").
 //
 // Every flow command calls it, because a team that loses an edit this way
 // is never told otherwise.

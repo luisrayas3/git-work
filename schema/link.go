@@ -2,8 +2,10 @@ package schema
 
 // LinksKey is the word the views fold every link of an issue into: the
 // `links` row on show, and the name in a show spec's `expand` that stands for
-// one side table per link relation with entries (doc/design/link-fields.md,
-// L3, L4). It is reserved, so no field and no inverse may take it.
+// one side table per link relation with entries
+// (doc/design/views.md, "The links row"; doc/design/views.md,
+// "Side tables are `expand`"). It is reserved, so no field and no inverse
+// may take it.
 const LinksKey = "links"
 
 // LinkRelation is one relation a type's issues are linked by: a stored link
@@ -27,7 +29,7 @@ type LinkRelation struct {
 // in the order their first source appears in the schema.
 //
 // The inverse of a link is a link when its stored side is: it has no entity
-// of its own to mark (link-fields.md, L1).
+// of its own to mark (doc/design/schema.md, "A link is a marked relation").
 func (s *Schema) Links(typeKey string) []LinkRelation {
 	if s == nil {
 		return nil

@@ -20,7 +20,7 @@ import (
 )
 
 // newPage is the `new` view: show's page over an issue that does not exist
-// yet (doc/design/create.md).
+// yet (doc/design/views.md, "`new` is a view kind").
 //
 // It is the interactive `issue new`: the page holds a draft — the document
 // `issue new` takes, opened on whatever the call's `draft` filled in — and
@@ -43,12 +43,14 @@ type newPage struct {
 	shows json.RawMessage
 	// link is the opener's write on a parent that stores the relation,
 	// which the page never makes: it hands it back with the id, and the
-	// view the ghost stood on writes it (create.md C8)
+	// view the ghost stood on writes it (doc/design/views.md, "A relation
+	// stored on the parent")
 	link  *parentLink
 	order []string
 
 	// fields is the draft: the title and the type included, as `issue new`
-	// takes them, a null never stored (C5: the form invents no default).
+	// takes them, a null never stored (doc/design/views.md, "The form
+	// invents no default").
 	fields  map[string]issue.Value
 	aliases map[string]string
 	// opened is the draft as the call gave it, so that leaving knows
@@ -77,12 +79,14 @@ type newPage struct {
 
 // createdMsg says a draft was committed: the page the draft was on hands it
 // to the stack, which pops back to the view that opened it, or, with nothing
-// underneath, puts show on the new issue in its place (C4).
+// underneath, puts show on the new issue in its place (doc/design/views.md,
+// "What Create does next").
 type createdMsg struct {
 	id    string
 	shown page
-	// link is the parent write the ghost's opener makes now (C8), nil
-	// where the relation is stored on the child or there is no parent
+	// link is the parent write the ghost's opener makes now
+	// (doc/design/views.md, "A relation stored on the parent"), nil where
+	// the relation is stored on the child or there is no parent
 	link *parentLink
 }
 
@@ -143,7 +147,8 @@ func (p *newPage) title() string {
 
 // fieldOrder is which fields are rows, and in which order: the call's, else
 // the type's in schema order, as show has it; with no type there are none,
-// because the fields are the type's (C3).
+// because the fields are the type's (doc/design/views.md, "The creator
+// page").
 func (p *newPage) fieldOrder() []string {
 	if len(p.order) > 0 {
 		return p.order
@@ -162,14 +167,15 @@ func (p *newPage) fieldOrder() []string {
 
 // rebuild makes the table out of the draft: every field but the two the
 // header has, archived, which a draft is not, and rank, which a draft has
-// no place in (C6: a ghost's issue lands where the ghost stood with no
-// rank written).
+// no place in: a ghost's issue lands where the ghost stood with no rank
+// written (doc/design/views.md, "The ghost").
 func (p *newPage) rebuild() {
 	typeKey := p.typeKey()
 	known := newKinds(p.repo)
 
 	// the draft's stored link fields are one links row, as on show; a
-	// draft has no inverses, having no id to be pointed at (link-fields.md, L5)
+	// draft has no inverses, having no id to be pointed at
+	// (doc/design/views.md, "The creator page")
 	p.links = issueLinks(p.repo, typeKey, "", p.fields)
 	p.rows = linkFieldRows(p.fieldOrder(), p.order, p.links, func(key string) []tableRow {
 		switch key {
@@ -197,7 +203,8 @@ func (p *newPage) rebuild() {
 }
 
 // dirty says the page holds something the call did not give it: a typed
-// value, a body; leaving with one asks twice (C3).
+// value, a body; leaving with one asks twice (doc/design/views.md, "The
+// creator page").
 func (p *newPage) dirty() bool {
 	if len(p.fields) != len(p.opened) {
 		return true
@@ -436,7 +443,8 @@ func (p *newPage) sideways(here position, by int) {
 
 // textKey is a key typed in the description's text: enter accepts the text
 // into the draft and leaves it, esc leaves it too, keeping it, and the
-// newline is alt+enter, which the box binds (C3).
+// newline is alt+enter, which the box binds (doc/design/views.md, "The
+// creator page").
 func (p *newPage) textKey(press tea.KeyPressMsg) (page, tea.Cmd) {
 	switch {
 	case keys.act.matches(press), keys.cancel.matches(press):
@@ -465,7 +473,8 @@ func (p *newPage) leave() (page, tea.Cmd) {
 
 // act is enter: on Create it commits the draft, on a relation's line it
 // goes to the issue the line names, and anywhere else it does nothing, as
-// on show (C3: nothing creates by accident).
+// on show, so nothing creates by accident (doc/design/views.md, "The
+// creator page").
 func (p *newPage) act(here position) tea.Cmd {
 	switch here.stop {
 	case stopCreate:
@@ -632,7 +641,8 @@ func (p *newPage) set(key string, value issue.Value) {
 
 // retype changes the draft's type, keeping the values of the fields the new
 // type also has and dropping the rest, with a count: the draft is the
-// person's typing, and a type picked wrong is one key from right (C3).
+// person's typing, and a type picked wrong is one key from right
+// (doc/design/views.md, "The creator page").
 func (p *newPage) retype(value issue.Value) {
 	typeKey, _ := issue.String(value)
 	dropped := 0
@@ -658,7 +668,8 @@ func (p *newPage) retype(value issue.Value) {
 
 // create commits the draft as `issue new` would, in one operation, and
 // hands the stack the id: what the planner refuses is named in the status
-// line, the cursor on the cell it names (C3, C4).
+// line, the cursor on the cell it names (doc/design/views.md, "The creator
+// page"; doc/design/views.md, "What Create does next").
 func (p *newPage) create() tea.Cmd {
 	if p.typeKey() == "" {
 		p.focus, p.cell = stopHeader, cellType

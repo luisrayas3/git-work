@@ -11,11 +11,12 @@ import (
 	"github.com/git-bug/git-bug/jira/jiraapi"
 )
 
-// Project is one Jira project, normalised and sorted at read (JS4),
+// Project is one Jira project, normalised and sorted at read
+// (doc/design/jira.md, "Discovery"),
 // so that everything derived from it is deterministic.
 type Project struct {
 	Id, Key    string
-	Me         jiraapi.User            // TimeZone formats JQL literals (JS20)
+	Me         jiraapi.User            // TimeZone formats JQL literals
 	IssueTypes []IssueType             // (Level desc, Id)
 	Fields     []jiraapi.Field         // visible, scope-filtered, by Id
 	Priorities []jiraapi.Priority      // Jira's order
@@ -31,7 +32,8 @@ type IssueType struct {
 	Screen                []jiraapi.FieldMeta // the create screen
 }
 
-// Discover reads one project in seven kinds of call (JS4). Any failure fails
+// Discover reads one project in seven kinds of call
+// (doc/design/jira.md, "Discovery"). Any failure fails
 // it naming the permission; only a 404 on the link types is not one, because
 // it means linking is disabled.
 func Discover(ctx context.Context, c *jiraapi.Client, projectKey string) (*Project, error) {
@@ -44,7 +46,7 @@ func Discover(ctx context.Context, c *jiraapi.Client, projectKey string) (*Proje
 		return nil, fail("reading /myself", "a valid API token", err)
 	}
 	if me.AccountID == "" {
-		return nil, fmt.Errorf("jira discovery: /myself answered with no account; the request was anonymous (I4)")
+		return nil, fmt.Errorf("jira discovery: /myself answered with no account; the request was anonymous")
 	}
 
 	rp, err := c.Project(ctx, projectKey)

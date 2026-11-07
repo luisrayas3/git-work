@@ -35,7 +35,7 @@ type listPage struct {
 	nest    *nesting
 	groupBy string
 	// draft is the call's `draft`, what every ghost's draft starts from
-	// (create.md C9)
+	// (doc/design/views.md, "`draft` on a view")
 	draft host.IssueDocument
 
 	// items is what the query returned last, kept so that folding a row
@@ -45,10 +45,12 @@ type listPage struct {
 	// opens folded, so what is remembered is what was opened.
 	open map[string]bool
 	// opening is the call's `open`, levels to unfold the first tree to, -1
-	// for every one; it is spent on the first build (R4).
+	// for every one; it is spent on the first build (doc/design/query.md,
+	// "`open` unfolds the tree").
 	opening int
 	// kept is the order the person dragged keyed rows into, by key, which
-	// this view holds until it is quit and never writes (keep.go, R5).
+	// this view holds until it is quit and never writes (keep.go;
+	// doc/design/query.md, "A keyed row reorders for the view only").
 	kept map[string]int
 	// refused is what checkLevels said of the last tree built, which load
 	// returns: a tree the view cannot draw is refused, as a repeated key is.
@@ -90,7 +92,7 @@ type listPage struct {
 
 // listRow is one row, as the query handed it over: key is its identity on
 // the screen, id the issue it acts on, "" where it stands for none
-// (doc/design/query-rows.md).
+// (doc/design/query.md, "A row's key").
 type listRow struct {
 	key     string
 	id      string
@@ -254,7 +256,8 @@ func (p *listPage) rebuild() {
 
 	build()
 	if p.opening != 0 {
-		// the call's `open`, on the first tree only (R4)
+		// the call's `open`, on the first tree only (doc/design/query.md,
+		// "`open` unfolds the tree")
 		openTo(p.nodes, p.opening, p.open)
 		p.opening = 0
 		build()
@@ -270,9 +273,9 @@ func (p *listPage) rebuild() {
 
 // addGhosts puts a ghost at the foot of every scope: each group of the
 // roots, one for the whole list when nothing groups it, and each group of
-// every opened parent's child table (ghost.go, create.md C8). It is appended
-// after every row and carries no rank, so the order draws it last in its
-// group.
+// every opened parent's child table (ghost.go; doc/design/views.md, "One
+// ghost per scope"). It is appended after every row and carries no rank, so
+// the order draws it last in its group.
 func (p *listPage) addGhosts() {
 	ghosts := treeGhosts(p.repo, p.nodes, p.nest, p.draft, func(index int) scopeRow {
 		row := &p.rows[index]
@@ -456,8 +459,9 @@ func (p *listPage) Update(msg tea.Msg) (page, tea.Cmd) {
 
 	case createdMsg:
 		// a draft opened from here was created: a relation stored on the
-		// parent is written first (C8), then the issue appears where the
-		// ghost stood, the cursor on it (doc/design/create.md, C4), or is
+		// parent is written first (doc/design/views.md, "A relation stored on
+		// the parent"), then the issue appears where the ghost stood, the
+		// cursor on it (doc/design/views.md, "What Create does next"), or is
 		// named when the query does not keep it
 		failed := linkCreated(p.repo, msg)
 		if err := p.load(); err != nil {
@@ -664,7 +668,8 @@ func (p *listPage) toggleAll() {
 }
 
 // openAll is open everything: every row opened, the leaves too, so every
-// level's ghost is on the screen (app.md A4, Two folds).
+// level's ghost is on the screen (doc/design/views.md, "A leaf unfolds to
+// an empty table").
 func (p *listPage) openAll() {
 	p.open = openEverything(p.nodes)
 	p.rebuild()
@@ -672,7 +677,7 @@ func (p *listPage) openAll() {
 
 // act is enter, which opens and never edits: on a relation cell the issue it
 // names, the first of several, and on any other cell the row's own issue
-// (doc/design/terminal-renderer.md, 2026-10-02).
+// (doc/design/tui.md, "Enter opens, space edits").
 func (p *listPage) act() (page, tea.Cmd) {
 	row := p.current()
 	if row == nil {
@@ -685,7 +690,8 @@ func (p *listPage) act() (page, tea.Cmd) {
 		return p, p.push(links[0])
 	}
 	if row.id == "" {
-		// a row that stands for no issue has nothing to open (R2)
+		// a row that stands for no issue has nothing to open
+		// (doc/design/query.md, "A row that stands for no issue")
 		return p, bell()
 	}
 	return p, p.push(row.id)
@@ -740,7 +746,7 @@ func (p *listPage) copyCell() tea.Cmd {
 		return p.copyId()
 	}
 	// a link copies the ids it holds, which is what another command takes,
-	// each as it is drawn (alias-ids.md A7)
+	// each as it is drawn (doc/design/cli.md, "Copy copies what is drawn")
 	value := plainValue(row.fields[fieldKey])
 	if ids := row.links[fieldKey]; len(ids) > 0 {
 		value = linkCopy(p.repo, ids)
@@ -754,7 +760,8 @@ func (p *listPage) copyCell() tea.Cmd {
 }
 
 // copyId copies the issue's id, whatever column the cursor is on: what is
-// shown, an alias as it is drawn and a hash whole (copyOf, alias-ids.md A7).
+// shown, an alias as it is drawn and a hash whole (copyOf;
+// doc/design/cli.md, "Copy copies what is drawn").
 func (p *listPage) copyId() tea.Cmd {
 	row := p.current()
 	if row == nil || row.id == "" {
@@ -893,8 +900,9 @@ func (p *listPage) writeFields(id string, fields map[string]issue.Value, said st
 
 // startGrab picks the row under the cursor up, to drop it somewhere else.
 //
-// It needs no binding: `rank` is built in on every type (D8) and is the
-// one order a view draws, so a move always has somewhere to be written.
+// It needs no binding: `rank` is built in on every type and is the one order
+// a view draws (doc/design/tui.md, "Every order is the built-in rank"), so a
+// move always has somewhere to be written.
 func (p *listPage) startGrab() (page, tea.Cmd) {
 	if p.current() == nil {
 		return p, nil
@@ -954,7 +962,8 @@ func (p *listPage) dragBy(by int) tea.Cmd {
 	row := &p.rows[p.grabbed]
 	if p.nodes[p.grabbed].keyed() {
 		// a share of an issue moved to another group would write the
-		// issue's field, which is not what moving a share means (R5)
+		// issue's field, which is not what moving a share means
+		// (doc/design/query.md, "A keyed row reorders for the view only")
 		p.status = "stays in its group"
 		return bell()
 	}
@@ -984,7 +993,8 @@ func (p *listPage) drop() tea.Cmd {
 	keyed := p.nodes[p.grabbed].keyed()
 	p.grabbed = -1
 
-	// a keyed row's drop writes nothing: the view holds the order (R5)
+	// a keyed row's drop writes nothing: the view holds the order
+	// (doc/design/query.md, "A keyed row reorders for the view only")
 	if keyed {
 		p.crossed = nil
 		keepOrder(p.nodes, p.order, p.cursor, p.kept)
@@ -1031,7 +1041,8 @@ const blinkInterval = 400 * time.Millisecond
 // into the same gap both survive (441dcbb). Two issues with no rank at all
 // are equal here rather than ordered by id, so that they keep the query's
 // own order — which is the whole order of a store nobody has dragged
-// anything in yet, `rank` being null until a drop writes one (D8).
+// anything in yet, `rank` being null until a drop writes one
+// (doc/design/issue.md, "Rank starts null").
 func lessByRank(rankI, idI, rankJ, idJ string) bool {
 	if (rankI == "") != (rankJ == "") {
 		return rankJ == ""

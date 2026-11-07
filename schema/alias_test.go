@@ -8,7 +8,8 @@ import (
 	"github.com/git-bug/git-bug/entities/config"
 )
 
-// aliasedDocument is sampleDocument mapped onto a Jira project (JS2).
+// aliasedDocument is sampleDocument mapped onto a Jira project
+// (doc/design/jira.md, "The mapping is aliases on the schema").
 const aliasedDocument = `
 types:
   epic:
@@ -195,7 +196,8 @@ types:
 	}
 
 	// the empty string excludes, so any number of entities state it;
-	// fields of two types share an alias as they share a key (E2)
+	// fields of two types share an alias as they share a key
+	// (doc/design/schema.md, "A field belongs to one type")
 	doc, err := ParseDocument([]byte(`
 types:
   epic:

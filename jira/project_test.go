@@ -44,7 +44,8 @@ func TestDiscover(t *testing.T) {
 	}
 }
 
-// JS4: v1 must create issues, so a forbidden create screen fails discovery.
+// v1 must create issues, so a forbidden create screen fails discovery
+// (doc/design/jira.md, "Discovery").
 func TestDiscoverForbiddenCreateMeta(t *testing.T) {
 	s := sites["company"]
 	srv := jiratest.New(t, jiratest.WithSite(s.site()), jiratest.WithDenied("getCreateIssueMetaIssueTypeId"))
@@ -54,7 +55,8 @@ func TestDiscoverForbiddenCreateMeta(t *testing.T) {
 	require.ErrorContains(t, err, "Create issues")
 }
 
-// JS4: a forbidden read fails naming the permission; nothing degrades.
+// a forbidden read fails naming the permission; nothing degrades
+// (doc/design/jira.md, "Discovery").
 func TestDiscoverForbiddenProject(t *testing.T) {
 	s := sites["company"]
 	srv := jiratest.New(t, jiratest.WithSite(s.site()), jiratest.WithDenied("getProject"))

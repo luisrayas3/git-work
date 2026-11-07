@@ -44,7 +44,9 @@ func task(fields map[string]any) map[string]any {
 }
 
 // TestOrdinal: a value's position in its field's values, and null wherever
-// the schema says nothing about it (J2, J3).
+// the schema says nothing about it
+// (doc/design/query.md, "`ordinal`, `category` and `done`";
+// doc/design/query.md, "Unknown is null").
 func TestOrdinal(t *testing.T) {
 	for _, c := range []struct {
 		issue any
@@ -94,7 +96,9 @@ func TestDoneIsCategoryDone(t *testing.T) {
 	}
 }
 
-// TestSchemaSort: the J2 example, open work first by priority, unset last.
+// TestSchemaSort: the example of
+// doc/design/query.md, "`ordinal`, `category` and `done`":
+// open work first by priority, unset last.
 func TestSchemaSort(t *testing.T) {
 	issues := []any{
 		task(map[string]any{"title": "a", "status": "done", "priority": "high"}),

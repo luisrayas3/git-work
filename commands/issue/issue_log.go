@@ -107,7 +107,8 @@ func runIssueLog(env *execenv.Env, opts issueLogOptions, args []string) error {
 
 // shortId is the issue column of the text form: one log may span many issues,
 // so every line says which one it is about, by the id the issue is drawn by
-// (alias-ids.md A5). The operation's own id beside it stays a hash.
+// (doc/design/cli.md, "What is drawn follows; what is a value does not").
+// The operation's own id beside it stays a hash.
 func shortId(env *execenv.Env, id string) string {
 	return env.Backend.IssueHumanId(entity.Id(id))
 }

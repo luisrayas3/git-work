@@ -87,7 +87,7 @@ func TestListNestsChildrenUnderTheirParent(t *testing.T) {
 	require.Equal(t, 1, startOf(page, story), "a root's table is flush")
 	require.Equal(t, 1+indentWidth, startOf(page, one), "the child table is indented as a unit")
 	require.Equal(t, 1+indentWidth, startOf(page, two))
-	require.Contains(t, rowOf(page, other), other[:idWidth]+" ▸ 0", "a leaf that could have children reads ▸ 0 (create.md C8)")
+	require.Contains(t, rowOf(page, other), other[:idWidth]+" ▸ 0", "a leaf that could have children reads ▸ 0")
 	require.Less(t, indexOf(drawn, other[:idWidth]), indexOf(drawn, story[:idWidth]))
 	require.Less(t, indexOf(drawn, story[:idWidth]), indexOf(drawn, one[:idWidth]))
 	require.Less(t, indexOf(drawn, one[:idWidth]), indexOf(drawn, two[:idWidth]))
@@ -111,8 +111,8 @@ func TestListNestsChildrenUnderTheirParent(t *testing.T) {
 	require.Equal(t, page.treeCol(), page.column, "shift-tab lands on the parent's arrow")
 
 	// space on the arrow folds it again; on a leaf that could have children
-	// it opens its empty table (create.md C8); on a row that cannot have
-	// any it rings
+	// it opens its empty table (doc/design/views.md, "A leaf unfolds to an
+	// empty table"); on a row that cannot have any it rings
 	send(page, "space")
 	require.Contains(t, plainView(page), "2 issues")
 	require.Contains(t, rowOf(page, story), "▸ 2")
@@ -251,7 +251,7 @@ func TestListLayerQueryAndFields(t *testing.T) {
 
 // TestListLayerQueryReadsTheSchema: a layer's query runs with `$schema`
 // bound, so it says "not done" by category, not by naming the values
-// (doc/design/schema-in-jq.md).
+// (doc/design/query.md, "`$schema` is bound on every run").
 func TestListLayerQueryReadsTheSchema(t *testing.T) {
 	repo := testRepo(t)
 	story := newTyped(t, repo, "story", map[string]any{"title": "the story"})
@@ -475,7 +475,9 @@ func TestExpandIsCheckedAgainstTheSchema(t *testing.T) {
 
 // TestArchivedAreOutOfTheInputUnlessAsked: a view's query and a layer's run
 // over the unarchived issues, and include_archive brings the archived back,
-// on the call and on a layer alike (doc/design/include-archive.md, I1, I5).
+// on the call and on a layer alike (doc/design/query.md, "The input is the
+// unarchived issues"; doc/design/query.md, "Layers and pickers follow the
+// input").
 func TestArchivedAreOutOfTheInputUnlessAsked(t *testing.T) {
 	repo := testRepo(t)
 	story := newTyped(t, repo, "story", map[string]any{"title": "the story"})

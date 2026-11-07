@@ -15,7 +15,7 @@ import (
 // TestAPickerIsTypedIntoAtOnce: the input is focused when the picker opens,
 // so a letter narrows with no `/` first; the first esc clears the text and
 // puts the cursor back on the current value, the second cancels
-// (doc/design/app.md, A5).
+// (doc/design/tui.md, "Pickers are typed into").
 func TestAPickerIsTypedIntoAtOnce(t *testing.T) {
 	repo := testRepo(t)
 	id := newIssue(t, repo, map[string]any{"title": "one", "status": "to-do"})

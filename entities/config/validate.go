@@ -27,11 +27,12 @@ const (
 
 // slugPattern is what one half of a key looks like:
 // the stricter of the two slugs,
-// the same the issue entity applies to a field key (E3).
+// the same the issue entity applies to a field key
+// (doc/design/schema.md, "Keys and names").
 var slugPattern = regexp.MustCompile(`^[a-z][a-z0-9_-]*$`)
 
 // configKeyPattern is the frozen, shape-agnostic shape of a key:
-// a slug with one optional `/` (E3).
+// a slug with one optional `/` (doc/design/schema.md, "Keys and names").
 //
 // It is what the create operation checks,
 // because an operation may never reject what a later binary writes;
@@ -40,7 +41,8 @@ var configKeyPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9_.-]*(/[a-z0-9][a-z0-
 
 // namePattern is what an attribute name looks like,
 // with one optional `/` for the one-attribute-per-member folding,
-// `values/<id>` and `target_types/<type>` (E3).
+// `values/<id>` and `target_types/<type>`
+// (doc/design/schema.md, "Structural rules are frozen").
 var namePattern = regexp.MustCompile(`^[a-z][a-z0-9_]*(/[a-z0-9][a-z0-9_.-]*)?$`)
 
 // ValidateShape checks that the shape is one this binary knows.
@@ -48,7 +50,8 @@ var namePattern = regexp.MustCompile(`^[a-z][a-z0-9_]*(/[a-z0-9][a-z0-9_.-]*)?$`
 // It is a write-path rule only.
 // The create operation does not call it,
 // so an entity of a shape a later phase adds
-// still reads, lists and syncs on this binary (E2).
+// still reads, lists and syncs on this binary
+// (doc/design/schema.md, "Four generic operations").
 func ValidateShape(shape Shape) error {
 	switch shape {
 	case ShapeType, ShapeField, ShapeFlow:
@@ -74,7 +77,8 @@ func ValidateConfigKey(key string) error {
 	return nil
 }
 
-// ValidateKey checks a key against the rule of its shape (E3):
+// ValidateKey checks a key against the rule of its shape
+// (doc/design/schema.md, "Keys and names"):
 // a type or a flow is one slug,
 // a field is `<type>/<field>` with both halves a slug.
 //
@@ -135,7 +139,8 @@ func ValidateName(name string) error {
 
 // SplitName splits an attribute name into its member prefix and member id,
 // for the names that fold a collection one attribute per member,
-// `values/<id>` and `target_types/<type>` (E3).
+// `values/<id>` and `target_types/<type>`
+// (doc/design/schema.md, "Collections are one attribute per member").
 func SplitName(name string) (prefix, member string, ok bool) {
 	return strings.Cut(name, "/")
 }

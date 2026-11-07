@@ -16,7 +16,9 @@ func decodeRows(t *testing.T, text string) []any {
 
 // TestViewRowsTakeAKeyAndChildren: a row is an issue with two top-level keys
 // an issue never has, `key` and `children`, and its id may be left out where
-// a key is given (doc/design/query-rows.md, R1 to R3).
+// a key is given (doc/design/query.md, "A row's key";
+// doc/design/query.md, "A row that stands for no issue";
+// doc/design/query.md, "A row lists its children").
 func TestViewRowsTakeAKeyAndChildren(t *testing.T) {
 	rows, ok := ViewRows(decodeRows(t, `[
 		{"id":"a","fields":{}},

@@ -19,12 +19,12 @@ import (
 	"github.com/git-bug/git-bug/schema"
 )
 
-// Options steer one run (JS22).
+// Options steer one run (doc/design/jira.md, "The commands").
 type Options struct {
 	Ids                         []entity.Id // only these issues: no search, no cursor, no Gone
 	DryRun, Full, AcceptDeletes bool
 	Overlap                     time.Duration // default 5m
-	Settle                      time.Duration // default 15m: how long an unanswered create stays in doubt (JS15)
+	Settle                      time.Duration // default 15m: how long an unanswered create stays in doubt
 	MaxDeletes                  int           // default 10
 	// Adopt is how long an entity a Jira issue's property names
 	// may stay unarrived before the issue is imported anyway;
@@ -33,13 +33,16 @@ type Options struct {
 }
 
 // ErrDeletesHeld stops a --full run that found more missing issues than
-// MaxDeletes: a permission change looks exactly like a mass delete (JS19).
+// MaxDeletes: a permission change looks exactly like a mass delete
+// (doc/design/jira.md, "Deletes and moves are Gone").
 var ErrDeletesHeld = errors.New("jira: too many issues missing from Jira; none marked (--accept-deletes marks them)")
 
-// Sync converges the store and the project, one issue at a time (JS13–JS24).
-// A failure of one issue is its line and the run goes on; a failure of the
-// run (JS23) stops it and is returned, after the summary. st is updated in
-// place; the caller saves it at the end unless DryRun.
+// Sync converges the store and the project, one issue at a time
+// (doc/design/jira.md, "One issue at a time"). A failure of one issue is its
+// line and the run goes on; a failure of the run
+// (doc/design/jira.md, "Failure classes") stops it and is returned, after the
+// summary. st is updated in place; the caller saves it at the end unless
+// DryRun.
 func Sync(ctx context.Context, repo *cache.RepoCache, c *jiraapi.Client, p *Project, m *Mapping,
 	st *State, opts Options, emit func(Line)) (Summary, error) {
 	if opts.Overlap == 0 {
@@ -100,19 +103,21 @@ type engine struct {
 	grew    bool        // the run imported or created an issue
 	cursor  time.Time
 	sum     Summary
-	missing map[string]bool      // Jira ids a GET found deleted or moved out (JS19)
-	created map[entity.Id]string // in-doubt creates found by the created search (JS15); nil until searched
+	missing map[string]bool      // Jira ids a GET found deleted or moved out
+	created map[entity.Id]string // in-doubt creates found by the created search; nil until searched
 	since   time.Time            // the created search's bound, before Overlap
 	doubt   time.Time            // the oldest in-doubt attempt of the run's creates
 }
 
-// fatal marks an error that stops the run (JS23).
+// fatal marks an error that stops the run
+// (doc/design/jira.md, "Failure classes").
 type fatal struct{ error }
 
 func (f fatal) Unwrap() error { return f.error }
 
-// runFatal is JS23's split: 401, 429 and 5xx after the client's retries, and
-// transport errors stop the run; anything else fails one issue.
+// runFatal is the split (doc/design/jira.md, "Failure classes"):
+// 401, 429 and 5xx after the client's retries, and transport errors stop the
+// run; anything else fails one issue.
 func runFatal(err error) bool {
 	var f fatal
 	if errors.As(err, &f) {
@@ -138,7 +143,7 @@ func stop(err error) error {
 
 // now is Jira's clock, from the Date of its last response: create attempts
 // then compare with Jira's created, and notes carry Jira's time, with no
-// client skew (JS20). The fallback is local.
+// client skew (doc/design/jira.md, "Creates to Jira"). The fallback is local.
 func (e *engine) now() time.Time {
 	if d := e.c.ServerDate(); !d.IsZero() {
 		return d.UTC()
@@ -146,11 +151,12 @@ func (e *engine) now() time.Time {
 	return time.Now().UTC()
 }
 
-// location is the zone JQL literals are read in (JS20).
+// location is the zone JQL literals are read in
+// (doc/design/jira.md, "Time zones").
 func (e *engine) location() (*time.Location, error) {
 	loc, err := e.p.Me.Location()
 	if err != nil || e.p.Me.TimeZone == "" {
-		return nil, fatal{fmt.Errorf("jira: the account's time zone %q does not load; JQL dates would be misread (JS20)", e.p.Me.TimeZone)}
+		return nil, fatal{fmt.Errorf("jira: the account's time zone %q does not load; JQL dates would be misread", e.p.Me.TimeZone)}
 	}
 	return loc, nil
 }
@@ -168,7 +174,8 @@ func (e *engine) setup() error {
 	if e.schema, err = e.repo.LoadSchema(); err != nil {
 		return err
 	}
-	// JS16: the token's account is the runner's, unless an identity has it
+	// the token's account is the runner's, unless an identity has it
+	// (doc/design/jira.md, "Identities")
 	if acc := e.p.Me.AccountID; acc != "" && !e.opts.DryRun {
 		if _, ok := e.ix.User(acc); !ok {
 			me.SetMetadata(MetaAccountId, acc)
@@ -200,7 +207,7 @@ func (e *engine) report(l Line) {
 		}
 		l.Action = ActionPending
 	}
-	// a key and reason reported twice (step 4 and step 6) is one entry (A8)
+	// a key and reason reported twice (step 4 and step 6) is one entry
 	seen := map[[2]string]bool{}
 	l.Pending = slices.DeleteFunc(l.Pending, func(s Skip) bool {
 		k := [2]string{s.Key, s.Reason}

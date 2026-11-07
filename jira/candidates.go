@@ -16,7 +16,7 @@ import (
 	"github.com/git-bug/git-bug/util/sorted"
 )
 
-// ---- candidates (JS20) ----
+// ---- candidates (doc/design/jira.md, "Candidates and the cursor") ----
 
 type hit struct {
 	id, key   string
@@ -31,7 +31,7 @@ type hit struct {
 type local struct {
 	linked   []entity.Id // jira-id set, and the Index's winner for it
 	losers   []entity.Id // jira-id set, another issue the Index's winner for it: consolidated
-	requests []entity.Id // alias:jira and no jira-id (JS15)
+	requests []entity.Id // alias:jira and no jira-id (link requests)
 	creates  []entity.Id // unlinked, unaliased, of a mapped type, unarchived
 	byId     map[entity.Id]*cache.IssueExcerpt
 }
@@ -52,7 +52,7 @@ func (e *engine) scan() (*local, error) {
 			if winner, _ := e.ix.Issue(jid); winner == id {
 				l.linked = append(l.linked, id)
 			} else if !isArchived(ex.Fields) {
-				// A2: never two local issues exporting to one Jira issue;
+				// never two local issues exporting to one Jira issue;
 				// an archived one is consolidated already
 				l.losers = append(l.losers, id)
 			}
@@ -66,7 +66,8 @@ func (e *engine) scan() (*local, error) {
 }
 
 // unexportable is why an unlinked issue is never created in Jira: v1
-// exports every unarchived issue of a mapped type (JS15).
+// exports every unarchived issue of a mapped type
+// (doc/design/jira.md, "Creates to Jira").
 func (e *engine) unexportable(fields map[string]issue.Value) string {
 	typ, _ := issue.String(fields[typeKey])
 	if _, ok := e.m.issueType(typ); !ok {
@@ -108,7 +109,8 @@ func (e *engine) runIds() error {
 	return nil
 }
 
-// maxFailed bounds the failed hits re-read in one run (A6).
+// maxFailed bounds the failed hits re-read in one run
+// (doc/design/jira.md, "Candidates and the cursor").
 const maxFailed = 100
 
 func (e *engine) runAll() error {
@@ -130,8 +132,8 @@ func (e *engine) runAll() error {
 			return err
 		}
 	}
-	// first, so each loser's last sync and fill already see relations
-	// naming winners (repoint.md)
+	// first, so each loser's last sync and fill already see relations naming
+	// winners (doc/design/jira.md, "Every relation names the surviving copy")
 	if err := stop(e.sweep(sorted.Keys(l.byId))); err != nil {
 		return err
 	}
@@ -224,8 +226,10 @@ func (e *engine) runAll() error {
 }
 
 // lowerBound is the cursor − Overlap; without a cursor it starts from the
-// newest marker in the store (JS20). A create's issue is always later than
-// the cursor, which only moves to hits seen before any POST.
+// newest marker in the store
+// (doc/design/jira.md, "The state file is disposable"). A create's issue is
+// always later than the cursor, which only moves to hits seen before any POST
+// (doc/design/jira.md, "Creates to Jira").
 func (e *engine) lowerBound(l *local) (time.Time, bool) {
 	lb := e.st.Cursor
 	if lb.IsZero() {
@@ -277,9 +281,11 @@ func (e *engine) hitOf(ri *jiraapi.Issue) hit {
 }
 
 // refetch appends to hits the failed hits of earlier runs the search did
-// not return, each read by GET: the database (I4), and never named in the
-// JQL, because Jira refuses a whole query naming an id it cannot see, and a
-// failed hit is most often an issue since deleted or hidden (A6). An id
+// not return, each read by GET: the database
+// (doc/design/jira.md, "The database decides; the index only finds"), and never
+// named in the JQL, because Jira refuses a whole query naming an id it
+// cannot see, and a failed hit is most often an issue since deleted or
+// hidden (doc/design/jira.md, "Candidates and the cursor"). An id
 // that is gone or moved out is dropped; Gone decides about its issue. One
 // that fails again is a failed line. At most maxFailed are read, round
 // robin from the state's FailedAfter, so every one is read within
@@ -331,7 +337,8 @@ func propertyOf(raw json.RawMessage) property {
 // runHits handles the hits in order. The cursor moves to the greatest
 // updated the search reached; a hit that failed is kept in the state's
 // Failed and re-read on the next run, so one issue failing forever costs one
-// GET, not a window that only grows (JS20, A6).
+// GET, not a window that only grows
+// (doc/design/jira.md, "Candidates and the cursor").
 func (e *engine) runHits(hits []hit, l *local) error {
 	owner := lowestByProperty(hits)
 	for _, h := range hits {
@@ -352,8 +359,8 @@ func (e *engine) runHits(hits []hit, l *local) error {
 	return nil
 }
 
-// lowestByProperty is JS15's owner: of two Jira issues naming one entity,
-// the lower id links.
+// lowestByProperty is the owner of a property: of two Jira issues naming
+// one entity, the lower id links (doc/design/jira.md, "Creates to Jira").
 func lowestByProperty(hits []hit) map[entity.Id]string {
 	owner := map[entity.Id]string{}
 	for _, h := range hits {
@@ -375,7 +382,8 @@ func (e *engine) runHit(h hit, owner map[entity.Id]string, l *local) error {
 		}
 		snap := ic.Snapshot()
 		b, _ := CurrentBase(snap)
-		// JS13 step 1: our own echo, or an overlap re-seeing a synced issue
+		// step 1 (doc/design/jira.md, "One issue at a time"): our own
+		// echo, or an overlap re-seeing a synced issue
 		if !e.opts.Full && h.updated.Equal(b.Updated) && b.settled() && b.Gone == "" && !e.changed(snap, b) {
 			e.done[id] = true
 			e.sum.Unchanged++
@@ -388,8 +396,9 @@ func (e *engine) runHit(h hit, owner map[entity.Id]string, l *local) error {
 		ex, ok := l.byId[h.prop]
 		switch {
 		case !ok:
-			// A2: another clone's export; importing it would duplicate the
+			// another clone's export; importing it would duplicate the
 			// entity, unless the person's bound says it is lost
+			// (doc/design/jira.md, "Orphaned exports")
 			if e.adoptable(h.created) {
 				return e.importIssue(h.id, h.prop)
 			}
@@ -461,7 +470,8 @@ func (e *engine) changed(snap *issue.Snapshot, b *Base) bool {
 			return true
 		}
 	}
-	// a paired comment deleted locally and not yet in Jira (comment-delete.md CD6)
+	// a paired comment deleted locally and not yet in Jira
+	// (doc/design/jira.md, "A comment deleted locally is deleted in Jira")
 	for _, c := range l.Deleted {
 		if bd, ok := b.Comments[c.JiraId]; c.JiraId != "" && (!ok || bd != "") {
 			return true
@@ -471,7 +481,8 @@ func (e *engine) changed(snap *issue.Snapshot, b *Base) bool {
 }
 
 // repass re-runs, once, the issues left with Retry keys, when the run added
-// issues they might have been waiting for (JS17).
+// issues they might have been waiting for
+// (doc/design/jira.md, "Relations and what cannot convert now").
 func (e *engine) repass() error {
 	if !e.grew || e.opts.DryRun {
 		return nil
@@ -500,7 +511,8 @@ func (e *engine) repass() error {
 // and last the loser is archived and stamped with the winner's id.
 // Archiving last makes it idempotent: a failure before it leaves the loser
 // unarchived, so the next scan retries it, and the fill is gap-only
-// (repoint.md). Relations are the sweep's, which runs before.
+// (doc/design/jira.md, "Consolidation keeps the copy that reached Jira first").
+// Relations are the sweep's, which runs before.
 // A loser already archived is consolidated already.
 func (e *engine) consolidate(loser *cache.IssueCache, winner entity.Id) error {
 	id := loser.Id()
@@ -575,7 +587,8 @@ func noted(snap *issue.Snapshot, loser entity.Id) bool {
 
 // fill is the winner's gaps taken from the loser, local-only fields only:
 // the missing-base rule with the winner in Jira's seat,
-// a scalar it lacks, the union of a set (JS10).
+// a scalar it lacks, the union of a set
+// (doc/design/jira.md, "Consolidation keeps the copy that reached Jira first").
 // Mapped fields reach it through Jira.
 func (e *engine) fill(winner, loser *issue.Snapshot, now time.Time) (ops []issue.Operation, kept []string) {
 	wt, _ := issue.String(winner.Fields[typeKey])
@@ -611,12 +624,13 @@ func (e *engine) fill(winner, loser *issue.Snapshot, now time.Time) (ops []issue
 	return ops, slices.Compact(kept)
 }
 
-// sweep holds repoint.md's invariant over ids, every issue of the store:
+// sweep holds the re-point invariant over ids, every issue of the store
+// (doc/design/jira.md, "Every relation names the surviving copy"):
 // no unarchived issue has a relation naming an issue that is not the Index's
-// winner for its own Jira id, archived or not (R1). Each stale value is set
-// to the winner, one commit and one repointed line per issue, in id order
-// (R3, R4), under the shape check, as the pull writes: only the target's
-// identity changes, and the old value was Jira's (R2). An issue that refuses
+// winner for its own Jira id, archived or not. Each stale value is set
+// to the winner, one commit and one repointed line per issue, in id order,
+// under the shape check, as the pull writes: only the target's
+// identity changes, and the old value was Jira's. An issue that refuses
 // is its own failed line; only a run failure is returned.
 func (e *engine) sweep(ids []entity.Id) error {
 	for _, id := range slices.Sorted(slices.Values(ids)) {

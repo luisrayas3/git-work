@@ -70,7 +70,7 @@ func TestShowFieldOrderIsTheSchemaOrder(t *testing.T) {
 	order := page.fieldOrder()
 	require.Equal(t, "title", order[0], "the built-ins sort before every configured field")
 	require.Less(t, indexOf(join(order), "rank"), indexOf(join(order), "status"),
-		"rank is a built-in too (D8), so it sorts with them")
+		"rank is a built-in too, so it sorts with them")
 
 	// and a call that names the fields gets exactly those
 	page = show(t, repo, id, []string{"status", "title"})
@@ -130,7 +130,8 @@ func TestShowHasThreeTabs(t *testing.T) {
 	page = send(page, "left").(*showPage)
 	require.Equal(t, tabLog, page.tab)
 
-	// ctrl+pgdown and ctrl+pgup switch too; vim's gt is gone (app.md, A3)
+	// ctrl+pgdown and ctrl+pgup switch too; vim's gt is gone
+	// (doc/design/tui.md, "One keymap")
 	page = send(page, "ctrl+pgdown").(*showPage)
 	require.Equal(t, tabDescription, page.tab)
 	page = send(page, "ctrl+pgdown").(*showPage)
@@ -576,7 +577,8 @@ func TestEnterOpensAnIssueAndEscComesBack(t *testing.T) {
 	require.Len(t, stack.pages, 2)
 	require.Contains(t, ansiPattern.ReplaceAllString(stack.View().Content, ""), second[:7])
 
-	// the first esc opens the palette, the second is back (app.md, A1)
+	// the first esc opens the palette, the second is back (doc/design/tui.md,
+	// "Back is two presses")
 	_, cmd = stack.Update(press("esc"))
 	require.Nil(t, cmd)
 	_, cmd = stack.Update(press("esc"))

@@ -173,7 +173,7 @@ func TestOrphanUnlinkedOriginalWins(t *testing.T) {
 	b.still()
 }
 
-// ---- re-pointing (repoint.md) ----
+// ---- re-pointing (doc/design/jira.md, "Every relation names the surviving copy") ----
 
 // twoCopies is E27's store before its consolidating run, with four
 // children under the adopted copy y: two Sub-tasks, whose parent the policy

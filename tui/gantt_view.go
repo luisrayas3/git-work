@@ -128,7 +128,7 @@ func (p *ganttPage) labelWidth() int {
 
 // idCol is the id's width in the label column: the widest id a bar draws,
 // at least idWidth, over every bar, hidden or drawn, so folding moves
-// nothing; a key is never cut (alias-ids.md A3).
+// nothing; a key is never cut (doc/design/cli.md, "A key is never cut").
 func (p *ganttPage) idCol() int {
 	out := idWidth
 	for index := range p.bars {
@@ -536,7 +536,8 @@ func (p *ganttPage) hintLine() string {
 	if p.node().ghost {
 		return hints(hint{"enter", "new issue"})
 	}
-	// a row that stands for no issue opens nothing (R2)
+	// a row that stands for no issue opens nothing (doc/design/query.md, "A
+	// row that stands for no issue")
 	pairs := []hint{{"enter", "open"}}
 	if b.id == "" {
 		pairs = nil

@@ -30,10 +30,13 @@ type Resolver interface {
 //
 // It lives here rather than on the operation
 // because an operation's Validate is frozen and must accept
-// everything ever written (config-entity.md, fact 2):
-// a schema is a statement about what may be written *now* (D6).
+// everything ever written (doc/design/schema.md, "Structural rules are frozen"):
+// a schema is a statement about what may be written *now*
+// (doc/design/schema.md, "Validate on write, lenient on read").
 //
-// A check is two checks (pull-schema-check.md).
+// A check is two checks
+// (doc/design/schema.md, "Validate on write, lenient on read";
+// doc/design/jira.md, "A pull is checked for shape, not policy").
 // The shape check asks whether a value fits its field's kind,
 // on a field the type has, and whether an identity or issue it names exists.
 // The policy check asks what the schema allows on top:
@@ -62,7 +65,8 @@ func (c *Checker) Shape() *Checker {
 //
 // One error listing every problem, rather than the first one:
 // an agent that has to make three round trips to learn three mistakes
-// is an agent making three commits (D6).
+// is an agent making three commits
+// (doc/design/schema.md, "Errors name the alternatives").
 type Problems struct {
 	List []string
 }
@@ -89,7 +93,7 @@ func (p *Problems) err() error {
 //
 // An empty schema is the bootstrap state:
 // nothing is validated, which is how a repository with no config entities
-// still takes every write (E4).
+// still takes every write (doc/design/schema.md, "Built-ins are code").
 func (c *Checker) Validating() bool {
 	return c != nil && c.Schema != nil && !c.Schema.Empty()
 }
@@ -97,7 +101,8 @@ func (c *Checker) Validating() bool {
 // CheckNew validates the fields of a new issue.
 //
 // The type is required, because without it
-// nothing can say which fields the issue has (D2).
+// nothing can say which fields the issue has
+// (doc/design/schema.md, "Errors name the alternatives").
 func (c *Checker) CheckNew(fields map[string]json.RawMessage) error {
 	if !c.Validating() {
 		return nil
@@ -158,7 +163,8 @@ func (c *Checker) CheckFields(currentType string, fields map[string]json.RawMess
 }
 
 // CheckRetype refuses changing an issue's type from one type to another
-// that the first type's retype targets do not list (type-change.md, TC2),
+// that the first type's retype targets do not list
+// (doc/design/issue.md, "A type change is a set"),
 // naming the types it may become. It is policy: the shape check, which a
 // Jira pull runs, allows any change, since a Move in Jira is Jira's to
 // make. An issue with no type yet, or a type the schema lacks, has no
@@ -237,7 +243,8 @@ func (c *Checker) checkFields(problems *Problems, typeKey string, fields map[str
 		value := fields[key]
 		if isNull(value) {
 			// a null clears a field, which is always a legal write;
-			// what a missing value means is the reader's business (D6)
+			// what a missing value means is the reader's business
+			// (doc/design/schema.md, "Validate on write, lenient on read")
 			continue
 		}
 		if field.Kind.IsMulti() {

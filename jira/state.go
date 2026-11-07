@@ -12,7 +12,8 @@ import (
 	"github.com/git-bug/git-bug/util/lamport"
 )
 
-// statePath is the run state, local and disposable (JS8): losing it costs a
+// statePath is the run state, local and disposable
+// (doc/design/jira.md, "The state file is disposable"): losing it costs a
 // slower run, never a wrong one.
 const statePath = "jira/state.json"
 
@@ -20,12 +21,12 @@ const statePath = "jira/state.json"
 type State struct {
 	Site    string                     `json:"site"`
 	Project string                     `json:"project"`
-	Cursor  time.Time                  `json:"cursor"`           // Jira's updated, UTC (JS20)
-	Seen    map[entity.Id]lamport.Time `json:"seen,omitempty"`   // edit lamport after the last sync (JS20)
-	Failed  map[string]time.Time       `json:"failed,omitempty"` // Jira id -> updated of a hit that failed (JS20)
+	Cursor  time.Time                  `json:"cursor"`           // Jira's updated, UTC
+	Seen    map[entity.Id]lamport.Time `json:"seen,omitempty"`   // edit lamport after the last sync
+	Failed  map[string]time.Time       `json:"failed,omitempty"` // Jira id -> updated of a hit that failed
 	// FailedAfter is the last failed id re-read: the next run starts after it
 	FailedAfter string                `json:"failed_after,omitempty"`
-	Refused     map[entity.Id]refusal `json:"refused,omitempty"` // creates Jira answered and did not make (JS15)
+	Refused     map[entity.Id]refusal `json:"refused,omitempty"` // creates Jira answered and did not make
 	// Orphans are the hits skipped because their property names an entity
 	// this clone does not have, by Jira id, until the Index knows the id.
 	Orphans map[string]Orphan `json:"orphans,omitempty"`
@@ -80,7 +81,8 @@ func (s *State) init() *State {
 	return s
 }
 
-// Bind resets the state when it belongs to another site or project (JS20).
+// Bind resets the state when it belongs to another site or project
+// (doc/design/jira.md, "The state file is disposable").
 func (s *State) Bind(site, project string) {
 	if s.Site != site || s.Project != project {
 		*s = State{Site: site, Project: project}

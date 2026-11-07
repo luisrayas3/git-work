@@ -206,9 +206,9 @@ func TestTypeChangeToLocalOnly(t *testing.T) {
 	w.quiet()
 }
 
-// TC2 and TC5: a Move in Jira across levels is imported though the schema
-// forbids it locally; a type changed on both sides is Jira's, a conflict,
-// and nothing is written for it.
+// a Move in Jira across levels is imported though the schema forbids it
+// locally; a type changed on both sides is Jira's, a conflict, and nothing is
+// written for it (doc/design/jira.md, "A Jira type change is imported first").
 func TestTypeChangePulled(t *testing.T) {
 	w := newWorld(t, jiratest.WithSite(retypeSite()))
 	key := w.srv.CreateIssue(jiratest.IssueSpec{Project: "PROJ", Type: "Epic", Summary: "Grows"})

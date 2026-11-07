@@ -39,7 +39,8 @@ In a terminal, bare ` + "`git work`" + ` runs the flow named home, as
 		},
 
 		// Bare `git work` is `git work flow run home`; with no home flow, no
-		// repository or no terminal it prints the help (doc/design/app.md, A8).
+		// repository or no terminal it prints the help
+		// (doc/design/flows.md, "`git work` is `git work flow run home`").
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if ran, err := runHome(env, cmd, args); ran {
 				return err

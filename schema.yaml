@@ -8,7 +8,7 @@
 # are tested there.
 #
 # `decision` is this repository's own; `area` is where the migration
-# (bf6f392, doc/design/store-migration.md) put the labels the tracker used to
+# (bf6f392, doc/design/migration.md) put the labels the tracker used to
 # simulate it with.
 #
 # `shared` is authoring only. The YAML parser expands every anchor, and the
@@ -17,7 +17,8 @@
 shared:
   # One workflow for every type. Jira's four states plus a backlog and a
   # cancellation, so that all five categories are exercised; everything keyed
-  # on "is this done" reads the category, never the name (D2).
+  # on "is this done" reads the category, never the name
+  # (doc/design/schema.md, "Categories are fixed").
   status: &status
     kind: enum
     name: Status
@@ -61,14 +62,15 @@ types:
   # sits a level above its tasks and decisions, which may swap with each other.
   story:
     name: Story
-    description: A user-facing change, designed in doc/design before its tasks.
+    description: A user-facing change, designed on the issue before its tasks.
     retype_targets: []
     fields:
       status: *status
       priority: *priority
       area: *area
 
-  # The parent's inverse is derived, never stored (D4): `children` is what a
+  # The parent's inverse is derived, never stored
+  # (doc/design/issue.md, "Relations are fields"): `children` is what a
   # story reads, never a key an issue writes.
   task:
     name: Task

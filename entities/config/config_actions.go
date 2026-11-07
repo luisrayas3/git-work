@@ -19,7 +19,7 @@ func (s *Store) MergeAll(repo repository.ClockedRepo, resolvers entity.Resolvers
 // Remove deletes a local entity of this namespace from its id.
 //
 // This is the local removal: the entity comes back on the next pull.
-// The replicated removal is SetArchived (E7).
+// The replicated removal is SetArchived (doc/design/schema.md, "Archive and rm").
 func (s *Store) Remove(repo repository.ClockedRepo, id entity.Id) error {
 	return dag.Remove(s.def, repo, id)
 }

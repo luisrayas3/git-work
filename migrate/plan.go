@@ -6,7 +6,7 @@
 // Ids are preserved by construction and checked,
 // lamport times are reproduced exactly,
 // and the label taxonomy becomes fields;
-// doc/design/store-migration.md is the design.
+// doc/design/migration.md is the design.
 // The package leaves with entities/bug.
 package migrate
 

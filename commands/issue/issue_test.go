@@ -581,7 +581,8 @@ func TestIssueAliases(t *testing.T) {
 
 // TestIssueSearch: id prefix, alias, title and description, case ignored,
 // best match first, and the description kept current and kept out of the JSON
-// (doc/design/app.md, A9).
+// (doc/design/query.md, "Search scans the excerpts";
+// doc/design/query.md, "Search order").
 func TestIssueSearch(t *testing.T) {
 	env := newTestEnv(t)
 	inBody := newTestIssue(t, env,

@@ -12,7 +12,7 @@ import (
 //
 // One change is one commit, because one entity is the write unit;
 // an import that touches five fields is five commits,
-// each valid on its own (E9).
+// each valid on its own (doc/design/schema.md, "One commit per entity").
 type Change struct {
 	Action Action       `json:"action"`
 	Shape  config.Shape `json:"shape"`
@@ -35,7 +35,8 @@ const (
 )
 
 // ordinalStep is how far apart a fresh numbering spaces its entries,
-// so that inserting one entry between two needs one operation, not a renumber (E5).
+// so that inserting one entry between two needs one operation, not a renumber
+// (doc/design/schema.md, "Order is an ordinal").
 const ordinalStep = 10
 
 // Reconcile computes what an import has to write.
@@ -46,7 +47,8 @@ const ordinalStep = 10
 //
 // An unmatched entity is archived only under prune,
 // so an import is an upsert by default
-// and a partial file from anywhere can never archive anyone's work (E9).
+// and a partial file from anywhere can never archive anyone's work
+// (doc/design/schema.md, "Import is an upsert").
 func Reconcile(desired *Document, current []Entry, prune bool) ([]Change, error) {
 	index := map[string]Entry{}
 	for _, e := range current {
@@ -65,7 +67,8 @@ func Reconcile(desired *Document, current []Entry, prune bool) ([]Change, error)
 	var changes []Change
 
 	// Types first: a field entity's key names its type,
-	// and a half-applied import must still read (E9).
+	// and a half-applied import must still read
+	// (doc/design/schema.md, "One commit per entity").
 	typeKeys := desired.Types.Keys()
 	typeOrdinals := assignOrdinals(typeKeys, currentOrdinals(index, config.ShapeType, typeKeys))
 
@@ -187,7 +190,8 @@ func Apply(current []Entry, changes []Change) []Entry {
 // typeAttributeNames are the attributes an import owns on a type entity.
 // Anything else an entity carries — a newer binary's attribute — is left alone.
 // No alias is owned: an import writes the aliases a document states and never
-// removes one, so an alias-free file unmaps nothing (JS2).
+// removes one, so an alias-free file unmaps nothing
+// (doc/design/jira.md, "The mapping is aliases on the schema").
 func typeAttributeNames(name string) bool {
 	switch name {
 	case AttrName, AttrDescription, AttrOrdinal, AttrShow, AttrRetypeTargets:
@@ -279,7 +283,8 @@ func fieldAttributes(fieldKey string, field FieldDoc, ordinal int, entry Entry, 
 }
 
 // diff turns a desired attribute set into the change that gets there,
-// comparing by canonical JSON so that "normalise before comparing" holds (E9).
+// comparing by canonical JSON so that "normalise before comparing" holds
+// (doc/design/schema.md, "Import is an upsert").
 func diff(shape config.Shape, key string, entry Entry, exists bool, desired map[string]config.Value, owned func(string) bool) (Change, bool) {
 	if !exists {
 		return Change{
@@ -361,7 +366,8 @@ func valueOrdinals(attrs map[string]config.Value) map[string]int {
 
 // assignOrdinals numbers a list so that unchanged relative order keeps its
 // numbers, a moved or new entry takes a number between its neighbours, and a
-// list is renumbered only when no number fits (E9, step 3).
+// list is renumbered only when no number fits
+// (doc/design/schema.md, "Import is an upsert").
 func assignOrdinals(keys []string, current map[string]int) map[string]int {
 	out := make(map[string]int, len(keys))
 	if len(keys) == 0 {

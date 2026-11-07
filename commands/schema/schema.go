@@ -1,13 +1,14 @@
 // Package schemacmd is the `git work schema` command tree, over the type and
 // field config entities of refs/work-schema.
 //
-// It follows the rules of doc/design/cli-convention.md:
+// It follows the rules of doc/design/cli.md:
 // a reader prints the schema as YAML or JSON, a writer prints the ids it
 // created and nothing else, `--dry-run` prints what would be committed, and
 // `rm` is local where `archive` replicates.
 //
 // The refs are the runtime source of truth; schema.yaml in the tree is an
-// authoring file that reaches them only through `import` (E1, 0740bf3).
+// authoring file that reaches them only through `import`
+// (doc/design/schema.md, "Configuration is entities, not a file").
 package schemacmd
 
 import (

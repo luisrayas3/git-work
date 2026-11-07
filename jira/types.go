@@ -1,5 +1,5 @@
 // Package jira keeps a git-work store and one Jira project converged
-// (doc/design/jira-sync.md).
+// (doc/design/jira.md).
 //
 // The mapping (discovery, Derive, Compile, Mapping) turns Jira's documents
 // into local terms and back; the merge is a pure function over three
@@ -17,19 +17,22 @@ import (
 	"github.com/git-bug/git-bug/jira/jiraapi"
 )
 
-// Every metadata key and property the sync writes (JS8).
+// Every metadata key and property the sync writes
+// (doc/design/jira.md, "Every key the sync writes").
 const (
-	MetaId        = "jira-id"         // create op: the Jira issue id, the link (I3)
+	MetaId        = "jira-id"         // create op: the Jira issue id, the link
 	MetaAlias     = "alias:jira"      // create op: the Jira key at link time
 	MetaSync      = "jira-sync"       // create op or NoOp: the Base as JSON
-	MetaCreate    = "jira-create"     // NoOp before a POST /issue: its time on Jira's clock (JS15)
-	MetaCommentId = "jira-comment-id" // add-comment op: the Jira comment id (I3)
+	MetaCreate    = "jira-create"     // NoOp before a POST /issue: its time on Jira's clock
+	MetaCommentId = "jira-comment-id" // add-comment op: the Jira comment id
 	MetaNote      = "jira-note"       // add-comment op of a note: conflict | deleted | consolidated
-	// MetaConsolidatedInto is on a consolidated loser's create op: the
-	// winner's id, so a program can drop losers (repoint.md).
+	// MetaConsolidatedInto is on a consolidated loser's create op: the winner's
+	// id, so a program can drop losers
+	// (doc/design/jira.md, "Consolidation keeps the copy that reached Jira first").
 	MetaConsolidatedInto = cache.ConsolidatedIntoMetadata
 	// MetaConsolidatedFrom is on a consolidation note: the loser's id, so a
-	// consolidation retried after an interruption notes once (repoint.md).
+	// consolidation retried after an interruption notes once
+	// (doc/design/jira.md, "Consolidation keeps the copy that reached Jira first").
 	MetaConsolidatedFrom = "jira-consolidated-from"
 	MetaAccountId        = "jira-account-id" // identity, immutable: the Jira accountId
 	PropertyKey          = "git-work"        // Jira issue and comment property
@@ -52,8 +55,9 @@ type Note struct {
 	Message string `json:"message"`
 }
 
-// Doc is one issue in local terms, from either side (JS1):
-// the local snapshot through Mapping.Local, or Jira's through Mapping.fromIssue.
+// Doc is one issue in local terms, from either side
+// (doc/design/jira.md, "Three documents per issue"): the local snapshot through
+// Mapping.Local, or Jira's through Mapping.fromIssue.
 type Doc struct {
 	Id, Key  string                 // remote only
 	Updated  time.Time              // remote only
@@ -62,15 +66,17 @@ type Doc struct {
 	Status   string                 // remote only: the Jira status name
 	Type     string                 // the local type key
 	Fields   map[string]issue.Value // mapped keys, title, type and BodyKey included
-	Lossy    bool                   // remote only: the description holds what git-work cannot write back (JS11)
+	Lossy    bool                   // remote only: the description holds what git-work cannot write back
 	Comments []docComment           // #1 on
-	Deleted  []docComment           // local only: comments a DeleteComment hid, no text (comment-delete.md CD6)
+	Deleted  []docComment           // local only: comments a DeleteComment hid, no text
 	Skip     []Skip                 // remote only: what could not convert now
 }
 
 // docText is a comment's text in the local text model (jiraapi.ADFToText).
 // Lossless is false when writing the text back would drop something Jira has;
-// such a text is never overwritten (JS11). Local texts are always lossless.
+// such a text is never overwritten
+// (doc/design/jira.md, "Texts merge by digest"). Local texts are always
+// lossless.
 type docText struct {
 	Text     string
 	Lossless bool
@@ -95,7 +101,8 @@ type change struct {
 }
 
 // Skip is a key that could not be converted or written now, and why.
-// Retry keeps the issue a candidate on the next run (I1).
+// Retry keeps the issue a candidate on the next run
+// (doc/design/jira.md, "Relations and what cannot convert now").
 type Skip struct {
 	Key    string `json:"key"`
 	Reason string `json:"reason"`

@@ -33,7 +33,8 @@ import (
 // opens on a cell, and on the box where the table has no rows; the box is a
 // stop like the table's rows, washed whole while the cursor is on it, and
 // space is what puts the cursor in its text, as space is what edits a cell
-// (doc/design/terminal-renderer.md, revised 2026-10-08).
+// (doc/design/views.md, "The show page"; doc/design/views.md, "The comment
+// box").
 type showPage struct {
 	repo *cache.RepoCache
 
@@ -42,7 +43,8 @@ type showPage struct {
 	call  *view.Call
 	// defaulted is the spec the page is drawn by where the call's shows did
 	// not give it, `shows.story={…}`, drawn dim after the call on the first
-	// line, as a defaulted argument is (doc/design/app.md A7)
+	// line, as a defaulted argument is (doc/design/views.md, "A defaulted
+	// spec is drawn dim")
 	defaulted string
 
 	snapshot *issue.Snapshot
@@ -92,7 +94,8 @@ type showPage struct {
 	// comment is the comment under the cursor on the comments tab, 0 the
 	// newest, as they are drawn; reveal says it just moved, so the next
 	// frame scrolls its heading onto the screen and no later one holds it
-	// there, so that a long comment still pages (comment-delete.md CD9).
+	// there, so that a long comment still pages (doc/design/tui.md,
+	// "Deleting a comment").
 	comment int
 	reveal  bool
 	// warned says leaving has already said a draft would be lost; a second
@@ -252,7 +255,8 @@ func (p *showPage) tableRows() []tableRow {
 		}
 		if isRelation(known.of(typeKey, key)) && len(p.order) == 0 && p.drawnBeside(key) {
 			// a stored relation a side table draws is not drawn twice,
-			// unless the call's fields name it (show-side-table.md, S3)
+			// unless the call's fields name it (doc/design/views.md, "The
+			// fields table")
 			return nil
 		}
 		var out []tableRow
@@ -426,8 +430,9 @@ func (p *showPage) Update(msg tea.Msg) (page, tea.Cmd) {
 
 	case createdMsg:
 		// a draft the ghost opened was created: it appears in its table,
-		// the cursor on it (doc/design/create.md, C4); a relation stored on
-		// this issue is written here first (C8)
+		// the cursor on it (doc/design/views.md, "What Create does next"); a
+		// relation stored on this issue is written here first
+		// (doc/design/views.md, "A relation stored on the parent")
 		failed := linkCreated(p.repo, msg)
 		if err := p.load(); err != nil {
 			p.status = err.Error()
@@ -540,7 +545,8 @@ func (p *showPage) key(press tea.KeyPressMsg) (page, tea.Cmd) {
 		return p, p.edit(here)
 
 	case keys.copyId.matches(press):
-		// what is shown: an alias as drawn, a hash whole (alias-ids.md A7)
+		// what is shown: an alias as drawn, a hash whole (doc/design/cli.md,
+		// "Copy copies what is drawn")
 		drawn := humanOf(p.repo, p.snapshot.Id().String())
 		p.status = "copied " + drawn
 		return p, setClipboard(copyOf(p.snapshot.Id().String(), drawn))
@@ -587,7 +593,8 @@ func (p *showPage) down(here position) tea.Cmd {
 		return bell()
 	case stopSide:
 		// the side tables and the fields are two columns: down never leaves
-		// either into the other (S5), nor into the box under both
+		// either into the other (doc/design/views.md, "Side tables are a
+		// stop"), nor into the box under both
 		if p.side < len(p.sideItems())-1 {
 			p.side++
 			return nil
@@ -713,8 +720,8 @@ func (p *showPage) descDirty() bool {
 }
 
 // editDescription is space on the description tab: the issue's body in a box
-// to rewrite, the comment box's keys over it (doc/design/terminal-renderer.md,
-// Show, 2026-10-02).
+// to rewrite, the comment box's keys over it (doc/design/views.md, "Editing
+// the description").
 //
 // Until this, the only way to the description was `git work issue comment
 // edit` with the first comment's id, which is a thing to look up to change
@@ -771,7 +778,7 @@ func (p *showPage) leave() (page, tea.Cmd) {
 		return p, nil
 	}
 	// the list is underneath, where it was; with nothing underneath, back
-	// is quit (doc/design/app.md, A1)
+	// is quit (doc/design/tui.md, "Back is two presses")
 	return p, func() tea.Msg { return popMsg{} }
 }
 
@@ -800,7 +807,7 @@ func (p *showPage) submitComment() tea.Cmd {
 // act is enter, which opens and never edits: on a link — a relation's line,
 // a child's row — it goes to the issue the line names, and anywhere else it
 // does nothing, the box included, until the cursor is in its text, where it
-// sends (doc/design/terminal-renderer.md, 2026-10-02).
+// sends (doc/design/tui.md, "Enter opens, space edits").
 func (p *showPage) act(here position) tea.Cmd {
 	row := p.currentRow()
 	if here.stop != stopFields || row == nil {
@@ -843,7 +850,8 @@ func (p *showPage) edit(here position) tea.Cmd {
 }
 
 // toLinkTables is enter on the links row, its tables' table of contents:
-// the cursor goes to the first link table (link-fields.md, L5).
+// the cursor goes to the first link table (doc/design/views.md, "Editing
+// links from the row").
 func (p *showPage) toLinkTables() tea.Cmd {
 	for at, item := range p.sideItems() {
 		if p.tables[item.table].link {
@@ -876,7 +884,7 @@ func (p *showPage) copyHere(here position) tea.Cmd {
 		what, value = row.key, plain(p.snapshot.Fields[row.key])
 		if row.link != "" {
 			// a link copies the id it names, which is what a command takes,
-			// as it is shown (alias-ids.md A7)
+			// as it is shown (doc/design/cli.md, "Copy copies what is drawn")
 			value = copyOf(row.link, humanOf(p.repo, row.link))
 		}
 	case stopTabs:
@@ -996,7 +1004,8 @@ func (p *showPage) updateEditor(msg tea.Msg) (page, tea.Cmd) {
 }
 
 // linkChosen is enter in the link picker: a relation opens its membership
-// picker, and an issue there is added or removed, one write (L5).
+// picker, and an issue there is added or removed, one write
+// (doc/design/views.md, "Editing links from the row").
 func (p *showPage) linkChosen(ed *editor) tea.Cmd {
 	chosen := ed.linkChoice()
 	if ed.link.rel == nil {
@@ -1172,8 +1181,8 @@ func (p *showPage) tabBarLine() int {
 
 // blockLines is the fields table and the side tables: beside it when the
 // window holds both, under it when it does not, which the width alone
-// decides (doc/design/show-side-table.md, S4). It says which line the cursor
-// is on, in the fields or in the side column, or -1.
+// decides (doc/design/views.md, "Side layout"). It says which line the
+// cursor is on, in the fields or in the side column, or -1.
 func (p *showPage) blockLines(here position) ([]string, int) {
 	if len(p.tables) == 0 {
 		return p.fieldLines(here)
@@ -1361,8 +1370,8 @@ func (p *showPage) onComment() bool {
 }
 
 // deleteComment is `esc d`: the comment under the cursor is deleted, at
-// once, with no question first (comment-delete.md CD9), and the page reads
-// the store again. Its text stays in the issue's log.
+// once, with no question first (doc/design/tui.md, "Deleting a comment"),
+// and the page reads the store again. Its text stays in the issue's log.
 func (p *showPage) deleteComment() tea.Cmd {
 	if !p.onComment() {
 		p.status = "no comment under the cursor"

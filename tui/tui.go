@@ -62,10 +62,10 @@ func New(out io.Writer) (*Renderer, bool) {
 // Render draws a call and blocks until the user quits.
 //
 // The answer is nil for every kind but `new`, which answers the id it
-// created, or nil when it was left without creating (doc/design/create.md,
-// C4); the signature carries one because a view is a question as much as a
-// picture, and the deferred questions to the user (choose, confirm, ask)
-// will return what the user answered.
+// created, or nil when it was left without creating (doc/design/views.md,
+// "`new` prints the id"); the signature carries one because a view is a
+// question as much as a picture, and the deferred questions to the user
+// (choose, confirm, ask) will return what the user answered.
 func (r *Renderer) Render(ctx context.Context, repo *cache.RepoCache, call *view.Call) (json.RawMessage, error) {
 	first, err := r.page(repo, call)
 	if err != nil {
@@ -101,7 +101,7 @@ func (r *Renderer) Render(ctx context.Context, repo *cache.RepoCache, call *view
 // is the only one Starlark may be re-entered on. A flow run from a page is a
 // job here (home.go), so navigation and redraw never wait on a script;
 // actions injected into views, still deferred
-// (doc/design/terminal-renderer.md), would run here too.
+// (doc/design/tui.md, "Not done"), would run here too.
 func (r *Renderer) drive(ctx context.Context, repo *cache.RepoCache, stack *root, program *tea.Program) (json.RawMessage, error) {
 	s := &session{ctx: ctx, repo: repo, program: program,
 		jobs: make(chan func()), finished: make(chan struct{})}

@@ -16,7 +16,8 @@ import (
 // too, and the list it pushes carries the cell in `draft` — each axis value
 // the cell names, the block's group_by value and the type every issue on the
 // matrix shares, never the value field — so its ghost already holds the
-// cell, and the call line still copies as a legal list call (C8).
+// cell, and the call line still copies as a legal list call
+// (doc/design/views.md, "The matrix cell").
 func TestMatrixDrillDownCarriesTheDraft(t *testing.T) {
 	repo := testRepo(t)
 	alpha, beta, first, _ := twoByTwo(t, repo)

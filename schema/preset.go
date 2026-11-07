@@ -9,14 +9,15 @@ import (
 )
 
 // presets are embedded, so that `git work schema init jira` needs no file and
-// no network: a preset is instantiated as config entities like any import (D7).
+// no network: a preset is instantiated as config entities like any import
+// (doc/design/schema.md, "Presets are embedded").
 //
 //go:embed presets/*.yaml
 var presets embed.FS
 
 // DefaultPreset is what `git work schema init` uses when nothing is named.
 //
-// jira, because this repository dogfoods it (D7):
+// jira, because this repository dogfoods it:
 // an unverified preset exercised daily beats one exercised never.
 const DefaultPreset = "jira"
 

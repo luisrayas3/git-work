@@ -7,7 +7,8 @@ import (
 )
 
 // TestIdentityByImmutableMetadata pins the two paths the Jira sync's
-// identities take through the existing API (jira-sync.md, JS16): an external
+// identities take through the existing API
+// (doc/design/jira.md, "Identities"): an external
 // user created with the key, and the current user tagged with it afterwards.
 // Both resolve, from this cache and from a fresh one.
 func TestIdentityByImmutableMetadata(t *testing.T) {

@@ -10,7 +10,7 @@ import (
 
 // CredentialHelper is git's credential helpers, reached like its config and
 // its transport: through the CLI, so whatever helper the user configured
-// answers (jira-sync.md, JS3).
+// answers (doc/design/jira.md, "Binding and credentials").
 type CredentialHelper interface {
 	// CredentialFill runs `git credential fill` for the URL's protocol and
 	// host and the given username, with GIT_TERMINAL_PROMPT=0, and returns

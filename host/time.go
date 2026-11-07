@@ -12,7 +12,7 @@ const TimeForms = "a date (2026-09-21), an RFC 3339 time, or a duration back fro
 
 // ParseTime reads a TIME argument: `--at`, `--from` and `--to` all take this.
 //
-// Three forms, tried in this order (doc/design/report.md):
+// Three forms, tried in this order (doc/design/query.md, "One TIME grammar"):
 // a date, read as local midnight;
 // an RFC 3339 timestamp;
 // a duration back from `now`, so that `--from 7d` is the last seven days

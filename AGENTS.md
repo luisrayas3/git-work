@@ -69,7 +69,7 @@ Do not extend them;
   so every verb has the same name, arguments and output in both
   (`work.issue.get(id)` is `git work issue get ID`),
   and nothing exists on one side only.
-  `doc/design/cli-convention.md` is the map every command follows:
+  `doc/design/cli.md` is the map every command follows:
   plumbing is JSON in and out,
   writers print an id or nothing,
   no sugar flags.
@@ -121,16 +121,41 @@ Do not extend them;
 
 ## Working conventions
 
-- Every story gets a design document at `doc/design/<slug>.md`,
-  approved before any of its code is written.
-  It records the decisions and their reasoning,
-  not a plan of steps.
-  A design that contradicts its tasks says so in the document
+- **The design documents are organized by aspect, not by feature.**
+  `doc/design/README.md` lists them,
+  one per part of the system (the store, the schema, the views, the Jira sync …).
+  Each says what holds *now* and why:
+  the decisions in force, their reasoning,
+  and the alternatives rejected where the reason still matters.
+  It is not a history and not a plan:
+  no "revised on", no "supersedes", no order of work, no deferred list
+  (future work is an issue).
+  What a decision used to be is in git and on the issues.
+- **The set of aspects changes only on a human's explicit say-so.**
+  New work goes into the aspect it belongs to,
+  even when that makes a document longer.
+  An agent may *recommend* adding, splitting or merging an aspect,
+  conservatively and with its reason,
+  but does not do it until a human has confirmed that change directly;
+  approval of a story's design is not approval of a new aspect.
+- **A story's design is written on the story**,
+  in its description or a comment,
+  and approved there before any of its code is written:
+  which aspects change, the decisions, and why.
+  A design that contradicts its tasks says so on the story
   *and* in a comment on the task,
-  since whoever picks the task up may never read the document.
-- Design documents are records of their day:
-  when a decision changes,
-  write the new one down rather than rewriting the old.
+  since whoever picks the task up may never read the story.
+- **The change that builds a decision updates its aspect document**,
+  so a document never describes what is not built
+  and never keeps what no longer holds.
+  A decision that changes is rewritten in place, where it stands,
+  and every sentence elsewhere that it makes wrong is fixed in the same change.
+- **A decision is a heading, and code cites it by document and heading**:
+  `(doc/design/views.md, "The ghost")`.
+  A heading names the decision, so keep it short and stable;
+  renaming one means updating what cites it.
+  `TestDesignCitations` fails on a citation, or a link between documents,
+  that names a document or heading that does not exist.
 - **Tests own their fixtures.**
   No test reads this repository's `schema.yaml`, `flows/` or tracker:
   those are this project's configuration,
@@ -140,4 +165,5 @@ Do not extend them;
 - **Keep the guides accurate in the change that makes them wrong.**
   A change to how git-work is used updates `host/quickstart.md`
   (a test checks that every command it names exists);
+  a change to a decision updates its aspect document in `doc/design`;
   a change to how it is built or structured updates this file.

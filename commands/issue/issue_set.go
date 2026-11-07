@@ -193,7 +193,8 @@ func printOperations(env *execenv.Env, opts writeOptions, ops []issue.Operation)
 // warnUnvalidated says, on stderr, that a dry run checked nothing.
 //
 // With no type entity in the store there is no schema to measure a write
-// against (E4), and silence would read as approval.
+// against, and silence would read as approval
+// (doc/design/cli.md, "`--dry-run` prints what would be committed").
 func warnUnvalidated(env *execenv.Env) {
 	s, err := env.Backend.LoadSchema()
 	if err != nil {

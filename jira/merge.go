@@ -68,8 +68,9 @@ func (cw commentWrite) key() string {
 }
 
 // commentDelete is a comment deleted locally to delete in Jira
-// (comment-delete.md CD6). Import, when set, is Jira's text edited since
-// the base, committed once the delete lands so that it is not lost to git.
+// (doc/design/jira.md, "A comment deleted locally is deleted in Jira"). Import,
+// when set, is Jira's text edited since the base, committed once the delete
+// lands so that it is not lost to git.
 type commentDelete struct {
 	Op     entity.Id
 	JiraId string
@@ -110,7 +111,7 @@ const (
 // TombstonePrefix starts the text a comment deleted in Jira is edited to.
 const TombstonePrefix = "Deleted in Jira on "
 
-// verdict is JS9's decision for one key.
+// verdict is the decision for one key (doc/design/jira.md, "Scalars").
 type verdict int
 
 const (
@@ -119,8 +120,9 @@ const (
 	give                 // export l
 )
 
-// form is a key's value as it is compared and kept in a base: the digest
-// of the body's text (JS11), canonical JSON for any other key.
+// form is a key's value as it is compared and kept in a base: the digest of the
+// body's text (doc/design/jira.md, "Texts merge by digest"), canonical JSON for
+// any other key.
 func form(key string, v issue.Value) issue.Value {
 	if key == BodyKey {
 		text, _ := issue.String(v)
@@ -129,7 +131,8 @@ func form(key string, v issue.Value) issue.Value {
 	return canon(v)
 }
 
-// decide is JS9 over comparable forms (form, and digests for comments).
+// decide is the scalar rule (doc/design/jira.md, "Scalars") over comparable
+// forms (form, and digests for comments).
 // empty is what an unset local compares as: taking over it is no conflict.
 func decide(b string, hasBase bool, l, r, empty string) (v verdict, conflict bool) {
 	switch {
@@ -144,10 +147,13 @@ func decide(b string, hasBase bool, l, r, empty string) (v verdict, conflict boo
 }
 
 // merge decides one issue per key over base b, the local and the remote
-// documents (JS9–JS12). It is pure. b nil is an issue never synced. With
-// export false every local change is pending instead of in Remote/Comments
-// (JS13 step 6). A key in mergePlan.Remote keeps its old base: the engine
-// records the value written in Base.Sent, and confirm settles it (I2).
+// documents (doc/design/jira.md, "Three documents per issue"). It is pure.
+// b nil is an issue never synced. With export false every local change is
+// pending instead of in Remote/Comments, as at step 6
+// (doc/design/jira.md, "One issue at a time").
+// A key in mergePlan.Remote keeps its old base: the engine records the value
+// written in Base.Sent, and confirm settles it
+// (doc/design/jira.md, "The base is what Jira was seen to hold").
 func merge(b *Base, local, remote Doc, multi func(key string) bool, export bool) mergePlan {
 	if b == nil {
 		b = &Base{V: baseVersion}
@@ -173,7 +179,8 @@ func merge(b *Base, local, remote Doc, multi func(key string) bool, export bool)
 		}
 	}
 
-	// type first (JS18), then the other keys in order
+	// type first (doc/design/jira.md, "A Jira type change is imported first"),
+	// then the other keys in order
 	keys := sorted.Keys(remote.Fields)
 	if _, ok := remote.Fields[typeKey]; ok {
 		keys = append([]string{typeKey}, keys...)
@@ -212,7 +219,7 @@ func merge(b *Base, local, remote Doc, multi func(key string) bool, export bool)
 		case give:
 			switch {
 			case k == BodyKey && remote.Lossy:
-				pending(k, reasonLossy) // JS11: never overwritten
+				pending(k, reasonLossy) // a lossy Jira text is never overwritten
 			default:
 				exportOr(k, func() { p.Remote = append(p.Remote, change{Key: k, Set: canon(lv)}) })
 			}
@@ -226,7 +233,9 @@ func merge(b *Base, local, remote Doc, multi func(key string) bool, export bool)
 	return p
 }
 
-// mergeComments is JS12's table, with comment-delete.md CD6's rows.
+// mergeComments is the pairing table (doc/design/jira.md, "Comments pair by
+// id"), with the rows of a local delete
+// (doc/design/jira.md, "A comment deleted locally is deleted in Jira").
 // A comment key in skipped (a write a stale GET does not show) is left alone.
 func mergeComments(p *mergePlan, b, nb *Base, local, remote Doc, skipped map[string]bool, pending func(key, reason string), exportOr func(string, func())) {
 	if nb.Comments == nil {
@@ -261,7 +270,8 @@ func mergeComments(p *mergePlan, b, nb *Base, local, remote Doc, skipped map[str
 			d, deleted = deletedByOp[rc.Op]
 		}
 		if deleted {
-			// deleted locally, present in Jira (comment-delete.md CD6)
+			// deleted locally, present in Jira
+			// (doc/design/jira.md, "A comment deleted locally is deleted in Jira")
 			done[d.Op] = true
 			bd, hasBase := b.Comments[rc.JiraId]
 			if skipped[key] || hasBase && bd == "" {
@@ -313,7 +323,8 @@ func mergeComments(p *mergePlan, b, nb *Base, local, remote Doc, skipped map[str
 			continue
 		}
 		if lc, ok := byOp[rc.Op]; ok && rc.Op != "" {
-			// our own export whose pairing never committed (JS12's crash row)
+			// our own export whose pairing never committed: the crash the
+			// property repairs (doc/design/jira.md, "Comments pair by id")
 			done[lc.Op] = true
 			if lc.JiraId == "" && !lc.Note {
 				p.Local = append(p.Local, localChange{Kind: localPairComment, Op: lc.Op, JiraId: rc.JiraId})
@@ -348,8 +359,10 @@ func mergeComments(p *mergePlan, b, nb *Base, local, remote Doc, skipped map[str
 		}
 		nb.Comments[lc.JiraId] = ""
 	}
-	// deleted locally, paired, gone from Jira: settled, with no request and
-	// no tombstone (comment-delete.md CD6); never paired: never exported
+	// deleted locally, paired, gone from Jira: settled, with no request and no
+	// tombstone
+	// (doc/design/jira.md, "A comment deleted locally is deleted in Jira");
+	// never paired: never exported
 	for _, d := range local.Deleted {
 		if done[d.Op] || d.JiraId == "" || skipped[commentKey+":"+d.JiraId] {
 			continue
@@ -361,15 +374,17 @@ func mergeComments(p *mergePlan, b, nb *Base, local, remote Doc, skipped map[str
 	}
 }
 
-// tombstone is the text a comment deleted in Jira is edited to (JS12).
+// tombstone is the text a comment deleted in Jira is edited to
+// (doc/design/jira.md, "A comment deleted in Jira becomes a tombstone").
 func tombstone(at time.Time) string {
 	return TombstonePrefix + at.UTC().Format("2006-01-02") + "."
 }
 
 func IsTombstone(text string) bool { return strings.HasPrefix(text, TombstonePrefix) }
 
-// mergeSet is JS10: an item survives when neither side removed it or either
-// side added it. It returns the merged set and the diffs against l and r.
+// mergeSet is the set merge (doc/design/jira.md, "Sets merge item-wise"): an
+// item survives when neither side removed it or either side added it. It
+// returns the merged set and the diffs against l and r.
 func mergeSet(b, l, r issue.Value) (merged issue.Value, lAdd, lRem, rAdd, rRem []issue.Value) {
 	bs, ls, rs := setOf(b), setOf(l), setOf(r)
 	all, keep := itemSet{}, itemSet{}

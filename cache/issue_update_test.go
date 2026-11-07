@@ -134,7 +134,7 @@ func TestIssueUpdateRefusedBySchemaWritesNothing(t *testing.T) {
 
 // TestIssueUpdateShapeSkipsThePolicy: UpdateShape and NewRawShape commit a
 // value of the right kind the schema's policy refuses, and still refuse one
-// of the wrong kind (pull-schema-check.md).
+// of the wrong kind (doc/design/jira.md, "A pull is checked for shape, not policy").
 func TestIssueUpdateShapeSkipsThePolicy(t *testing.T) {
 	c, i, me := newUpdateTestIssue(t)
 

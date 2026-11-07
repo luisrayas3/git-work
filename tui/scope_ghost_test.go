@@ -38,7 +38,8 @@ func ghostGroups(p *listPage, parent string) []string {
 }
 
 // withTheme gives the story a field no other type has, so that a draft can
-// carry something a child gives up (C9's drop).
+// carry something a child gives up (doc/design/views.md, "One construction,
+// every ghost").
 func withTheme(t *testing.T, repo *cache.RepoCache) {
 	t.Helper()
 	doc, err := schema.ParseDocument([]byte(`
@@ -52,11 +53,12 @@ types:
 	require.NoError(t, err)
 }
 
-// TestChildScopeGhosts: every scope ends in a ghost (C8): the roots, and the
-// child table of every opened parent, one per group of a level that groups,
-// drawn at the children's indent, each opening the creator with the parent
-// through the layer's relation, the type the scope's rows share and the
-// group's value. Counts never count a ghost.
+// TestChildScopeGhosts: every scope ends in a ghost (doc/design/views.md,
+// "One ghost per scope"): the roots, and the child table of every opened
+// parent, one per group of a level that groups, drawn at the children's
+// indent, each opening the creator with the parent through the layer's
+// relation, the type the scope's rows share and the group's value. Counts
+// never count a ghost.
 func TestChildScopeGhosts(t *testing.T) {
 	repo := testRepo(t)
 	story := newTyped(t, repo, "story", map[string]any{"title": "the story"})
@@ -130,8 +132,8 @@ func TestNoGhostUnderAFold(t *testing.T) {
 
 // TestLeafOpensToAnEmptyTable: a row whose layer below could hold children
 // draws a faint `▸ 0`, and unfolds to an empty child table: its header,
-// then its ghost, which tab lands on (C8). A row that can have none draws
-// no fold cell.
+// then its ghost, which tab lands on (doc/design/views.md, "A leaf unfolds
+// to an empty table"). A row that can have none draws no fold cell.
 func TestLeafOpensToAnEmptyTable(t *testing.T) {
 	repo := testRepo(t)
 	story := newTyped(t, repo, "story", map[string]any{"title": "the story"})
@@ -165,11 +167,12 @@ func TestLeafOpensToAnEmptyTable(t *testing.T) {
 	require.NotContains(t, rowOf(page, task), "▸")
 }
 
-// TestDraftIsEveryGhostsBase: the call's `draft` is the base of every
-// ghost's draft (C9), the roots' and every child scope's: then the shared
-// type where it names none, then the group, which wins on its key, then the
-// relation; a type that cannot hold the child relation gives way, and what
-// the resulting type has no field for is dropped.
+// TestDraftIsEveryGhostsBase: the call's `draft` is the base of every ghost's
+// draft (doc/design/views.md, "One construction, every ghost"), the roots'
+// and every child scope's: then the shared type where it names none, then the
+// group, which wins on its key, then the relation; a type that cannot hold
+// the child relation gives way, and what the resulting type has no field for
+// is dropped.
 func TestDraftIsEveryGhostsBase(t *testing.T) {
 	repo := testRepo(t)
 	withTheme(t, repo)
@@ -255,10 +258,11 @@ func TestGanttAndBoardGhostsTakeTheDraft(t *testing.T) {
 }
 
 // TestParentSideGhosts: a relation stored on the parent leaves the draft
-// alone, and the opener writes the parent after Create (C8): `issue add`
-// for a multi-relation, `issue set` for a single relation, whose ghost reads
-// `(new, replacing …)` while it is set. A refused write leaves the issue
-// created and says both halves.
+// alone, and the opener writes the parent after Create (doc/design/views.md,
+// "A relation stored on the parent"; doc/design/views.md, "A single relation
+// on the parent replaces"): `issue add` for a multi-relation, `issue set` for
+// a single relation, whose ghost reads `(new, replacing …)` while it is set.
+// A refused write leaves the issue created and says both halves.
 func TestParentSideGhosts(t *testing.T) {
 	repo := testRepo(t)
 	story := newTyped(t, repo, "story", map[string]any{"title": "the story"})
@@ -329,7 +333,8 @@ func idsOf(t *testing.T, repo *cache.RepoCache, id, key string) []string {
 }
 
 // TestShowStoredRelationGhost: a side table over a single relation stored
-// on the shown issue has the ghost too, naming what it replaces (C8).
+// on the shown issue has the ghost too, naming what it replaces
+// (doc/design/views.md, "A single relation on the parent replaces").
 func TestShowStoredRelationGhost(t *testing.T) {
 	repo := testRepo(t)
 	old := newTyped(t, repo, "story", map[string]any{"title": "the old story"})

@@ -81,7 +81,8 @@ func NewIssueComment(comment issue.Comment) IssueComment {
 // plus the operation itself in the shape the store holds it.
 //
 // Issue is carried whether the log was asked for one issue or for many
-// (doc/design/report.md): a shape that changed with the argument
+// (doc/design/query.md, "The log takes a program"): a shape that changed
+// with the argument
 // would be a shape every caller has to branch on.
 // Time is the same moment as UnixTime, written out, so that a reader — a
 // report flow among them — can print a date without owning a calendar.
@@ -130,9 +131,11 @@ type IssueExcerpt struct {
 }
 
 func NewIssueExcerpt(backend *cache.RepoCache, excerpt *cache.IssueExcerpt) (IssueExcerpt, error) {
+	// HumanId is the drawn id
+	// (doc/design/cli.md, "`human_id` carries the drawn id; `id` never changes").
 	out := IssueExcerpt{
 		Id:         excerpt.Id().String(),
-		HumanId:    backend.IssueHumanId(excerpt.Id()), // alias-ids.md A4
+		HumanId:    backend.IssueHumanId(excerpt.Id()),
 		CreateTime: NewTime(excerpt.CreateTime(), excerpt.CreateLamportTime),
 		EditTime:   NewTime(excerpt.EditTime(), excerpt.EditLamportTime),
 		Fields:     fieldsJSON(excerpt.Fields),
@@ -171,7 +174,8 @@ func NewIssueExcerpt(backend *cache.RepoCache, excerpt *cache.IssueExcerpt) (Iss
 // time, so that a jq program written for `git work issue list` reads `--at` unchanged.
 //
 // It is built here rather than from a cache.IssueExcerpt because the cache
-// holds the present only (doc/design/report.md). createLamport is the create
+// holds the present only (doc/design/query.md, "The excerpt at a time").
+// createLamport is the create
 // operation's, which the live excerpt knows and which no replay changes.
 //
 // edit_time.lamport is left at zero, and so omitted: a lamport time belongs to

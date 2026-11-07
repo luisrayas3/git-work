@@ -23,7 +23,8 @@ func drawnKeys(p *listPage) []string {
 // TestAKeyedRowReordersForThisViewOnly: a row whose key is not its id
 // stands for a share of an issue, so its drop writes no rank; the view
 // holds the order by key across a refresh, and a key it does not know keeps
-// its (rank, id) place after the ones it does (R5).
+// its (rank, id) place after the ones it does (doc/design/query.md, "A
+// keyed row reorders for the view only").
 func TestAKeyedRowReordersForThisViewOnly(t *testing.T) {
 	repo := testRepo(t)
 	a := newIssue(t, repo, map[string]any{"title": "a"})
@@ -60,7 +61,8 @@ func TestAKeyedRowReordersForThisViewOnly(t *testing.T) {
 
 // TestAKeyedRowStaysInItsGroup: dropping a share in another group would
 // write the issue's field, so a keyed row carried past the edge of its
-// group rings and stays (R5, Out of scope).
+// group rings and stays (doc/design/query.md, "A keyed row reorders for
+// the view only").
 func TestAKeyedRowStaysInItsGroup(t *testing.T) {
 	repo := testRepo(t)
 	a := newIssue(t, repo, map[string]any{"title": "a", "status": "to-do"})
@@ -86,7 +88,7 @@ func TestAKeyedRowStaysInItsGroup(t *testing.T) {
 // and a plain one by its rank, so a level of both is refused, naming a key
 // and an id from it — the roots across their groups, and a row's listed
 // children; on a refresh the refusal is the status line. A row keyed by its
-// own id is plain (R2, settled 2026-10-08).
+// own id is plain (doc/design/query.md, "A level is keyed or plain").
 func TestALevelIsAllKeyedRowsOrNone(t *testing.T) {
 	repo := testRepo(t)
 	x := newIssue(t, repo, map[string]any{"title": "x", "status": "to-do"})
@@ -122,7 +124,7 @@ func TestALevelIsAllKeyedRowsOrNone(t *testing.T) {
 
 // TestARowWithNoIdNamesItsType: a row that stands for no issue has no issue
 // to read a type off, so it names one the schema knows, or it is refused,
-// naming its key (R2, settled 2026-10-08).
+// naming its key (doc/design/query.md, "A row that stands for no issue").
 func TestARowWithNoIdNamesItsType(t *testing.T) {
 	repo := testRepo(t)
 	newIssue(t, repo, map[string]any{"title": "one"})

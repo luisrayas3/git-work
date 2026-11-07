@@ -65,7 +65,8 @@ func runFlowRun(env *execenv.Env, args []string) error {
 
 // Run runs a flow by name, or the script on standard input for "-", and
 // prints what it returned: `git work flow run`, and bare `git work`, which
-// is `git work flow run home` (doc/design/app.md, A8).
+// is `git work flow run home`
+// (doc/design/flows.md, "`git work` is `git work flow run home`").
 func Run(env *execenv.Env, name string, kwargs map[string]json.RawMessage) error {
 	// A flow needs no renderer until it calls a view, so a missing terminal
 	// is not an error here: it is the absence host.View reports if and when

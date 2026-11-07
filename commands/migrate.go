@@ -42,7 +42,7 @@ from the remote's is an error. --dry-run fetches and merges them too,
 since fetching is not migrating; it still writes nothing under
 refs/work-issues/*.
 
-doc/design/store-migration.md is the design.`,
+doc/design/migration.md is the design.`,
 		Args:    cobra.NoArgs,
 		PreRunE: execenv.LoadBackend(env),
 		RunE: func(cmd *cobra.Command, args []string) error {

@@ -132,5 +132,5 @@ func TestSchemaEntriesSkipArchived(t *testing.T) {
 	require.NoError(t, err)
 	task, _ := s.Type("task")
 	_, ok := task.Field("labels")
-	require.False(t, ok, "an archived field stops being settable (D6)")
+	require.False(t, ok, "an archived field stops being settable")
 }

@@ -36,7 +36,7 @@ func compileDocument(t *testing.T, src string) ([]Entry, *Schema) {
 
 // TestLinkRoundTrips: the mark is a field attribute like inverse, written by
 // import, read back by the compile, and exported, so export | import is a
-// no-op (link-fields.md, L1, L6).
+// no-op (doc/design/schema.md, "A link is a marked relation").
 func TestLinkRoundTrips(t *testing.T) {
 	entries, compiled := compileDocument(t, linkDocument)
 
@@ -69,7 +69,8 @@ types:
 }
 
 // TestLinkValidate: only a relation takes the mark, a built-in none, and
-// `links` is reserved as a field key and as an inverse (L1, L3).
+// `links` is reserved as a field key and as an inverse
+// (doc/design/schema.md, "A link is a marked relation").
 func TestLinkValidate(t *testing.T) {
 	cases := map[string][2]string{
 		"a link on a text": {"types:\n  epic:\n    fields:\n      note: {kind: text, link: true}\n",

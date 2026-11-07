@@ -1,16 +1,18 @@
 // Package schema is the compiled projection of the type and field config
 // entities, and the rules an issue write is checked against
-// (doc/design/config-entity.md E4, E8; configurable-schema.md D2, D4, `bb9e89e`).
+// (doc/design/schema.md).
 //
 // It is a pure library:
 // it reads config entities as documents handed to it
 // and never reaches for a repository itself,
 // so the cache can depend on it and validate on the write path
-// while entities/issue stays free of any schema import (E8).
+// while entities/issue stays free of any schema import
+// (doc/design/schema.md, "Validate on write, lenient on read").
 //
 // The store is the source of truth;
 // schema.yaml is an authoring file that reaches the refs
-// only through `git work schema import` (E1, `0740bf3`).
+// only through `git work schema import`
+// (doc/design/schema.md, "Configuration is entities, not a file").
 package schema
 
 import (
@@ -22,7 +24,8 @@ import (
 
 // Value is one value of an enum field, stored by its stable id.
 //
-// A rename in Jira then changes one attribute and no history (D2),
+// A rename in Jira then changes one attribute and no history
+// (doc/design/schema.md, "Values are stored by id"),
 // which is why nothing ever stores a display name.
 type Value struct {
 	Id          string   `json:"id"`
@@ -33,13 +36,15 @@ type Value struct {
 	Color       string   `json:"color,omitempty"`
 
 	// Aliases are what the value is in other systems, by system,
-	// held on the field entity as `alias_<system>/<id>` (JS2).
+	// held on the field entity as `alias_<system>/<id>`
+	// (doc/design/jira.md, "The mapping is aliases on the schema").
 	Aliases map[string]string `json:"aliases,omitempty"`
 }
 
 // Field is one (type, field) config entity, compiled.
 //
-// Every field belongs to exactly one type (E2, `e7e58f2`):
+// Every field belongs to exactly one type
+// (doc/design/schema.md, "A field belongs to one type"):
 // `task/status` and `epic/status` are two entities,
 // and sharing is YAML anchors at authoring time, never in the store.
 type Field struct {
@@ -53,27 +58,32 @@ type Field struct {
 	Description string `json:"description,omitempty"`
 	Ordinal     int    `json:"ordinal"`
 
-	// Freeform allows values outside the value list, as Jira's labels do (E3).
+	// Freeform allows values outside the value list, as Jira's labels do
+	// (doc/design/schema.md, "Kinds are a fixed list").
 	Freeform bool `json:"freeform,omitempty"`
 	// Values are the enum values, in (ordinal, id) order.
 	Values []Value `json:"values,omitempty"`
 
-	// Inverse is what the derived side of a relation reads as (D4),
+	// Inverse is what the derived side of a relation reads as
+	// (doc/design/schema.md, "Relations"),
 	// never a key an issue can write.
 	Inverse string `json:"inverse,omitempty"`
 	// TargetTypes restricts what a relation may point at; empty is anything.
 	TargetTypes []string `json:"target_types,omitempty"`
-	// Link marks a relation as a link (doc/design/link-fields.md, L1):
+	// Link marks a relation as a link
+	// (doc/design/schema.md, "A link is a marked relation"):
 	// show draws it folded into one `links` row and its targets as side
 	// tables, and its inverse is a link too. Only the views read it; it is
 	// not a field role, since Go names no field by it.
 	Link bool `json:"link,omitempty"`
 
-	// Aliases are what the field is in other systems, by system (JS2):
+	// Aliases are what the field is in other systems, by system
+	// (doc/design/jira.md, "The mapping is aliases on the schema"):
 	// for Jira a field reference, `customfield_10016` or `link:10000`.
 	Aliases map[string]string `json:"aliases,omitempty"`
 
-	// Builtin marks the four fields that exist in code on every type (E4, D8).
+	// Builtin marks the four fields that exist in code on every type
+	// (doc/design/schema.md, "Built-ins are code").
 	Builtin bool `json:"builtin,omitempty"`
 	// Configured marks a field an entity defines,
 	// which for a built-in means an entity overrides its configurable parts.
@@ -119,20 +129,23 @@ type Type struct {
 	Description string `json:"description,omitempty"`
 	Ordinal     int    `json:"ordinal"`
 
-	// Aliases are what the type is in other systems, by system (JS2):
+	// Aliases are what the type is in other systems, by system
+	// (doc/design/jira.md, "The mapping is aliases on the schema"):
 	// for Jira an issue type id.
 	Aliases map[string]string `json:"aliases,omitempty"`
 
 	// Show is the type's show spec as JSON, nil where the type has none:
 	// what show takes less the id, `{"expand":["children","links"]}`, which
-	// a view's `shows` overrides whole (doc/design/app.md A7). The views
+	// a view's `shows` overrides whole
+	// (doc/design/views.md, "A spec is whole, never merged"). The views
 	// parse and check it; it changes no storage, write or query.
 	Show json.RawMessage `json:"show,omitempty"`
 
 	// RetypeTargets are the types an issue of this type may become by a
-	// `set` of its type (type-change.md, TC1): nil is any type, empty is
-	// none. It is policy: a local write is checked against it, a Jira pull
-	// is not (TC2).
+	// `set` of its type (doc/design/schema.md, "A type says what it may
+	// become"): nil is any type, empty is none. It is policy: a local write
+	// is checked against it, a Jira pull is not
+	// (doc/design/issue.md, "A type change is a set").
 	RetypeTargets *[]string `json:"retype_targets,omitempty"`
 
 	// Fields are the type's fields by key, built-ins included.
@@ -143,7 +156,8 @@ type Type struct {
 }
 
 // MayBecome reports whether an issue of the type may be retyped to another,
-// and else the types it may become, for the refusal (TC1). Absent retype
+// and else the types it may become, for the refusal
+// (doc/design/schema.md, "A type says what it may become"). Absent retype
 // targets allow any type.
 func (t *Type) MayBecome(typeKey string) (bool, []string) {
 	if t.RetypeTargets == nil || typeKey == t.Key {
@@ -222,13 +236,15 @@ func (t *Type) FieldKeys() []string {
 // Schema is every unarchived type and field entity, compiled, plus the built-ins.
 //
 // An empty schema is the bootstrap state, not an error:
-// a repository with no config entities runs on the built-ins alone (E4),
+// a repository with no config entities runs on the built-ins alone
+// (doc/design/schema.md, "Built-ins are code"),
 // and writes are then unvalidated.
 type Schema struct {
 	// Types are the issue types by key.
 	Types map[string]*Type `json:"types"`
 	// Problems are the dangling references and unreadable attributes found
-	// while compiling. A read never fails on what was written before (D6),
+	// while compiling. A read never fails on what was written before
+	// (doc/design/schema.md, "Structural rules are frozen"),
 	// so they are reported and never returned as an error.
 	Problems []string `json:"problems,omitempty"`
 }
@@ -260,7 +276,8 @@ func (s *Schema) TypeKeys() []string {
 }
 
 // Empty reports whether the schema holds no type at all,
-// which is the bootstrap state: nothing to validate a write against (E4).
+// which is the bootstrap state: nothing to validate a write against
+// (doc/design/schema.md, "Built-ins are code").
 func (s *Schema) Empty() bool {
 	return len(s.Types) == 0
 }

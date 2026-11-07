@@ -21,7 +21,7 @@ import (
 // dropping it higher or lower in its column sets the rank. Nothing on a card
 // is edited in place — enter opens the issue, and show is where a field is
 // edited — because a card is a summary, and the board is for moving them
-// (decided 2026-09-28, doc/design/terminal-renderer.md).
+// (doc/design/views.md, "The only edits a board makes are moves").
 type boardPage struct {
 	repo *cache.RepoCache
 
@@ -37,7 +37,7 @@ type boardPage struct {
 	// resolved on every load (empty_groups.go).
 	emptyGroups bool
 	// draft is the call's `draft`, what every ghost's draft starts from
-	// (create.md C9)
+	// (doc/design/views.md, "`draft` on a view")
 	draft host.IssueDocument
 	empty []lane
 	// colWidth is the narrowest a column goes before the board scrolls
@@ -113,7 +113,7 @@ type column struct {
 // A lane carries the value it stands for as it is stored — the enum id, the
 // issue's full id — and a type that has the field, so that a drop into it
 // and its ghosts write that value whether or not a card is in it, and never
-// the label it draws (E5, doc/design/empty-groups.md).
+// the label it draws (doc/design/views.md, "Empty swimlanes").
 type lane struct {
 	group   string
 	raw     any
@@ -299,9 +299,9 @@ func (p *boardPage) resolveColumns() []column {
 }
 
 // arrange rebuilds the lanes: the filter, then the groups in the order of
-// the values they stand for with the ungrouped last (group.go, E4), then each
-// card into its column, in (rank, id), the unranked keeping the query's
-// order at the end.
+// the values they stand for with the ungrouped last (group.go;
+// doc/design/views.md, "Group order"), then each card into its column, in
+// (rank, id), the unranked keeping the query's order at the end.
 func (p *boardPage) arrange() {
 	at := make(map[string]int, len(p.columns))
 	for index, column := range p.columns {
@@ -412,10 +412,11 @@ func (p *boardPage) addGhosts() {
 	}
 }
 
-// ghostDoc is the draft a ghost opens, built as every ghost's is (C9): the
-// call's `draft`, the type its lane's cards share where that names none,
-// then the `columns` field as the column and the `group_by` field as a drop
-// into the lane would write it, which win on their keys.
+// ghostDoc is the draft a ghost opens, built as every ghost's is
+// (doc/design/views.md, "One construction, every ghost"): the call's `draft`,
+// the type its lane's cards share where that names none, then the `columns`
+// field as the column and the `group_by` field as a drop into the lane would
+// write it, which win on their keys.
 func (p *boardPage) ghostDoc(ghost *card) host.IssueDocument {
 	prefill := map[string]issue.Value{}
 	if ghost.value != "" {
@@ -549,8 +550,8 @@ func (p *boardPage) Update(msg tea.Msg) (page, tea.Cmd) {
 
 	case createdMsg:
 		// a draft opened from here was created: the issue appears where the
-		// ghost stood, the cursor on it (doc/design/create.md, C4), or is
-		// named when the query does not keep it
+		// ghost stood, the cursor on it (doc/design/views.md, "What Create
+		// does next"), or is named when the query does not keep it
 		failed := linkCreated(p.repo, msg)
 		if err := p.load(); err != nil {
 			p.status = err.Error()
@@ -767,7 +768,8 @@ func (p *boardPage) updateFilter(msg tea.Msg) (page, tea.Cmd) {
 
 // startGrab picks the card under the cursor up. It needs no binding at all:
 // moving a card to another column is the board's reason to exist, and the
-// order up and down writes is the built-in rank every type has (D8).
+// order up and down writes is the built-in rank every type has
+// (doc/design/tui.md, "Every order is the built-in rank").
 func (p *boardPage) startGrab() (page, tea.Cmd) {
 	c := p.current()
 	if c == nil {
@@ -875,7 +877,8 @@ func (p *boardPage) crossLane(by int) tea.Cmd {
 
 // laneValue is what a drop into a lane writes: the value the lane stands
 // for, as it is stored, which every card in it holds — the lane carries it
-// itself, so a lane with no card in it writes it too (E5).
+// itself, so a lane with no card in it writes it too (doc/design/views.md,
+// "Empty swimlanes").
 func (p *boardPage) laneValue(lane int) crossing {
 	la := &p.lanes[lane]
 	return crossing{group: la.group, value: groupValue(la.raw, la.group)}

@@ -12,7 +12,7 @@ import (
 )
 
 // Rows a query makes: a key that is not the id, a row with no id, and the
-// children a row lists (doc/design/query-rows.md).
+// children a row lists (doc/design/query.md, "Rows a query makes").
 
 // call parses a view call built as a Go value, which spares a test the
 // quoting of a jq program inside a JSON string inside a Go string.
@@ -79,9 +79,10 @@ func pushed(cmd tea.Cmd) string {
 }
 
 // TestAKeyDrawsAnIssueTwice: a key is a row's identity on the screen and the
-// id is the issue it acts on (R1), so one issue keyed twice is two rows,
-// each of which opens, copies and edits the one issue, and the cursor comes
-// back to the row it was on, not to the first row of that issue.
+// id is the issue it acts on (doc/design/query.md, "A row's key"), so one
+// issue keyed twice is two rows, each of which opens, copies and edits the
+// one issue, and the cursor comes back to the row it was on, not to the first
+// row of that issue.
 func TestAKeyDrawsAnIssueTwice(t *testing.T) {
 	repo := testRepo(t)
 	id := newIssue(t, repo, map[string]any{"title": "the epic", "status": "to-do"})
@@ -114,7 +115,8 @@ func TestAKeyDrawsAnIssueTwice(t *testing.T) {
 }
 
 // TestARepeatedKeyIsRefused: keys are unique among a view's rows, and none
-// starts with the ghost's prefix; the refusal names the key (R1).
+// starts with the ghost's prefix; the refusal names the key
+// (doc/design/query.md, "A row's key").
 func TestARepeatedKeyIsRefused(t *testing.T) {
 	repo := testRepo(t)
 	newIssue(t, repo, map[string]any{"title": "one"})
@@ -132,7 +134,8 @@ func TestARepeatedKeyIsRefused(t *testing.T) {
 
 // TestARowWithNoIdStandsForNothing: a row with a key and no id draws its
 // fields and is a row the cursor stands on, but enter and space on a cell
-// ring and copy copies nothing; space on its id grabs it (R2).
+// ring and copy copies nothing; space on its id grabs it
+// (doc/design/query.md, "A row that stands for no issue").
 func TestARowWithNoIdStandsForNothing(t *testing.T) {
 	repo := testRepo(t)
 	newIssue(t, repo, map[string]any{"title": "one"})
@@ -200,7 +203,7 @@ func TestBoardAndMatrixDrawIssuesOnly(t *testing.T) {
 // relation reads off the store for it, so one epic drawn twice has two sets
 // of children, and the layer below still applies its query and fields; a
 // layer with no relation is fine where every row above lists its children
-// (R3).
+// (doc/design/query.md, "A row lists its children").
 func TestAListedChildIsTheRowsOwn(t *testing.T) {
 	repo := testRepo(t)
 	ada := jiraUser(t, repo, "Ada Lovelace")
@@ -265,7 +268,8 @@ func TestAListedChildIsTheRowsOwn(t *testing.T) {
 
 // TestOpenUnfoldsTheTree: `open` is how unfolded a nested view is drawn —
 // true every parent, a number that many levels from the roots — and a
-// refresh keeps the person's folds, not the argument's (R4).
+// refresh keeps the person's folds, not the argument's (doc/design/query.md,
+// "`open` unfolds the tree").
 func TestOpenUnfoldsTheTree(t *testing.T) {
 	repo := testRepo(t)
 	initiative := newTyped(t, repo, "initiative", map[string]any{"title": "Initiative"})

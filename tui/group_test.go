@@ -11,7 +11,7 @@ import (
 
 // A grabbed row carried past the edge of its group enters the next one, and
 // the drop writes the grouping field with the rank, in one commit
-// (2026-10-02, doc/design/terminal-renderer.md, Rank).
+// (doc/design/tui.md, "Carried past its group, a row enters the next").
 
 // ops is how many operations an issue carries, which is how a test sees that
 // a drop was one call: a `set` of two keys is two operations in one commit,

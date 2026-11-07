@@ -3,7 +3,7 @@
 // It is plumbing (e8d6426): explicit ids, no editor, no implicit selection,
 // JSON in and JSON out, and no sugar flag anywhere.
 // The one porcelain default is the bare noun, the human form of `issue list`.
-// The command map it implements is doc/design/cli-convention.md.
+// The command map it implements is doc/design/cli.md, "The map".
 // The `bug` tree keeps serving the old entity until the store is migrated (bf6f392).
 //
 // Every verb is a call into package `host`, which a flow's script reaches too:
@@ -48,7 +48,7 @@ then, so the input leaves out what was archived at the time.`
 
 // NewIssueCommand is the bare `git work issue`: the human form of
 // `issue list`, the same program and flags with text as the default
-// (decided 2026-10-08, doc/design/cli-convention.md).
+// (doc/design/cli.md, "The bare noun is the human form of list").
 // It has no Starlark name; work.issue.list() mirrors `issue list`.
 func NewIssueCommand(env *execenv.Env) *cobra.Command {
 	options := issueListOptions{}

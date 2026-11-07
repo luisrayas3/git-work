@@ -9,7 +9,8 @@ import (
 
 // TestIssueCommentDelete: a deleted comment leaves the issue and its excerpt,
 // and its text stays in the log and in a replay from before the delete
-// (comment-delete.md CD2, CD3).
+// (doc/design/issue.md, "Delete hides, the history keeps";
+// doc/design/issue.md, "Delete is final").
 func TestIssueCommentDelete(t *testing.T) {
 	repo, author := atTestRepo(t)
 

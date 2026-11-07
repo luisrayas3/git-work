@@ -23,7 +23,7 @@ import (
 //
 // The SDK is one module, named after the binary:
 // `work.issue.get(id)` is the command `issue get ID`, one for one
-// (cli-convention.md, `b511c63`, `0740bf3`).
+// (doc/design/cli.md, "The command line and Starlark are one API").
 // One name rather than five leaves `issue`, `flow`, `schema`, `view` and `user`
 // free for a script's own locals,
 // and leaves no host name that is not also a command.
@@ -58,7 +58,8 @@ func (r *runtime) work() *starlarkstruct.Module {
 			),
 		),
 		// `import` is a reserved word in Starlark, so the one verb that can
-		// not keep its name is spelled `import_` (cli-convention.md, E9),
+		// not keep its name is spelled `import_`
+		// (doc/design/flows.md, "A reserved word takes a trailing underscore"),
 		// here and in `work.schema`.
 		sub("flow",
 			verb("list", r.flowList),
@@ -208,7 +209,8 @@ func (r *runtime) issueGet(thread *starlark.Thread, b *starlark.Builtin, args st
 // `git work issue log [ID|PROGRAM] [--include-archive]`.
 //
 // `from` is a reserved word in Starlark, so the keyword is `from_`, the same
-// trailing underscore `work.schema.import_` carries (doc/design/report.md).
+// trailing underscore `work.schema.import_` carries
+// (doc/design/flows.md, "A reserved word takes a trailing underscore").
 // The first argument is an id prefix, an alias, or a jq program, exactly as on
 // the command line.
 func (r *runtime) issueLog(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
@@ -466,7 +468,8 @@ func (r *runtime) schemaInit(thread *starlark.Thread, b *starlark.Builtin, args 
 
 // schemaRefArgs reads the key= and id= keywords of archive, rm and log:
 // by keyword only, so that a script never passes a value whose kind is
-// unsaid, and never both (schema-archive-id.md, A5).
+// unsaid, and never both
+// (doc/design/schema.md, "Key or id, and the caller says which").
 // A writer must name one; log may name none, every entity.
 func schemaRefArgs(b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple, required bool) (host.SchemaRef, error) {
 	if len(args) != 0 {
@@ -763,7 +766,7 @@ func (r *runtime) quickstart(thread *starlark.Thread, b *starlark.Builtin, args 
 //
 // This is the one name in the SDK that is not a command,
 // because the shell's mirror of it is `>&2` and not a verb
-// (cli-convention.md, Starlark).
+// (doc/design/flows.md, "`work.stderr`").
 // `print()` is a flow's standard output since `94ff887`,
 // Starlark's `print` takes no file argument
 // and `work` is the only predeclared name,

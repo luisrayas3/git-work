@@ -10,14 +10,17 @@ import (
 
 var _ Operation = &DeleteCommentOperation{}
 
-// DeleteCommentOperation hides a comment from the issue (comment-delete.md CD1).
+// DeleteCommentOperation hides a comment from the issue
+// (doc/design/issue.md, "Delete hides, the history keeps").
 //
 // Target is the add-comment operation of the comment, as for EditComment.
 // Applying it removes the comment from Comments and leaves everything else,
 // the timeline and the operations, untouched:
-// the text stays in the history (CD2).
+// the text stays in the history
+// (doc/design/issue.md, "Delete hides, the history keeps").
 // There is no undelete, and an edit applied after the delete finds no comment
-// to change, so a delete wins over a concurrent edit with no rule of its own (CD3).
+// to change, so a delete wins over a concurrent edit with no rule of its own
+// (doc/design/issue.md, "Delete is final").
 type DeleteCommentOperation struct {
 	dag.OpBase
 	Target entity.Id `json:"target"`
@@ -34,7 +37,8 @@ func (op *DeleteCommentOperation) Apply(snapshot *Snapshot) {
 		if snapshot.Comments[i].CombinedId() != combinedId {
 			continue
 		}
-		// The description, the create operation's comment, is never deleted (CD4).
+		// The description, the create operation's comment, is never deleted
+		// (doc/design/issue.md, "The description cannot be deleted").
 		if i == 0 {
 			return
 		}

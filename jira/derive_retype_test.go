@@ -10,10 +10,11 @@ import (
 	"github.com/git-bug/git-bug/schema"
 )
 
-// TC3: each mapped type's retype_targets is the other mapped types of its
-// hierarchy level, in the document's order; a local-only type, unaliased or
-// aliased "", keeps its own and is never listed; a list widened by hand is
-// taken back, with a note, and a second derivation writes nothing.
+// each mapped type's retype_targets is the other mapped types of its hierarchy
+// level, in the document's order; a local-only type, unaliased or aliased "",
+// keeps its own and is never listed; a list widened by hand is taken back, with
+// a note, and a second derivation writes nothing
+// (doc/design/jira.md, "Retype targets follow Jira's levels").
 func TestDeriveRetypeTargets(t *testing.T) {
 	p, _ := discover(t, "company")
 	// the preset's initiative adopts a level above the epic; with bug

@@ -9,11 +9,13 @@ import (
 	"github.com/git-bug/git-bug/util/sorted"
 )
 
-// The attribute names a type or a field entity carries (E3).
+// The attribute names a type or a field entity carries
+// (doc/design/schema.md, "What a type and a field carry").
 //
 // Attribute names are forever:
 // old operations keep theirs, so a rename is a new name
-// plus a projection that reads both (config-entity.md, Risks).
+// plus a projection that reads both
+// (doc/design/schema.md, "What a type and a field carry").
 const (
 	AttrKind        = "kind"
 	AttrName        = "name"
@@ -23,20 +25,23 @@ const (
 	AttrInverse     = "inverse"
 	// AttrLink marks a relation as a link, `blocks` or `clones`, which the
 	// views draw folded into one `links` row; it changes no storage, no
-	// write and no query (doc/design/link-fields.md, L1).
+	// write and no query (doc/design/schema.md, "A link is a marked relation").
 	AttrLink = "link"
 	// AttrShow is a type's show spec, `{"fields":[…],"expand":[…]}`: how
 	// show draws an issue of the type where the call's `shows` does not say
-	// (doc/design/app.md A7). Like link, only the views read it.
+	// (doc/design/views.md, "A spec is whole, never merged"). Like link,
+	// only the views read it.
 	AttrShow = "show"
 	// AttrRetypeTargets is a type's retype targets, a JSON array of type
-	// keys: the types its issues may become (type-change.md, TC1). Absent
+	// keys: the types its issues may become
+	// (doc/design/schema.md, "A type says what it may become"). Absent
 	// is any type, `[]` none. One attribute, not one per member as target
 	// types are, because absent and empty differ.
 	AttrRetypeTargets = "retype_targets"
 
 	// ValuesPrefix folds an enum's values one attribute per member,
-	// `values/<id>`, so two people adding two statuses both keep theirs (E3).
+	// `values/<id>`, so two people adding two statuses both keep theirs
+	// (doc/design/schema.md, "Collections are one attribute per member").
 	ValuesPrefix = "values"
 	// TargetTypesPrefix folds a relation's allowed targets the same way.
 	TargetTypesPrefix = "target_types"
@@ -44,7 +49,8 @@ const (
 	// AliasPrefix starts every attribute naming what an entity is in another
 	// system: `alias_<system>` on a type or a field, and
 	// `alias_<system>/<value-id>` on a field for one of its values
-	// (jira-sync.md, JS2). The whole family is reserved, for every system to
+	// (doc/design/jira.md, "The mapping is aliases on the schema").
+	// The whole family is reserved, for every system to
 	// come: no other attribute may ever start with it.
 	//
 	// Reconcile owns no name in it, so an import writes the aliases a
@@ -177,14 +183,15 @@ func attrBool(attrs map[string]config.Value, name string) (bool, error) {
 // unmarshalAttr decodes an attribute into a typed struct.
 //
 // Unknown members are tolerated, not refused:
-// a newer binary's extra member must not make its entities unreadable here (D6).
+// a newer binary's extra member must not make its entities unreadable here
+// (doc/design/schema.md, "Validate on write, lenient on read").
 func unmarshalAttr(value config.Value, into interface{}) error {
 	return json.Unmarshal(value, into)
 }
 
 // canonical returns an attribute value as canonical JSON:
 // sorted keys, no whitespace, normalised numbers,
-// which is what reconcile compares by (E9).
+// which is what reconcile compares by (doc/design/schema.md, "Import is an upsert").
 func canonical(value config.Value) (config.Value, error) {
 	var any interface{}
 	if err := json.Unmarshal(value, &any); err != nil {

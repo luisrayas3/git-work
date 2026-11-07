@@ -185,7 +185,7 @@ git work jira sync
 `git config git-work.display.id jira` then draws every issue by its Jira key.
 The design,
 including conflicts, deletes and duplicate copies,
-is [`doc/design/jira-sync.md`](doc/design/jira-sync.md).
+is [`doc/design/jira.md`](doc/design/jira.md).
 
 ## Documentation
 
@@ -197,10 +197,10 @@ is [`doc/design/jira-sync.md`](doc/design/jira-sync.md).
 - [`doc/md`](doc/md/git-work.md):
   every command and flag,
   generated from the binary.
-- [`doc/design`](doc/design):
-  one design document per feature,
-  recording each decision and its reasoning.
-- [`doc/design/data-model.md`](doc/design/data-model.md):
+- [`doc/design`](doc/design/README.md):
+  one design document per aspect of the system,
+  saying what holds now and why.
+- [`doc/design/store.md`](doc/design/store.md):
   the distributed entity engine inherited from git-bug.
 - [`AGENTS.md`](AGENTS.md) and [`CONTRIBUTING.md`](CONTRIBUTING.md):
   working on git-work itself.

@@ -140,7 +140,7 @@ func exchange(t *testing.T, ws ...*world) {
 	for _, w := range append(ws, ws...) {
 		require.NoError(t, w.c.Pull("origin"))
 		if _, err := w.c.Push("origin"); err != nil {
-			t.Logf("push: %v", err) // two runners' identities (JS16), not the issues
+			t.Logf("push: %v", err) // two runners' identities, not the issues
 		}
 	}
 }

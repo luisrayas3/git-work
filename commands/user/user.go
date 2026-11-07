@@ -17,7 +17,7 @@ type userOptions struct {
 
 // NewUserCommand is the bare `git work user`: the human form of `user list`,
 // one line per identity, with --format json still there
-// (decided 2026-10-08, doc/design/cli-convention.md).
+// (doc/design/cli.md, "The bare noun is the human form of list").
 // It has no Starlark name; work.user.list() mirrors `user list`.
 func NewUserCommand(env *execenv.Env) *cobra.Command {
 	options := userOptions{}

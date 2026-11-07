@@ -10,7 +10,7 @@ import (
 
 // Layer is one level of `expand`: the relation whose targets nest under a
 // row, and the list's own arguments for the rows it brings
-// (doc/design/terminal-renderer.md, Nesting; Luis, 2026-10-02).
+// (doc/design/views.md, "`expand` is a layer").
 //
 // `depth` is gone. A number said how far to go and nothing about what was
 // down there, so a second level nobody could describe was the only thing it
@@ -20,7 +20,7 @@ type Layer struct {
 	// Relation is the stored relation field, or the name its `inverse`
 	// gives the derived side: `children` is read off every `parent`.
 	// Empty, the rows above list their own children, and a row that does
-	// not has none (doc/design/query-rows.md, R3).
+	// not has none (doc/design/query.md, "A row lists its children").
 	Relation string `json:"relation,omitempty"`
 	// Query is a jq program over the array of the row's candidate children,
 	// every unarchived one; empty, they are all this layer's rows.
@@ -31,7 +31,7 @@ type Layer struct {
 	// differs per layer because children can be of other types, whether the
 	// archived show is one choice for the whole view, and a layer that names
 	// it overrides it for itself and every level below
-	// (doc/design/include-archive.md, I5).
+	// (doc/design/query.md, "Layers and pickers follow the input").
 	IncludeArchive *bool `json:"include_archive,omitempty"`
 	// Fields, Details and GroupBy are the layer's columns, its dim second
 	// line and the field its rows are sectioned by. Fields and Details that
@@ -73,7 +73,7 @@ func parseExpand(raw json.RawMessage) (*Layer, error) {
 		return nil, err
 	}
 	// links is several relations, a show's side tables, and a nested layer
-	// is one (doc/design/link-fields.md, L4)
+	// is one (doc/design/views.md, "Either side of a relation")
 	for at, l := 1, layer; l != nil; at, l = at+1, l.Expand {
 		if l.Relation == schema.LinksKey {
 			where := ""
@@ -125,7 +125,7 @@ func parseLayer(raw json.RawMessage, at int) (*Layer, error) {
 
 	// relation is required only where a row above lists no children of its
 	// own, which only the rows can say, so its absence is the renderer's to
-	// report (doc/design/query-rows.md, R3)
+	// report (doc/design/query.md, "A row lists its children")
 	layer := &Layer{}
 	if relation, ok := object["relation"]; ok && !isNull(relation) {
 		name, err := asString(relation)
@@ -309,8 +309,8 @@ func keysOf(layer *Layer) []string {
 // point at, and the types holding a relation whose inverse is this name.
 //
 // Both sides answer to one word, which is the rule `expand` has had since it
-// was built: the derived side is never stored (`schema.yaml`, D4), so
-// `children` is read off every `parent`.
+// was built: the derived side is never stored, so `children` is read off
+// every `parent` (doc/design/views.md, "Either side of a relation").
 func relationRows(s *schema.Schema, name string) ([]string, error) {
 	var types []string
 	seen := map[string]bool{}
@@ -350,7 +350,8 @@ func relationRows(s *schema.Schema, name string) ([]string, error) {
 // linkRows is what a table of links can list: the types a link field may
 // point at, and the types holding one, whose issues its inverse lists. With
 // no link in the schema it is every type, so that the built-in spec, which
-// names links, is checked as anything else is (link-fields.md, L4).
+// names links, is checked as anything else is (doc/design/views.md, "A spec
+// is checked as show's call is").
 func linkRows(s *schema.Schema) []string {
 	var types []string
 	seen := map[string]bool{}

@@ -13,7 +13,7 @@ import (
 // TestReportNamesIssuesByHumanId: the repository's report flow names an issue
 // by its human_id, so with git-work.display.id = jira a linked issue is its
 // key and a local one its short hash, and a parent drawn as a relation is its
-// key too (doc/design/alias-ids.md A9).
+// key too (doc/design/cli.md, "What is drawn follows; what is a value does not").
 func TestReportNamesIssuesByHumanId(t *testing.T) {
 	env := newTestEnv(t)
 	require.NoError(t, env.Repo.LocalConfig().StoreString(cache.DisplayIdKey, "jira"))

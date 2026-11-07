@@ -1,7 +1,8 @@
 def home():
     """Where `git work` opens: this repository's flows, enter running one.
 
-    Bare `git work` runs the flow named home (doc/design/app.md, A8).
+    Bare `git work` runs the flow named home
+    (doc/design/flows.md, "`git work` is `git work flow run home`").
     The page lists the flows named here, each with its docstring's first
     line; enter runs one and its view opens over this page, so back is
     back home. The report prints rather than draws, and opens as a page of

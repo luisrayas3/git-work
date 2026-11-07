@@ -326,7 +326,8 @@ func TestViewReachesTheRendererParsed(t *testing.T) {
 // TestViewShowTakesExpand: a spec's expand is a list of dicts in Starlark as
 // it is a list of objects on the command line, one to one, and the schema
 // check is host.View's, so a flow is refused as a command is; show's own
-// expand went into the spec (doc/design/show-side-table.md, S8; app.md A7).
+// expand went into the spec
+// (doc/design/views.md, "A spec is checked as show's call is").
 func TestViewShowTakesExpand(t *testing.T) {
 	repo := testRepo(t)
 	_, _, err := host.SchemaInit(repo, "jira", false)
@@ -371,7 +372,7 @@ func TestViewShowTakesExpand(t *testing.T) {
 // TestViewTakesShows: `shows` is a dict of dicts in Starlark as it is an
 // object of objects on the command line, and each spec is checked against
 // its type as show's own call is, in host.View, before the renderer
-// (doc/design/show-from-a-view.md, V2; app.md A7).
+// (doc/design/views.md, "A spec is checked as show's call is").
 func TestViewTakesShows(t *testing.T) {
 	repo := testRepo(t)
 	_, _, err := host.SchemaInit(repo, "jira", false)
@@ -612,7 +613,8 @@ func TestRelationIsStoredAsTheFullId(t *testing.T) {
 
 // TestIncludeArchiveKeyword: work.issue.list and work.issue.log run over the
 // unarchived issues, and include_archive=True brings the archived back, as
-// --include-archive does on the command line (doc/design/include-archive.md).
+// --include-archive does on the command line
+// (doc/design/query.md, "The switch is `include_archive`").
 func TestIncludeArchiveKeyword(t *testing.T) {
 	repo := testRepo(t)
 
@@ -966,7 +968,8 @@ func TestSchemaArchiveAndRmFromAScript(t *testing.T) {
 }
 
 // TestSchemaArchiveById: key= and id= are keywords, exactly one of them,
-// and id= reaches the loser of a duplicated key (schema-archive-id.md, A5).
+// and id= reaches the loser of a duplicated key
+// (doc/design/schema.md, "Key or id, and the caller says which").
 func TestSchemaArchiveById(t *testing.T) {
 	repo := testRepo(t)
 
@@ -1000,7 +1003,8 @@ func TestSchemaArchiveById(t *testing.T) {
 
 // TestIssueHistoryKwargs: the history arguments are the flags, one for one —
 // `at` on get and list, `from_`/`to` on log, `from_` because `from` is a
-// reserved word in Starlark (doc/design/report.md).
+// reserved word in Starlark
+// (doc/design/flows.md, "A reserved word takes a trailing underscore").
 func TestIssueHistoryKwargs(t *testing.T) {
 	repo := testRepo(t)
 

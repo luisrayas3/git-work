@@ -15,7 +15,8 @@ import (
 )
 
 // The jira preset marks blocks a link, so on every type it draws as the
-// links row, and blocked_by, its inverse, is a link too (link-fields.md).
+// links row, and blocked_by, its inverse, is a link too (doc/design/views.md,
+// "The links row").
 
 // rowAt is the index of the first fields-table row of a key, or -1.
 func rowAt(rows []tableRow, key string) int {
@@ -40,7 +41,8 @@ func linksLine(p page) string {
 // narrowAndChoose narrows the open picker to a text and chooses what the
 // cursor lands on.
 func narrowAndChoose(p page, text string) page {
-	// a picker is typed into at once (app.md A5); typeText ends in enter
+	// a picker is typed into at once (doc/design/tui.md, "Pickers are typed
+	// into"); typeText ends in enter
 	return typeText(p, text)
 }
 
@@ -54,7 +56,8 @@ func fieldsOf(t *testing.T, repo *cache.RepoCache, id string) map[string]issue.V
 
 // TestLinksRow: the link fields are one row, links, at the first one's
 // place, the count then each relation's, stored first, then inverses; an
-// issue with none says so with a dash (L3).
+// issue with none says so with a dash (doc/design/views.md, "The links
+// row").
 func TestLinksRow(t *testing.T) {
 	repo := testRepo(t)
 	one := newTyped(t, repo, "task", map[string]any{"title": "blocked task"})
@@ -90,7 +93,9 @@ func TestLinksRow(t *testing.T) {
 
 // TestLinksTables: links in show's expand is a table per link relation with
 // entries, stored first, then inverses, its layer's fields applying to each;
-// enter on the links row goes to the first of them (L4, L5).
+// enter on the links row goes to the first of them (doc/design/views.md,
+// "Side tables are `expand`"; doc/design/views.md, "Editing links from the
+// row").
 func TestLinksTables(t *testing.T) {
 	repo := testRepo(t)
 	one := newTyped(t, repo, "task", map[string]any{"title": "blocked task", "status": "in-progress"})
@@ -133,7 +138,8 @@ func TestLinksTables(t *testing.T) {
 }
 
 // TestLinksRefusedWhereANestingIs: a nested layer is one relation, and links
-// is several, so a list's and a gantt's expand refuses it by name (L4).
+// is several, so a list's and a gantt's expand refuses it by name
+// (doc/design/views.md, "Either side of a relation").
 func TestLinksRefusedWhereANestingIs(t *testing.T) {
 	for _, kind := range []string{view.KindList, view.KindGantt} {
 		args := map[string]json.RawMessage{
@@ -152,7 +158,7 @@ func TestLinksRefusedWhereANestingIs(t *testing.T) {
 // TestLinksEdit: space on the links row picks a relation, stored or inverse,
 // then an issue; a stored relation is written on this issue, an inverse on
 // the other one, one add or remove each, the status naming the issue
-// written (L5).
+// written (doc/design/views.md, "Editing links from the row").
 func TestLinksEdit(t *testing.T) {
 	repo := testRepo(t)
 	one := newTyped(t, repo, "task", map[string]any{"title": "blocked task"})
@@ -201,7 +207,8 @@ func TestLinksEdit(t *testing.T) {
 }
 
 // TestLinksOnADraft: new draws the row over the draft's stored link fields,
-// with no inverse, and a member chosen goes into the draft (L5).
+// with no inverse, and a member chosen goes into the draft
+// (doc/design/views.md, "The creator page").
 func TestLinksOnADraft(t *testing.T) {
 	repo := testRepo(t)
 	one := newTyped(t, repo, "task", map[string]any{"title": "blocked task"})

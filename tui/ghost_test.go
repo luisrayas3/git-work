@@ -21,7 +21,9 @@ func opened(t *testing.T, p page, spelling string) *newPage {
 
 // TestListGhostPerGroup: a dim + row at the foot of each group, reached
 // with the cursor, opening the creator with the group's value and the
-// type its rows share filled in; the count leaves it out (C6, C7).
+// type its rows share filled in; the count leaves it out
+// (doc/design/views.md, "The ghost"; doc/design/views.md, "The prefill is
+// the drop's write set").
 func TestListGhostPerGroup(t *testing.T) {
 	repo := testRepo(t)
 	newIssue(t, repo, map[string]any{"title": "one", "status": "in-progress"})

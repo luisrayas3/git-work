@@ -10,7 +10,8 @@ import (
 
 // Operation type codes.
 //
-// The four document operations are 1 to 4 (E2);
+// The four document operations are 1 to 4
+// (doc/design/schema.md, "Four generic operations");
 // dag's own NoOp and SetMetadata follow,
 // as they do in entities/issue.
 // A code is never reused: an operation an older binary does not know

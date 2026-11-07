@@ -12,9 +12,10 @@ import (
 	"github.com/git-bug/git-bug/schema"
 )
 
-// The finder is the issue picker (doc/design/app.md, A5): one widget in
-// three places — a relation field's picker, the target of a link (A6), and
-// the palette's search, where choosing an issue opens its show.
+// The finder is the issue picker (doc/design/tui.md, "The finder"): one
+// widget in three places — a relation field's picker, the target of a link
+// (doc/design/tui.md, "Linking from the palette"), and the palette's search,
+// where choosing an issue opens its show.
 //
 // It is a picker whose choices are host.SearchExcerpts's answer to the text,
 // asked again each time the text changes, so it matches as

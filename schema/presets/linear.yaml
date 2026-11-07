@@ -1,4 +1,5 @@
-# The linear preset: Linear's native model as git-work config (59fed1c, D7).
+# The linear preset: Linear's native model as git-work config
+# (doc/design/schema.md, "Presets are embedded").
 #
 # It exists beside the jira preset to hold the schema honest: "just
 # configurable enough to represent both Jira's and Linear's native models" is
@@ -8,13 +9,15 @@
 #
 # Linear's grouping above an issue is a project, and above that an initiative;
 # `project` plays the role `epic` plays in the jira preset. Its iteration is a
-# cycle, which is a type here as a sprint is there (D5).
+# cycle, which is a type here as a sprint is there
+# (doc/design/schema.md, "Iterations are a type").
 preset: linear
 
 shared:
   # Linear's five workflow states. The names are Linear's defaults and the
   # categories are its status types, which is what everything keyed on "is
-  # this done" reads, never the name (D2).
+  # this done" reads, never the name
+  # (doc/design/schema.md, "Categories are fixed").
   status: &status
     kind: enum
     name: Status
@@ -60,7 +63,8 @@ shared:
     kind: date
     name: Due date
 
-  # One side is stored and the inverse is derived (D4): `blocked_by` is what
+  # One side is stored and the inverse is derived
+  # (doc/design/issue.md, "Relations are fields"): `blocked_by` is what
   # the other issue reads, never a key an issue writes.
   blocks: &blocks
     kind: multi-relation
@@ -122,7 +126,8 @@ types:
       cycle: *cycle
       blocks: *blocks
 
-  # A cycle is an issue type, not a namespace (D5): it has a title, comments
+  # A cycle is an issue type, not a namespace
+  # (doc/design/schema.md, "Iterations are a type"): it has a title, comments
   # for the retro, and its dates and capacity as ordinary fields.
   cycle:
     name: Cycle

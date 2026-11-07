@@ -8,9 +8,9 @@ import (
 )
 
 // The status line names the keys that act under the cursor, on every kind
-// and in every state (doc/design/terminal-renderer.md, Navigation and
-// editing). These say what it reads where, which is the whole of the
-// feature: a key the line promises is a key the page answers.
+// and in every state (doc/design/tui.md, "The hints name the keys that act
+// under the cursor"). These say what it reads where, which is the whole of
+// the feature: a key the line promises is a key the page answers.
 
 // TestTheBottomLineHasTwoPlaces: the hints on the left and the last action's
 // message right-aligned, both at once, because the message used to take the
@@ -334,6 +334,6 @@ func TestShowHintsNameWhatIsUnderTheCursor(t *testing.T) {
 	none, err := specCall(t, repo, other, `{"expand":"blocks"}`)
 	require.NoError(t, err)
 	runHints(t, func() page { return none }, []hintCase{
-		{what: "an empty table over a stored relation: its ghost (create.md C8)", at: toSide, line: "enter: new issue · ? keys"},
+		{what: "an empty table over a stored relation: its ghost", at: toSide, line: "enter: new issue · ? keys"},
 	})
 }

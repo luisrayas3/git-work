@@ -10,7 +10,8 @@ import (
 	"github.com/git-bug/git-bug/schema"
 )
 
-// maxSlug leaves room for `alias_jira/` inside a 64-byte attribute name (JS6).
+// maxSlug leaves room for `alias_jira/` inside a 64-byte attribute name
+// (doc/design/jira.md, "Matching and keys").
 const maxSlug = 48
 
 // fold decomposes a name, drops its combining marks and lowers it:
@@ -27,9 +28,10 @@ func fold(name string) string {
 
 func alnum(r rune) bool { return r >= 'a' && r <= 'z' || r >= '0' && r <= '9' }
 
-// normName is what names are matched by (JS6): lower-case letters and digits
-// only, so "Sub-task", "Subtask" and `subtask` are one name.
-// An empty result matches nothing.
+// normName is what names are matched by
+// (doc/design/jira.md, "Matching and keys"): lower-case letters and digits
+// only, so "Sub-task", "Subtask" and `subtask` are one name. An empty result
+// matches nothing.
 func normName(name string) string {
 	var b strings.Builder
 	for _, r := range fold(name) {
@@ -40,7 +42,8 @@ func normName(name string) string {
 	return b.String()
 }
 
-// slug makes a key from a Jira name (JS6): "Won't Do" is `wont-do`.
+// slug makes a key from a Jira name (doc/design/jira.md, "Matching and keys"):
+// "Won't Do" is `wont-do`.
 // It is empty when nothing Latin is left; keyFor supplies that fallback,
 // the leading-letter rule and the collision suffix.
 func slug(name string) string {

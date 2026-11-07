@@ -17,13 +17,14 @@ import (
 // The ghost: a dim `+` row at the foot of each scope a view draws — a group
 // on a list and a gantt, a column of a lane on a board — that opens the
 // creator prefilled with the drop's write set, so that the issue it creates
-// is already where it was added (doc/design/create.md, C6 and C7).
+// is already where it was added (doc/design/views.md, "The ghost";
+// doc/design/views.md, "The prefill is the drop's write set").
 //
-// A scope is a level, a parent and a group (C8): the roots, or one opened
-// parent's drawn children, and, where that level's layer groups, one group
-// of them. Every scope ends in a ghost, at every level of a nested list and
-// of a gantt, and the roots are the scope whose parent is no row. Folded,
-// a scope's ghost is hidden with it.
+// A scope is a level, a parent and a group (doc/design/views.md, "One ghost
+// per scope"): the roots, or one opened parent's drawn children, and, where
+// that level's layer groups, one group of them. Every scope ends in a ghost,
+// at every level of a nested list and of a gantt, and the roots are the scope
+// whose parent is no row. Folded, a scope's ghost is hidden with it.
 //
 // It is a row the cursor reaches, enter opens the creator, space rings, copy
 // copies nothing, and it is never a rank sibling: a grab skips it, a drop
@@ -32,7 +33,8 @@ import (
 // issue it creates: a null rank already sorts last, where the ghost stood.
 
 // ghostPrefix starts every ghost's key, which no issue id can start with,
-// and which a key a query gives a row may not (doc/design/query-rows.md, R1).
+// and which a key a query gives a row may not (doc/design/query.md, "A
+// row's key").
 const ghostPrefix = host.KeyPrefix
 
 // ghostLabel is what a ghost draws where a row draws its first field.
@@ -47,7 +49,8 @@ func ghostId(scope ...string) string {
 
 // sharedType is the type every row of a scope has, or "" where they differ
 // or there are none: the rows a query produced are the best witness of what
-// it selects, since a jq program cannot be inverted (C6).
+// it selects, since a jq program cannot be inverted (doc/design/views.md,
+// "The prefill is the drop's write set").
 func sharedType(typeKeys []string) string {
 	shared := ""
 	for _, typeKey := range typeKeys {
@@ -84,7 +87,8 @@ func groupPrefill(repo *cache.RepoCache, typeKey, groupBy, group string, raw any
 
 // placement is where a ghost puts the issue it creates: the draft the
 // creator opens on, and, for a relation stored on the parent, the write the
-// opener makes on the parent once the issue exists (C8).
+// opener makes on the parent once the issue exists (doc/design/views.md, "A
+// relation stored on the parent").
 type placement struct {
 	draft host.IssueDocument
 	link  *parentLink
@@ -113,10 +117,11 @@ func (pl *placement) label(repo *cache.RepoCache) string {
 	return ghostLabel
 }
 
-// relationSide is how a relation is written from a parent of one type (C8),
-// decided as view.InverseSources decides it for show: where the parent's
-// type has a stored relation field of that name, it is that field;
-// otherwise it is the inverse, stored on the child under one of sources.
+// relationSide is how a relation is written from a parent of one type
+// (doc/design/views.md, "A relation stored on the parent"), decided as
+// view.InverseSources decides it for show: where the parent's type has a
+// stored relation field of that name, it is that field; otherwise it is the
+// inverse, stored on the child under one of sources.
 type relationSide struct {
 	onParent bool
 	field    string
@@ -174,7 +179,8 @@ func (r relationSide) only() string {
 
 // childKey is the stored key on the child: the type's, or, with no type,
 // the one every type that stores the inverse agrees on. False where it
-// cannot be named, which is no ghost (S6).
+// cannot be named, which is no ghost (doc/design/views.md, "No ghost where
+// there is nothing to write").
 func (r relationSide) childKey(s *schema.Schema, typeKey string) (key string, multi bool, ok bool) {
 	consider := r.sources
 	if typeKey != "" {
@@ -206,12 +212,13 @@ type scopeParent struct {
 }
 
 // composeDraft is a scope's placement, built in one order for every ghost,
-// the roots' and every child scope's alike (C9):
+// the roots' and every child scope's alike (doc/design/views.md, "One
+// construction, every ghost"):
 //
 //  1. the call's `draft`;
 //  2. the type the scope's rows share, where `draft` names none, and under
 //     a parent one that can hold the relation, else the one the schema says
-//     can (C8);
+//     can (doc/design/views.md, "The prefill is the drop's write set");
 //  3. the group values, which win on their keys, because the ghost stands
 //     in that group;
 //  4. under a parent, the relation: the stored key on the child set to the
@@ -291,7 +298,8 @@ func composeDraft(s *schema.Schema, base host.IssueDocument, types []string, pre
 }
 
 // dropForeign takes out of a draft the fields its type does not have, as a
-// change of type on the creator does (C3): nothing where the type is unknown.
+// change of type on the creator does (doc/design/views.md, "The creator
+// page"): nothing where the type is unknown.
 func dropForeign(s *schema.Schema, typeKey string, fields map[string]issue.Value) {
 	if s == nil || typeKey == "" {
 		return
@@ -434,8 +442,9 @@ func treeGhosts(repo *cache.RepoCache, nodes []treeRow, n *nesting, base host.Is
 	return out
 }
 
-// callDraft is the call's `draft`, the base of every ghost's draft (C9),
-// checked as `issue new` would check it.
+// callDraft is the call's `draft`, the base of every ghost's draft
+// (doc/design/views.md, "`draft` on a view"), checked as `issue new` would
+// check it.
 func callDraft(repo *cache.RepoCache, call *view.Call) (host.IssueDocument, error) {
 	doc, err := host.IssueDraft(repo, call.Raw("draft"))
 	if err != nil {
@@ -455,7 +464,8 @@ func openNew(repo *cache.RepoCache, shows json.RawMessage, doc host.IssueDocumen
 
 // openNewAt opens the creator on a ghost's placement: its draft, and the
 // parent write the creator hands back with the id, which the opener makes
-// (C8). The creator itself has no write path but Create's.
+// (doc/design/views.md, "A relation stored on the parent"). The creator
+// itself has no write path but Create's.
 func openNewAt(repo *cache.RepoCache, shows json.RawMessage, place *placement) tea.Cmd {
 	raw, err := json.Marshal(place.draft)
 	if err != nil {
@@ -475,11 +485,13 @@ func openNewAt(repo *cache.RepoCache, shows json.RawMessage, place *placement) t
 }
 
 // linkCreated is the opener's half of a ghost under a parent that stores
-// the relation (C8): once the issue exists, the parent's field is written to
-// hold it, one commit on the parent through host and the cache, as
-// `issue add` (or `set`) would write it. A failure — the field refuses the
-// type picked, the parent is gone — leaves the issue created, complete on its
-// own, and is said: what is returned is the status line, "" when it landed.
+// the relation (doc/design/views.md, "A relation stored on the parent"): once
+// the issue exists, the parent's field is written to hold it, one commit on
+// the parent through host and the cache, as `issue add` (or `set`) would
+// write it. A failure — the field refuses the type picked, the parent is
+// gone — leaves the issue created, complete on its own, and is said
+// (doc/design/views.md, "When the parent's write fails"): what is returned
+// is the status line, "" when it landed.
 func linkCreated(repo *cache.RepoCache, msg createdMsg) string {
 	link := msg.link
 	if link == nil {
@@ -499,7 +511,8 @@ func linkCreated(repo *cache.RepoCache, msg createdMsg) string {
 
 // createdStatus is what a view says after a ghost's issue was created and
 // the view reloaded: the parent's refusal, where there was one, else
-// created, and whether the view keeps it (C4).
+// created, and whether the view keeps it (doc/design/views.md, "What Create
+// does next"; doc/design/views.md, "When the parent's write fails").
 func createdStatus(failed, id string, shown bool) string {
 	switch {
 	case failed != "":

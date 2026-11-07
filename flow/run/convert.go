@@ -15,7 +15,8 @@ import (
 //
 // Everything a host function returns arrives as the shape encoding/json
 // decodes into, and everything a script passes back leaves as that shape,
-// so a flow reads exactly what `--format json` prints (`0740bf3` E9).
+// so a flow reads exactly what `--format json` prints
+// (doc/design/flows.md, "`work` is the only predeclared name").
 // The conversion is on the hot path — a board flow over a thousand issues
 // spends most of its 3.3 ms here — so it pre-sizes every dict and list
 // and never re-marshals a value it already holds.
@@ -157,7 +158,8 @@ func fromStarlark(v starlark.Value) (any, error) {
 
 // A schema document is the one value whose key order carries meaning:
 // mapping position *is* the order of the types, the fields and the values
-// (E5, E9), so `export | import` emits nothing only if the order survives.
+// (doc/design/flows.md, "The schema keeps its order"), so
+// `export | import` emits nothing only if the order survives.
 // The two functions below are that document's conversion, and nothing else's:
 // the general one sorts keys going in and loses order coming out, which is
 // what a script reading issues wants and what a schema can not have.

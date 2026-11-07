@@ -12,7 +12,8 @@ import (
 // DisplayIdKey is the git config key that names the alias namespace an
 // issue's id is drawn in: `jira` draws `PROJ-12` where an issue has that
 // alias, and `hash`, the default, draws the short hash
-// (doc/design/alias-ids.md A1, A2).
+// (doc/design/cli.md, "`git-work.display.id` draws an alias in place of the
+// hash"; doc/design/cli.md, "The namespace, not Jira").
 const DisplayIdKey = "git-work.display.id"
 
 // DisplayHash is the value of DisplayIdKey that draws every id as its hash.
@@ -53,7 +54,8 @@ func (c *RepoCache) DisplayNamespace() string {
 
 // IssueHumanId is the id an issue is drawn by: its alias in the display
 // namespace when that alias, typed back into any id position, resolves to
-// this issue, and its short hash otherwise (alias-ids.md A3).
+// this issue, and its short hash otherwise
+// (doc/design/cli.md, "An alias is drawn only where it names that issue").
 //
 // It is what `human_id` carries in every issue document, so that every
 // renderer that draws `human_id` follows the setting with no rule of its own.
@@ -101,7 +103,8 @@ func (c *RepoCacheIssue) drawnAliases(namespace string) (uint64, map[entity.Id]s
 
 	names := make(map[entity.Id]string, len(all))
 	for alias, carriers := range all {
-		// the same choice aliasId makes (A6)
+		// the same choice aliasId makes (doc/design/cli.md,
+		// "A consolidated duplicate is drawn by its hash")
 		var named entity.Id
 		switch {
 		case len(live[alias]) == 1:

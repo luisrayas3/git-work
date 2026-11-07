@@ -28,7 +28,8 @@ func items(vs ...string) issue.Value {
 }
 
 // convSite is the company site with a select and a text field on the story
-// create screen, so that every kind JS7 maps has a field.
+// create screen, so that every kind maps has a field
+// (doc/design/jira.md, "What maps").
 func convSite() jiratest.Site {
 	site := jiratest.CompanySite()
 	site.Fields = append(site.Fields,
@@ -79,9 +80,10 @@ func (cv *conv) get(key string) Doc {
 	return cv.m.fromIssue(cv.raw(key), cs, cv.ix)
 }
 
-// create posts Create's body, then writes the rest as the engine's
-// ordinary merge does, and checks that every key reads back byte-equal:
-// Jira's normal form of our create is our value (P1).
+// create posts Create's body, then writes the rest as the engine's ordinary
+// merge does, and checks that every key reads back byte-equal: Jira's normal
+// form of our create is our value
+// (doc/design/jira.md, "Conversion is idempotent").
 func (cv *conv) create(local Doc, id entity.Id) string {
 	t := cv.t
 	body, sent, skips := cv.m.createBody(local, id, cv.ix)
@@ -151,8 +153,9 @@ func (cv *conv) apply(key string, ws []jiraWrite) {
 	}
 }
 
-// D11 and P1: every kind converts to Jira and back to the same canonical
-// value, through the fake's normalisation, for a create and for edits.
+// D11: every kind converts to Jira and back to the same canonical value,
+// through the fake's normalisation, for a create and for edits
+// (doc/design/jira.md, "Conversion is idempotent").
 func TestConversionRoundTrip(t *testing.T) {
 	cv := newConv(t)
 	epic := Doc{Type: "epic", Fields: map[string]issue.Value{BodyKey: sv("The *big* one.\n\n- a\n- b"),
@@ -229,7 +232,8 @@ func TestLinkDirection(t *testing.T) {
 	require.Equal(t, "[]", string(cv.get(b).Fields["blocks"]))
 }
 
-// JS17: what cannot convert now is a Skip; an out-of-project relation is dropped.
+// what cannot convert now is a Skip; an out-of-project relation is dropped
+// (doc/design/jira.md, "Relations and what cannot convert now").
 func TestFromJiraSkips(t *testing.T) {
 	cv := newConv(t)
 	ri := &jiraapi.Issue{ID: "20000", Key: "PROJ-99", Fields: map[string]json.RawMessage{
@@ -259,8 +263,9 @@ func TestFromJiraSkips(t *testing.T) {
 	require.Equal(t, "", cv.m.fromIssue(ri, nil, cv.ix).Type, "an unmapped type is skipped by the engine")
 }
 
-// JS17: a local value Jira cannot hold is a Skip, never a Retry: the issue
-// stays a candidate because local differs from its base.
+// a local value Jira cannot hold is a Skip, never a Retry: the issue stays a
+// candidate because local differs from its base
+// (doc/design/jira.md, "Relations and what cannot convert now").
 func TestToJiraSkips(t *testing.T) {
 	cv := newConv(t)
 	ws, skips := cv.m.toWrites("task", []change{
@@ -286,7 +291,8 @@ func TestToJiraSkips(t *testing.T) {
 	require.Len(t, skips, 1)
 }
 
-// JS7: datetime custom fields are RFC 3339 in UTC locally, whatever offset Jira renders.
+// datetime custom fields are RFC 3339 in UTC locally, whatever offset Jira
+// renders (doc/design/jira.md, "What maps").
 func TestDatetime(t *testing.T) {
 	fm := &fieldMap{key: "at", ref: "customfield_1", kind: "date", jira: jiraapi.FieldSchema{Type: "datetime"}}
 	tm := &typeMap{key: "task", fields: map[string]*fieldMap{"at": fm}, keys: []string{"title", "type", "at"}}
@@ -306,7 +312,8 @@ func TestDatetime(t *testing.T) {
 
 func cv0() *Index { return indexOf(nil, nil) }
 
-// JS16: every account an issue and its comments name, once, in order.
+// every account an issue and its comments name, once, in order
+// (doc/design/jira.md, "Identities").
 func TestUsers(t *testing.T) {
 	cv := newConv(t)
 	ri := &jiraapi.Issue{Fields: map[string]json.RawMessage{

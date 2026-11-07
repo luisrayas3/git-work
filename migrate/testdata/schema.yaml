@@ -1,5 +1,6 @@
 # The schema the label mapping writes into: every key migrate.Needs lists,
-# with the values the test's labels name (store-migration.md).
+# with the values the test's labels name
+# (doc/design/migration.md, "Labels become fields").
 
 shared:
   status: &status

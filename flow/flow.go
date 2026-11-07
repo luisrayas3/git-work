@@ -1,7 +1,7 @@
 // Package flow reads a flow's Starlark source without running it.
 //
 // A flow is exactly one function definition and nothing else
-// (doc/design/config-entity.md E2):
+// (doc/design/flows.md, "A flow is one function"):
 // its name is the flow's key,
 // its docstring is the description,
 // and its parameters are the flow's arguments, defaults included.
@@ -29,7 +29,7 @@ const MaxNameLength = 64
 // namePattern is what a flow's name must match.
 //
 // A flow's name is its config key, and a config key of shape flow
-// is the slug `^[a-z][a-z0-9_-]*$` (E3);
+// is the slug `^[a-z][a-z0-9_-]*$` (doc/design/schema.md, "Keys and names");
 // a Starlark identifier cannot carry `-`,
 // so a flow name is effectively `^[a-z][a-z0-9_]*$`.
 var namePattern = regexp.MustCompile(`^[a-z][a-z0-9_]*$`)
@@ -52,7 +52,8 @@ type Def struct {
 //
 // Starlark has no annotation syntax,
 // so a parameter's type is whatever its default says it is
-// and a parameter without one is required (E2).
+// and a parameter without one is required
+// (doc/design/flows.md, "A flow is one function").
 type Param struct {
 	// Name is the parameter's name.
 	Name string `json:"name"`
@@ -145,7 +146,7 @@ func parseParams(def *syntax.DefStmt) ([]Param, error) {
 		case *syntax.UnaryExpr:
 			// *args and **kwargs: the host API passes one object of keyword
 			// arguments, so a flow whose arguments cannot be listed has no
-			// caller (E2, cli-convention.md).
+			// caller (doc/design/flows.md, "A flow is one function").
 			return nil, fmt.Errorf("line %d: %s parameters are not allowed, a flow's arguments are named",
 				start.Line, p.Op.String())
 

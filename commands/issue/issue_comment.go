@@ -9,7 +9,8 @@ import (
 
 // newIssueCommentCommand groups the comment verbs.
 // There is no comment list: `git work issue get ID` prints the comments,
-// and get is the only reader of an issue's content (cli-convention.md).
+// and get is the only reader of an issue's content
+// (doc/design/cli.md, "`get` pairs with `set`").
 func newIssueCommentCommand(env *execenv.Env) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "comment",

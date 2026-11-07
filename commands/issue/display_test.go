@@ -13,7 +13,8 @@ import (
 // TestDisplayIdText: with git-work.display.id = jira, every text form names
 // an issue by its key where it has one and by its hash where it has not, the
 // JSON keeps id the hash and carries the key in human_id, and get shows both
-// (doc/design/alias-ids.md A4, A5).
+// (doc/design/cli.md, "`human_id` carries the drawn id; `id` never changes";
+// doc/design/cli.md, "What is drawn follows; what is a value does not").
 func TestDisplayIdText(t *testing.T) {
 	env := newTestEnv(t)
 	require.NoError(t, env.Repo.LocalConfig().StoreString(cache.DisplayIdKey, "jira"))

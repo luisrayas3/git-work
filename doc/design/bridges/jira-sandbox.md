@@ -59,17 +59,13 @@ from project A that a preset which works for both cannot be accidental.
 
 ## 2. Credentials
 
-An Atlassian API token, added through `git work bridge auth add-token`, which
-stores it in the keyring (`repository/keyring.go`) — never in the repository,
-never in git config, never in an environment variable that ends up in a shell
-history file.
+An Atlassian API token, given to the sync as
+[jira](../jira.md#binding-and-credentials) says:
+`JIRA_API_TOKEN` for cron, else git's credential helpers —
+never in the repository, never in git config, never on a command line.
 
-Two notes:
+One note:
 
-- The keyring's service name is still `git-bug` rather than `git-work`. That
-  rename lives below the pristine-library boundary, so it was deliberately not
-  done (see //doc/design:fork-foundations.md, D5). It costs one re-add of the
-  token whenever we decide to do it.
 - `0a4390d` checks the inherited `bridge/jira/client.go` against Jira Cloud
   REST v3 and current auth before any of phase 3 leans on it. Upstream's client
   predates the v2→v3 move, so assume nothing until that spike runs.

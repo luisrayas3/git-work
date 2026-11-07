@@ -6,7 +6,7 @@
 // `commands/` parses argv and formats the result;
 // `flow/run` binds the same functions as Starlark builtins.
 // The host API mirrors the command line one to one
-// (doc/design/cli-convention.md, `3556569` E9),
+// (doc/design/cli.md, "The command line and Starlark are one API"),
 // and this package is what makes that true by construction
 // rather than by two implementations agreeing.
 //

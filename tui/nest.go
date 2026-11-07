@@ -14,7 +14,7 @@ import (
 )
 
 // Nesting: rows under rows, a relation per level
-// (doc/design/terminal-renderer.md, Nesting).
+// (doc/design/views.md, "`expand` is a layer").
 //
 // `expand` is a layer spec: a relation, the list's own arguments for the rows
 // that relation brings — `query`, `fields`, `details`, `group_by` —
@@ -26,7 +26,7 @@ import (
 // children are the reason to expand a parent. A row's own `children`, where
 // it lists them, take the relation's place for that row, and every row is
 // known by its key, which is its id unless the query gave it one
-// (doc/design/query-rows.md). The list and the gantt both
+// (doc/design/query.md, "A row's key"). The list and the gantt both
 // nest, so what is shared is here: the layers, the tree, the drawing order
 // over it, and moving a row among its siblings. How the tree is drawn is
 // each kind's own: the list draws a child table under an opened parent
@@ -36,7 +36,8 @@ import (
 // query compiled and the keys it inherits filled in.
 type nestLayer struct {
 	// relation is "" on level 0, whose rows are the view's own query, and
-	// on a layer whose rows above list their own children (query-rows.md).
+	// on a layer whose rows above list their own children
+	// (doc/design/query.md, "A row lists its children").
 	relation string
 	// program is the layer's `query`, run over the array of a row's candidate
 	// children; nil is every one of them.
@@ -68,7 +69,7 @@ type nesting struct {
 // the parent. `group_by` is not inherited: a level is sectioned because that
 // level was asked to be. `include_archive` is, from the call down, because
 // whether the archived show is one choice for the whole view
-// (doc/design/include-archive.md, I5).
+// (doc/design/query.md, "Layers and pickers follow the input").
 func newNesting(root nestLayer, spec *view.Layer) (*nesting, error) {
 	n := &nesting{layers: []nestLayer{root}, families: []int{0}}
 	if spec == nil {
@@ -158,7 +159,8 @@ type nested struct {
 	item map[string]any
 	// key is the row's identity on the screen, which orders, folds and
 	// finds it; id is the issue it acts on, "" for a row that stands for
-	// nothing (doc/design/query-rows.md, R1 and R2).
+	// nothing (doc/design/query.md, "A row's key"; doc/design/query.md, "A
+	// row that stands for no issue").
 	key string
 	id  string
 	// level is 0 for a root; parent the key of the row it is under.
@@ -173,24 +175,25 @@ type nested struct {
 	hidden bool
 	// nestable says the row could have children of the layer below: the
 	// layer exists, and its relation's write set can be named for the row
-	// (create.md C8), so a leaf draws a fold cell, `▸ 0`, and unfolds to an
-	// empty child table ending in a ghost.
+	// (doc/design/views.md, "A leaf unfolds to an empty table"), so a leaf
+	// draws a fold cell, `▸ 0`, and unfolds to an empty child table ending
+	// in a ghost.
 	nestable bool
 }
 
 // nest unfolds the rows the query returned along the layers of `expand`.
 //
 // Without an `expand` it is the rows, each a root. With one, the children of
-// a row at level n are the rows its own `children` lists, where it lists
-// them (doc/design/query-rows.md, R3), and otherwise what the layer for
-// level n+1 names: the targets of the row's own field of that name, and the
-// issues whose stored relation has that name as its inverse — the inverse
-// side is derived, never stored (schema.yaml, D4), so `children` is read off
-// every `parent` — narrowed by the layer's own query where it has one. A
-// cycle is cut at the repeat, and a key shows once: under the first matched
-// row that reaches it. A row's key is its `key`, else its id, so an issue
-// reached twice through the store shows once, and one the query keyed twice
-// shows twice.
+// a row at level n are the rows its own `children` lists, where it lists them
+// (doc/design/query.md, "A row lists its children"), and otherwise what the
+// layer for level n+1 names: the targets of the row's own field of that name,
+// and the issues whose stored relation has that name as its inverse — the
+// inverse side is derived, never stored (doc/design/views.md, "Either side of
+// a relation"), so `children` is read off every `parent` — narrowed by the
+// layer's own query where it has one. A cycle is cut at the repeat, and a key
+// shows once: under the first matched row that reaches it. A row's key is its
+// `key`, else its id, so an issue reached twice through the store shows once,
+// and one the query keyed twice shows twice.
 //
 // Every parent is folded unless `open` says otherwise, so a tree opens as its
 // roots and their counts, which is a summary (Luis, 2026-10-02). The rows
@@ -274,7 +277,8 @@ func nest(repo *cache.RepoCache, items []map[string]any, n *nesting, open map[st
 	}
 
 	// whether a row of a type could have children of a layer: the layer
-	// reads a relation, and its write set can be named for the type (C8)
+	// reads a relation, and its write set can be named for the type
+	// (doc/design/views.md, "A leaf unfolds to an empty table")
 	s, _ := repo.LoadSchema()
 	writable := map[string]bool{}
 	nestable := func(item map[string]any, id string, level int) bool {
@@ -283,7 +287,8 @@ func nest(repo *cache.RepoCache, items []map[string]any, n *nesting, open map[st
 			return false
 		}
 		if _, own := host.RowChildren(item); own {
-			// a row that lists its own children is no relation's (R3)
+			// a row that lists its own children is no relation's
+			// (doc/design/query.md, "A row lists its children")
 			return false
 		}
 		fields, _ := item["fields"].(map[string]any)
@@ -436,8 +441,9 @@ func nest(repo *cache.RepoCache, items []map[string]any, n *nesting, open map[st
 	return out, failed
 }
 
-// checkLevels refuses a tree a view cannot draw (doc/design/query-rows.md,
-// R2, settled 2026-10-08):
+// checkLevels refuses a tree a view cannot draw (doc/design/query.md, "A
+// level is keyed or plain"; doc/design/query.md, "A row that stands for no
+// issue"):
 // a level that mixes keyed rows and plain ones,
 // and a row with no id that names no type the schema knows.
 //
@@ -508,8 +514,9 @@ func checkLevels(repo *cache.RepoCache, tree []nested) error {
 // same way and a layer can say `map(select(.fields.status != "done"))`
 // without knowing anything about the row it is under.
 //
-// The schema is the program's `$schema` (doc/design/schema-in-jq.md); a
-// schema that does not load is no schema, where its functions read null.
+// The schema is the program's `$schema` (doc/design/query.md, "`$schema` is
+// bound on every run"); a schema that does not load is no schema, where its
+// functions read null.
 func runLayerQuery(repo *cache.RepoCache, program *jq.Program, candidates []map[string]any) ([]map[string]any, error) {
 	input := make([]any, 0, len(candidates))
 	for _, row := range candidates {
@@ -548,7 +555,7 @@ func runLayerQuery(repo *cache.RepoCache, program *jq.Program, candidates []map[
 //
 // It is the one source the nesting, show's children and a relation's picker
 // read, so that the three leave the archived out by the input's own rule
-// (doc/design/include-archive.md, I5).
+// (doc/design/query.md, "Layers and pickers follow the input").
 func allIssues(repo *cache.RepoCache, includeArchive bool) (map[string]map[string]any, []string) {
 	input, err := host.IssueListInput(repo, includeArchive)
 	if err != nil {
@@ -606,8 +613,9 @@ func childrenIndex(repo *cache.RepoCache, all map[string]map[string]any, order [
 // treeRow is what the drawing order needs to know about one row: where it
 // sits in the tree, its group and rank, and its text for the filter.
 type treeRow struct {
-	// key is the row's identity on the screen (doc/design/query-rows.md,
-	// R1): what the drawing order, the fold state and the cursor find it by.
+	// key is the row's identity on the screen (doc/design/query.md, "A row's
+	// key"): what the drawing order, the fold state and the cursor find it
+	// by.
 	// id is the issue it acts on, "" for a row that stands for nothing.
 	key    string
 	id     string
@@ -649,14 +657,15 @@ func (r treeRow) tie() string {
 }
 
 // foldable says the row draws a fold cell: it has children, or it could
-// have them and unfolds to an empty child table (create.md C8).
+// have them and unfolds to an empty child table (doc/design/views.md, "A leaf
+// unfolds to an empty table").
 func (r treeRow) foldable() bool {
 	return !r.ghost && (r.children > 0 || r.nestable)
 }
 
 // keyed says the row stands for a share of an issue or for none — its key is
 // not its id — so a drop must not write the issue's rank
-// (doc/design/query-rows.md, R5).
+// (doc/design/query.md, "A keyed row reorders for the view only").
 func (r treeRow) keyed() bool {
 	return !r.ghost && r.key != r.id
 }
@@ -710,7 +719,8 @@ func treeOrder(rows []treeRow, filter string) []int {
 
 // arrange is one set of siblings as it is drawn: the rank orders them, and
 // then, on a layer that groups, their groups in the order of the values they
-// stand for, (none) last, first seen breaking a tie (group.go, E4).
+// stand for, (none) last, first seen breaking a tie (group.go;
+// doc/design/views.md, "Group order").
 //
 // Every level is arranged the same way, because every level is a list: the
 // roots were the only grouped ones while `expand` was a relation name, and a
@@ -855,7 +865,7 @@ func moveBlock(rows []treeRow, order []int, at, by int) int {
 // It returns the index into rows of the neighbour, whose group and whose
 // stored value the row takes on at the drop, and false where there is no
 // group that way — and for a nested child, which stays among its siblings
-// (doc/design/terminal-renderer.md, Rank).
+// (doc/design/tui.md, "Carried past its group, a row enters the next").
 func crossGroup(rows []treeRow, order []int, at, by int) (int, bool) {
 	if rows[order[at]].level != 0 {
 		return 0, false
@@ -889,7 +899,7 @@ func crossGroup(rows []treeRow, order []int, at, by int) (int, bool) {
 // foldAll is `esc z`: every row folded shut, or, where none of them is
 // open, every parent opened — the rows with children, and never a leaf,
 // because it means "show me the tree", and an empty table under every leaf
-// is not the tree (app.md A4, Two folds).
+// is not the tree (doc/design/views.md, "A leaf unfolds to an empty table").
 //
 // Folding wins the tie, because the tree a list opens with is the summary,
 // and getting back to it is what a reader of a tree opened all over wants.
@@ -916,7 +926,7 @@ func foldAll(rows []treeRow, open map[string]bool) map[string]bool {
 
 // openEverything is `esc Z`: every row opened, the leaves included, so that
 // every level's ghost is on the screen, for the person about to add under
-// many of them (app.md A4, Two folds; create.md C8).
+// many of them (doc/design/views.md, "A leaf unfolds to an empty table").
 func openEverything(rows []treeRow) map[string]bool {
 	out := make(map[string]bool, len(rows))
 	for _, row := range rows {
@@ -929,8 +939,9 @@ func openEverything(rows []treeRow) map[string]bool {
 
 // openTo is `open` applied to a tree that has just been built: every parent
 // opened, for levels -1, or every parent less than that many levels from the
-// roots (doc/design/query-rows.md, R4). It sets the fold state the view
-// starts with, by key, once; what the person folds after that is theirs.
+// roots (doc/design/query.md, "`open` unfolds the tree"). It sets the fold
+// state the view starts with, by key, once; what the person folds after that
+// is theirs.
 func openTo(rows []treeRow, levels int, open map[string]bool) {
 	if levels == 0 {
 		return
@@ -1019,7 +1030,8 @@ func leafFold(row treeRow) bool {
 
 // deepest is the deepest level any row sits at, hidden or drawn, so that an
 // indent sized by it never changes with a fold: a leaf that unfolds to an
-// empty table counts the level its ghost would stand at (create.md C8).
+// empty table counts the level its ghost would stand at
+// (doc/design/views.md, "A leaf unfolds to an empty table").
 func deepest(rows []treeRow) int {
 	level := 0
 	for _, row := range rows {

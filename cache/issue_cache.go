@@ -23,10 +23,12 @@ import (
 //
 // Field values are accepted as the entity accepts them, by shape.
 // Checking a value against the schema — kind, allowed values, target types —
-// happens here, on the write path (bb9e89e, E6), at planning time,
-// so that `--dry-run` reports what a commit would refuse.
+// happens here, on the write path, at planning time,
+// so that `--dry-run` reports what a commit would refuse
+// (doc/design/schema.md, "Validate on write, lenient on read").
 // The entity stays free of any schema import,
-// because an operation's Validate is frozen (D6).
+// because an operation's Validate is frozen
+// (doc/design/schema.md, "Structural rules are frozen").
 type IssueCache struct {
 	CachedEntityBase[*issue.Snapshot, issue.Operation]
 
@@ -192,7 +194,8 @@ func (c *IssueCache) PlanRemoveValues(items map[string][]issue.Value) ([]issue.O
 // checkFields measures a `set` against the live schema,
 // bubbling every problem as one error before anything is written.
 //
-// An empty schema validates nothing, which is the bootstrap state (E4):
+// An empty schema validates nothing, which is the bootstrap state
+// (doc/design/schema.md, "Built-ins are code"):
 // a repository with no config entities takes every write.
 func (c *IssueCache) checkFields(fields map[string]issue.Value) error {
 	checker, err := c.liveChecker()
@@ -239,7 +242,8 @@ func rawValues(fields map[string]issue.Value) map[string]json.RawMessage {
 
 // CommitOperations appends a planned list of operations and commits them as one.
 //
-// A commit is the write unit (cli-convention.md):
+// A commit is the write unit
+// (doc/design/cli.md, "A commit is a list of operations"):
 // `set` over three keys is three operations in one commit,
 // so that a reader never sees a half-applied document
 // and the log reads as the one change it was.
@@ -268,7 +272,7 @@ func (c *IssueCache) CommitOperations(ops []issue.Operation) error {
 // It is the read-modify-commit a plan made outside the lock cannot be: a
 // decision that depends on the issue's current state (a 3-way merge, say) is
 // made on the entity as it is under the lock, so nothing committed in between
-// is decided against blind (concurrent-store.md).
+// is decided against blind (doc/design/store.md, "Re-read under the lock").
 //
 // fn runs under the entity's mutex: it may read other excerpts and a
 // *schema.Checker obtained beforehand, but must not call a cache writer,
@@ -278,7 +282,8 @@ func (c *IssueCache) Update(fn func(snap *issue.Snapshot) ([]issue.Operation, er
 	return c.update(fn, false)
 }
 
-// UpdateShape is Update with the shape check only (pull-schema-check.md):
+// UpdateShape is Update with the shape check only
+// (doc/design/jira.md, "A pull is checked for shape, not policy"):
 // a value that fits its field's kind is committed even where the schema's
 // policy — enum membership, a relation's target types — would refuse it.
 //
@@ -378,7 +383,7 @@ func (c *IssueCache) checkOperations(currentType string, ops []issue.Operation, 
 		return err
 	}
 	// a type change is checked once, from the type the issue has to the one
-	// the batch leaves it with (type-change.md, TC2)
+	// the batch leaves it with (doc/design/issue.md, "A type change is a set")
 	if err := collect(checker.CheckRetype(currentType, typeKey)); err != nil {
 		return err
 	}
@@ -443,7 +448,8 @@ func (c *IssueCache) EditCommentRaw(author identity.Interface, unixTime int64, t
 	return op, c.notifyUpdated()
 }
 
-// DeleteComment hides one comment (comment-delete.md CD1).
+// DeleteComment hides one comment
+// (doc/design/issue.md, "Delete hides, the history keeps").
 func (c *IssueCache) DeleteComment(target entity.CombinedId) (*issue.DeleteCommentOperation, error) {
 	author, err := c.getUserIdentity()
 	if err != nil {

@@ -6,7 +6,8 @@ import (
 )
 
 // NewNoOpOp builds an operation that changes nothing but carries metadata,
-// which is what the Jira sync's base marker is (jira-sync.md, JS8).
+// which is what the Jira sync's base marker is
+// (doc/design/jira.md, "The base is a marker on the issue").
 //
 // NoOp has been decoded under its code since the entity existed, so a marker
 // needs no new operation type and no format version: every binary reading

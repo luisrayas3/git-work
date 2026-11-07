@@ -15,9 +15,11 @@ import (
 	"github.com/git-bug/git-bug/schema"
 )
 
-// Mapping is the seam between the mapping and the engine (JS7, JS17):
-// compiled once per run by Compile, pure, and in local terms on its
-// local side, so that "did it change" is byte equality.
+// Mapping is the seam between the mapping and the engine
+// (doc/design/jira.md, "What maps";
+// doc/design/jira.md, "Relations and what cannot convert now"): compiled once
+// per run by Compile, pure, and in local terms on its local side, so that "did
+// it change" is byte equality.
 type Mapping struct {
 	project, projectId string
 	types              map[string]*typeMap
@@ -78,7 +80,8 @@ func (m *Mapping) keys(typeKey string) []string {
 	return nil
 }
 
-// multi says a mapped key merges item-wise (JS10).
+// multi says a mapped key merges item-wise
+// (doc/design/jira.md, "Sets merge item-wise").
 func (m *Mapping) multi(typeKey, key string) bool {
 	if tm, ok := m.types[typeKey]; ok {
 		if fm, ok := tm.fields[key]; ok {
@@ -88,7 +91,8 @@ func (m *Mapping) multi(typeKey, key string) bool {
 	return false
 }
 
-// canceled is the status a Gone issue is set to (JS19): the first value in
+// canceled is the status a Gone issue is set to
+// (doc/design/jira.md, "Deletes and moves are Gone"): the first value in
 // the canceled category of its type's status field.
 func (m *Mapping) canceled(typeKey string) (key string, v issue.Value, ok bool) {
 	tm, ok := m.types[typeKey]
@@ -103,7 +107,8 @@ func (m *Mapping) canceled(typeKey string) (key string, v issue.Value, ok bool) 
 }
 
 // users are the accounts an issue and its comments name, in order of first
-// appearance, for the engine to ensure as identities before it converts (JS16).
+// appearance, for the engine to ensure as identities before it converts
+// (doc/design/jira.md, "Identities").
 func (m *Mapping) users(ri *jiraapi.Issue, cs []jiraapi.Comment) []jiraapi.User {
 	var out []jiraapi.User
 	seen := map[string]bool{}
@@ -139,7 +144,8 @@ func (m *Mapping) users(ri *jiraapi.Issue, cs []jiraapi.Comment) []jiraapi.User 
 	return out
 }
 
-// Local is the snapshot in local terms for typeKey's mapped keys (JS1):
+// Local is the snapshot in local terms for typeKey's mapped keys
+// (doc/design/jira.md, "Three documents per issue"):
 // values compacted, sets sorted, an unset scalar null and an unset set [].
 // The type is the snapshot's own, so that a local type change shows.
 func (m *Mapping) Local(snap *issue.Snapshot, typeKey string) Doc {
@@ -189,8 +195,9 @@ func (m *Mapping) Local(snap *issue.Snapshot, typeKey string) Doc {
 		}
 		doc.Comments = append(doc.Comments, lc)
 	}
-	// the comments a DeleteComment hid (comment-delete.md CD6): gone from
-	// snap.Comments, so known from the operations alone
+	// the comments a DeleteComment hid
+	// (doc/design/jira.md, "A comment deleted locally is deleted in Jira"):
+	// gone from snap.Comments, so known from the operations alone
 	seen := map[entity.Id]bool{}
 	for _, target := range deleted {
 		if !added[target] || seen[target] {
@@ -204,10 +211,12 @@ func (m *Mapping) Local(snap *issue.Snapshot, typeKey string) Doc {
 	return doc
 }
 
-// fromIssue converts one issue and its comments (JS7, JS11, JS17): canonical
-// values, texts through ADFToText, out-of-project relations dropped, and
-// what cannot convert now in Skip. An issue of an unmapped type has no Type
-// and no fields.
+// fromIssue converts one issue and its comments: canonical values, texts
+// through ADFToText, out-of-project relations dropped, and what cannot
+// convert now in Skip (doc/design/jira.md, "Canonical values";
+// doc/design/jira.md, "Texts merge by digest";
+// doc/design/jira.md, "Relations and what cannot convert now"). An issue of
+// an unmapped type has no Type and no fields.
 func (m *Mapping) fromIssue(ri *jiraapi.Issue, cs []jiraapi.Comment, ix *Index) Doc {
 	doc := Doc{Id: ri.ID, Key: ri.Key, Fields: map[string]issue.Value{}}
 	sf, _ := ri.System()
@@ -268,8 +277,9 @@ func (m *Mapping) fromIssue(ri *jiraapi.Issue, cs []jiraapi.Comment, ix *Index) 
 	return doc
 }
 
-// fromJira converts one field. drop is an out-of-project relation, which
-// the merge must not see at all (JS17).
+// fromJira converts one field. drop is an out-of-project relation, which the
+// merge must not see at all
+// (doc/design/jira.md, "Relations and what cannot convert now").
 func (m *Mapping) fromJira(ri *jiraapi.Issue, fm *fieldMap, ix *Index) (v issue.Value, skip *Skip, drop bool) {
 	retry := func(format string, args ...any) (issue.Value, *Skip, bool) {
 		return nil, &Skip{Key: fm.key, Reason: fmt.Sprintf(format, args...), Retry: true}, false
@@ -411,7 +421,8 @@ func (m *Mapping) fromJira(ri *jiraapi.Issue, fm *fieldMap, ix *Index) (v issue.
 
 // syncable says a related issue can be, or is, a local issue: one of
 // another project, or of an issue type the schema does not map or excludes,
-// never imports, and a relation to it is dropped (JS17).
+// never imports, and a relation to it is dropped
+// (doc/design/jira.md, "Relations and what cannot convert now").
 func (m *Mapping) syncable(ref jiraapi.IssueRef, ix *Index) bool {
 	if _, ok := ix.Issue(ref.ID); ok {
 		return true
@@ -426,10 +437,10 @@ func (m *Mapping) syncable(ref jiraapi.IssueRef, ix *Index) bool {
 	return true
 }
 
-// toWrites turns merged changes into writes, one per local key, the
-// description included; remote gives the link ids a removal deletes. A value
-// Jira cannot hold is a Skip (JS17): pending, and a candidate anyway because
-// local differs from the base.
+// toWrites turns merged changes into writes, one per local key, the description
+// included; remote gives the link ids a removal deletes. A value Jira cannot
+// hold is a Skip (doc/design/jira.md, "Relations and what cannot convert now"):
+// pending, and a candidate anyway because local differs from the base.
 func (m *Mapping) toWrites(typeKey string, ch []change, remote *jiraapi.Issue, ix *Index) ([]jiraWrite, []Skip) {
 	var writes []jiraWrite
 	var skips []Skip
@@ -476,7 +487,7 @@ func (m *Mapping) toJira(tm *typeMap, c change, remote *jiraapi.Issue, ix *Index
 		return edit("summary", s)
 	case schema.TypeKey:
 		// written alone and first by the engine, never with the other fields
-		// (type-change.md, TC4)
+		// (doc/design/jira.md, "A local type change is exported alone and first")
 		return no("the type is written on its own")
 	}
 
@@ -551,7 +562,8 @@ func (m *Mapping) toJira(tm *typeMap, c change, remote *jiraapi.Issue, ix *Index
 	return no("kind %s does not sync", fm.kind)
 }
 
-// toJiraItems writes a set's added and removed items (JS10): labels and
+// toJiraItems writes a set's added and removed items
+// (doc/design/jira.md, "Sets merge item-wise"): labels and
 // multi-selects by update, links by POST and DELETE /issueLink. A link to an
 // issue not in Jira is skipped alone; the other items are still written.
 func (m *Mapping) toJiraItems(fm *fieldMap, c change, remote *jiraapi.Issue, ix *Index) (jiraWrite, *Skip) {
@@ -615,9 +627,10 @@ func (m *Mapping) toJiraItems(fm *fieldMap, c change, remote *jiraapi.Issue, ix 
 }
 
 // createBody is the POST /issue body for a local issue and the keys it sends,
-// which make JS15's create base: project, type, summary, description and the
-// property, plus each field the create screen requires, without a default,
-// that local holds. Everything else is written by the ordinary merge after.
+// which make the create base (doc/design/jira.md, "Creates to Jira"): project,
+// type, summary, description and the property, plus each field the create
+// screen requires, without a default, that local holds. Everything else is
+// written by the ordinary merge after.
 func (m *Mapping) createBody(local Doc, id entity.Id, ix *Index) (newIssue, []string, []Skip) {
 	body := newIssue{
 		Fields:     map[string]any{},

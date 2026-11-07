@@ -9,7 +9,7 @@ import (
 )
 
 // The status line names the keys that act where the cursor is
-// (doc/design/terminal-renderer.md, Navigation and editing, 2026-10-02).
+// (doc/design/tui.md, "The hints name the keys that act under the cursor").
 //
 // Every kind builds its line out of the same pairs, `enter` and `space`
 // first, so that the two keys that do everything never have to be looked up
@@ -52,7 +52,7 @@ func hints(pairs ...hint) string {
 }
 
 // bottomLine is the page's last line: two places, one line
-// (doc/design/terminal-renderer.md, Navigation and editing, 2026-10-02).
+// (doc/design/tui.md, "The bottom line is two places").
 //
 // The hints are on the left, always, because what the keys do here is the one
 // thing that is true of every press. The last action's message — with the

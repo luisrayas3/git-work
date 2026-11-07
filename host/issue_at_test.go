@@ -118,7 +118,8 @@ func TestIssueSnapshotAtBeforeCreation(t *testing.T) {
 // out what was archived at the time and keeps what was not, with no special
 // case on the replay path; a program with no filter of its own sees no
 // archived issue, and include_archive brings them back
-// (doc/design/include-archive.md, I1, I4).
+// (doc/design/query.md, "The input is the unarchived issues";
+// doc/design/query.md, "`--at` is a replay").
 func TestIssueListAtArchived(t *testing.T) {
 	repo, author := atTestRepo(t)
 

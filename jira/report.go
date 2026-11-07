@@ -8,7 +8,7 @@ import (
 	"github.com/git-bug/git-bug/schema"
 )
 
-// Actions of a Line (JS22).
+// Actions of a Line (doc/design/jira.md, "The report").
 const (
 	ActionImported = "imported" // new locally
 	ActionCreated  = "created"  // new in Jira
@@ -51,7 +51,7 @@ type CommentCounts struct {
 	Exported   int `json:"exported"`
 	Edited     int `json:"edited"`
 	Tombstoned int `json:"tombstoned"`
-	Deleted    int `json:"deleted"` // deleted locally, so deleted in Jira (comment-delete.md CD6)
+	Deleted    int `json:"deleted"` // deleted locally, so deleted in Jira
 }
 
 func (c *CommentCounts) empty() bool { return c == nil || *c == CommentCounts{} }

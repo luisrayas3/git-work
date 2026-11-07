@@ -12,7 +12,8 @@ import (
 	"github.com/git-bug/git-bug/util/sorted"
 )
 
-// The document a human edits is a view over the entities (E9).
+// The document a human edits is a view over the entities
+// (doc/design/schema.md, "The document is a view over the entities").
 //
 //	preset: jira            # informational, ignored on import
 //	shared:                 # YAML anchors, authoring only
@@ -23,8 +24,8 @@ import (
 //	types:
 //	  epic:
 //	    name: Epic
-//	    aliases: {jira: "10000"}  # what it is in another system (JS2)
-//	    retype_targets: []        # the types it may become; absent is any (TC1)
+//	    aliases: {jira: "10000"}  # what it is in another system
+//	    retype_targets: []        # the types it may become; absent is any
 //	    fields:
 //	      status: *status
 //	      parent: {kind: relation, inverse: children, target_types: [initiative]}
@@ -33,7 +34,8 @@ import (
 // `ordinal` is never written by hand and never exported,
 // so `export | import` emits zero operations, which is the round-trip test.
 // `shared` is the human's anchors and nothing else reads it;
-// the store holds one status entity per type (E2, `e7e58f2`).
+// the store holds one status entity per type
+// (doc/design/schema.md, "A field belongs to one type").
 type Document struct {
 	// Preset names the preset a schema came from, for a reader.
 	// Nothing in the store records it, so export never writes it.
@@ -50,15 +52,18 @@ type TypeDoc struct {
 	Name        string `yaml:"name,omitempty"`
 	Description string `yaml:"description,omitempty"`
 	// Aliases are what the entity is in other systems, by system name,
-	// here and on a field and a value alike (JS2). A stated alias is
+	// here and on a field and a value alike
+	// (doc/design/jira.md, "The mapping is aliases on the schema"). A stated alias is
 	// written and an unstated one left alone, so a file without them unmaps
 	// nothing; the empty string is stated, and means "never sync this".
 	Aliases map[string]string `yaml:"aliases,omitempty"`
 	// Show is how show draws an issue of the type where a view's `shows`
-	// does not say (doc/design/app.md A7): what show takes less the id.
+	// does not say (doc/design/views.md, "A spec is whole, never merged"):
+	// what show takes less the id.
 	Show *ShowDoc `yaml:"show,omitempty"`
 	// RetypeTargets are the types an issue of this type may become by a
-	// `set` of its type (type-change.md, TC1): nil is any type, which is
+	// `set` of its type (doc/design/schema.md, "A type says what it may
+	// become"): nil is any type, which is
 	// what a schema written before it means; empty is none, the type is
 	// fixed once the issue is created.
 	RetypeTargets *[]string `yaml:"retype_targets,omitempty"`
@@ -77,7 +82,8 @@ type ShowDoc struct {
 // FieldDoc is one field in the document.
 //
 // The type is the mapping it sits under, never a member here:
-// a field belongs to exactly one type, and its key is `<type>/<field>` (E2).
+// a field belongs to exactly one type, and its key is `<type>/<field>`
+// (doc/design/schema.md, "A field belongs to one type").
 type FieldDoc struct {
 	Kind        string            `yaml:"kind,omitempty"`
 	Name        string            `yaml:"name,omitempty"`
@@ -86,7 +92,8 @@ type FieldDoc struct {
 	Freeform    bool              `yaml:"freeform,omitempty"`
 	Inverse     string            `yaml:"inverse,omitempty"`
 	TargetTypes []string          `yaml:"target_types,omitempty"`
-	// Link marks a relation the views draw as a link (link-fields.md, L1).
+	// Link marks a relation the views draw as a link
+	// (doc/design/schema.md, "A link is a marked relation").
 	Link   bool       `yaml:"link,omitempty"`
 	Values []ValueDoc `yaml:"values,omitempty"`
 }
@@ -106,7 +113,8 @@ type typeMap = orderedMap[TypeDoc]
 type fieldMap = orderedMap[FieldDoc]
 
 // orderedMap is a YAML mapping that remembers the order it was written in,
-// because that order is the schema's order (E5, E9).
+// because that order is the schema's order
+// (doc/design/schema.md, "Position is the order").
 //
 // goccy hands a BytesUnmarshaler the node's own bytes with every alias already
 // expanded, so an anchored field reads exactly as a spelled-out one does,
@@ -122,7 +130,8 @@ func newOrderedMap[T any]() *orderedMap[T] {
 }
 
 // NewDocument returns an empty document, for building one in code:
-// the Jira sync derives the schema it wants and imports it (JS5).
+// the Jira sync derives the schema it wants and imports it
+// (doc/design/jira.md, "Derive, then the schema import").
 func NewDocument() *Document {
 	return &Document{Types: newOrderedMap[TypeDoc]()}
 }
@@ -218,7 +227,8 @@ func (m orderedMap[T]) MarshalYAML() (interface{}, error) {
 //
 // JSON is YAML, so one parser reads both,
 // and an unknown key is an error rather than a silent no-op,
-// which is the rule every document argument follows (cli-convention.md).
+// which is the rule every document argument follows
+// (doc/design/cli.md, "A document is read strictly").
 func ParseDocument(data []byte) (*Document, error) {
 	doc := &Document{}
 	if err := yaml.UnmarshalWithOptions(data, doc, yaml.DisallowUnknownField()); err != nil {
@@ -251,7 +261,8 @@ func (d *Document) Marshal(format string) ([]byte, error) {
 //
 // A built-in with no entity of its own is left out:
 // it exists in code on every type, and writing it to the file
-// would make the next import create an entity that changes nothing (E4).
+// would make the next import create an entity that changes nothing
+// (doc/design/schema.md, "Built-ins are code").
 func Export(s *Schema) *Document {
 	doc := &Document{Types: newOrderedMap[TypeDoc]()}
 
@@ -290,7 +301,8 @@ func exportField(field *Field) FieldDoc {
 		Description: field.Description,
 	}
 	if field.Builtin {
-		// a built-in's values and targets are code, not config (E4)
+		// a built-in's values and targets are code, not config
+		// (doc/design/schema.md, "Built-ins are code")
 		return out
 	}
 
@@ -315,8 +327,8 @@ func exportField(field *Field) FieldDoc {
 }
 
 // exportShow reads a type's stored spec back as the document's, nil where
-// there is none or it no longer reads (D6: a read never fails on what was
-// written before).
+// there is none or it no longer reads: a read never fails on what was
+// written before (doc/design/schema.md, "Validate on write, lenient on read").
 func exportShow(raw json.RawMessage) *ShowDoc {
 	if len(raw) == 0 {
 		return nil
@@ -350,7 +362,8 @@ func copyAliases(aliases map[string]string) map[string]string {
 	return out
 }
 
-// Validate checks the whole document before anything is written (E9).
+// Validate checks the whole document before anything is written
+// (doc/design/schema.md, "Import is an upsert").
 //
 // knownTypes are the types already in the store,
 // so that a partial file adding one field to an existing type is legal.
@@ -419,7 +432,7 @@ func (d *Document) validateType(problems *Problems, typeKey string, t TypeDoc, k
 		if fieldKey == LinksKey {
 			// `links` is a word of the views, the row show folds the links
 			// into, so that a view never has to choose between the two
-			// (link-fields.md, L3)
+			// (doc/design/views.md, "The links row")
 			problems.add("%s: %s is reserved: it is the row show draws the links in", where, LinksKey)
 			continue
 		}
@@ -432,7 +445,7 @@ func (d *Document) validateType(problems *Problems, typeKey string, t TypeDoc, k
 
 		if builtinKind, isBuiltin := BuiltinKind(fieldKey); isBuiltin {
 			// a built-in's kind is code; an entity overrides
-			// only its name and description (E4)
+			// only its name and description (doc/design/schema.md, "Built-ins are code")
 			if kind != builtinKind {
 				problems.add("%s: %s is built in with kind %s and can not be changed to %s",
 					where, fieldKey, builtinKind, kind)
@@ -540,7 +553,8 @@ func validateAliases(problems *Problems, where string, aliases map[string]string
 
 // aliasOwners finds two entities of one document naming one thing of
 // another system: two types, two fields of one type, or two values of one
-// field. Fields of different types share aliases as they share keys (E2),
+// field. Fields of different types share aliases as they share keys
+// (doc/design/schema.md, "A field belongs to one type"),
 // and the empty string excludes rather than names, so it is never a duplicate.
 type aliasOwners map[string]map[string]string
 

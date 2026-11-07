@@ -11,7 +11,8 @@ import (
 )
 
 // Entry is one config entity as the schema layer reads it:
-// the excerpt's whole document, with no entity loaded (E8).
+// the excerpt's whole document, with no entity loaded
+// (doc/design/schema.md, "Compiled on demand").
 type Entry struct {
 	Id         entity.Id
 	Shape      config.Shape
@@ -29,7 +30,8 @@ type Entry struct {
 // is what every caller writes.
 type Source interface {
 	// SchemaEntries returns one entry per unarchived type and field entity,
-	// duplicate keys already resolved to their winner (E7).
+	// duplicate keys already resolved to their winner
+	// (doc/design/schema.md, "Duplicate keys").
 	SchemaEntries() ([]Entry, error)
 }
 
@@ -44,7 +46,8 @@ func Load(src Source) (*Schema, error) {
 
 // Compile builds the schema from config entity documents.
 //
-// It never fails on what was written before (D6):
+// It never fails on what was written before
+// (doc/design/schema.md, "Structural rules are frozen"):
 // an attribute it can not read, a field naming no type,
 // a relation targeting a type that is gone,
 // are Problems on the result, not errors.
@@ -75,7 +78,8 @@ func Compile(entries []Entry) (*Schema, error) {
 		s.Types[t.Key] = t
 	}
 
-	// the built-ins exist on every type, in code, before any override (E4)
+	// the built-ins exist on every type, in code, before any override
+	// (doc/design/schema.md, "Built-ins are code")
 	for _, t := range s.Types {
 		for _, b := range Builtins {
 			t.Fields[b.Key] = newBuiltinField(t.Key, b)
@@ -105,7 +109,8 @@ func Compile(entries []Entry) (*Schema, error) {
 	}
 
 	// the type field's values are the types themselves,
-	// which is the one field the engine resolves against the type entities (D2)
+	// which is the one field the engine resolves against the type entities
+	// (doc/design/schema.md, "type is checked against the types")
 	typeValues := make([]Value, 0, len(s.Types))
 	for ordinal, key := range s.TypeKeys() {
 		t := s.Types[key]
@@ -121,7 +126,8 @@ func Compile(entries []Entry) (*Schema, error) {
 		}
 	}
 
-	// dangling relation and retype targets are reported, never an error (D4)
+	// dangling relation and retype targets are reported, never an error
+	// (doc/design/schema.md, "Structural rules are frozen")
 	for _, key := range s.TypeKeys() {
 		t := s.Types[key]
 		if t.RetypeTargets != nil {
@@ -200,7 +206,8 @@ func compileField(typeKey, fieldKey string, e Entry) (*Field, error) {
 		return nil, err
 	}
 
-	// A built-in's kind is code, and an entity can not change it (E4):
+	// A built-in's kind is code, and an entity can not change it
+	// (doc/design/schema.md, "Built-ins are code"):
 	// what an entity overrides is the name, the description and the order.
 	var kind Kind
 	if builtinKind, isBuiltin := BuiltinKind(fieldKey); isBuiltin {

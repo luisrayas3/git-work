@@ -1,4 +1,5 @@
-# The jira preset: Jira's native model as git-work config (59fed1c, D7).
+# The jira preset: Jira's native model as git-work config
+# (doc/design/schema.md, "Presets are embedded").
 #
 # This repository dogfoods it with no Jira instance behind it, because an
 # unverified preset exercised daily beats one exercised never: expect it to be
@@ -13,7 +14,8 @@ preset: jira
 shared:
   # One workflow for every work type. Jira's four states plus a backlog and a
   # cancellation, so that all five categories are exercised; everything keyed
-  # on "is this done" reads the category, never the name (D2).
+  # on "is this done" reads the category, never the name
+  # (doc/design/schema.md, "Categories are fixed").
   status: &status
     kind: enum
     name: Status
@@ -58,9 +60,11 @@ shared:
     kind: date
     name: Due date
 
-  # One side is stored and the inverse is derived (D4): `blocked_by` is what
+  # One side is stored and the inverse is derived
+  # (doc/design/issue.md, "Relations are fields"): `blocked_by` is what
   # the other issue reads, never a key an issue writes. It is a Jira link
-  # type, so it is a link, and so is its inverse (link-fields.md, L2).
+  # type, so it is a link, and so is its inverse
+  # (doc/design/jira.md, "Link types are link fields").
   blocks: &blocks
     kind: multi-relation
     name: Blocks
@@ -175,7 +179,8 @@ types:
       iteration: *sprint
       blocks: *blocks
 
-  # An iteration is an issue type, not a namespace (D5): it has a title,
+  # An iteration is an issue type, not a namespace
+  # (doc/design/schema.md, "Iterations are a type"): it has a title,
   # comments for the retro, and dates and capacity as ordinary fields.
   iteration:
     name: Sprint

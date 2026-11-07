@@ -24,7 +24,7 @@
 //   - Credentials. A token for a service git-work talks to (the Jira sync's)
 //     comes from `git credential fill`, so the user's own credential helper —
 //     osxkeychain, libsecret, a password manager's — keeps it, as it keeps
-//     their remotes' (jira-sync.md, JS3).
+//     their remotes' (doc/design/jira.md, "Binding and credentials").
 //
 // Everything else — objects, trees, refs, clocks, browsing — is local object
 // access, where go-git is both fast and correct, and is left to it.

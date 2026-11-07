@@ -12,9 +12,10 @@ import (
 	"github.com/git-bug/git-bug/jira/jiratest"
 )
 
-// JS16 end to end: an assignee imported from Jira is an identity named as
-// Jira names the account and carrying its account id, so the field holds
-// that identity's id and every text surface reads it as the person.
+// an assignee imported from Jira is an identity named as Jira names
+// the account and carrying its account id, so the field holds that identity's
+// id and every text surface reads it as the person
+// (doc/design/jira.md, "Identities").
 func TestImportedAssigneeIsANamedIdentity(t *testing.T) {
 	w := newWorld(t)
 	key, ic := w.imported("Assigned in Jira")

@@ -9,7 +9,7 @@ import (
 )
 
 // `empty_groups` on the board adds the swimlanes no card falls in
-// (doc/design/empty-groups.md).
+// (doc/design/views.md, "Empty swimlanes").
 
 // TestBoardEmptyGroupsOfAnEnum: every value the schema lists, in schema
 // order; off, the lanes the cards have, as before.
@@ -95,7 +95,8 @@ func TestBoardEmptyGroupsOfARelation(t *testing.T) {
 
 // TestBoardEmptyGroupsAnchorOnNoValue: a lane issue with no value of its
 // own anchors on "no value", so its siblings are the target issues with none
-// either, of any type the field may point at (E3, Q1).
+// either, of any type the field may point at (doc/design/views.md, "A
+// relation's empty lanes are siblings").
 func TestBoardEmptyGroupsAnchorOnNoValue(t *testing.T) {
 	repo := testRepo(t)
 	x := newTyped(t, repo, "initiative", map[string]any{"title": "X"})
@@ -119,7 +120,8 @@ func TestBoardEmptyGroupsAnchorOnNoValue(t *testing.T) {
 
 // TestBoardEmptyLaneGhostAndDrop: the ghost of an empty lane is reached
 // with down and prefilled with the lane's stored full id, and a card
-// dropped into the lane writes that id (E5).
+// dropped into the lane writes that id (doc/design/views.md, "Empty
+// swimlanes").
 func TestBoardEmptyLaneGhostAndDrop(t *testing.T) {
 	repo, _, b, c, _, _ := initiatives(t)
 

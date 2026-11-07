@@ -49,21 +49,22 @@ type root struct {
 	pages         []page
 	width, height int
 
-	// palette says the palette is open over the top page (palette.go,
-	// doc/design/app.md, A1).
+	// palette says the palette is open over the top page (palette.go;
+	// doc/design/tui.md, "The palette is a box over the page").
 	palette bool
-	// search is the palette's search, open over the top page (finder.go,
-	// A5), or nil
+	// search is the palette's search, open over the top page (finder.go;
+	// doc/design/tui.md, "The search"), or nil
 	search *searchPanel
 	// query is the palette's query editor, open over the top page
-	// (query_edit.go, A10), or nil
+	// (query_edit.go; doc/design/tui.md, "Editing the query"), or nil
 	query *queryEditor
 	// called are the calls the pages were drawn from before their query
 	// was edited, by their place in the stack: what `J` puts back
 	called map[int]*view.Call
 
 	// answer is what the view returns once the program ends: the id a
-	// standalone `new` created, else nothing (doc/design/create.md, C4).
+	// standalone `new` created, else nothing (doc/design/views.md, "`new`
+	// prints the id").
 	answer json.RawMessage
 
 	// run hands a flow's name to the renderer, which runs it off the
@@ -98,7 +99,8 @@ func (r *root) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyPressMsg:
 		// ctrl+q is the program's, always: grabbed, in a text field, in a
 		// picker. Anything that can swallow it can strand the user. It is not
-		// ctrl+c, which copies (doc/design/terminal-renderer.md).
+		// ctrl+c, which copies (doc/design/tui.md, "`ctrl+q` quits, `ctrl+c`
+		// copies").
 		if msg.String() == "ctrl+q" {
 			return r, tea.Quit
 		}
@@ -140,7 +142,7 @@ func (r *root) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case popMsg:
 		// Back from the first page is quit: it is the second esc, the first
 		// having opened the palette, so a stray esc still cannot end a
-		// session (doc/design/app.md, A1).
+		// session (doc/design/tui.md, "Back is two presses").
 		if len(r.pages) <= 1 {
 			return r, tea.Quit
 		}
@@ -173,7 +175,8 @@ func (r *root) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// cursor on the new issue, which is the ghost's promise kept. With
 		// nothing underneath, show on the new issue takes the draft's
 		// place, so that the first view stays a view, and the id is the
-		// program's answer (doc/design/create.md, C4).
+		// program's answer (doc/design/views.md, "What Create does next";
+		// doc/design/views.md, "`new` prints the id").
 		if len(r.pages) <= 1 {
 			r.pages = []page{msg.shown}
 			r.called = nil

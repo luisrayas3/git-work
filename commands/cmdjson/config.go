@@ -17,7 +17,8 @@ import (
 //
 // It is IssueOperation with the entity named,
 // because a schema log crosses entities where an issue log does not:
-// "Luis added value qa to field task/status" is what a reader needs (E2).
+// "Luis added value qa to field task/status" is what a reader needs
+// (doc/design/cli.md, "`log` is one shape on every tree").
 type ConfigOperation struct {
 	Id       string          `json:"id"`
 	HumanId  string          `json:"human_id"`

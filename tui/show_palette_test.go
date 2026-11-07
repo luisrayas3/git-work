@@ -10,7 +10,8 @@ import (
 )
 
 // TestPaletteListsShowsOwn: a show page's palette has expand, link and
-// unlink, and no other page's has (app.md A1, A6, A7).
+// unlink, and no other page's has (doc/design/tui.md, "A letter means one
+// thing on every page").
 func TestPaletteListsShowsOwn(t *testing.T) {
 	repo := testRepo(t)
 	story := newTyped(t, repo, "story", map[string]any{"title": "the story"})
@@ -31,7 +32,8 @@ func TestPaletteListsShowsOwn(t *testing.T) {
 
 // TestPaletteLink: `l` is the links row's picker from anywhere on the page:
 // a relation by typing, then the issue; an inverse is written on the other
-// issue, and the status names it (A6, L5).
+// issue, and the status names it (doc/design/tui.md, "Linking from the
+// palette"; doc/design/views.md, "Editing links from the row").
 func TestPaletteLink(t *testing.T) {
 	repo := testRepo(t)
 	one := newTyped(t, repo, "task", map[string]any{"title": "blocked task"})
@@ -61,7 +63,8 @@ func TestPaletteLink(t *testing.T) {
 }
 
 // TestPaletteUnlink: `u` picks one of the issue's links, stored or inverse,
-// and removes it, one write; an inverse's on the other issue (A6).
+// and removes it, one write; an inverse's on the other issue
+// (doc/design/tui.md, "Linking from the palette").
 func TestPaletteUnlink(t *testing.T) {
 	repo := testRepo(t)
 	one := newTyped(t, repo, "task", map[string]any{"title": "blocked task"})
@@ -100,7 +103,8 @@ func TestPaletteUnlink(t *testing.T) {
 
 // TestPaletteExpand: `e` toggles what the type's spec expands, for this page
 // and the pages it opens; nothing is written, and the first line spells the
-// changed spec as part of the call (A7).
+// changed spec as part of the call (doc/design/tui.md, "Changing what is
+// expanded").
 func TestPaletteExpand(t *testing.T) {
 	repo := testRepo(t)
 	one := newTyped(t, repo, "task", map[string]any{"title": "blocked task"})

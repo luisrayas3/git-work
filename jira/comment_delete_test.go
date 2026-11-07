@@ -12,7 +12,8 @@ import (
 	"github.com/git-bug/git-bug/jira/jiratest"
 )
 
-// comment-delete.md CD6: the rows of a comment deleted locally.
+// the rows of a comment deleted locally
+// (doc/design/jira.md, "A comment deleted locally is deleted in Jira").
 
 func deleteLocal(t *testing.T, ic *cache.IssueCache, i int) {
 	t.Helper()

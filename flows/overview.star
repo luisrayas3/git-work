@@ -1,7 +1,8 @@
 def overview(group_by="type"):
     """The shape of the work: open stories, open decisions and open tasks, a story's tasks folded under it.
 
-    Open reads the status category, never the name (schema.yaml, D2):
+    Open reads the status category, never the name
+    (doc/design/schema.md, "Categories are fixed"):
     anything whose status is neither completed nor canceled.
     A task under a story is that story's business, so it nests under it
     rather than being left out: the story's arrow says how many it has,

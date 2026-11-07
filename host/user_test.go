@@ -11,7 +11,8 @@ import (
 )
 
 // TestUserName: a name when the identity has one, its login when it has
-// none (a Jira user Jira gave no name, JS16), and the short id for what the
+// none (a Jira user Jira gave no name, doc/design/jira.md, "Identities"),
+// and the short id for what the
 // store does not resolve.
 func TestUserName(t *testing.T) {
 	repo := repository.CreateGoGitTestRepo(t, false)

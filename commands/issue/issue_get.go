@@ -83,7 +83,8 @@ func issueTextFormatter(env *execenv.Env, snapshot *issue.Snapshot) error {
 	}
 
 	// Header: the drawn id, and the hash beside it when that is an alias, the
-	// one page where a key is mapped to the hash an agent printed (alias-ids.md A5)
+	// one page where a key is mapped to the hash an agent printed
+	// (doc/design/cli.md, "What is drawn follows; what is a value does not")
 	name := env.Backend.IssueHumanId(snapshot.Id())
 	if name != snapshot.Id().Human() {
 		name += " (" + snapshot.Id().Human() + ")"

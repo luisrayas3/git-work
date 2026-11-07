@@ -89,7 +89,7 @@ func TestCompileBuiltinOverride(t *testing.T) {
 
 	task, _ := s.Type("task")
 	title, _ := task.Field(TitleKey)
-	require.Equal(t, KindText, title.Kind, "a built-in's kind is code (E4)")
+	require.Equal(t, KindText, title.Kind, "a built-in's kind is code")
 	require.Equal(t, "Summary", title.Name)
 	require.Equal(t, 5, title.Ordinal)
 	require.True(t, title.Builtin)
@@ -108,7 +108,7 @@ func TestCompileProblemsAreNotErrors(t *testing.T) {
 			AttrKind: "relation", "target_types/epic": struct{}{},
 		}),
 	})
-	require.NoError(t, err, "a read never fails on what was written before (D6)")
+	require.NoError(t, err, "a read never fails on what was written before")
 	require.Len(t, s.Problems, 3)
 
 	task, _ := s.Type("task")

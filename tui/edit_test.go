@@ -159,8 +159,8 @@ func TestPasteOpensTheEditor(t *testing.T) {
 }
 
 // TestGrabNeedsNoBinding: `rank` is built in on every type and is the one
-// order a view draws (D8), so space on the id of a list nobody configured
-// grabs the row.
+// order a view draws (doc/design/tui.md, "Every order is the built-in
+// rank"), so space on the id of a list nobody configured grabs the row.
 func TestGrabNeedsNoBinding(t *testing.T) {
 	repo := testRepo(t)
 	newIssue(t, repo, map[string]any{"title": "one"})

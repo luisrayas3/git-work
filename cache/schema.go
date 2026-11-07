@@ -12,7 +12,9 @@ import (
 )
 
 // SchemaEntries returns the unarchived winner of every (shape, key) in this
-// namespace, which is what the schema is compiled from (E7, E8).
+// namespace, which is what the schema is compiled from
+// (doc/design/schema.md, "Duplicate keys"; doc/design/schema.md,
+// "Compiled on demand").
 //
 // It reads the excerpts alone: a config excerpt carries its whole document,
 // so compiling the schema never loads an entity.
@@ -38,7 +40,8 @@ func (c *RepoCacheConfig) SchemaEntries() ([]schema.Entry, error) {
 }
 
 // AllDuplicates returns every entity a key resolves away from: the losers of
-// two clones defining one key before either pushed (E7).
+// two clones defining one key before either pushed
+// (doc/design/schema.md, "Duplicate keys").
 //
 // It is empty in the ordinary case, and every schema command prints what it
 // returns on stderr, because a key silently resolving to one of two entities
@@ -54,7 +57,7 @@ func (c *RepoCacheConfig) AllDuplicates() []*ConfigExcerpt {
 }
 
 // LoadSchema compiles the built-ins plus every unarchived type and field
-// entity into one schema (E8).
+// entity into one schema (doc/design/schema.md, "Compiled on demand").
 //
 // It is not called Schema(): that name is the work-schema subcache's,
 // and the two are different things —
@@ -71,7 +74,9 @@ func (c *RepoCache) LoadSchema() (*schema.Schema, error) {
 //
 // Validation belongs here, on the write path, and not in the entity:
 // an operation's Validate is frozen and must accept everything ever written,
-// while a schema says what may be written now (D6, E6).
+// while a schema says what may be written now
+// (doc/design/schema.md, "Validate on write, lenient on read";
+// doc/design/schema.md, "Structural rules are frozen").
 func (c *RepoCache) Checker() (*schema.Checker, error) {
 	s, err := c.LoadSchema()
 	if err != nil {
@@ -122,7 +127,7 @@ func issueTypeOf(fields map[string]issue.Value) string {
 }
 
 // configShapeOfKey guesses which shape a key names,
-// `type` first and `field` second, as `schema log KEY` resolves it (E10).
+// `type` first and `field` second, as `schema log KEY` resolves it.
 func configShapeOfKey(key string) []config.Shape {
 	if _, _, ok := config.SplitFieldKey(key); ok {
 		return []config.Shape{config.ShapeField, config.ShapeType}
@@ -136,7 +141,7 @@ func configShapeOfKey(key string) []config.Shape {
 // A key two unarchived entities hold is refused, naming every holder,
 // because the intent of a write on a duplicated key is to end the duplication,
 // a write to the loser, and resolving it to the winner would lose that edit
-// without a word (schema-archive-id.md, A2).
+// without a word (doc/design/schema.md, "A write refuses a duplicated key").
 // Not-found is returned only when every shape found nothing.
 func (c *RepoCacheConfig) ResolveSchemaKey(key string) (*ConfigCache, error) {
 	var lastErr error
@@ -176,7 +181,8 @@ func duplicatedKeyError(key string, ids []entity.Id) error {
 
 // SchemaHolders returns every entity that ever held a key, archived included,
 // the winner first and the rest by creation,
-// which is what `schema log KEY` prints (schema-archive-id.md, A2).
+// which is what `schema log KEY` prints
+// (doc/design/schema.md, "A write refuses a duplicated key").
 func (c *RepoCacheConfig) SchemaHolders(key string) ([]*ConfigCache, error) {
 	for _, shape := range configShapeOfKey(key) {
 		holding := c.Query(ConfigQuery{Shape: shape, Key: key, IncludeArchived: true})
@@ -208,7 +214,8 @@ func (c *RepoCacheConfig) SchemaHolders(key string) ([]*ConfigCache, error) {
 }
 
 // ResolveSchemaId finds the type or field entity whose id has the prefix:
-// archived or not, winner or loser, and never a key (schema-archive-id.md, A3).
+// archived or not, winner or loser, and never a key
+// (doc/design/schema.md, "By id is exact").
 func (c *RepoCacheConfig) ResolveSchemaId(prefix string) (*ConfigCache, error) {
 	if prefix == "" {
 		return nil, fmt.Errorf("an empty id names no entity")

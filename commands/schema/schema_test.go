@@ -340,7 +340,8 @@ func TestSchemaArchiveAndRm(t *testing.T) {
 	require.Error(t, runSchemaRm(env, rmOptions{}, []string{"task/due"}))
 }
 
-// duplicateStatus is two clones defining task/status before either pushed (E7):
+// duplicateStatus is two clones defining task/status before either pushed
+// (doc/design/schema.md, "Duplicate keys"):
 // the preset's entity wins and a second one, created later, loses.
 func duplicateStatus(t *testing.T, env *execenv.Env) (winner, loser entity.Id) {
 	t.Helper()

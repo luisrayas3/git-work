@@ -482,7 +482,8 @@ func TestMatrixIsOnTheCallLine(t *testing.T) {
 
 // TestMatrixCountsTheArchivedOnlyWhenAsked: the matrix sums its query's
 // input, the unarchived, and include_archive puts the archived back, in the
-// sum and in the list a cell opens (doc/design/include-archive.md).
+// sum and in the list a cell opens (doc/design/query.md, "The switch is
+// `include_archive`").
 func TestMatrixCountsTheArchivedOnlyWhenAsked(t *testing.T) {
 	repo := testRepo(t)
 	alpha, _, first, _ := twoByTwo(t, repo)

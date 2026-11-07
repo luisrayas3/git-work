@@ -103,7 +103,7 @@ func TestHelpCarriesTheTable(t *testing.T) {
 
 // TestViewChecksShowEntries: each spec of `shows` is checked against its type
 // as show's own call is, before the missing terminal, naming the type
-// (doc/design/show-from-a-view.md, V2; app.md A7).
+// (doc/design/views.md, "A spec is checked as show's call is").
 func TestViewChecksShowEntries(t *testing.T) {
 	env := execenv.NewTestEnv(t)
 	me, err := env.Backend.Identities().New("John Doe", "jdoe@example.com")

@@ -109,7 +109,8 @@ func TestConfigCacheUpdate(t *testing.T) {
 	require.NoError(t, err)
 
 	// many changes, one pack and one commit: a renumbered list is atomic
-	// inside one entity, which is why ordinals need no fractional scheme (E5)
+	// inside one entity, which is why ordinals need no fractional scheme
+	// (doc/design/schema.md, "Order is an ordinal")
 	err = field.Update(map[string]config.Value{
 		"values/to-do":       config.MustValue(map[string]interface{}{"name": "To Do", "ordinal": 10}),
 		"values/in-progress": config.MustValue(map[string]interface{}{"name": "In Progress", "ordinal": 20}),
@@ -155,7 +156,8 @@ func TestConfigCacheUpdate(t *testing.T) {
 
 func TestConfigCacheDuplicateKeys(t *testing.T) {
 	// Two clones defining the same key before either pushes is the one failure
-	// the entity boundary does not prevent (E7): the oldest creation wins,
+	// the entity boundary does not prevent (doc/design/schema.md,
+	// "Duplicate keys"): the oldest creation wins,
 	// deterministically, and the loser is reported rather than merged away.
 	c, _ := newConfigTestCache(t)
 	defer c.Close()
@@ -231,7 +233,9 @@ func TestConfigCacheQuery(t *testing.T) {
 func TestConfigPushPull(t *testing.T) {
 	// Config travels with the tracker, and two clones adding two members of
 	// the same collection both keep theirs: the entity is the coarse merge
-	// unit and one attribute per member is the fine one (E1, E3).
+	// unit and one attribute per member is the fine one
+	// (doc/design/schema.md, "One entity per type and per field";
+	// doc/design/schema.md, "Collections are one attribute per member").
 	repoA, repoB, _ := repository.SetupGoGitReposAndRemote(t)
 
 	cacheA := createTestRepoCacheNoEvents(t, repoA)
@@ -298,7 +302,7 @@ func TestConfigPushPull(t *testing.T) {
 
 func TestConfigNamespacesArePushed(t *testing.T) {
 	// Fetch and Push take their ref prefixes from the subcache list, so the
-	// two config namespaces travel with no code of their own (E8).
+	// two config namespaces travel with no code of their own.
 	c, _ := newConfigTestCache(t)
 	defer c.Close()
 

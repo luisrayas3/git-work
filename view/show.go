@@ -10,7 +10,7 @@ import (
 )
 
 // `shows`: how each issue type is shown, whichever view meets it
-// (doc/design/app.md A7, approved 2026-10-15).
+// (doc/design/views.md, "`shows` maps a type to a spec").
 //
 // A view's call is two parts. The core is what this view is — its query,
 // its fields, its nesting. `shows` maps a type key to a spec, which is
@@ -20,9 +20,9 @@ import (
 // opens is show with that issue's id and the same `shows`; so a story is
 // shown one way across a flow, whatever it was opened from.
 //
-// It replaced the map `Enter` opened by (doc/design/show-from-a-view.md, V1),
-// called `show`, and show's own `fields` and `expand`. A list's and a
-// gantt's `expand`, their nesting, is the core's and is not in a spec.
+// It replaced the map `Enter` opened by, called `show`, and show's own
+// `fields` and `expand`. A list's and a gantt's `expand`, their nesting, is
+// the core's and is not in a spec.
 //
 // A type's spec is, most specific first and whole, never merged key by key:
 // the call's `shows[type]`, then the type's `show` in the schema, then the
@@ -33,7 +33,8 @@ var specKeys = []string{"fields", "expand"}
 
 // BuiltinSpec is the spec of a type neither the call nor the schema names:
 // every field in schema order, the link fields folded into the links row,
-// and the links themselves as side tables (link-fields.md, L4).
+// and the links themselves as side tables (doc/design/views.md, "A spec is
+// whole, never merged").
 const BuiltinSpec = `{"expand":["links"]}`
 
 // Spec is one type's spec, parsed.
@@ -60,7 +61,8 @@ const (
 )
 
 // Defaulted says the spec is not the call's, so the first line draws it
-// dim, as it draws a defaulted argument (A7).
+// dim, as it draws a defaulted argument (doc/design/views.md, "A defaulted
+// spec is drawn dim").
 func (s SpecSource) Defaulted() bool {
 	return s != SpecFromCall
 }
@@ -125,8 +127,9 @@ func parseShows(raw json.RawMessage) (map[string]*Spec, error) {
 
 // SpecFor is the spec an issue of a type is shown by: the call's
 // `shows[type]`, else the type's `show` in the schema, else the built-in
-// spec, whole (A7). A schema spec that no longer reads falls to the built-in,
-// since a read never fails on what was written before.
+// spec, whole (doc/design/views.md, "A spec is whole, never merged"). A
+// schema spec that no longer reads falls to the built-in, since a read never
+// fails on what was written before.
 func SpecFor(shows json.RawMessage, s *schema.Schema, typeKey string) (*Spec, SpecSource) {
 	if !isNull(shows) {
 		if entries, err := parseShows(shows); err == nil {
@@ -183,10 +186,11 @@ func checkShows(call *Call, s *schema.Schema) error {
 }
 
 // CheckSpec checks one spec against the type it is keyed under, as show's
-// call is checked (show-from-a-view.md, V2): every field one of the type's,
-// or links; every table a relation the type's issues have, stored or
-// inverse, or links; and every layer's names what its rows can hold. It is
-// how a call's `shows` and a type's `show` in the schema are both checked.
+// call is checked (doc/design/views.md, "A spec is checked as show's call
+// is"): every field one of the type's, or links; every table a relation the
+// type's issues have, stored or inverse, or links; and every layer's names
+// what its rows can hold. It is how a call's `shows` and a type's `show` in
+// the schema are both checked.
 func CheckSpec(spec *Spec, s *schema.Schema, typeKey string) error {
 	if s == nil || s.Empty() {
 		return fmt.Errorf("needs a schema, and no type is defined")
@@ -262,7 +266,8 @@ func typeRelations(s *schema.Schema, typeKey string) []string {
 
 // TypeRelations are the relations an issue of a type has, stored and
 // inverse, in the order a spec's check names them: what `e` on a show page
-// offers to expand, beside `links` (A7).
+// offers to expand, beside `links` (doc/design/views.md, "Changing the spec
+// from the page").
 func TypeRelations(s *schema.Schema, typeKey string) []string {
 	if s == nil {
 		return nil
@@ -281,9 +286,9 @@ func (s *Spec) ExpandNames() []string {
 
 // ToggleExpand is a spec with one relation's table taken out, wherever its
 // `expand` names it, or added at the end where it names it nowhere: `e` on
-// a show page (A7). Everything else is kept as it was given, a layer's own
-// keys included; an `expand` left empty is dropped, since an empty list is
-// not one.
+// a show page (doc/design/views.md, "Changing the spec from the page").
+// Everything else is kept as it was given, a layer's own keys included; an
+// `expand` left empty is dropped, since an empty list is not one.
 func ToggleExpand(spec *Spec, relation string) (json.RawMessage, error) {
 	object := map[string]json.RawMessage{}
 	if !isNull(spec.Raw) {

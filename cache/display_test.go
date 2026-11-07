@@ -23,7 +23,7 @@ func newDisplayTestCache(t *testing.T, namespace string) *RepoCache {
 
 // TestIssueHumanId: an issue is drawn by its alias exactly when the alias,
 // typed back, resolves to it, and by its short hash otherwise
-// (doc/design/alias-ids.md A3).
+// (doc/design/cli.md, "An alias is drawn only where it names that issue").
 func TestIssueHumanId(t *testing.T) {
 	c := newDisplayTestCache(t, "jira")
 	require.Equal(t, "jira", c.DisplayNamespace())
@@ -47,7 +47,8 @@ func TestIssueHumanId(t *testing.T) {
 	require.Equal(t, winner.Id().Human(), c.IssueHumanId(winner.Id()))
 	require.Equal(t, loser.Id().Human(), c.IssueHumanId(loser.Id()))
 
-	// consolidated: the survivor is the key, the loser its hash (A6); the
+	// consolidated: the survivor is the key, the loser its hash
+	// (doc/design/cli.md, "A consolidated duplicate is drawn by its hash"); the
 	// index follows the write without anything being told
 	consolidate(t, c, loser, winner)
 	require.Equal(t, "PROJ-2", c.IssueHumanId(winner.Id()))
@@ -87,7 +88,8 @@ func TestIssueHumanIdHash(t *testing.T) {
 // TestDisplayNamespaceThroughGit: the key is read through the git CLI, so
 // `git -c git-work.display.id=hash work …`, which git hands its subcommand in
 // GIT_CONFIG_PARAMETERS, overrides the repository's value for one command
-// (alias-ids.md A1).
+// (doc/design/cli.md, "`git-work.display.id` draws an alias in place of the
+// hash").
 func TestDisplayNamespaceThroughGit(t *testing.T) {
 	if _, err := exec.LookPath("git"); err != nil {
 		t.Skip("git is not on PATH")

@@ -12,9 +12,10 @@ import (
 	"github.com/git-bug/git-bug/view"
 )
 
-// The query is edited from the palette (doc/design/app.md, A10, 2026-10-30):
-// `j` opens the query section as a text box in the palette's box, and enter
-// draws the page again from the call with the query typed in its place.
+// The query is edited from the palette (doc/design/tui.md, "Editing the
+// query"): `j` opens the query section as a text box in the palette's box,
+// and enter draws the page again from the call with the query typed in its
+// place.
 // The page is rebuilt from the call, as the renderer built it: the call is
 // the page, so a page with another query is another page, at the same place
 // in the stack. `J` puts back the query the page was called with.

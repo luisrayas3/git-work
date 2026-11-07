@@ -17,7 +17,7 @@ import (
 	"github.com/git-bug/git-bug/schema"
 )
 
-// ---- one issue (JS13) ----
+// ---- one issue (doc/design/jira.md, "One issue at a time") ----
 
 // read is step 2: the database copy, its git-work property and its
 // comments, with identities ensured.
@@ -34,8 +34,9 @@ func (e *engine) read(idOrKey string) (*jiraapi.Issue, []jiraapi.Comment, error)
 	return ri, cs, nil
 }
 
-// ensureUsers is JS16, each identity its own commit, never inside Update;
-// the Index holds every identity carrying an account.
+// ensureUsers ensures identities (doc/design/jira.md, "Identities"), each its
+// own commit, never inside Update; the Index holds every identity carrying an
+// account.
 func (e *engine) ensureUsers(us []jiraapi.User) {
 	for _, u := range us {
 		if _, ok := e.ix.User(u.AccountID); ok || u.AccountID == "" || e.opts.DryRun {
@@ -99,7 +100,8 @@ func (e *engine) syncLinked(ic *cache.IssueCache) error {
 		gone = "moved to " + ri.Key
 	}
 	if gone != "" {
-		// Gone, but only under --full, whose Gone pass then decides (JS19)
+		// Gone, but only under --full, whose Gone pass then decides
+		// (doc/design/jira.md, "Deletes and moves are Gone")
 		e.missing[b.Id] = true
 		if !e.opts.Full {
 			line.Action = ActionSkipped
@@ -112,10 +114,11 @@ func (e *engine) syncLinked(ic *cache.IssueCache) error {
 	return e.converge(ic, b, ri, cs, nil, nil, line)
 }
 
-// converge is JS13 steps 3–6 for an issue on both sides: b is the base (nil
-// for none), meta the create-op metadata step 6 adds for a new link, echo
-// the keys of b.Sent that R answers (a create's, read right after its
-// POST), line what the caller has to report already.
+// converge is steps 3–6 (doc/design/jira.md, "One issue at a time") for an
+// issue on both sides: b is the base (nil for none), meta the create-op
+// metadata step 6 adds for a new link, echo the keys of b.Sent that R
+// answers (a create's, read right after its POST), line what the caller has
+// to report already.
 func (e *engine) converge(ic *cache.IssueCache, b *Base, ri *jiraapi.Issue, cs []jiraapi.Comment, meta map[string]string, echo map[string]bool, line Line) error {
 	snap := ic.Snapshot()
 	prior := b
@@ -174,7 +177,8 @@ func (e *engine) converge(ic *cache.IssueCache, b *Base, ri *jiraapi.Issue, cs [
 		return e.commit(ic, b2, ri, cs, meta, &written{refused: rt.refused}, line)
 	}
 	// step 5: what Jira answered is committed even when the re-read fails,
-	// against R, where every written key is still pending (I2)
+	// against R, where every written key is still pending
+	// (doc/design/jira.md, "The base is what Jira was seen to hold")
 	w := &written{pairs: pairs, imports: imports, echo: map[string]bool{}, refused: rt.refused}
 	for k := range b2.Sent {
 		if b == nil || b.Sent[k] == nil {
@@ -386,7 +390,8 @@ func (e *engine) commit(ic *cache.IssueCache, b2 *Base, ri *jiraapi.Issue, cs []
 	if retry {
 		e.retry = append(e.retry, ic.Id())
 	}
-	// Seen marks a converged issue only: a pending one stays a candidate (I1)
+	// Seen marks a converged issue only: a pending one stays a candidate
+	// (doc/design/jira.md, "Candidates and the cursor")
 	if len(decided.Pending) == 0 {
 		e.st.Seen[ic.Id()] = ic.EditLamportTime()
 	} else {
@@ -418,12 +423,12 @@ func refusedConflict(plan mergePlan, c Conflict) []Conflict {
 }
 
 // admit drops from plan.Local each field change the shape check refuses,
-// against the type the plan leaves the issue with: the key keeps its prior
-// base and is retried (JS13 step 6), so UpdateShape's own check never refuses
-// the batch. A change only the policy check refuses — an enum value or a
-// relation's target the schema does not allow — is kept and returned as
-// off-schema: Jira is the authority on what Jira holds, and the derived
-// schema only approximates it (pull-schema-check.md).
+// against the type the plan leaves the issue with: the key keeps its prior base
+// and is retried, so UpdateShape's own check never refuses the batch. A change
+// only the policy check refuses — an enum value or a relation's target the
+// schema does not allow — is kept and returned as off-schema: Jira is the
+// authority on what Jira holds, and the derived schema only approximates it
+// (doc/design/jira.md, "A pull is checked for shape, not policy").
 func (e *engine) admit(plan *mergePlan, typ string, prior *Base) (pending, offSchema []Skip) {
 	for _, lc := range plan.Local {
 		if lc.Kind == localSet && lc.Key == typeKey {
@@ -523,7 +528,8 @@ func (e *engine) ops(snap *issue.Snapshot, plan mergePlan, line *Line, remote Do
 	return ops
 }
 
-// conflictNote is JS21's note, one per issue per run.
+// conflictNote is the note, one per issue per run
+// (doc/design/jira.md, "Conflict notes").
 func conflictNote(now time.Time, cs []Conflict) string {
 	var sb strings.Builder
 	fmt.Fprintf(&sb, "Jira sync, %s: Jira's values replaced local edits.\n", now.UTC().Format("2006-01-02 15:04 MST"))

@@ -10,15 +10,15 @@ import (
 	"github.com/git-bug/git-bug/jira/jiraapi"
 )
 
-// ---- creates, links and imports (JS15) ----
+// ---- creates, links and imports (doc/design/jira.md, "Creates to Jira") ----
 
 // create exports a local issue with no jira-id: the attempt committed to
 // the store, POST with the built-ins, then the ordinary merge from a create
 // base. An attempt with no jira-id says an earlier POST may have landed:
 // the issue is looked for by its property first, and created again only
-// once the attempt has settled (JS15). The attempt is in the store, not the
+// once the attempt has settled. The attempt is in the store, not the
 // state file, so losing the state never duplicates, and a clone that pulled
-// the attempt sees it.
+// the attempt sees it (doc/design/jira.md, "Creates to Jira").
 func (e *engine) create(ic *cache.IssueCache) error {
 	id := ic.Id()
 	e.done[id] = true
@@ -96,9 +96,11 @@ func (e *engine) create(ic *cache.IssueCache) error {
 	for _, k := range sent {
 		line.exported(k, local.Fields[k])
 	}
-	// the 201 is the link (I3): with the GET, step 6 commits it; without, it
-	// is committed alone, with the create's marker, so the next run syncs a
-	// linked issue instead of doubting the create (JS15)
+	// the 201 is the link
+	// (doc/design/jira.md, "Links are facts on operations"): with the GET, step
+	// 6 commits it; without, it is committed alone, with the create's marker,
+	// so the next run syncs a linked issue instead of doubting the create
+	// (doc/design/jira.md, "Creates to Jira")
 	b := &Base{V: baseVersion, Id: ref.ID, Key: ref.Key, Fields: map[string]issue.Value{},
 		Sent: e.sentForms(local, sent), Wrote: at, Fresh: true}
 	link := map[string]string{MetaId: ref.ID, MetaAlias: ref.Key}
@@ -191,8 +193,9 @@ func (e *engine) findCreated(id entity.Id, at time.Time) (string, error) {
 	return e.created[id], nil
 }
 
-// linkCreated links an issue whose POST landed and whose commit did not,
-// found by its property (JS15): it resumes as a create.
+// linkCreated links an issue whose POST landed and whose commit did not, found
+// by its property (doc/design/jira.md, "Creates to Jira"): it resumes as a
+// create.
 func (e *engine) linkCreated(ic *cache.IssueCache, jiraId string) error {
 	id := ic.Id()
 	e.done[id] = true
@@ -221,7 +224,8 @@ func (e *engine) linkCreated(ic *cache.IssueCache, jiraId string) error {
 			return nil
 		}
 	}
-	// I4: the search's copy of the property found it; the database decides
+	// the search's copy of the property found it; the database decides
+	// (doc/design/jira.md, "The database decides; the index only finds")
 	ri, cs, err := e.read(jiraId)
 	if err != nil {
 		return e.fail(line, err)
@@ -241,7 +245,7 @@ func (e *engine) linkCreated(ic *cache.IssueCache, jiraId string) error {
 }
 
 // linkRequest links a local issue created with aliases: {jira: KEY}; it is
-// never created, and merged with no base (JS15).
+// never created, and merged with no base (doc/design/jira.md, "Link requests").
 func (e *engine) linkRequest(ic *cache.IssueCache) error {
 	id := ic.Id()
 	e.done[id] = true
@@ -360,7 +364,7 @@ func (e *engine) importIssue(jiraId string, adopted entity.Id) error {
 	return e.commit(ic, b, ri, cs, nil, nil, line)
 }
 
-// ---- Gone (JS19) ----
+// ---- Gone (doc/design/jira.md, "Deletes and moves are Gone") ----
 
 func (e *engine) runGone(hits []hit, l *local) error {
 	present := map[string]bool{}
@@ -421,7 +425,8 @@ func (e *engine) runGone(hits []hit, l *local) error {
 }
 
 // markGone sets the canceled status, writes the note, and records Gone in
-// the marker, whose status is the canceled value: the one exception to I2.
+// the marker, whose status is the canceled value: the one exception to the
+// base rule (doc/design/jira.md, "Deletes and moves are Gone").
 func (e *engine) markGone(ic *cache.IssueCache, b *Base, kind, key string) error {
 	e.done[ic.Id()] = true
 	line := Line{Issue: ic.Id(), Jira: key, Action: ActionGone}

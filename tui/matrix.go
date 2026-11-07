@@ -25,7 +25,7 @@ import (
 // It knows nothing about allocations: it sums any number over any issue set,
 // so `points by work by iteration` over `allocation` issues and
 // `estimate by story by sprint` over ordinary tasks are one kind
-// (doc/design/allocations.md).
+// (doc/design/views.md, "A matrix sums any number over any issues").
 //
 // A cell is a sum, and a sum is not a value: nothing here is edited. Enter
 // opens the issues that made the number, as an ordinary list whose query
@@ -54,7 +54,8 @@ type matrixPage struct {
 	// count is how many issues the query returned, for the status line.
 	count int
 	// typeKey is the type every issue on the matrix shares, "" where they
-	// differ: what a cell's drill-down puts in its `draft` (create.md C8)
+	// differ: what a cell's drill-down puts in its `draft`
+	// (doc/design/views.md, "The matrix cell")
 	typeKey string
 
 	// drawn is the rows as they are drawn: the data rows of each group, each
@@ -185,7 +186,8 @@ func newMatrixPage(repo *cache.RepoCache, call *view.Call) (*matrixPage, error) 
 
 // load re-runs the query and rebuilds the whole grid, keeping the cursor on
 // the row and the column it was on — by their values, not their places, so a
-// sprint somebody opened in another process does not move it (A11).
+// sprint somebody opened in another process does not move it
+// (doc/design/views.md, "A matrix keeps its cursor by value").
 func (p *matrixPage) load() error {
 	wasRow, wasCol := p.cursorKeys()
 
@@ -246,7 +248,8 @@ func (p *matrixPage) build(items []map[string]any) {
 		g := groupAt[known.groupLabel(typeKey, p.groupBy, fields)]
 		// An issue with several values on an axis lands on each of them, so
 		// a multi-valued axis double-counts; dividing the number between
-		// them would invent data (A5).
+		// them would invent data (doc/design/views.md, "A multi-valued axis
+		// double-counts").
 		for _, rowValue := range axisValuesOf(fields[p.rowsKey]) {
 			r, ok := rowAt[rowValue]
 			if !ok {
@@ -311,9 +314,10 @@ func asNumber(value any) (float64, bool) {
 	return 0, false
 }
 
-// resolveAxis is one axis in drawing order (A5): the values the call listed,
-// else an enum's schema order, then every value the data has that neither
-// placed, by the label it draws, then (none).
+// resolveAxis is one axis in drawing order (doc/design/views.md, "The order
+// of an axis"): the values the call listed, else an enum's schema order,
+// then every value the data has that neither placed, by the label it draws,
+// then (none).
 func (p *matrixPage) resolveAxis(key string, listed []string, items []map[string]any, onMatrix map[string]bool) axis {
 	a := axis{key: key}
 
@@ -428,7 +432,8 @@ func isMultiKind(kind schema.Kind) bool {
 }
 
 // resolveGroups is the blocks of rows in the order of the values they stand
-// for, the ungrouped last, as every view orders its groups (group.go, E4).
+// for, the ungrouped last, as every view orders its groups (group.go;
+// doc/design/views.md, "Group order").
 func (p *matrixPage) resolveGroups(items []map[string]any, onMatrix map[string]bool) []group {
 	if p.groupBy == "" {
 		return []group{{}}
@@ -466,9 +471,10 @@ func (p *matrixPage) resolveGroups(items []map[string]any, onMatrix map[string]b
 // of each block, each block's subtotal, and the grand total last.
 //
 // The filter narrows the axes, not the issues: hiding issues would change
-// every sum on the screen while the totals still read as totals (A9). An axis
-// in which nothing matches is left whole, so narrowing the rows does not
-// empty the columns.
+// every sum on the screen while the totals still read as totals
+// (doc/design/views.md, "The matrix filter narrows the axes"). An axis in
+// which nothing matches is left whole, so narrowing the rows does not empty
+// the columns.
 func (p *matrixPage) arrange() {
 	needle := strings.ToLower(strings.TrimSpace(p.filter))
 
@@ -607,7 +613,7 @@ func (p *matrixPage) cell() cellSum {
 // cellText is a cell as it draws: blank when no issue is in it, the count
 // when no value field is named, and the sum otherwise. A cell with issues
 // whose numbers add to zero draws 0, which is the difference a planner is
-// looking for (A6).
+// looking for (doc/design/views.md, "A cell is a sum, or a count").
 func (p *matrixPage) cellText(cell cellSum) string {
 	if cell.n == 0 {
 		return ""
@@ -732,9 +738,10 @@ func (p *matrixPage) rowsPerPage() int {
 }
 
 // open is enter: the issues summed into the cell, as an ordinary list whose
-// query selects them (A9). On a totals row or the totals column that is the
-// whole row, the whole column or the lot, because a total is the cell with
-// one clause of its query dropped.
+// query selects them (doc/design/views.md, "A cell is opened, never
+// edited"). On a totals row or the totals column that is the whole row, the
+// whole column or the lot, because a total is the cell with one clause of its
+// query dropped.
 func (p *matrixPage) open() tea.Cmd {
 	call, err := p.cellCall()
 	if err != nil {
@@ -756,12 +763,13 @@ func (p *matrixPage) open() tea.Cmd {
 // it opens is a live view like every other, and it has to re-run to the same
 // cell after somebody writes.
 //
-// Its `draft` is the cell's write set (create.md C8, C9), so the list's
-// ghost already holds the cell: each axis the cell names with its value, the
-// block's group_by value, and the type every issue on the matrix shares —
-// never the value field, since the form invents no number (C5). Every cell
-// drills down, an empty one included, and its drill-down's ghost is where
-// its first issue is added.
+// Its `draft` is the cell's write set (doc/design/views.md, "The matrix
+// cell"), so the list's ghost already holds the cell: each axis the cell
+// names with its value, the block's group_by value, and the type every issue
+// on the matrix shares — never the value field, since the form invents no
+// number (doc/design/views.md, "The form invents no default"). Every cell
+// drills down, an empty one included, and its drill-down's ghost is where its
+// first issue is added.
 func (p *matrixPage) cellCall() (*view.Call, error) {
 	if p.row >= len(p.drawn) {
 		return nil, errNothingHere
@@ -811,7 +819,7 @@ func (p *matrixPage) cellCall() (*view.Call, error) {
 		kwargs["include_archive"] = mustJSON(true)
 	}
 	// the list opens issues by the matrix's map, which the matrix takes
-	// for that alone (doc/design/show-from-a-view.md, V3)
+	// for that alone (doc/design/views.md, "Every page carries the map")
 	if p.call.Has("shows") {
 		kwargs["shows"] = p.call.Raw("shows")
 	}
@@ -912,7 +920,8 @@ func (p *matrixPage) copyCell() tea.Cmd {
 }
 
 // copyCommand is copy-id on a matrix: a cell has no id, and what identifies
-// it is the command that lists exactly its issues (A9).
+// it is the command that lists exactly its issues (doc/design/views.md, "A
+// cell is opened, never edited").
 func (p *matrixPage) copyCommand() tea.Cmd {
 	call, err := p.cellCall()
 	if err != nil {

@@ -18,7 +18,8 @@ import (
 )
 
 // Home: the page `git work` opens on, and how a page runs a flow
-// (doc/design/app.md, A8).
+// (doc/design/flows.md, "`git work` is `git work flow run home`";
+// doc/design/flows.md, "How a page runs a flow").
 //
 // Flows call views; views never call flows, and this one does not. Enter on
 // a flow names it, as Enter on a row names an issue: the page answers a

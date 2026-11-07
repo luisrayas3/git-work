@@ -500,7 +500,8 @@ func TestFlowRm(t *testing.T) {
 func TestFlowDuplicatesWarn(t *testing.T) {
 	env := newTestEnv(t)
 
-	// two clones defining the same flow before either pushes (E7)
+	// two clones defining the same flow before either pushes
+	// (doc/design/flows.md, "Two flows with one name")
 	for range 2 {
 		_, _, err := env.Backend.Flows().New(config.ShapeFlow, "board", map[string]config.Value{
 			attrScript: config.StringValue(boardFlow),

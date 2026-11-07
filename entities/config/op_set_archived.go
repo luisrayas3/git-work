@@ -12,7 +12,8 @@ var _ Operation = &SetArchivedOperation{}
 //
 // A ref cannot be deleted across clones — it comes back on the next pull —
 // so removing a config entity is an operation like any other,
-// and it can be undone by setting the flag back (E7).
+// and it can be undone by setting the flag back
+// (doc/design/schema.md, "Archive and rm").
 type SetArchivedOperation struct {
 	dag.OpBase
 	Archived bool `json:"archived"`

@@ -1,7 +1,7 @@
 package tui
 
-// A keyed row reorders for this view only (doc/design/query-rows.md, R5,
-// settled 2026-10-08).
+// A keyed row reorders for this view only (doc/design/query.md, "A keyed
+// row reorders for the view only").
 //
 // A row whose key is not its id, or that has no id, stands for a share of an
 // issue or for none, so writing the issue's rank would reorder every row

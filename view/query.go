@@ -6,10 +6,10 @@ import "encoding/json"
 // the whole input, most recently edited first.
 //
 // The input is already the unarchived issues, unless the caller asked for
-// the archived back with `include_archive` (doc/design/include-archive.md):
-// a filter every author must remember is worse than a default every author
-// can lift, so the select this constant used to open with lives in
-// host.IssueListInput, and the program is the order alone.
+// the archived back with `include_archive` (doc/design/query.md, "The input
+// is the unarchived issues"): a filter every author must remember is worse
+// than a default every author can lift, so the select this constant used to
+// open with lives in host.IssueListInput, and the program is the order alone.
 // "mine" would be the friendlier default and can never be this one:
 // there are no field roles on the schema (d56e6f1, f4bac00),
 // so nothing here can tell which field is the assignee.

@@ -16,7 +16,8 @@ type divergence struct{ local, remote int }
 
 var divergences = []divergence{
 	{1, 1}, {2, 2}, {2, 1},
-	// unreadable until dag.read sorted parents first (doc/design/dag-read-order.md)
+	// unreadable until dag.read sorted parents first
+	// (doc/design/store.md, "The read sorts parents first")
 	{3, 1}, {5, 2}, {1, 2}, {1, 3}, {2, 5},
 }
 

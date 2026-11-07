@@ -144,7 +144,7 @@ func TestThePaletteRunsFlows(t *testing.T) {
 	}
 
 	run(stack, "esc")
-	require.Regexp(t, `s search.*n new.*h home.*r run a flow.*\? help.*q quit`, drawnStack(stack), "A1's order")
+	require.Regexp(t, `s search.*n new.*h home.*r run a flow.*\? help.*q quit`, drawnStack(stack), "the palette's order")
 
 	run(stack, "r")
 	require.NotNil(t, stack.search, "the picker is open over the page")

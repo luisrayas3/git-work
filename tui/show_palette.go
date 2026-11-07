@@ -11,13 +11,15 @@ import (
 	"github.com/git-bug/git-bug/view"
 )
 
-// A show page's own palette commands (doc/design/app.md A6, A7):
+// A show page's own palette commands (doc/design/tui.md, "Linking from the
+// palette"; doc/design/tui.md, "Changing what is expanded"):
 //
-//   - `l` is the links row's picker (links.go, link-fields.md L5) reached from
-//     anywhere on the page: a link relation, stored or inverse, picked by
-//     typing, then the issue in the finder, one add or remove, an inverse
-//     written on the other issue. It is that picker, not a second link path,
-//     so it offers the link relations only, as the row does.
+//   - `l` is the links row's picker (links.go; doc/design/views.md, "Editing
+//     links from the row") reached from anywhere on the page: a link
+//     relation, stored or inverse, picked by typing, then the issue in the
+//     finder, one add or remove, an inverse written on the other issue. It
+//     is that picker, not a second link path, so it offers the link
+//     relations only, as the row does.
 //   - `u` picks one of the issue's links, across every link relation, stored
 //     and inverse, and removes it: one write, an inverse's to the other issue.
 //   - `e` changes the spec of the issue's type for this page and the pages it

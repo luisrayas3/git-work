@@ -61,8 +61,10 @@ func NewRepoCacheIssue(repo repository.ClockedRepo,
 // checkNew measures a new issue against the live schema.
 //
 // The type is the one field a create can not do without once a schema exists:
-// without it nothing can say which fields the issue has (D2).
-// With no type entity at all, nothing is checked — the bootstrap state (E4).
+// without it nothing can say which fields the issue has
+// (doc/design/schema.md, "Errors name the alternatives").
+// With no type entity at all, nothing is checked — the bootstrap state
+// (doc/design/schema.md, "Built-ins are code").
 func checkNew(checker *schema.Checker, title string, fields map[string]issue.Value, shapeOnly bool) error {
 	if checker == nil {
 		return nil
@@ -86,9 +88,9 @@ func (c *RepoCacheIssue) liveChecker() (*schema.Checker, error) {
 
 // CheckNew measures a document against the live schema without writing it,
 // the title not required: what a draft is checked by before a page draws it
-// (doc/design/create.md, C1). The type is still required, as checkNew
-// requires it; a draft with none is not checked at all, because nothing
-// can say which fields it has.
+// (doc/design/views.md, "`new` is a view kind"). The type is still
+// required, as checkNew requires it; a draft with none is not checked at
+// all, because nothing can say which fields it has.
 func (c *RepoCacheIssue) CheckNew(fields map[string]issue.Value) error {
 	if c.checker == nil {
 		return nil
@@ -102,9 +104,10 @@ func (c *RepoCacheIssue) CheckNew(fields map[string]issue.Value) error {
 
 // ConsolidatedIntoMetadata is the create-op metadata key the Jira sync
 // stamps on a consolidated loser: the id of the copy it was consolidated into
-// (doc/design/jira-sync.md JS25, doc/design/repoint.md).
+// (doc/design/jira.md, "Consolidation keeps the copy that reached Jira first").
 //
-// It lives here because alias resolution reads it (doc/design/alias-ids.md A6):
+// It lives here because alias resolution reads it
+// (doc/design/cli.md, "A consolidated duplicate is drawn by its hash"):
 // both copies keep the alias, which is immutable, and only the survivor is
 // what the alias names.
 const ConsolidatedIntoMetadata = "jira-consolidated-into"
@@ -116,7 +119,8 @@ const ConsolidatedIntoMetadata = "jira-consolidated-into"
 // copies not stamped ConsolidatedIntoMetadata are matched first, and the alias
 // is ambiguous only when more than one of them carries it, the window before a
 // sync consolidates them. When every carrier is stamped, which a local `rm` of
-// the survivor can leave, they are matched as they are (alias-ids.md A6).
+// the survivor can leave, they are matched as they are
+// (doc/design/cli.md, "A consolidated duplicate is drawn by its hash").
 func (c *RepoCacheIssue) ResolveAlias(alias string) (*IssueCache, error) {
 	id, err := c.aliasId(alias)
 	if err != nil {
@@ -287,7 +291,8 @@ func (c *RepoCacheIssue) NewRaw(author identity.Interface, unixTime int64, title
 
 // NewRawShape is NewRaw with the shape check only, as IssueCache.UpdateShape
 // is Update: for an issue imported from an authority the schema only
-// approximates, the Jira pull (pull-schema-check.md).
+// approximates, the Jira pull
+// (doc/design/jira.md, "A pull is checked for shape, not policy").
 func (c *RepoCacheIssue) NewRawShape(author identity.Interface, unixTime int64, title string, message string, files []repository.Hash, fields map[string]issue.Value, metadata map[string]string) (*IssueCache, *issue.CreateOperation, error) {
 	return c.newRaw(author, unixTime, title, message, files, fields, metadata, true)
 }

@@ -1,5 +1,5 @@
 // Package jiracmd is the `git work jira` command tree: the sync of this
-// store with one Jira Cloud project (doc/design/jira-sync.md, JS22).
+// store with one Jira Cloud project (doc/design/jira.md, "The commands").
 //
 // `schema` is a reader that prints the schema the sync would derive; `sync`
 // is a writer that prints one JSON object per line, like `log`. Neither

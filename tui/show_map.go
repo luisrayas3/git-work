@@ -13,12 +13,13 @@ import (
 )
 
 // A view's `shows` is how each type is shown wherever Enter opens it
-// (doc/design/app.md A7, revising show-from-a-view.md): Enter opens show
+// (doc/design/views.md, "`shows` maps a type to a spec"): Enter opens show
 // with the issue's id and the same `shows`, the page draws the issue by its
-// stored type's spec, never a row's shaped `fields.type`, and every page it
-// opens in turn — a side table's row, a relation cell, the creator and the
-// page after Create — carries the same map. It travels as the argument's
-// JSON, checked once in host.View.
+// stored type's spec, never a row's shaped `fields.type` (doc/design/views.md,
+// "The type is the stored issue's"), and every page it opens in turn — a side
+// table's row, a relation cell, the creator and the page after Create —
+// carries the same map (doc/design/views.md, "Every page carries the map").
+// It travels as the argument's JSON, checked once in host.View.
 
 // storedType is the type an issue holds in the store, "" where it cannot be
 // read.

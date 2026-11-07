@@ -10,13 +10,13 @@ import (
 	"github.com/git-bug/git-bug/view"
 )
 
-// sprintPairs is the workflow's query (doc/design/query-rows.md): one row
-// per (person, epic) they hold an open story in, its id the epic, its key
-// epic@person, its assignee shaped to the person and its children that
-// person's open stories in it, sorted by the epic's initiative; and a
-// (none) row per person for their stories with no epic, a row with no id,
-// typed as its siblings are, because a level is all keyed rows or none and
-// a row with no id names its type.
+// sprintPairs is the workflow's query (doc/design/query.md, "Rows a query
+// makes"): one row per (person, epic) they hold an open story in, its id the
+// epic, its key epic@person, its assignee shaped to the person and its
+// children that person's open stories in it, sorted by the epic's initiative;
+// and a (none) row per person for their stories with no epic, a row with no
+// id, typed as its siblings are, because a level is all keyed rows or none
+// and a row with no id names its type.
 const sprintPairs = `. as $all
 | [$all[] | select(.fields.type == "story" and .fields.status != "done")] as $stories
 | [$stories[] | .fields.assignee | select(. != null)] | unique
@@ -39,7 +39,8 @@ const sprintPairs = `. as $all
 // to end: under each person a row per epic they hold an open story in,
 // sorted by initiative, that person's stories under it and nobody else's,
 // a (none) row for the stories with no epic, Big epic 1 drawn twice with
-// different children, and the page open (R1 to R5).
+// different children, and the page open (doc/design/query.md, "Rows a query
+// makes").
 func TestTheSprintPageByPerson(t *testing.T) {
 	repo := testRepo(t)
 	ada := jiraUser(t, repo, "Ada Lovelace")

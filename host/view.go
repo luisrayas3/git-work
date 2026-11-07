@@ -43,7 +43,8 @@ func View(ctx context.Context, repo *cache.RepoCache, renderer view.Renderer, ki
 
 	// `draft`, on new and on every kind that draws a ghost, is checked as
 	// `issue new` would check it, so a flow learns at the call and not
-	// after the person has typed (doc/design/create.md, C1 and C9)
+	// after the person has typed (doc/design/views.md, "`new` is a view kind";
+	// doc/design/views.md, "`draft` on a view")
 	if call.Has("draft") {
 		if _, err := IssueDraft(repo, call.Raw("draft")); err != nil {
 			return nil, fmt.Errorf("view %s: draft %w", call.Kind, err)
@@ -66,7 +67,7 @@ func View(ctx context.Context, repo *cache.RepoCache, renderer view.Renderer, ki
 // checkHomeFlows refuses a home page that names a flow the store does not
 // have, naming the ones it does, as an unknown field is refused naming the
 // type's fields: a home whose entry fails only when it is chosen is a home
-// that has rotted unseen (doc/design/app.md, A8).
+// that has rotted unseen (doc/design/flows.md, "The home view names flows").
 func checkHomeFlows(repo *cache.RepoCache, names []string) error {
 	stored := repo.Flows().Keys(config.ShapeFlow)
 	if len(names) == 0 {

@@ -7,7 +7,7 @@ import (
 
 // Kind is a field's data type.
 //
-// The list is fixed and closed (configurable-schema.md D2):
+// The list is fixed and closed (doc/design/schema.md, "Kinds are a fixed list"):
 // a missing value is config, a missing kind is a language change,
 // which is the line "just configurable enough" is drawn at.
 type Kind string
@@ -37,7 +37,8 @@ const (
 	//
 	// It is the built-in `rank`'s kind and no other field's: the order a
 	// view draws and a drag writes is internal, so no field of a type's own
-	// takes it, and ParseKind refuses it (configurable-schema.md D9).
+	// takes it, and ParseKind refuses it
+	// (doc/design/schema.md, "Rank's kind is the built-in's alone").
 	KindRank Kind = "rank"
 	// KindRelation is the entity id of one other issue: parent, iteration.
 	KindRelation Kind = "relation"
@@ -45,8 +46,10 @@ const (
 	KindMultiRelation Kind = "multi-relation"
 )
 
-// Kinds is every kind a configured field takes, in the order D2's table
-// lists them. KindRank is not one: it is the built-in `rank`'s alone (D9).
+// Kinds is every kind a configured field takes, in the order the table of
+// doc/design/schema.md, "Kinds are a fixed list" lists them. KindRank is not
+// one: it is the built-in `rank`'s alone
+// (doc/design/schema.md, "Rank's kind is the built-in's alone").
 var Kinds = []Kind{
 	KindText,
 	KindEnum,
@@ -63,7 +66,8 @@ var Kinds = []Kind{
 
 // ParseKind checks that a kind is one of the fixed list,
 // naming the valid ones when it is not,
-// because an agent is the main caller and an agent can act on that (D6).
+// because an agent is the main caller and an agent can act on that
+// (doc/design/schema.md, "Errors name the alternatives").
 func ParseKind(s string) (Kind, error) {
 	for _, kind := range Kinds {
 		if Kind(s) == kind {
@@ -114,7 +118,8 @@ func (k Kind) IsRelation() bool {
 }
 
 // IsMulti reports whether the field holds a set of items,
-// which is what AddValue and RemoveValue apply to (D2).
+// which is what AddValue and RemoveValue apply to
+// (doc/design/schema.md, "Kinds are a fixed list").
 func (k Kind) IsMulti() bool {
 	switch k {
 	case KindMultiEnum, KindMultiIdentity, KindMultiRelation:
@@ -139,7 +144,7 @@ func (k Kind) ItemKind() Kind {
 // Category is what every tool keys behaviour off,
 // so that "done" is a property of the value and not of its name.
 //
-// The set is fixed and closed (D2).
+// The set is fixed and closed (doc/design/schema.md, "Categories are fixed").
 type Category string
 
 const (

@@ -1,12 +1,12 @@
 // Package run is the Starlark runtime: it executes a flow.
 //
-// A flow is one Starlark function (`3556569` E2, `b511c63`, `0740bf3`).
+// A flow is one Starlark function (doc/design/flows.md, "A flow is one function").
 // `flow.Parse` reads its name, description and parameters from the syntax tree
 // without executing anything; this package executes it,
 // with the host modules as the only globals.
 //
 // Those modules mirror the command line one to one
-// (doc/design/cli-convention.md):
+// (doc/design/cli.md, "The command line and Starlark are one API"):
 // every `git work <module> <verb>` is `work.<module>.<verb>(...)`,
 // taking the same arguments and returning what the command prints,
 // and every one of them is a call into package `host`,
@@ -203,7 +203,7 @@ func (r *runtime) run(def *flow.Def, script string, kwargs map[string]json.RawMe
 // Defaults in the signature fill what the object omits,
 // an unknown key is an error naming the parameters,
 // and a parameter with no default that nobody named is an error too
-// (cli-convention.md).
+// (doc/design/flows.md, "Arguments are keyword arguments").
 func bindArgs(def *flow.Def, kwargs map[string]json.RawMessage) ([]starlark.Tuple, error) {
 	known := make(map[string]struct{}, len(def.Params))
 	for _, param := range def.Params {

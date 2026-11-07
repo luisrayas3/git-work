@@ -9,8 +9,9 @@ import (
 	"github.com/git-bug/git-bug/cache"
 )
 
-// jiraUser is an identity the way the Jira sync makes one (JS16): the Jira
-// display name, no email, the account id as immutable metadata.
+// jiraUser is an identity the way the Jira sync makes one (doc/design/jira.md,
+// "Identities"): the Jira display name, no email, the account id as immutable
+// metadata.
 func jiraUser(t *testing.T, repo *cache.RepoCache, name string) string {
 	t.Helper()
 

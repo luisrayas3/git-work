@@ -46,7 +46,8 @@ func (p *matrixPage) View() string {
 // The row labels are sticky: a matrix whose row labels have scrolled off the
 // left is a grid of numbers nobody can read. The totals column is pinned to
 // the right of whatever is drawn, for the same reason. What scrolls is the
-// data columns, by whole columns, as the board's do (A10).
+// data columns, by whole columns, as the board's do (doc/design/views.md,
+// "Sticky row labels").
 func (p *matrixPage) layout() (labels, width, visible int) {
 	labels = len([]rune(p.axesLabel()))
 	for _, row := range p.drawn {

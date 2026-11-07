@@ -9,9 +9,9 @@ import (
 )
 
 // A spec's `expand`: the list's spec, or a list of it, one flat table per
-// element drawn beside show's fields (doc/design/show-side-table.md, approved
-// 2026-10-08, Luis). It was show's own argument until `shows` moved it into
-// the spec of a type (app.md A7).
+// element drawn beside show's fields (doc/design/views.md, "Side tables are
+// `expand`"). It was show's own argument until `shows` moved it into the
+// spec of a type (doc/design/views.md, "`shows` maps a type to a spec").
 //
 // It is the list's argument because it is the list's object: the issues one
 // relation reaches from one row, narrowed and drawn as a table. A nested list
@@ -83,7 +83,7 @@ func CheckSchema(call *Call, s *schema.Schema) error {
 // inverse is the name and which may point at the shown type. It is empty
 // where the name is a stored field of the shown type, which is read on the
 // shown issue's own side instead — the side a ghost cannot write in one
-// commit (doc/design/show-side-table.md, S6).
+// commit (doc/design/views.md, "A relation stored on the parent").
 func InverseSources(s *schema.Schema, shownType, name string) map[string][]string {
 	if s == nil {
 		return nil

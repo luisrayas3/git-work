@@ -14,8 +14,9 @@ import (
 	"github.com/git-bug/git-bug/view"
 )
 
-// epicShows is the workflow's map (doc/design/show-from-a-view.md): an epic
-// opens with every story it holds beside its fields, closed ones included.
+// epicShows is a workflow's map (doc/design/views.md, "`shows` maps a type
+// to a spec"): an epic opens with every story it holds beside its fields,
+// closed ones included.
 const epicShows = `{"epic":{"expand":{"relation":"children","query":"sort_by(.fields.status == \"done\", .fields.title)","fields":["status","priority","assignee"]}}}`
 
 // anEpic is an epic, two stories under it, one done, and a task under the
@@ -39,10 +40,11 @@ func pushedShow(t *testing.T, cmd tea.Cmd) *showPage {
 	return shown
 }
 
-// TestEnterOpensTheShowTheTypeMaps is the doc's workflow: a list of epics
+// TestEnterOpensTheShowTheTypeMaps is the workflow: a list of epics
 // folding their stories; Enter on an epic opens it with the stories beside
 // its fields, closed ones too, and Enter on a story opens a bare show that
-// still carries the map (V1, V3).
+// still carries the map (doc/design/views.md, "`shows` maps a type to a
+// spec"; doc/design/views.md, "Every page carries the map").
 func TestEnterOpensTheShowTheTypeMaps(t *testing.T) {
 	repo := testRepo(t)
 	epic, open, done, _ := anEpic(t, repo)
@@ -69,7 +71,8 @@ func TestEnterOpensTheShowTheTypeMaps(t *testing.T) {
 }
 
 // TestEnterReadsTheStoredType: a query that shapes fields.type does not pick
-// the entry; the stored issue's type does (V1).
+// the entry; the stored issue's type does (doc/design/views.md, "The type is
+// the stored issue's").
 func TestEnterReadsTheStoredType(t *testing.T) {
 	repo := testRepo(t)
 	epic, open, _, _ := anEpic(t, repo)
@@ -83,7 +86,8 @@ func TestEnterReadsTheStoredType(t *testing.T) {
 	page = list(t, repo, `{"query":"map(select(.id == \"`+epic+`\") | .fields.type = \"story\")","shows":`+epicShows+`}`)
 	require.Len(t, pushedShow(t, send1(page, "enter")).tables, 1)
 
-	// a row with no id rings, as it did (query-rows.md, R2)
+	// a row with no id rings, as it did (doc/design/views.md, "The type is the
+	// stored issue's")
 	page = list(t, repo, `{"query":"[{key: \"a heading\", fields: {type: \"epic\", title: \"a heading\"}}]","shows":`+epicShows+`}`)
 	_, cmd := page.Update(press("enter"))
 	require.NotNil(t, cmd, "the bell")
@@ -93,7 +97,8 @@ func TestEnterReadsTheStoredType(t *testing.T) {
 
 // TestEveryKindOpensByTheMap: the board's card and the gantt's bar open as
 // the list's row does; the matrix's list inherits the map, and its rows open
-// by it (V1, V3, Settled 3).
+// by it (doc/design/views.md, "`shows` maps a type to a spec";
+// doc/design/views.md, "Every page carries the map").
 func TestEveryKindOpensByTheMap(t *testing.T) {
 	repo := testRepo(t)
 	epic, _, _, _ := anEpic(t, repo)
@@ -128,7 +133,7 @@ func TestEveryKindOpensByTheMap(t *testing.T) {
 // TestTheMapIsCarried: from the epic's page, a side table's row, then a
 // relation cell back to the epic, then the creator, each open by the same
 // map, and Esc back up the stack returns to pages that keep their tables
-// (V3).
+// (doc/design/views.md, "Every page carries the map").
 func TestTheMapIsCarried(t *testing.T) {
 	repo := testRepo(t)
 	epic, open, _, _ := anEpic(t, repo)
@@ -166,8 +171,9 @@ func TestTheMapIsCarried(t *testing.T) {
 	require.Len(t, pushedShow(t, draft.follow(epic)).tables, 1, "the parent the draft names")
 
 	// Esc back up the stack: every page kept its tables; the draft has its
-	// type from the table's rows (create.md C8), so it opened typing the
-	// title, and the first esc leaves that
+	// type from the table's rows (doc/design/views.md, "The prefill is the
+	// drop's write set"), so it opened typing the title, and the first esc
+	// leaves that
 	if draft.editor != nil {
 		back(stack)
 	}
@@ -181,7 +187,8 @@ func TestTheMapIsCarried(t *testing.T) {
 }
 
 // TestThePageAfterCreateOpensByTheMap: the creator a view's map reached puts
-// show on the new issue by that map when it stands alone (V3).
+// show on the new issue by that map when it stands alone
+// (doc/design/views.md, "Every page carries the map").
 func TestThePageAfterCreateOpensByTheMap(t *testing.T) {
 	repo := testRepo(t)
 	draft := newView(t, repo, `{"draft":{"fields":{"type":"epic"}}}`)
@@ -200,7 +207,7 @@ func TestThePageAfterCreateOpensByTheMap(t *testing.T) {
 
 // TestADirectShowTakesTheMap: show takes the id and shows, and draws the
 // issue by its type's spec there, as every page it opens is drawn
-// (doc/design/app.md A7, revising V3's "never for the shown issue").
+// (doc/design/views.md, "`shows` maps a type to a spec").
 func TestADirectShowTakesTheMap(t *testing.T) {
 	repo := testRepo(t)
 	epic, open, _, _ := anEpic(t, repo)
@@ -224,7 +231,8 @@ func TestADirectShowTakesTheMap(t *testing.T) {
 
 // TestAShowEntryIsCheckedAsShowIs: a spec is checked against the type it is
 // keyed under, naming the type; the shape in view.Parse, the names in
-// view.CheckSchema (V2, A7).
+// view.CheckSchema (doc/design/views.md, "A spec is checked as show's call
+// is").
 func TestAShowEntryIsCheckedAsShowIs(t *testing.T) {
 	repo := testRepo(t)
 	for _, c := range []struct{ shows, want string }{
@@ -256,8 +264,9 @@ func TestAShowEntryIsCheckedAsShowIs(t *testing.T) {
 
 // TestASpecIsWholeAndDefaultsDim: a type the call leaves out is shown by its
 // show in the schema, else by the built-in, whole and never merged with the
-// call's; a spec that was not the call's is drawn dim on the first line
-// (A7).
+// call's (doc/design/views.md, "A spec is whole, never merged"); a spec
+// that was not the call's is drawn dim on the first line
+// (doc/design/views.md, "A defaulted spec is drawn dim").
 func TestASpecIsWholeAndDefaultsDim(t *testing.T) {
 	repo := testRepo(t)
 	epic, open, _, _ := anEpic(t, repo)
@@ -332,7 +341,8 @@ func onField(t *testing.T, p *showPage, key string) {
 }
 
 // back is Esc on the stack top page, the second one where the first opened
-// the palette (app.md, A1), and the pop it answers with.
+// the palette (doc/design/tui.md, "Back is two presses"), and the pop it
+// answers with.
 func back(stack *root) {
 	_, cmd := stack.Update(press("esc"))
 	if stack.palette {

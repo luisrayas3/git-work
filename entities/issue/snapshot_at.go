@@ -15,7 +15,7 @@ import (
 // what a SetField with a null does, what set semantics an AddValue has,
 // which field an archive writes,
 // is this package's business and must have one implementation
-// (doc/design/report.md).
+// (doc/design/query.md, "Go replays, a flow compares").
 //
 // The cut is each operation's own time, never its lamport time:
 // "since Monday" is a statement about a calendar,

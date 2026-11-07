@@ -1,6 +1,7 @@
 // Package viewcmd is the `git work view` command tree.
 //
-// A view is a module, not a surface (doc/design/cli-convention.md):
+// A view is a module, not a surface
+// (doc/design/flows.md, "Flows call views; views never call flows"):
 // `git work view board '{"columns":"status"}'` and
 // `work.view.board(columns="status")` are the same call into `host.View`,
 // with the same keywords, the same defaults and the same refusals.
@@ -78,7 +79,7 @@ func newViewKindCommand(env *execenv.Env, kind string) *cobra.Command {
 // `group_by` and `expand` for sketches (f9c991e).
 // kindShort is the one line a kind gets in the command list: what it draws,
 // and for `new`, what it writes, because `new` is the one view that is a
-// writer (doc/design/create.md, C4).
+// writer (doc/design/views.md, "`new` prints the id").
 func kindShort(kind string) string {
 	switch kind {
 	case view.KindNew:
@@ -148,7 +149,7 @@ func runView(env *execenv.Env, kind string, args []string) error {
 		return err
 	}
 	// `new` answers the id it created, and a writer prints its id as a line,
-	// as `issue new` does (doc/design/create.md, C4)
+	// as `issue new` does (doc/design/views.md, "`new` prints the id")
 	if id, ok := value.(string); ok {
 		env.Out.Println(id)
 		return nil

@@ -21,8 +21,9 @@ var _ Excerpt = &ConfigExcerpt{}
 // Attributes is carried whole, as IssueExcerpt carries Fields:
 // a config entity is a handful of small values,
 // and carrying them means listing, exporting and picking a duplicate's winner
-// never load an entity (E8).
-// The create lamport time is what E7 resolves duplicate keys by.
+// never load an entity (doc/design/schema.md, "Compiled on demand").
+// The create lamport time is what a duplicate key is resolved by
+// (doc/design/schema.md, "Duplicate keys").
 type ConfigExcerpt struct {
 	id entity.Id
 
@@ -99,7 +100,8 @@ func (e *ConfigExcerpt) AttributeString(name string) (string, bool) {
  */
 
 // ConfigsByCreation orders by (create lamport time, id),
-// which is the order E7 picks a duplicate key's winner by:
+// which is the order a duplicate key's winner is picked by
+// (doc/design/schema.md, "Duplicate keys"):
 // the first definition of a key wins,
 // and a tie is broken by something every clone agrees on.
 type ConfigsByCreation []*ConfigExcerpt

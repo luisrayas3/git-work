@@ -110,7 +110,8 @@ func canonOrNil(v issue.Value) issue.Value {
 	return canon(v)
 }
 
-// I1: a merge of three equal documents emits nothing.
+// a merge of three equal documents emits nothing
+// (doc/design/jira.md, "Fixpoint").
 func TestMergeFixpoint(t *testing.T) {
 	b := base("the body", "title", str("T"), "status", str("done"), "labels", set("a", "b"))
 	b.Comments = map[string]string{"100": digest("hi")}
@@ -251,8 +252,9 @@ func TestMergeType(t *testing.T) {
 	require.Len(t, p.Local, 2)
 	require.Equal(t, "type", p.Local[0].Key)
 
-	// a local type change is exported (type-change.md, TC4), its base kept
-	// until Jira holds it; without export it waits like any other key
+	// a local type change is exported, its base kept until Jira holds it;
+	// without export it waits like any other key
+	// (doc/design/jira.md, "A local type change is exported alone and first")
 	p = merge(b, doc("", "type", str("bug"), "status", str("to-do")), doc("", "type", str("task"), "status", str("to-do")), isMulti, true)
 	require.Equal(t, []change{{Key: "type", Set: str("bug")}}, p.Remote)
 	require.Empty(t, p.Pending)
@@ -261,7 +263,8 @@ func TestMergeType(t *testing.T) {
 	require.Empty(t, p.Remote)
 	require.Equal(t, []Skip{{Key: "type", Reason: reasonNotExported}}, p.Pending)
 
-	// changed on both sides: Jira's, and a conflict (TC5, JS9)
+	// changed on both sides: Jira's, and a conflict
+	// (doc/design/jira.md, "A Jira type change is imported first")
 	p = merge(b, doc("", "type", str("bug"), "status", str("to-do")), doc("", "type", str("story"), "status", str("to-do")), isMulti, true)
 	require.Empty(t, p.Remote)
 	require.Equal(t, []Conflict{{Key: "type", Local: str("bug"), Jira: str("story")}}, p.Conflicts)
@@ -333,7 +336,8 @@ func TestMergeComments(t *testing.T) {
 	}, p.Base.Comments)
 }
 
-// comment-delete.md CD6: the rows of a comment deleted locally.
+// the rows of a comment deleted locally
+// (doc/design/jira.md, "A comment deleted locally is deleted in Jira").
 func TestMergeDeletedComments(t *testing.T) {
 	c := func(jiraId string, op entity.Id, text string) docComment {
 		return docComment{JiraId: jiraId, Op: op, Editor: "ed", Edited: t0, Text: docText{text, true}}

@@ -18,7 +18,8 @@ var _ dag.Snapshot = &Snapshot{}
 // What an issue *has* lives in Fields, keyed by the schema's field keys,
 // with values kept as the JSON the operations carried.
 // Relations to other issues are fields too,
-// whose kind says the value is an issue id (configurable-schema.md D4).
+// whose kind says the value is an issue id
+// (doc/design/issue.md, "Relations are fields").
 type Snapshot struct {
 	id entity.Id
 

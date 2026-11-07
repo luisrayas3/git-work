@@ -20,11 +20,14 @@ import (
 
 // Every program runs with the schema bound as `$schema`, the document
 // `git work schema export --format json` prints, and three functions over it
-// (doc/design/schema-in-jq.md, J1, J2): what a value means is read from the
-// schema the program runs under, not written into the program.
+// (doc/design/query.md, "`$schema` is bound on every run";
+// doc/design/query.md, "`ordinal`, `category` and `done`"): what a value
+// means is read from the schema the program runs under, not written into
+// the program.
 //
 // The functions are ordinary jq, so they read as such. Each is null wherever
-// the schema says nothing about the value (J3): an unset field, a type
+// the schema says nothing about the value
+// (doc/design/query.md, "Unknown is null"): an unset field, a type
 // without it, a value the schema does not list, a multi-enum's list. A
 // program that defines a function of the same name keeps its own, since the
 // helpers come before its definitions and gojq resolves a name to its last.
@@ -57,7 +60,8 @@ type Program struct {
 }
 
 // Compile parses and compiles a jq program, with `$schema` declared and the
-// schema's functions defined (J1, J2).
+// schema's functions defined (doc/design/query.md, "`$schema` is bound on
+// every run"; doc/design/query.md, "`ordinal`, `category` and `done`").
 func Compile(src string) (*Program, error) {
 	parsed, err := gojq.Parse(src)
 	if err != nil {

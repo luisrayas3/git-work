@@ -71,7 +71,8 @@ func TestChangeARelationPicksFromItsTargetTypes(t *testing.T) {
 	require.NotContains(t, values, id)
 	require.Contains(t, plainView(page), south[:7]+" south")
 
-	// typing narrows at once, with no `/` first (doc/design/app.md, A5)
+	// typing narrows at once, with no `/` first (doc/design/tui.md, "Pickers
+	// are typed into")
 	page = send(page, "s", "o", "u").(*showPage)
 	require.Equal(t, south, picker.items[picker.cursor].value, "the narrowing keeps south alone")
 	require.NotContains(t, join(page.editor.View(100)), north[:7]+" north")
@@ -184,7 +185,8 @@ func TestSpaceOnAViewOnlyColumnRings(t *testing.T) {
 
 // TestThePickerLeavesTheArchivedOut: a relation's picker reads the same input
 // a list does, so an archived issue is not offered, unless it is the value
-// already there (doc/design/include-archive.md, I5).
+// already there (doc/design/query.md, "Layers and pickers follow the
+// input").
 func TestThePickerLeavesTheArchivedOut(t *testing.T) {
 	repo := testRepo(t)
 	north := newIssue(t, repo, map[string]any{"type": "story", "title": "north"})

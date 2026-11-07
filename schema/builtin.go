@@ -2,7 +2,8 @@ package schema
 
 import "github.com/git-bug/git-bug/entities/issue"
 
-// The four built-in field keys (E4, D8).
+// The four built-in field keys (doc/design/schema.md, "Built-ins are code";
+// doc/design/schema.md, "Rank is built in").
 //
 // They are taken from entities/issue rather than spelled again here,
 // because the entity guarantees them
@@ -37,7 +38,7 @@ type Builtin struct {
 // whatever ordinals an import assigns, and so that an override that carries no
 // ordinal of its own keeps its built-in place.
 //
-// `rank` is built in since 2026-10-02 (D8):
+// `rank` is built in (doc/design/schema.md, "Rank is built in"):
 // Jira's Rank and Linear's sortOrder put an order on every issue,
 // so it is part of the native models the schema has to represent,
 // and every type in both presets carried it anyway.

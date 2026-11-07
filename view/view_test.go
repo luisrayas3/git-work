@@ -16,7 +16,8 @@ func kwargs(t *testing.T, doc string) map[string]json.RawMessage {
 }
 
 // TestShowForCarriesTheShows: Enter opens show with the row's id and the
-// view's shows, whatever the type (doc/design/app.md A7).
+// view's shows, whatever the type (doc/design/views.md, "`shows` maps a
+// type to a spec").
 func TestShowForCarriesTheShows(t *testing.T) {
 	shows := json.RawMessage(`{"epic": {"expand": "children", "fields": ["status"]}}`)
 
@@ -31,8 +32,9 @@ func TestShowForCarriesTheShows(t *testing.T) {
 }
 
 // TestSpecFor: the call's spec for the type, else the schema's, else the
-// built-in, each whole (A7). With no schema at hand the call's and the
-// built-in are all there is.
+// built-in, each whole (doc/design/views.md, "A spec is whole, never
+// merged"). With no schema at hand the call's and the built-in are all there
+// is.
 func TestSpecFor(t *testing.T) {
 	shows := json.RawMessage(`{"epic": {"fields": ["status"]}}`)
 
@@ -200,7 +202,8 @@ func TestNullMeansTheDefault(t *testing.T) {
 // TestParseSpecSideTables: a spec's expand is the list's spec, or a list of
 // it, a table per element, checked for shape by the table, which needs no
 // store; what a flat table cannot draw is refused by name
-// (doc/design/show-side-table.md, S1 and S3; app.md A7).
+// (doc/design/views.md, "Side tables are `expand`"; doc/design/views.md, "A
+// side table is flat").
 func TestParseSpecSideTables(t *testing.T) {
 	spec, err := ParseSpec(json.RawMessage(`{"expand":"children"}`))
 	require.NoError(t, err)
@@ -237,7 +240,8 @@ func TestParseSpecSideTables(t *testing.T) {
 		require.ErrorContains(t, err, says, doc)
 	}
 
-	// show takes the id and shows, and nothing else (A7)
+	// show takes the id and shows, and nothing else (doc/design/views.md,
+	// "`shows` maps a type to a spec")
 	for doc, says := range map[string]string{
 		`{"id":"abc","expand":"children"}`:             "takes no argument expand",
 		`{"id":"abc","fields":["status"]}`:             "takes no argument fields",
@@ -265,7 +269,8 @@ func TestParseUnknownKind(t *testing.T) {
 
 // TestParseMatrix: the matrix needs both axes, counts when no number is
 // named, and takes an order for either axis
-// (doc/design/allocations.md A4, A5).
+// (doc/design/views.md, "A matrix sums any number over any issues";
+// doc/design/views.md, "The order of an axis").
 func TestParseMatrix(t *testing.T) {
 	_, err := Parse(KindMatrix, kwargs(t, `{"rows":"work"}`))
 	require.ErrorContains(t, err, "columns")
@@ -361,9 +366,9 @@ func TestParseExpandIsALayerSpec(t *testing.T) {
 		[]string{layers[0].Relation, layers[1].Relation, layers[2].Relation})
 
 	// a layer may leave its relation out, for rows that list their own
-	// children (query-rows.md, R3), but not give an empty one; it takes no
-	// key of its own invention, a count is a whole number of levels, and
-	// has nothing to repeat at the top
+	// children (doc/design/query.md, "A row lists its children"), but not
+	// give an empty one; it takes no key of its own invention, a count is a
+	// whole number of levels, and has nothing to repeat at the top
 	call, err = Parse(KindList, kwargs(t, `{"expand":{"query":"."}}`))
 	require.NoError(t, err)
 	require.Equal(t, "", call.Expand().Relation)
@@ -417,7 +422,8 @@ func TestParseBoardColumnWidth(t *testing.T) {
 
 // TestParseOpen: the list and the gantt take `open`, true for every level, a
 // number for that many from the roots, false or absent for none
-// (doc/design/query-rows.md, R4); the kinds that do not nest do not.
+// (doc/design/query.md, "`open` unfolds the tree"); the kinds that do not
+// nest do not.
 func TestParseOpen(t *testing.T) {
 	for _, kind := range []string{KindList, KindGantt} {
 		base := `"start":"due","stop":"due",`
@@ -447,7 +453,8 @@ func TestParseOpen(t *testing.T) {
 
 // TestParseIncludeArchive: every kind with a query takes include_archive, a
 // boolean that is false when absent, and so does a layer of `expand`
-// (doc/design/include-archive.md, I2, I5).
+// (doc/design/query.md, "The switch is `include_archive`";
+// doc/design/query.md, "Layers and pickers follow the input").
 func TestParseIncludeArchive(t *testing.T) {
 	for _, kind := range []string{KindList, KindBoard, KindGantt, KindMatrix} {
 		args := map[string]Arg{}

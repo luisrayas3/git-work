@@ -11,7 +11,8 @@ import (
 	"github.com/git-bug/git-bug/schema"
 )
 
-// Index resolves Jira ids to entity ids and back (JS17):
+// Index resolves Jira ids to entity ids and back
+// (doc/design/jira.md, "Relations and what cannot convert now"):
 // issues by the jira-id of their create operation,
 // identities by jira-account-id.
 // It is built once per run and extended as the run imports and creates.
@@ -56,7 +57,8 @@ func NewIndex(repo *cache.RepoCache) (*Index, error) {
 		if account := e.ImmutableMetadata[MetaAccountId]; account != "" {
 			holders = append(holders, id)
 			accounts = append(accounts, account)
-			// two identities naming one account (two clones, JS25): the
+			// two identities naming one account (two clones,
+			// doc/design/jira.md, "One bound clone"): the
 			// lower id is the account's, and both export as it
 			if other, ok := users[account]; !ok || id < other {
 				users[account] = id

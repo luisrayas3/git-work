@@ -12,7 +12,8 @@ import (
 	"github.com/git-bug/git-bug/schema"
 )
 
-// The fields the label taxonomy becomes (store-migration.md).
+// The fields the label taxonomy becomes
+// (doc/design/migration.md, "Labels become fields").
 const (
 	statusKey   = "status"
 	priorityKey = "priority"

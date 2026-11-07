@@ -57,9 +57,9 @@ func (w *world) still() {
 
 // ---- helpers ----
 
-// quietFull is the strong fixpoint (I1): a --full run skips nothing at
-// step 1, so every linked issue is merged again, and still nothing is
-// written on either side.
+// quietFull is the strong fixpoint (doc/design/jira.md, "Fixpoint"): a --full
+// run skips nothing at step 1, so every linked issue is merged again, and still
+// nothing is written on either side.
 func (w *world) quietFull() {
 	w.t.Helper()
 	w.srv.ResetRequests()
@@ -356,7 +356,7 @@ func TestAdvDescriptionRoundTrip(t *testing.T) {
 	w.quietFull()
 }
 
-// ---- crashes at every step of JS13 ----
+// ---- crashes at every step (doc/design/jira.md, "One issue at a time") ----
 
 type crashWorld struct {
 	*world
@@ -510,8 +510,9 @@ func crashMatrix(t *testing.T, names []string, opts []jiratest.Option) {
 	}
 }
 
-// JS15: the create attempt is in the store, so a state file lost between a
-// POST that landed and the next run costs nothing: no duplicate.
+// the create attempt is in the store, so a state file lost between a POST that
+// landed and the next run costs nothing: no duplicate
+// (doc/design/jira.md, "Creates to Jira").
 func TestAdvCrashAfterCreateStateLost(t *testing.T) {
 	for _, lag := range []int{0, 1} { // crashSetup imports within two runs
 		t.Run(fmt.Sprint("lag=", lag), func(t *testing.T) {
@@ -649,8 +650,9 @@ func TestAdvConcurrentCommentAndBodyEdit(t *testing.T) {
 	w.quietFull()
 }
 
-// A Jira user edits the issue between our write and our re-read (the
-// window of JS13 steps 4–5): the change is imported, never overwritten.
+// A Jira user edits the issue between our write and our re-read (the window of
+// steps 4–5; doc/design/jira.md, "One issue at a time"): the change is
+// imported, never overwritten.
 func TestAdvJiraEditBetweenWriteAndReread(t *testing.T) {
 	w := newWorld(t)
 	key, ic := w.imported("Race")
@@ -893,7 +895,7 @@ func TestAdvE17CursorHoldsAtFailure(t *testing.T) {
 	require.Equal(t, 1, sum.Failed)
 	st, _ = jira.LoadState(w.c.LocalStorage())
 	require.True(t, st.Cursor.After(start))
-	require.Contains(t, st.Failed, bid, "B is re-read on the next run, whatever the cursor (A6)")
+	require.Contains(t, st.Failed, bid, "B is re-read on the next run, whatever the cursor")
 	require.Equal(t, `"C2"`, field(t, w.byKey(c), "title"), "C synced all the same")
 
 	lines, _ := w.mustSync(jira.Options{})
@@ -1254,9 +1256,10 @@ func TestAdvStaleReadsRevertLocalEdit(t *testing.T) {
 	require.Equal(t, `"edited here"`, field(t, ic, "title"), "converged on the edit")
 }
 
-// I2: a write the re-read does not show is not recorded as the base, so if
-// Jira then shows the old value, set there after the write, Jira's value
-// wins with a note, never silently.
+// a write the re-read does not show is not recorded as the base, so if Jira
+// then shows the old value, set there after the write, Jira's value wins with a
+// note, never silently
+// (doc/design/jira.md, "The base is what Jira was seen to hold").
 func TestAdvUnconfirmedWriteNotBase(t *testing.T) {
 	w := newWorld(t, jiratest.WithStaleReads())
 	key := w.srv.CreateIssue(jiratest.IssueSpec{Project: "PROJ", Type: "Task", Summary: "Stale"})
@@ -1275,10 +1278,11 @@ func TestAdvUnconfirmedWriteNotBase(t *testing.T) {
 	require.Equal(t, "Stale", w.srv.Issue(key).Summary)
 }
 
-// I1 with I2: a local value Jira normalises back to the value it held
-// leaves updated where it was, so the GET looks stale: pending, never
-// exported again, until Jira's clock passes Settle; then Jira's is imported
-// with a note: never an export every run, never a silent revert.
+// a local value Jira normalises back to the value it held leaves updated where
+// it was, so the GET looks stale: pending, never exported again, until Jira's
+// clock passes Settle; then Jira's is imported with a note: never an export
+// every run, never a silent revert (doc/design/jira.md, "Fixpoint";
+// doc/design/jira.md, "The base is what Jira was seen to hold").
 func TestAdvNormalisedBackToOld(t *testing.T) {
 	w := newWorld(t)
 	_, ic := w.imported("Fix")
@@ -1298,8 +1302,9 @@ func TestAdvNormalisedBackToOld(t *testing.T) {
 	w.quietFull()
 }
 
-// I4: a link repair by property trusts the database, not the search's
-// copy: a property changed in Jira while the index lags links nothing.
+// a link repair by property trusts the database, not the search's copy: a
+// property changed in Jira while the index lags links nothing
+// (doc/design/jira.md, "The database decides; the index only finds").
 func TestAdvLinkRepairReadsProperty(t *testing.T) {
 	w := newWorld(t, jiratest.WithIndexLag(0, time.Minute))
 	id := w.newLocal("Created, answer lost", "", nil)
@@ -1413,7 +1418,7 @@ func TestAdvSameUpdatedMissed(t *testing.T) {
 	w.mustSync(jira.Options{Full: true})
 	require.Equal(t, `"edited at the same instant"`, field(t, ic, "title"), "--full finds it")
 	if missed {
-		t.Log("FINDING (by design, JS13 step 1): an edit whose updated equals the base's is skipped incrementally; --full finds it")
+		t.Log("FINDING (by design, step 1): an edit whose updated equals the base's is skipped incrementally; --full finds it")
 	}
 }
 
@@ -1577,10 +1582,10 @@ func TestAdvLocalOnly(t *testing.T) {
 	w.quietFull()
 }
 
-// JS19's "the issue answering again" (a Gone: deleted issue whose
+// "the issue answering again" (a Gone: deleted issue whose
 // permission comes back) needs the design's Server.Hide, which the fake
 // does not have: Deny("getIssue") fails the issue instead of hiding it.
-// Untested here.
+// Untested here (doc/design/jira.md, "Deletes and moves are Gone").
 
 // ---- property: random edits on both sides, round after round ----
 
@@ -1800,7 +1805,7 @@ func isNote(ic *cache.IssueCache, op entity.Id) bool {
 	return false
 }
 
-// ---- two bound clones (JS25) ----
+// ---- two bound clones (doc/design/jira.md, "One bound clone") ----
 
 // twoClones is A and B bound to one site, exchanging through a bare remote.
 func twoClones(t *testing.T, opts ...jiratest.Option) (*world, *world) {
@@ -1817,7 +1822,8 @@ func twoClones(t *testing.T, opts ...jiratest.Option) (*world, *world) {
 }
 
 // Both clones import the same new Jira issue before exchanging:
-// two local issues for one Jira issue, a documented cost of two bound clones (JS25).
+// two local issues for one Jira issue, a documented cost of two bound clones
+// (doc/design/jira.md, "One bound clone").
 // Both read the same Jira state, so the lower id reached Jira first;
 // the other is consolidated into it.
 func TestAdvTwoClonesImportSameIssue(t *testing.T) {
@@ -1835,7 +1841,7 @@ func TestAdvTwoClonesImportSameIssue(t *testing.T) {
 			both = append(both, id)
 		}
 	}
-	require.Len(t, both, 2, "JS25: two clones importing before they exchange")
+	require.Len(t, both, 2, "two clones importing before they exchange")
 	slices.Sort(both)
 	winner, loser := both[0], both[1]
 
@@ -1853,7 +1859,8 @@ func TestAdvTwoClonesImportSameIssue(t *testing.T) {
 }
 
 // Both clones see the same unlinked local issue (pulled) and sync before
-// exchanging again: both POST it (JS25: the journal is per clone). After
+// exchanging again: both POST it (the journal is per clone;
+// doc/design/jira.md, "One bound clone"). After
 // the exchange one Jira issue is linked and the other reported.
 func TestAdvTwoClonesCreateSameIssue(t *testing.T) {
 	a, b := twoClones(t, jiratest.WithIndexLag(1, 0))
@@ -1863,14 +1870,15 @@ func TestAdvTwoClonesCreateSameIssue(t *testing.T) {
 	require.NoError(t, b.c.Pull("origin"))
 	a.mustSync(jira.Options{})
 	b.mustSync(jira.Options{})
-	require.Len(t, a.srv.Keys(), 2, "JS25: two clones creating before they exchange")
-	t.Logf("documented cost (JS25): %v for %s", a.srv.Keys(), id.Human())
+	require.Len(t, a.srv.Keys(), 2, "two clones creating before they exchange")
+	t.Logf("documented cost of two bound clones: %v for %s", a.srv.Keys(), id.Human())
 }
 
 // ---- values Jira cannot hold, texts git-work cannot write ----
 
-// JS11 end to end: a Jira description with a table is lossy; a local edit
-// over it is pending every run and Jira's table survives.
+// a Jira description with a table is lossy; a local edit over it is pending
+// every run and Jira's table survives
+// (doc/design/jira.md, "Texts merge by digest").
 func TestAdvLossyDescriptionNotOverwritten(t *testing.T) {
 	w := newWorld(t)
 	key, ic := w.imported("Lossy")
@@ -1991,8 +1999,9 @@ func TestAdvLinkToExcludedType(t *testing.T) {
 }
 
 // Both clones' runners tag themselves with the token's account before they
-// exchange (JS16): afterwards two identities carry one jira-account-id.
-// The run must not re-tag, or create identities, every time.
+// exchange (doc/design/jira.md, "Identities"): afterwards two identities carry
+// one jira-account-id. The run must not re-tag, or create identities, every
+// time.
 func TestAdvTwoClonesTagTheAccount(t *testing.T) {
 	a, b := twoClones(t)
 	// a fresh B runner, never tagged: B's own first sync tags it
@@ -2031,7 +2040,7 @@ func TestAdvTwoClonesTagTheAccount(t *testing.T) {
 		}
 	}
 	if ravis > 1 {
-		t.Logf("FINDING (JS25/JS16): two bound clones each create an identity for one Jira account: %d identities carry Ravi's accountId", ravis)
+		t.Logf("FINDING: two bound clones each create an identity for one Jira account: %d identities carry Ravi's accountId", ravis)
 	}
 	require.Empty(t, moved, "with %d identities carrying the token's account, no run re-tags", tagged)
 }

@@ -1007,7 +1007,7 @@ func TestFakeJQLTimeFold(t *testing.T) {
 	a := srv.CreateIssue(jiratest.IssueSpec{Project: "PROJ", Type: "Task", Summary: "a"})
 	srv.Advance(10 * time.Minute)
 	b := srv.CreateIssue(jiratest.IssueSpec{Project: "PROJ", Type: "Task", Summary: "b"})
-	cursor := srv.Issue(a).Updated.Add(-5 * time.Minute) // design-sync S11's overlap
+	cursor := srv.Issue(a).Updated.Add(-5 * time.Minute) // the overlap (doc/design/jira.md, "Time zones")
 	keys, _ := search(t, c, jiraapi.Search{JQL: "project = PROJ AND updated >= " + jiraapi.JQLTime(cursor, mia) + " ORDER BY key"})
 	if !slices.Equal(keys, []string{a, b}) {
 		t.Errorf("watermark %s in the fold selects %v, want [%s %s]", jiraapi.JQLTime(cursor, mia), keys, a, b)

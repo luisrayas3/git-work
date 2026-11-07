@@ -64,7 +64,8 @@ git work flow export board | git work flow import -`,
 //
 // Reading argv, a directory and standard input is this command's own work;
 // parsing, planning and writing is the host's, so that a script importing
-// flows takes the same path as the shell does (cli-convention.md).
+// flows takes the same path as the shell does
+// (doc/design/cli.md, "The command line and Starlark are one API").
 //
 // The ids created before a failure are printed too, because they are in the
 // store whether the rest of the import landed or not.

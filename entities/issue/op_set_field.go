@@ -18,7 +18,8 @@ var _ Operation = &SetFieldOperation{}
 // Concurrent sets of the same field resolve last-writer-wins
 // in the dag's deterministic order (lamport edit time, then pack id).
 // Whether the value fits the field's kind is the schema's business,
-// checked above this package on write and never here (configurable-schema.md D6).
+// checked above this package on write and never here
+// (doc/design/schema.md, "Validate on write, lenient on read").
 type SetFieldOperation struct {
 	dag.OpBase
 	Key   string `json:"key"`

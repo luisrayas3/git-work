@@ -34,7 +34,7 @@ func newWorld(t *testing.T, opts ...jiratest.Option) *world {
 }
 
 // newClone binds repo to srv; review is the first mapping, reviewed and
-// imported (JS5).
+// imported (doc/design/jira.md, "The first mapping is reviewed").
 func newClone(t *testing.T, srv *jiratest.Server, repo repository.TestedRepo, review bool) *world {
 	t.Helper()
 	c, err := cache.NewRepoCacheNoEvents(repo)
@@ -85,7 +85,8 @@ func (w *world) mustSync(opts jira.Options) ([]jira.Line, jira.Summary) {
 	return lines, sum
 }
 
-// quiet asserts a run that writes nothing on either side (I1, JS14).
+// quiet asserts a run that writes nothing on either side
+// (doc/design/jira.md, "Fixpoint"; doc/design/jira.md, "No echo detection").
 func (w *world) quiet() {
 	w.t.Helper()
 	w.srv.ResetRequests()

@@ -60,7 +60,7 @@ type SubCache[EntityT entity.Interface, ExcerptT Excerpt, CacheT CacheEntity] st
 	excerpts map[entity.Id]ExcerptT
 	// generation counts every change to the excerpts, so that something
 	// derived from all of them can tell whether it is still current
-	// (doc/design/alias-ids.md).
+	// (doc/design/cli.md, "An alias is drawn only where it names that issue").
 	generation uint64
 	cached     map[entity.Id]CacheT
 	lru        lruIdCache

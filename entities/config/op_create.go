@@ -16,7 +16,7 @@ var _ Operation = &CreateOperation{}
 //
 // Shape and key are immutable, and the id derives from this operation,
 // so two clones creating the same key produce two entities
-// and E7 picks the winner.
+// and one is picked the winner (doc/design/schema.md, "Duplicate keys").
 type CreateOperation struct {
 	dag.OpBase
 	Shape Shape  `json:"shape"`
@@ -43,7 +43,8 @@ func (op *CreateOperation) Apply(snapshot *Snapshot) {
 
 // Validate checks only what must hold for every create operation ever written.
 //
-// It does not check that the shape is one this binary knows (E6):
+// It does not check that the shape is one this binary knows
+// (doc/design/schema.md, "Structural rules are frozen"):
 // a failure here makes the entity unreadable,
 // so a newer binary's entities must still read on an older one.
 func (op *CreateOperation) Validate() error {

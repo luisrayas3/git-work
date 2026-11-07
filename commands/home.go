@@ -9,7 +9,8 @@ import (
 	"github.com/git-bug/git-bug/tui"
 )
 
-// homeFlow is the flow bare `git work` runs (doc/design/app.md, A8).
+// homeFlow is the flow bare `git work` runs
+// (doc/design/flows.md, "`git work` is `git work flow run home`").
 const homeFlow = "home"
 
 // runHome is bare `git work`: `git work flow run home`, where there is a

@@ -41,7 +41,8 @@ func typeText(p page, text string) page {
 }
 
 // TestNewOpensOnTheTitleTyping: with the type decided, a ghost's enter means
-// "I want to add one", and the title is what is typed next (C3).
+// "I want to add one", and the title is what is typed next
+// (doc/design/views.md, "The creator page").
 func TestNewOpensOnTheTitleTyping(t *testing.T) {
 	repo := testRepo(t)
 	story := newIssue(t, repo, map[string]any{"title": "the story", "type": "story"})
@@ -137,7 +138,7 @@ func TestNewCreatesOnEnter(t *testing.T) {
 	require.Equal(t, `"in-progress"`, string(doc.Fields["status"]))
 	require.Equal(t, "why", doc.Comments[0].Message)
 	_, has := doc.Fields["priority"]
-	require.False(t, has, "a field left empty is not stored: the form invents no default (C5)")
+	require.False(t, has, "a field left empty is not stored: the form invents no default")
 }
 
 // TestNewStoresAPrefixAsTheFullId: a doc naming the parent by a prefix
@@ -192,7 +193,8 @@ func TestNewStandaloneBecomesShow(t *testing.T) {
 }
 
 // TestNewFromAViewPopsBack: the view underneath reloads and stands on the
-// new issue, which is the ghost's promise kept (C4).
+// new issue, which is the ghost's promise kept (doc/design/views.md, "What
+// Create does next").
 func TestNewFromAViewPopsBack(t *testing.T) {
 	repo := testRepo(t)
 	newIssue(t, repo, map[string]any{"title": "first"})
@@ -230,7 +232,8 @@ func TestNewFromAViewPopsBack(t *testing.T) {
 }
 
 // TestNewRefusesWhatThePlannerRefuses: a draft without a type or a title is
-// named in the status line, the cursor on the cell it names (C3).
+// named in the status line, the cursor on the cell it names
+// (doc/design/views.md, "The creator page").
 func TestNewRefusesWhatThePlannerRefuses(t *testing.T) {
 	repo := testRepo(t)
 
@@ -252,7 +255,8 @@ func TestNewRefusesWhatThePlannerRefuses(t *testing.T) {
 }
 
 // TestNewDraftIsCheckedAtTheCall: a draft the planner would refuse is
-// refused before anything draws, as children and expand are (C1).
+// refused before anything draws, as children and expand are
+// (doc/design/views.md, "`new` is a view kind").
 func TestNewDraftIsCheckedAtTheCall(t *testing.T) {
 	repo := testRepo(t)
 
@@ -278,7 +282,8 @@ func TestNewDraftIsCheckedAtTheCall(t *testing.T) {
 }
 
 // TestViewDraftIsCheckedAtTheCall: list, gantt and board take `draft` too,
-// checked as new's is, before anything draws (C9); `doc` is gone.
+// checked as new's is, before anything draws (doc/design/views.md, "`draft`
+// on a view"); `doc` is gone.
 func TestViewDraftIsCheckedAtTheCall(t *testing.T) {
 	repo := testRepo(t)
 
@@ -328,7 +333,8 @@ func TestNewEscAsksTwiceWithADraft(t *testing.T) {
 }
 
 // TestNewRetypeKeepsSharedFields: a type picked wrong is one key from right,
-// so the values the new type also has stay and the rest are counted (C3).
+// so the values the new type also has stay and the rest are counted
+// (doc/design/views.md, "The creator page").
 func TestNewRetypeKeepsSharedFields(t *testing.T) {
 	repo := testRepo(t)
 	sprint := newIssue(t, repo, map[string]any{"title": "sprint 1", "type": "iteration"})

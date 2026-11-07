@@ -26,7 +26,7 @@ const TitleKey = "title"
 
 // ArchivedKey is the field that hides an issue from every default list.
 //
-// Archiving is the replicated removal (cli-convention.md):
+// Archiving is the replicated removal (doc/design/issue.md, "Archive is replicated"):
 // `git work issue archive ID` is `set ID '{"archived": true}'`,
 // and it is an operation, so it reaches every clone,
 // where `rm` only deletes the local ref.

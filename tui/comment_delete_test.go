@@ -10,7 +10,8 @@ import (
 
 // TestShowDeletesTheCommentUnderTheCursor: on the comments tab down and up
 // walk the comments, newest first, and esc d deletes the one under the
-// cursor, at once, and reads the page again (comment-delete.md CD9).
+// cursor, at once, and reads the page again (doc/design/tui.md, "Deleting a
+// comment").
 func TestShowDeletesTheCommentUnderTheCursor(t *testing.T) {
 	repo := testRepo(t)
 	id := newIssue(t, repo, map[string]any{"title": "one"})

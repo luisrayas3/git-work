@@ -20,7 +20,8 @@ func newAliased(t *testing.T, c *RepoCache, key string) *IssueCache {
 	return i
 }
 
-// consolidate stamps loser's create operation as the Jira sync does (JS25).
+// consolidate stamps loser's create operation as the Jira sync does
+// (doc/design/jira.md, "Consolidation keeps the copy that reached Jira first").
 func consolidate(t *testing.T, c *RepoCache, loser, winner *IssueCache) {
 	t.Helper()
 	me, err := c.GetUserIdentity()
@@ -35,7 +36,8 @@ func consolidate(t *testing.T, c *RepoCache, loser, winner *IssueCache) {
 
 // TestAliasNamesTheSurvivor: once a sync has consolidated two copies of one
 // Jira issue, the key they both carry names the survivor, on every resolve
-// path; before that it is ambiguous (doc/design/alias-ids.md A6).
+// path; before that it is ambiguous
+// (doc/design/cli.md, "A consolidated duplicate is drawn by its hash").
 func TestAliasNamesTheSurvivor(t *testing.T) {
 	c := newSchemaTestCache(t)
 	winner := newAliased(t, c, "PROJ-7")

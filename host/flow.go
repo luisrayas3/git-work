@@ -12,7 +12,8 @@ import (
 	"github.com/git-bug/git-bug/flow"
 )
 
-// The two attributes a flow entity carries (`3556569` E3).
+// The two attributes a flow entity carries
+// (doc/design/flows.md, "A flow is a config entity").
 const (
 	AttrScript      = "script"
 	AttrDescription = "description"
@@ -47,7 +48,7 @@ type FlowParam struct {
 // Parsing a handful of small scripts to list their arguments is cheap,
 // and it is the only place the arguments can come from:
 // the description is mirrored into an attribute so that a listing has one,
-// but a signature is not (E2).
+// but a signature is not (doc/design/flows.md, "A flow is a config entity").
 func FlowList(repo *cache.RepoCache) ([]FlowEntry, []string, error) {
 	entries := []FlowEntry{}
 	var warnings []string
@@ -88,7 +89,8 @@ func FlowExport(repo *cache.RepoCache, name string) (string, error) {
 	return FlowScript(excerpt)
 }
 
-// FlowExcerpt resolves a flow name to the entity it names (E7).
+// FlowExcerpt resolves a flow name to the entity it names
+// (doc/design/flows.md, "Two flows with one name").
 func FlowExcerpt(repo *cache.RepoCache, name string) (*cache.ConfigExcerpt, error) {
 	excerpt, err := repo.Flows().CurrentExcerpt(config.ShapeFlow, name)
 	if err != nil {
@@ -106,7 +108,8 @@ func FlowScript(excerpt *cache.ConfigExcerpt) (string, error) {
 	return script, nil
 }
 
-// FlowWarnings returns the flows a key silently resolves to one of (E7).
+// FlowWarnings returns the flows a key silently resolves to one of
+// (doc/design/flows.md, "Two flows with one name").
 //
 // Every flow command asks for them, because a team that loses an edit this way
 // is never told otherwise.
@@ -161,7 +164,8 @@ const (
 //
 // The origin is only ever a diagnostic — a path on the command line,
 // "standard input", or a position in a script's list —
-// because a flow's identity is the function's name and nothing else (E2),
+// because a flow's identity is the function's name and nothing else
+// (doc/design/flows.md, "Refs are the runtime truth; import is the way in"),
 // so the file a script arrived in is never stored.
 type FlowSource struct {
 	Origin string
@@ -181,7 +185,9 @@ type FlowChange struct {
 // FlowImport upserts every script it is given, keyed on the function's name.
 //
 // Both the changes and the ids created come back, because a dry run prints
-// the changes and a write prints the ids (cli-convention.md), and the changes
+// the changes and a write prints the ids
+// (doc/design/cli.md, "`--dry-run` prints what would be committed";
+// doc/design/cli.md, "Writers print ids"), and the changes
 // are the same list either way: what --dry-run showed is what the next call
 // commits.
 //
@@ -189,7 +195,8 @@ type FlowChange struct {
 // in it aborts the whole import rather than half-applying it. Past that point
 // an import that touches five flows is five commits — there is no atomic
 // multi-entity commit in this store — and the ids created before a failure
-// come back with the error, so that nothing written goes unreported (E9).
+// come back with the error, so that nothing written goes unreported
+// (doc/design/flows.md, "Refs are the runtime truth; import is the way in").
 func FlowImport(repo *cache.RepoCache, sources []FlowSource, prune bool, dryRun bool) ([]FlowChange, []entity.Id, error) {
 	parsed, err := parseFlowSources(sources)
 	if err != nil {
@@ -241,7 +248,8 @@ func FlowRm(repo *cache.RepoCache, name string) error {
 // or those of every flow when the name is empty.
 //
 // A flow is a config entity, so its history reads in the shape a schema's
-// does, the entity named and all: one reader, one shape (E9).
+// does, the entity named and all: one reader, one shape
+// (doc/design/cli.md, "`log` is one shape on every tree").
 func FlowLog(repo *cache.RepoCache, name string) ([]cmdjson.ConfigOperation, error) {
 	names := []string{name}
 	if name == "" {
@@ -421,6 +429,7 @@ func flowArchivedToo(repo *cache.RepoCache, name string) (*cache.ConfigCache, er
 	if len(matching) == 0 {
 		return nil, fmt.Errorf("no flow named %s", name)
 	}
-	// ordered by (key, creation, id), so the first is the one E7 resolves to
+	// ordered by (key, creation, id), so the first is the one a duplicate
+	// name resolves to (doc/design/flows.md, "Two flows with one name")
 	return repo.Flows().Resolve(matching[0].Id())
 }

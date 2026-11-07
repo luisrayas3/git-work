@@ -32,7 +32,7 @@ type IssueDocument struct {
 // An empty program is the default one,
 // so that `git work issue list` and `work.issue.list()` mean the same thing.
 // The input is the unarchived issues unless includeArchive brings the
-// archived back (doc/design/include-archive.md).
+// archived back (doc/design/query.md, "The input is the unarchived issues").
 func IssueList(repo *cache.RepoCache, program string, includeArchive bool) ([]any, error) {
 	return IssueListAt(repo, program, time.Time{}, includeArchive)
 }
@@ -52,7 +52,8 @@ func defaultProgram() string {
 //
 // It is the one home of that rule: every program — the list, the log's
 // PROGRAM form, a view's query, a layer's — reads its issues from here, so no
-// query has to remember a filter (doc/design/include-archive.md, I1).
+// query has to remember a filter
+// (doc/design/query.md, "The input is the unarchived issues").
 func IssueListInput(repo *cache.RepoCache, includeArchive bool) (any, error) {
 	excerpts, err := sortedExcerpts(repo)
 	if err != nil {
@@ -154,8 +155,9 @@ func IssueLog(repo *cache.RepoCache, id string) ([]cmdjson.IssueOperation, error
 // IssueDraft decodes the document `new` opens on and checks it as `issue new`
 // would, the title and the type excepted: a key that is not a field of its
 // type, or a value that does not fit its kind, is refused at the call,
-// before anything draws, as `children` and `expand` are (doc/design/create.md,
-// C1). A document with no type is not checked, since nothing can say which
+// before anything draws, as `children` and `expand` are
+// (doc/design/views.md, "`new` is a view kind"). A document with no type is
+// not checked, since nothing can say which
 // fields it has; Create checks the whole draft once it has one.
 func IssueDraft(repo *cache.RepoCache, raw json.RawMessage) (IssueDocument, error) {
 	var doc IssueDocument
@@ -319,9 +321,11 @@ func IssueCommentEdit(repo *cache.RepoCache, commentId string, body string) erro
 }
 
 // IssueCommentDelete deletes one comment, named by its own id
-// (comment-delete.md). It is replicated and final:
+// (doc/design/issue.md, "Delete hides, the history keeps"). It is
+// replicated and final:
 // the comment leaves every view, and its text stays in the issue's log.
-// The description, the first comment, is refused (CD4).
+// The description, the first comment, is refused
+// (doc/design/issue.md, "The description cannot be deleted").
 func IssueCommentDelete(repo *cache.RepoCache, commentId string) error {
 	i, target, err := repo.Issues().ResolveComment(commentId)
 	if err != nil {

@@ -13,7 +13,8 @@ import (
 	"github.com/git-bug/git-bug/view"
 )
 
-// SchemaDuplicates returns every key that resolves away from an entity (E7).
+// SchemaDuplicates returns every key that resolves away from an entity
+// (doc/design/schema.md, "Duplicate keys").
 //
 // It is empty in the ordinary case, and every schema caller prints what it
 // returns on stderr, because a key silently resolving to one of two entities
@@ -30,7 +31,8 @@ func SchemaDuplicates(repo *cache.RepoCache) []string {
 
 // SchemaRef names one schema entity, by key or by id, and the caller says
 // which: a key may be hexadecimal and an id prefix is,
-// so nothing is inferred from the spelling (schema-archive-id.md, A1).
+// so nothing is inferred from the spelling
+// (doc/design/schema.md, "Key or id, and the caller says which").
 // At most one of the two is set; neither is every entity, where that means
 // anything.
 type SchemaRef struct {
@@ -68,7 +70,8 @@ func (r SchemaRef) resolveOne(repo *cache.RepoCache) (*cache.ConfigCache, error)
 // and the warnings a reader should be shown about it.
 //
 // The warnings are the duplicate keys and then whatever compiling the schema
-// could not make sense of: a read never fails on what was written before (D6),
+// could not make sense of: a read never fails on what was written before
+// (doc/design/schema.md, "Structural rules are frozen"),
 // so a dangling target type is said out loud and nothing more.
 // They come back rather than reaching stderr here,
 // because a script's diagnostics and a command's go to different places.
@@ -85,7 +88,8 @@ func SchemaExport(repo *cache.RepoCache) (*schema.Document, []string, error) {
 }
 
 // SchemaValue is the live schema as a jq program reads it, `$schema`
-// (doc/design/schema-in-jq.md, J1): the document SchemaExport returns, in
+// (doc/design/query.md, "`$schema` is bound on every run"): the document
+// SchemaExport returns, in
 // the shape `git work schema export --format json` prints.
 //
 // It is the schema now, under `--at` too: the schema has no history to replay.
@@ -113,11 +117,14 @@ func SchemaValue(repo *cache.RepoCache) (any, error) {
 // says what differs, and dryRun stops there: the changes are what `--dry-run`
 // prints and what the same call commits a moment later.
 // Both are returned — the changes, and the ids of the entities created —
-// because a writer prints ids and a dry run prints changes (cli-convention.md).
+// because a writer prints ids and a dry run prints changes
+// (doc/design/cli.md, "Writers print ids";
+// doc/design/cli.md, "`--dry-run` prints what would be committed").
 //
 // An import that touches five entities is five commits: there is no atomic
 // multi-entity commit in this store, and there does not need to be, because
-// each entity is valid on its own at every step (E9).
+// each entity is valid on its own at every step
+// (doc/design/schema.md, "One commit per entity").
 // A failure part of the way through returns the ids already created with the
 // error, so that nothing that was written goes unreported.
 func SchemaImport(repo *cache.RepoCache, doc *schema.Document, prune bool, dryRun bool) ([]schema.Change, []entity.Id, error) {
@@ -158,7 +165,8 @@ func SchemaImport(repo *cache.RepoCache, doc *schema.Document, prune bool, dryRu
 // checkTypeShows checks every type's `show` the document states as a view's
 // `shows` entry is checked, against the schema the import would leave, so
 // that a spec naming a field the same file adds is fine and one naming a
-// field nobody has is refused before anything is written (app.md A7).
+// field nobody has is refused before anything is written
+// (doc/design/views.md, "A spec is checked as show's call is").
 func checkTypeShows(doc *schema.Document, after *schema.Schema) error {
 	problems := &schema.Problems{}
 	add := func(format string, args ...any) {

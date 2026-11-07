@@ -24,7 +24,7 @@ var _ Excerpt = &IssueExcerpt{}
 // and it is small, because long text lives in comments.
 //
 // Description is the one long text it does carry, comment 0's,
-// so that search reads no entity (doc/design/app.md, A9).
+// so that search reads no entity (doc/design/query.md, "Search scans the excerpts").
 // A few thousand descriptions of a few KB each is a few MB,
 // and the excerpt is rebuilt whenever its issue changes, an edit of comment 0
 // included, so there is no second structure to keep coherent.

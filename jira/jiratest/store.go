@@ -150,9 +150,11 @@ type propVersion struct {
 	tick  int
 }
 
-// indexProps records rec's properties for search, which sees them through
-// the same lag as fields: entity properties are indexed like fields, and
-// nothing vetted says they reach the index sooner (I4 relies on this).
+// indexProps records rec's properties for search, which sees them through the
+// same lag as fields: entity properties are indexed like fields, and nothing
+// vetted says they reach the index sooner
+// (doc/design/jira.md, "The database decides; the index only finds" relies on
+// this).
 func (s *Server) indexProps(rec *record) {
 	rec.propLog = append(rec.propLog, propVersion{maps.Clone(rec.props), s.clock(), s.tick})
 }

@@ -47,7 +47,8 @@ func (c *RepoCache) Keyring() repository.Keyring {
 }
 
 // Credential asks git's credential helpers for the secret of username at url,
-// through the git CLI the repository is wrapped with (jira-sync.md, JS3).
+// through the git CLI the repository is wrapped with
+// (doc/design/jira.md, "Binding and credentials").
 //
 // Without git on PATH the repository is go-git's alone, which has no
 // credential helpers: that is an error, not an empty secret.
@@ -177,9 +178,10 @@ func (c *RepoCache) RemoveAll() error {
 func (c *RepoCache) MergeAll(remote string) <-chan entity.MergeResult {
 	out := make(chan entity.MergeResult)
 
-	// The merge tiers, in dependency order (E1): identities, then the schema,
+	// The merge tiers, in dependency order: identities, then the schema,
 	// then the issues, then the flows.
-	// An issue merge does not consult the schema (D6),
+	// An issue merge does not consult the schema
+	// (doc/design/schema.md, "Validate on write, lenient on read"),
 	// so the schema going first costs nothing and keeps the door open;
 	// a flow names fields, so it goes last.
 	dependency := [][]cacheMgmt{

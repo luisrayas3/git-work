@@ -11,9 +11,11 @@ import (
 )
 
 // Compile turns the aliases of a loaded schema into a Mapping against one
-// project (JS2, JS7). It refuses when no type is mapped yet (the first
-// mapping is reviewed, JS5), when the mapped types are another project's,
-// and when two entities carry one alias (JS25). Aliases Jira no longer
+// project (doc/design/jira.md, "The mapping is aliases on the schema";
+// doc/design/jira.md, "What maps"). It refuses when no type is mapped yet
+// (doc/design/jira.md, "The first mapping is reviewed"), when the mapped types
+// are another project's, and when two entities carry one alias
+// (doc/design/jira.md, "Duplicate aliases are refused"). Aliases Jira no longer
 // has, or that name something of the wrong kind, are notes, never errors.
 func Compile(s *schema.Schema, p *Project) (*Mapping, []Note, error) {
 	var notes []Note
@@ -83,7 +85,8 @@ func Compile(s *schema.Schema, p *Project) (*Mapping, []Note, error) {
 				a := v.Aliases[system]
 				if a == "" {
 					if _, stated := v.Aliases[system]; stated {
-						// Derive excluded the Jira value by name (JS6), so fromIssue knows it by name too
+						// Derive excluded the Jira value by name (matching), so
+						// fromIssue knows it by name too
 						fm.excluded[normName(v.Id)], fm.excluded[normName(v.Name)] = true, true
 					}
 					continue
@@ -114,7 +117,7 @@ func Compile(s *schema.Schema, p *Project) (*Mapping, []Note, error) {
 	}
 	if len(dups) > 0 {
 		sort.Strings(dups)
-		return nil, notes, fmt.Errorf("the mapping is ambiguous (JS25): %s; state one alias per Jira id and import again",
+		return nil, notes, fmt.Errorf("the mapping is ambiguous: %s; state one alias per Jira id and import again",
 			strings.Join(dups, "; "))
 	}
 	m.request = sorted.Keys(request)
@@ -122,7 +125,8 @@ func Compile(s *schema.Schema, p *Project) (*Mapping, []Note, error) {
 }
 
 // Mapped refuses a schema with no type mapped yet: the first mapping is
-// reviewed, never derived and imported by a sync (JS5).
+// reviewed, never derived and imported by a sync
+// (doc/design/jira.md, "The first mapping is reviewed").
 func Mapped(s *schema.Schema) error {
 	for _, t := range s.Types {
 		if t.Aliases[system] != "" {
@@ -133,14 +137,15 @@ func Mapped(s *schema.Schema) error {
 		"  git work jira schema > jira.yaml\n  $EDITOR jira.yaml\n  git work schema import jira.yaml --dry-run\n  git work schema import jira.yaml")
 }
 
-// fixedKinds is JS7's table: the kind each fixed Jira field maps to.
+// fixedKinds is the fixed table (doc/design/jira.md, "What maps"): the kind
+// each fixed Jira field maps to.
 var fixedKinds = map[string]schema.Kind{
 	refStatus: schema.KindEnum, refPriority: schema.KindOrdinalEnum, refAssignee: schema.KindIdentity,
 	refLabels: schema.KindMultiEnum, refDue: schema.KindDate, refParent: schema.KindRelation,
 }
 
-// compileField checks one aliased field against the project and JS7's
-// kinds; a problem is why it is not mapped.
+// compileField checks one aliased field against the project and the fixed
+// kinds (doc/design/jira.md, "What maps"); a problem is why it is not mapped.
 func compileField(f *schema.Field, ref string, p *Project, points string) (*fieldMap, string) {
 	fm := &fieldMap{key: f.Key, ref: ref, kind: f.Kind, field: f,
 		toJira: map[string]string{}, fromJira: map[string]string{}, excluded: map[string]bool{}}

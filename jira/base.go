@@ -25,7 +25,8 @@ const (
 	GoneMoved   = "moved"
 )
 
-// Base is what both sides held after the last sync (JS8), in local terms.
+// Base is what both sides held after the last sync, in local terms
+// (doc/design/jira.md, "The base is a marker on the issue").
 type Base struct {
 	V        int                    `json:"v"`
 	Id       string                 `json:"id"`
@@ -37,17 +38,19 @@ type Base struct {
 	Gone     string                 `json:"gone,omitempty"`
 	// Sent is each key written and not yet seen in a GET, as its form (a
 	// comment's key is comment:<Jira id>, its value the text's digest);
-	// Wrote is Jira's clock just before the last of those writes (I2).
+	// Wrote is Jira's clock just before the last of those writes
+	// (doc/design/jira.md, "The base is what Jira was seen to hold").
 	Sent  map[string]issue.Value `json:"sent,omitempty"`
 	Wrote time.Time              `json:"wrote,omitzero"`
-	// Fresh is a create not merged yet: a key with no base takes JS15's
-	// create rule on the first GET.
+	// Fresh is a create not merged yet: a key with no base takes the create
+	// base's rule on the first GET (doc/design/jira.md, "Creates to Jira").
 	Fresh bool `json:"fresh,omitempty"`
 }
 
 // unknownBase is the base of a key whose write Jira answered and then does
 // not show: it equals neither side, so the merge takes Jira's value with a
-// conflict note (I2). unknownComment is the same for a comment's digest.
+// conflict note (doc/design/jira.md, "The base is what Jira was seen to hold").
+// unknownComment is the same for a comment's digest.
 var unknownBase = issue.Value(`{"jira-sync":"unconfirmed"}`)
 
 const unknownComment = "unconfirmed"
@@ -74,8 +77,9 @@ func (b *Base) marshal() string {
 
 // equal reports whether recording o over b would say nothing new. Updated
 // alone is not news: Jira bumps it for what the mapping does not cover, and
-// for a link's other end, and a marker for it would be a commit per bump
-// (E1); the cost is a GET while the overlap re-returns the issue.
+// for a link's other end, and a marker for it would be a commit per bump;
+// the cost is a GET while the overlap re-returns the issue
+// (doc/design/jira.md, "The base is a marker on the issue").
 func (b *Base) equal(o *Base) bool {
 	if b == nil || o == nil {
 		return b == o
@@ -105,9 +109,10 @@ func (b *Base) young(now time.Time, window time.Duration) bool {
 	return b.Fresh && now.Sub(b.Wrote) < window
 }
 
-// fresh is JS15's create base, for the keys a create's marker leaves
-// without one: local's when local holds nothing, so a Jira default imports;
-// Jira's otherwise, so the local value is written now.
+// fresh is the create base (doc/design/jira.md, "Creates to Jira"), for the
+// keys a create's marker leaves without one: local's when local holds nothing,
+// so a Jira default imports; Jira's otherwise, so the local value is written
+// now.
 func (b *Base) fresh(local, remote Doc) {
 	for k, rv := range remote.Fields {
 		_, based := b.Fields[k]
@@ -124,17 +129,18 @@ func (b *Base) fresh(local, remote Doc) {
 }
 
 // confirm resolves each key of b.Sent against the GET r, before a merge
-// (I2). Jira showing the value written confirms it: that is its base. A GET
-// older than the write (r.Updated before b.Wrote), within window of Jira's
-// clock, may be stale: the key is a Skip{Retry}, so the merge neither
-// imports, exports nor re-bases it. Otherwise Jira holds something else.
-// For a key of echo, written this run and r the GET that follows the write
-// and shows it landed, that is Jira's normal form of ours: the base is the
-// value written, so it imports as an ordinary change. For any other, it
-// may as well be a later Jira edit, or ours normalised back to the old
-// value: the base is unknownBase, and Jira's value imports with a note. A
-// set keeps its base in every case, JS10 deciding: Sent only holds it back
-// from a stale GET.
+// (doc/design/jira.md, "The base is what Jira was seen to hold"). Jira showing
+// the value written confirms it: that is its base. A GET older than the write
+// (r.Updated before b.Wrote), within window of Jira's clock, may be stale: the
+// key is a Skip{Retry}, so the merge neither imports, exports nor re-bases it.
+// Otherwise Jira holds something else. For a key of echo, written this run and
+// r the GET that follows the write and shows it landed, that is Jira's normal
+// form of ours: the base is the value written, so it imports as an ordinary
+// change. For any other, it may as well be a later Jira edit, or ours
+// normalised back to the old value: the base is unknownBase, and Jira's value
+// imports with a note. A set keeps its base in every case, the set merge
+// deciding (doc/design/jira.md, "Sets merge item-wise"): Sent only holds it
+// back from a stale GET.
 func confirm(b *Base, r Doc, multi func(string) bool, echo map[string]bool, now time.Time, window time.Duration) []Skip {
 	landed := !r.Updated.Before(b.Wrote)
 	stale := !landed && now.Sub(b.Wrote) < window
@@ -165,7 +171,7 @@ func confirm(b *Base, r Doc, multi func(string) bool, echo map[string]bool, now 
 			m := multi != nil && multi(k)
 			held = same(canonical(form(k, r.Fields[k]), m), canonical(sent, m))
 			switch {
-			case m: // the base stays: against it JS10 reaches the merged set on both sides
+			case m: // the base stays: against it the set merge reaches the merged set on both sides
 			case held, landed && echo[k]:
 				based = sent
 			case !stale:
@@ -189,7 +195,8 @@ func confirm(b *Base, r Doc, multi func(string) bool, echo map[string]bool, now 
 }
 
 // CurrentBase is the base of a linked issue: the marker with the greatest
-// Updated, ties to the later in compiled order (JS8). It is nil when the
+// Updated, ties to the later in compiled order
+// (doc/design/jira.md, "The base is a marker on the issue"). It is nil when the
 // issue has no jira-id; a linked issue with no marker has an empty base, so
 // every key is a missing base. Undecodable markers are skipped and reported.
 func CurrentBase(snap *issue.Snapshot) (*Base, []string) {
@@ -223,8 +230,10 @@ func CurrentBase(snap *issue.Snapshot) (*Base, []string) {
 	return cur, problems
 }
 
-// digest is the one text comparison (JS11). The normalisation is the one
-// TextToADF preserves, so two texts Jira cannot tell apart share a digest.
+// digest is the one text comparison
+// (doc/design/jira.md, "Texts merge by digest"). The normalisation is the
+// one TextToADF preserves, so two texts Jira cannot tell apart share a
+// digest.
 func digest(text string) string {
 	sum := sha256.Sum256([]byte("v1\n" + jiraapi.NormalizeText(text)))
 	return "v1:" + hex.EncodeToString(sum[:])

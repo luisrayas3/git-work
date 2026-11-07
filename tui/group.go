@@ -10,8 +10,8 @@ import (
 )
 
 // A grabbed row carried past the edge of its group enters the next one, and
-// the drop writes the `group_by` field (2026-10-02,
-// doc/design/terminal-renderer.md, Rank).
+// the drop writes the `group_by` field (doc/design/tui.md, "Carried past its
+// group, a row enters the next").
 //
 // It is the board's rule, which the board has had since `0740bf3`: a card
 // carried into another column is dropped there, and the drop sets the field
@@ -80,15 +80,15 @@ func (k *kinds) groupLabel(typeKey, groupBy string, fields map[string]any) strin
 }
 
 // Groups are ordered by the natural order of the value they stand for, never
-// by where the query first put a row in them (E4, doc/design/empty-groups.md):
-// an enum in schema order, a bool false then true, a relation by the issue it
-// names in (rank, id), a number or a date ascending, anything else by the
-// label it draws, and (none) last, because the issues nobody has filed under
-// the grouping field yet are what a session works through. The order the
-// groups first appear in only breaks a tie — two unranked issues, two values
-// the schema does not list — so a group's place does not depend on the
+// by where the query first put a row in them (doc/design/views.md, "Group
+// order"): an enum in schema order, a bool false then true, a relation by the
+// issue it names in (rank, id), a number or a date ascending, anything else
+// by the label it draws, and (none) last, because the issues nobody has filed
+// under the grouping field yet are what a session works through. The order
+// the groups first appear in only breaks a tie — two unranked issues, two
+// values the schema does not list — so a group's place does not depend on the
 // query and is still stable across a refresh. It is one rule for the list,
-// the gantt, the board and the matrix (Q2).
+// the gantt, the board and the matrix.
 
 // groupSort is where one group goes among the others, compared by lessGroup.
 type groupSort struct {
@@ -130,7 +130,7 @@ func lessGroup(left, right groupSort) bool {
 }
 
 // sortGroups orders groups, given in the order they first appear, by the
-// values they stand for (E4).
+// values they stand for (doc/design/views.md, "Group order").
 func sortGroups[T any](groups []T, sortOf func(T) groupSort) {
 	sort.SliceStable(groups, func(i, j int) bool {
 		return lessGroup(sortOf(groups[i]), sortOf(groups[j]))
@@ -264,8 +264,8 @@ func (o *groupOrder) rankOf(id string) string {
 }
 
 // placeGroups gives every grouped row of a list or a gantt its group's place
-// (E4), each layer's `group_by` ordered over the types of the rows that
-// layer draws.
+// (doc/design/views.md, "Group order"), each layer's `group_by` ordered over
+// the types of the rows that layer draws.
 func placeGroups(repo *cache.RepoCache, nodes []treeRow, groupByAt func(level int) string,
 	rowAt func(index int) (typeKey string, fields map[string]any)) {
 	drawn := map[string]map[string]bool{}

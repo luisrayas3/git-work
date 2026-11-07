@@ -11,7 +11,8 @@ import (
 	"github.com/git-bug/git-bug/repository"
 )
 
-// configMaxLoaded is unbounded on purpose (E8):
+// configMaxLoaded is unbounded on purpose
+// (doc/design/schema.md, "Compiled on demand"):
 // a schema is a few dozen small entities,
 // and evicting one only to read it back on the next lookup buys nothing.
 const configMaxLoaded = math.MaxInt32
@@ -102,7 +103,8 @@ func (c *RepoCacheConfig) Query(q ConfigQuery) []*ConfigExcerpt {
 }
 
 // candidates returns the unarchived entities of a shape and key,
-// oldest first, which is the order E7 resolves a duplicate by.
+// oldest first, which is the order a duplicate is resolved by
+// (doc/design/schema.md, "Duplicate keys").
 func (c *RepoCacheConfig) candidates(shape config.Shape, key string) []*ConfigExcerpt {
 	matching := c.Query(ConfigQuery{Shape: shape, Key: key})
 	sort.Sort(ConfigsByCreation(matching))
@@ -112,7 +114,8 @@ func (c *RepoCacheConfig) candidates(shape config.Shape, key string) []*ConfigEx
 // CurrentExcerpt returns the excerpt of the entity that a shape and key resolve to.
 //
 // Two clones creating the same key before either pushes
-// produce two entities with the same shape and key (E7).
+// produce two entities with the same shape and key
+// (doc/design/schema.md, "Duplicate keys").
 // The one with the lowest creation lamport time wins,
 // ties by lowest id, from the excerpts alone —
 // deterministic on every clone, and repairable,
@@ -125,7 +128,8 @@ func (c *RepoCacheConfig) CurrentExcerpt(shape config.Shape, key string) (*Confi
 	return candidates[0], nil
 }
 
-// Current returns the entity that a shape and key resolve to (E7).
+// Current returns the entity that a shape and key resolve to
+// (doc/design/schema.md, "Duplicate keys").
 func (c *RepoCacheConfig) Current(shape config.Shape, key string) (*ConfigCache, error) {
 	excerpt, err := c.CurrentExcerpt(shape, key)
 	if err != nil {

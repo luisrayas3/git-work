@@ -11,7 +11,7 @@ import (
 
 // The command trees share these because the convention is shared:
 // one --format flag, one way to say "-", one way to print a warning
-// (doc/design/cli-convention.md). A copy per tree is how two trees end up
+// (doc/design/cli.md). A copy per tree is how two trees end up
 // spelling the same rule two ways, which is what a user then has to learn.
 
 // AddFormatFlag adds the one output flag every reader has.

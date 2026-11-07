@@ -14,7 +14,8 @@ var _ Operation = &SetOperation{}
 //
 // Concurrent sets of the same attribute resolve last-writer-wins
 // in the dag's deterministic order, lamport edit time then pack id,
-// which is where the CRDT comes from: no code of ours decides it (E2).
+// which is where the CRDT comes from: no code of ours decides it
+// (doc/design/schema.md, "Four generic operations").
 // A set- or map-valued attribute is one attribute per member,
 // `values/<id>`, so two people adding two members both keep theirs.
 type SetOperation struct {

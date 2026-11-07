@@ -46,7 +46,8 @@ func TestDeleteCommentHides(t *testing.T) {
 
 	snap := i.Compile()
 	require.Equal(t, []string{"the description", "kept"}, messages(snap))
-	// the timeline and the operations are left alone (CD2)
+	// the timeline and the operations are left alone
+	// (doc/design/issue.md, "Delete hides, the history keeps")
 	require.Len(t, snap.Timeline, timeline)
 	require.Equal(t, DeleteCommentOp, snap.Operations[len(snap.Operations)-1].Type())
 	require.Equal(t, "delete-comment", OperationTypeName(DeleteCommentOp))
@@ -61,7 +62,8 @@ func TestDeleteCommentOfTheDescriptionIsIgnored(t *testing.T) {
 	require.Equal(t, []string{"the description", "kept", "on the wrong issue"}, messages(i.Compile()))
 }
 
-// An edit and a delete of one comment end deleted in either order (CD3).
+// An edit and a delete of one comment end deleted in either order
+// (doc/design/issue.md, "Delete is final").
 func TestDeleteCommentWinsOverEdit(t *testing.T) {
 	for _, editFirst := range []bool{true, false} {
 		i, rene, add := deleteTestIssue(t)
@@ -105,7 +107,8 @@ func TestDeleteCommentSerialize(t *testing.T) {
 }
 
 // An older build reads type 12 as an unknown operation,
-// which applies as a no-op: the comment still shows there (CD8).
+// which applies as a no-op: the comment still shows there
+// (doc/design/issue.md, "Older binaries ignore a delete").
 func TestDeleteCommentAsUnknownIsANoOp(t *testing.T) {
 	i, rene, add := deleteTestIssue(t)
 

@@ -14,15 +14,15 @@ import (
 // The drop's arithmetic, shared by the three kinds that drag a row:
 // the list, the board and the gantt.
 //
-// A rank is null until a drop writes one (`configurable-schema.md` D8) and
-// null sorts after every key, so on a store nobody has ranked — which is
-// every store until somebody drags something — the issue dropped first would
-// become the only ranked issue in its scope and jump to the top of it,
-// whatever position it was dropped at. So a drop that writes a rank first
-// gives one to every row drawn **above** the drop point in the same ordering
-// scope that has none, in the order they are drawn, and only then computes
-// the dropped row's own key between its neighbours: after the drop the screen
-// reads exactly as it did, plus the move.
+// A rank is null until a drop writes one (doc/design/issue.md, "Rank starts
+// null") and null sorts after every key, so on a store nobody has ranked —
+// which is every store until somebody drags something — the issue dropped
+// first would become the only ranked issue in its scope and jump to the top
+// of it, whatever position it was dropped at. So a drop that writes a rank
+// first gives one to every row drawn **above** the drop point in the same
+// ordering scope that has none, in the order they are drawn, and only then
+// computes the dropped row's own key between its neighbours: after the drop
+// the screen reads exactly as it did, plus the move.
 //
 // Rows below the drop point keep no rank. They already sort after everything
 // ranked, in the query's own order, which is where they are drawn.

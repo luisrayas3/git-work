@@ -27,7 +27,8 @@ import (
 // between them both — and moving it up or down changes its rank. With
 // `expand` bound the rows are a tree, rows under rows, and a parent with
 // no dates of its own draws the envelope of its children's
-// (doc/design/terminal-renderer.md, Gantt and Nesting).
+// (doc/design/views.md, "A bar is moved, not edited"; doc/design/views.md,
+// "A parent draws its children's envelope").
 type ganttPage struct {
 	repo *cache.RepoCache
 
@@ -46,7 +47,7 @@ type ganttPage struct {
 	// call's own group_by (nest.go).
 	nest *nesting
 	// draft is the call's `draft`, what every ghost's draft starts from
-	// (create.md C9)
+	// (doc/design/views.md, "`draft` on a view")
 	draft host.IssueDocument
 
 	items []map[string]any
@@ -54,10 +55,12 @@ type ganttPage struct {
 	// is remembered is what was opened.
 	open map[string]bool
 	// opening is the call's `open`, levels to unfold the first tree to, -1
-	// for every one; it is spent on the first build (R4).
+	// for every one; it is spent on the first build (doc/design/query.md,
+	// "`open` unfolds the tree").
 	opening int
 	// kept is the order the person dragged keyed rows into, by key, which
-	// this view holds until it is quit and never writes (keep.go, R5).
+	// this view holds until it is quit and never writes (keep.go;
+	// doc/design/query.md, "A keyed row reorders for the view only").
 	kept map[string]int
 	// refused is what checkLevels said of the last tree built, which load
 	// returns: a tree the view cannot draw is refused, as a repeated key is.
@@ -99,7 +102,8 @@ type ganttPage struct {
 }
 
 // bar is one row on the chart: key is its identity on the screen, id the
-// issue it acts on, "" where it stands for none (doc/design/query-rows.md).
+// issue it acts on, "" where it stands for none (doc/design/query.md, "A
+// row's key").
 type bar struct {
 	key     string
 	id      string
@@ -232,7 +236,8 @@ func (p *ganttPage) rebuild() {
 	}
 	build()
 	if p.opening != 0 {
-		// the call's `open`, on the first tree only (R4)
+		// the call's `open`, on the first tree only (doc/design/query.md,
+		// "`open` unfolds the tree")
 		openTo(p.nodes, p.opening, p.open)
 		p.opening = 0
 		build()
@@ -678,7 +683,7 @@ func (p *ganttPage) count() int {
 
 // addGhosts puts a ghost at the foot of every scope, as the list does:
 // each group of the roots, and each group of every opened parent's children
-// (ghost.go, create.md C8).
+// (ghost.go; doc/design/views.md, "One ghost per scope").
 func (p *ganttPage) addGhosts() {
 	ghosts := treeGhosts(p.repo, p.nodes, p.nest, p.draft, func(index int) scopeRow {
 		b := &p.bars[index]
@@ -711,8 +716,9 @@ func (p *ganttPage) Update(msg tea.Msg) (page, tea.Cmd) {
 
 	case createdMsg:
 		// a draft opened from here was created: a relation stored on the
-		// parent is written first (C8), then the issue appears where the
-		// ghost stood, the cursor on it (doc/design/create.md, C4), or is
+		// parent is written first (doc/design/views.md, "A relation stored on
+		// the parent"), then the issue appears where the ghost stood, the
+		// cursor on it (doc/design/views.md, "What Create does next"), or is
 		// named when the query does not keep it
 		failed := linkCreated(p.repo, msg)
 		if err := p.load(); err != nil {
@@ -811,7 +817,8 @@ func (p *ganttPage) key(press tea.KeyPressMsg) (page, tea.Cmd) {
 				return p, openNewAt(p.repo, p.call.Raw("shows"), b.place)
 			}
 			if b.id == "" {
-				// a row that stands for no issue has nothing to open (R2)
+				// a row that stands for no issue has nothing to open
+				// (doc/design/query.md, "A row that stands for no issue")
 				return p, bell()
 			}
 			return p, p.push(b.id)
@@ -972,7 +979,8 @@ func (p *ganttPage) updateFilter(msg tea.Msg) (page, tea.Cmd) {
 
 // startGrab picks the bar under the cursor up. It needs no binding at all:
 // moving a bar along the chart is the gantt's reason to exist, and the order
-// up and down writes is the built-in rank every type has (D8).
+// up and down writes is the built-in rank every type has (doc/design/tui.md,
+// "Every order is the built-in rank").
 func (p *ganttPage) startGrab() (page, tea.Cmd) {
 	if p.current() == nil {
 		return p, nil
@@ -1035,7 +1043,8 @@ func (p *ganttPage) dragBy(by int) tea.Cmd {
 	b := &p.bars[p.grabbed]
 	if p.nodes[p.grabbed].keyed() {
 		// a share of an issue moved to another group would write the
-		// issue's field, which is not what moving a share means (R5)
+		// issue's field, which is not what moving a share means
+		// (doc/design/query.md, "A keyed row reorders for the view only")
 		p.status = "stays in its group"
 		return bell()
 	}
@@ -1064,7 +1073,8 @@ func (p *ganttPage) dragAlong(by int) tea.Cmd {
 		return bell()
 	}
 	if b.id == "" {
-		// its dates are the query's, and no issue's to write (R2)
+		// its dates are the query's, and no issue's to write
+		// (doc/design/query.md, "A row that stands for no issue")
 		p.status = "no issue: dates not movable"
 		return bell()
 	}
@@ -1145,7 +1155,8 @@ func (p *ganttPage) drop() tea.Cmd {
 	reordered := p.cursor != p.grabFrom.cursor || into != nil
 	if reordered && keyed {
 		// a keyed row's place is the view's to hold, never the issue's
-		// rank to write (R5)
+		// rank to write (doc/design/query.md, "A keyed row reorders for the
+		// view only")
 		keepOrder(p.nodes, p.order, p.cursor, p.kept)
 		if len(fields) == 0 {
 			said = keptSaid

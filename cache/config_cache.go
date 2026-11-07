@@ -16,7 +16,8 @@ import (
 // Attribute values are accepted as the entity accepts them, by shape.
 // What an attribute means for a shape — the field kinds, the categories,
 // a flow's script being one Starlark function — is the schema layer's,
-// on the write path above this one, never in the entity (E6).
+// on the write path above this one, never in the entity
+// (doc/design/schema.md, "Structural rules are frozen").
 type ConfigCache struct {
 	CachedEntityBase[*config.Snapshot, config.Operation]
 }
@@ -87,7 +88,8 @@ func (c *ConfigCache) RemoveRaw(author identity.Interface, unixTime int64, name 
 	return op, c.notifyUpdated()
 }
 
-// SetArchived archives or unarchives the entity, which is the replicated removal (E7).
+// SetArchived archives or unarchives the entity, which is the replicated removal
+// (doc/design/schema.md, "Archive and rm").
 func (c *ConfigCache) SetArchived(archived bool) (*config.SetArchivedOperation, error) {
 	author, err := c.getUserIdentity()
 	if err != nil {
@@ -111,7 +113,8 @@ func (c *ConfigCache) SetArchivedRaw(author identity.Interface, unixTime int64, 
 // This is the shape `schema import` and the Jira sync write through:
 // a renumbered list of enum values, or a whole field reconciled,
 // is many operations that must land together or not at all,
-// and inside one entity the dag gives exactly that (E5).
+// and inside one entity the dag gives exactly that
+// (doc/design/schema.md, "Order is an ordinal").
 // Commit takes the store's write lock and re-reads the entity first,
 // so what is appended here is rebased onto the current tip
 // instead of erasing whoever moved it (2a51f66).

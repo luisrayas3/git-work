@@ -49,7 +49,8 @@ func run(stack *root, spelling string) tea.Msg {
 
 // TestHelpIsTheKeymap: one table, generated from the keymap, each action
 // with its keys and its letter on the palette; vim's letters are gone, and a
-// stray key keeps it open (app.md, A3, A4).
+// stray key keeps it open (doc/design/tui.md, "The help is the keymap";
+// doc/design/tui.md, "One keymap").
 func TestHelpIsTheKeymap(t *testing.T) {
 	repo := testRepo(t)
 	newIssue(t, repo, map[string]any{"title": "one"})
@@ -90,7 +91,8 @@ func TestHelpIsTheKeymap(t *testing.T) {
 }
 
 // TestVimLettersAreText: hjkl, g, G, y, p and q no longer move, copy, paste
-// or quit; on a list a letter starts the filter with itself (A3).
+// or quit; on a list a letter starts the filter with itself
+// (doc/design/tui.md, "One keymap"; doc/design/tui.md, "Typing filters").
 func TestVimLettersAreText(t *testing.T) {
 	repo := testRepo(t)
 	newIssue(t, repo, map[string]any{"title": "jam"})
@@ -133,7 +135,8 @@ func TestABoardAndAGanttFilterAsTyped(t *testing.T) {
 
 // TestEscOpensThePalette: where you are, the whole call, this page's
 // commands and everywhere's, each with its letter, in a box in the middle of
-// the page; the page keeps its first lines and its height (A1, 2026-10-29).
+// the page; the page keeps its first lines and its height
+// (doc/design/tui.md, "The palette is a box over the page").
 func TestEscOpensThePalette(t *testing.T) {
 	repo := testRepo(t)
 	newIssue(t, repo, map[string]any{"title": "one"})
@@ -176,7 +179,8 @@ func TestEscOpensThePalette(t *testing.T) {
 }
 
 // TestTheSecondEscIsBack: from the first page it quits; from a page over
-// another it is that page's back, the palette closed (A1).
+// another it is that page's back, the palette closed (doc/design/tui.md,
+// "Back is two presses").
 func TestTheSecondEscIsBack(t *testing.T) {
 	repo := testRepo(t)
 	id := newIssue(t, repo, map[string]any{"title": "one"})
@@ -202,7 +206,8 @@ func TestTheSecondEscIsBack(t *testing.T) {
 }
 
 // TestAPaletteLetterIsItsAltKey: a letter on the palette is the page's alt
-// key, so esc then w and alt+w copy the same cell (A2).
+// key, so esc then w and alt+w copy the same cell (doc/design/tui.md, "Keys
+// on the palette").
 func TestAPaletteLetterIsItsAltKey(t *testing.T) {
 	repo := testRepo(t)
 	id := newIssue(t, repo, map[string]any{"title": "one", "status": "to-do"})
@@ -279,7 +284,8 @@ func TestNewFromThePalette(t *testing.T) {
 }
 
 // TestEscWhileEditingCancelsOnly: an open editor, a filter being typed and
-// the help each take esc for their own, and the palette stays shut (A1).
+// the help each take esc for their own, and the palette stays shut
+// (doc/design/tui.md, "Back is two presses").
 func TestEscWhileEditingCancelsOnly(t *testing.T) {
 	repo := testRepo(t)
 	newIssue(t, repo, map[string]any{"title": "one", "status": "to-do"})
@@ -339,7 +345,8 @@ func TestThePaletteCutsALongQuery(t *testing.T) {
 
 // TestEditTheQuery: esc j opens the query in the palette, enter draws the
 // page from what was typed, a query that does not draw keeps the editor and
-// says why, and esc J puts back the call's own (A10).
+// says why, and esc J puts back the call's own (doc/design/tui.md, "Editing
+// the query").
 func TestEditTheQuery(t *testing.T) {
 	repo := testRepo(t)
 	newIssue(t, repo, map[string]any{"title": "one"})

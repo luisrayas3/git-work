@@ -73,7 +73,8 @@ func defaultConfig() config {
 
 // WithCommentProperties sets whether GET …/comment?expand=properties returns
 // the properties a comment was created with. jira-api.md documents the field on
-// Comment but not the expand on the list (JS12); default true.
+// Comment but not the expand on the list
+// (doc/design/jira.md, "One fake over HTTP"); default true.
 func WithCommentProperties(b bool) Option { return func(c *config) { c.commentProperties = b } }
 
 // WithSite seeds the fake with site instead of CompanySite.
@@ -100,7 +101,8 @@ func WithIndexLag(searches int, d time.Duration) Option {
 }
 
 // WithStaleReads makes GET /issue read the lagging index too, for tests of
-// a client that must not trust read-after-write (design-sync Risks).
+// a client that must not trust read-after-write
+// (doc/design/jira.md, "One fake over HTTP").
 func WithStaleReads() Option { return func(c *config) { c.staleReads = true } }
 
 // WithSearchPageCap caps a search page below the requested maxResults
@@ -151,7 +153,9 @@ func WithDenied(ops ...string) Option {
 // WithLooseHierarchy accepts any parent in the same project, whatever the
 // types' declared hierarchy levels: a site whose data disagrees with its
 // hierarchy, as one site's Tasks with an Epic parent under a Task declared a
-// sub-task type (pull-schema-check.md). Off by default.
+// sub-task type
+// (doc/design/jira.md, "A pull is checked for shape, not policy"). Off by
+// default.
 func WithLooseHierarchy() Option { return func(c *config) { c.looseHierarchy = true } }
 
 // WithSeed seeds the fake's pseudo-randomness (shuffles, omitted fieldIds).

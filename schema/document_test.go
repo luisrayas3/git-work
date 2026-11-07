@@ -137,7 +137,8 @@ types:
 
 // TestRankIsTheBuiltinsKindAlone: the order is internal, so kind rank is the
 // built-in rank's and no other field's; an override of the built-in still
-// writes it, and a field of a type's own is refused, saying why (D9).
+// writes it, and a field of a type's own is refused, saying why
+// (doc/design/schema.md, "Rank's kind is the built-in's alone").
 func TestRankIsTheBuiltinsKindAlone(t *testing.T) {
 	doc, err := ParseDocument([]byte(`
 types:

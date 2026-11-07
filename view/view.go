@@ -1,7 +1,8 @@
 // Package view is the argument table of every view kind, and the seam a
 // renderer plugs into.
 //
-// A view is a module, not a surface (doc/design/cli-convention.md):
+// A view is a module, not a surface (doc/design/cli.md, "The view command
+// is the call"):
 // `work.view.board(columns="status")` and
 // `git work view board '{"columns":"status"}'`
 // are the same call, with the same keywords and the same defaults,
@@ -285,7 +286,8 @@ func (a Arg) check(raw json.RawMessage) (json.RawMessage, error) {
 // checkDocument is the shape of `draft`: the keys `issue new` reads
 // and nothing else, fields an object, body a string, aliases strings by
 // name. What the values mean is the schema's to say, in host.View, where
-// the planner's check runs before anything draws (doc/design/create.md, C1).
+// the planner's check runs before anything draws (doc/design/views.md, "`new`
+// is a view kind").
 func checkDocument(raw json.RawMessage) error {
 	var doc struct {
 		Fields  map[string]json.RawMessage `json:"fields"`

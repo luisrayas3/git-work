@@ -10,7 +10,9 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	_ "time/tzdata" // JQL literals are in the account's zone, any IANA zone (JS20)
+	// JQL literals are in the account's zone, any IANA zone
+	// (doc/design/jira.md, "Time zones")
+	_ "time/tzdata"
 
 	"github.com/gofrs/flock"
 
@@ -21,7 +23,8 @@ import (
 	"github.com/git-bug/git-bug/schema"
 )
 
-// The binding of a clone to one Jira project, in git config (JS3).
+// The binding of a clone to one Jira project, in git config
+// (doc/design/jira.md, "Binding and credentials").
 const (
 	JiraURLKey     = "git-work.jira.url"
 	JiraProjectKey = "git-work.jira.project"
@@ -89,7 +92,9 @@ func jiraToken(repo *cache.RepoCache, b JiraBinding) (string, error) {
 	return t, nil
 }
 
-// jiraConnect binds, authenticates and discovers the project (JS3, JS4).
+// jiraConnect binds, authenticates and discovers the project
+// (doc/design/jira.md, "Binding and credentials";
+// doc/design/jira.md, "Discovery").
 func jiraConnect(ctx context.Context, repo *cache.RepoCache) (JiraBinding, *jiraapi.Client, *jira.Project, error) {
 	b, err := jiraBinding(repo)
 	if err != nil {
@@ -105,7 +110,7 @@ func jiraConnect(ctx context.Context, repo *cache.RepoCache) (JiraBinding, *jira
 }
 
 // jiraDerive is the live schema with Jira's types, fields and values
-// adopted or added (JS5).
+// adopted or added (doc/design/jira.md, "Derive, then the schema import").
 func jiraDerive(repo *cache.RepoCache, p *jira.Project) (*schema.Document, []jira.Note, error) {
 	current, _, err := SchemaExport(repo)
 	if err != nil {
@@ -126,7 +131,9 @@ func JiraSchema(ctx context.Context, repo *cache.RepoCache) (*schema.Document, [
 
 // JiraSync is `git work jira sync`: derive and import the schema, compile
 // the mapping, and run the engine; the state file is saved even when the run
-// stops, since its cursor stops at the failure (JS20, JS23). It never pushes.
+// stops, since its cursor stops at the failure
+// (doc/design/jira.md, "Candidates and the cursor";
+// doc/design/jira.md, "Failure classes"). It never pushes.
 // The mapping's notes are returned only when the schema changed or the run
 // could not start: they say the same thing every run, and cron mails output.
 func JiraSync(ctx context.Context, repo *cache.RepoCache, opts jira.Options, emit func(jira.Line)) (jira.Summary, []jira.Note, error) {
@@ -142,7 +149,8 @@ func JiraSync(ctx context.Context, repo *cache.RepoCache, opts jira.Options, emi
 		return jira.Summary{}, nil, err
 	}
 
-	// JS5: the first mapping is reviewed, never derived and imported here
+	// the first mapping is reviewed, never derived and imported here
+	// (doc/design/jira.md, "The first mapping is reviewed")
 	live, err := repo.LoadSchema()
 	if err != nil {
 		return jira.Summary{}, nil, err
@@ -191,7 +199,8 @@ func JiraSync(ctx context.Context, repo *cache.RepoCache, opts jira.Options, emi
 }
 
 // jiraSyncLock excludes a second run for the whole of one, beside the
-// state file: two runs would both POST one new issue (JS15). It never
+// state file: two runs would both POST one new issue
+// (doc/design/jira.md, "One run at a time"). It never
 // waits, and the kernel drops it when the process dies, like the write lock.
 const jiraSyncLock = "jira/sync.lock"
 

@@ -38,7 +38,8 @@ func showCall(t *testing.T, repo *cache.RepoCache, kwargs string) (*showPage, er
 }
 
 // specCall builds the show page of one issue drawn by a spec, the call's
-// shows keyed by the issue's own type (doc/design/app.md A7).
+// shows keyed by the issue's own type (doc/design/views.md, "`shows` maps a
+// type to a spec").
 func specCall(t *testing.T, repo *cache.RepoCache, id, spec string) (*showPage, error) {
 	t.Helper()
 	return showCall(t, repo, `{"id":"`+id+`","shows":{"`+storedType(repo, id)+`":`+spec+`}}`)
@@ -79,7 +80,8 @@ func storyWithTasks(t *testing.T, repo *cache.RepoCache) (story, one, two, sub s
 // fields, its first line level with the first field; the heading is the
 // relation as given, then the header and a row per issue the relation
 // reaches, in the store's order, the archived left out
-// (doc/design/show-side-table.md, S2 and S4).
+// (doc/design/views.md, "Side tables are `expand`"; doc/design/views.md,
+// "Side layout").
 func TestSideTableBesideTheFields(t *testing.T) {
 	repo := testRepo(t)
 	story, one, two, sub := storyWithTasks(t, repo)
@@ -137,7 +139,7 @@ func TestSideTableUnderWhenNarrow(t *testing.T) {
 
 // TestSideTableTabTraversal: tab and shift-tab are the only way between the
 // fields and the side tables; up and down leave either for the header above
-// and the box below (S5).
+// and the box below (doc/design/views.md, "Side tables are a stop").
 func TestSideTableTabTraversal(t *testing.T) {
 	repo := testRepo(t)
 	story, one, _, _ := storyWithTasks(t, repo)
@@ -213,7 +215,8 @@ func TestSideTableLeftRightSwitchTabs(t *testing.T) {
 
 // TestSideTableScrollsWithinItsCap: past the taller of the fields and twelve
 // lines the side column scrolls by itself, its last line saying what is out
-// of sight, the heading and header kept on top once scrolled off (S4).
+// of sight, the heading and header kept on top once scrolled off
+// (doc/design/views.md, "Side layout").
 func TestSideTableScrollsWithinItsCap(t *testing.T) {
 	repo := testRepo(t)
 	story := newTyped(t, repo, "story", map[string]any{"title": "the story"})
@@ -246,7 +249,7 @@ func TestSideTableScrollsWithinItsCap(t *testing.T) {
 
 // TestSideTableKeys: enter opens the row's issue as a bare show, space grabs
 // it and a drop writes the rank, the drawn order kept; copy copies the id,
-// and `/` narrows the rows (S5).
+// and `/` narrows the rows (doc/design/views.md, "Side tables are a stop").
 func TestSideTableKeys(t *testing.T) {
 	repo := testRepo(t)
 	story, one, two, sub := storyWithTasks(t, repo)
@@ -308,9 +311,10 @@ func TestSideTableKeys(t *testing.T) {
 
 // TestSideTableGhost: a table over an inverse ends in a ghost whose draft
 // sets the stored field to this issue's id, and the type its rows share,
-// else the type where one type holds that field (S6, create.md C8); a stored
-// relation of the shown issue has one too, written on this issue after
-// Create (C8, superseding S6's "no ghost").
+// else the type where one type holds that field (doc/design/views.md, "The
+// prefill is the drop's write set"); a stored relation of the shown issue has
+// one too, written on this issue after Create (doc/design/views.md, "A
+// relation stored on the parent").
 func TestSideTableGhost(t *testing.T) {
 	repo := testRepo(t)
 	story, _, _, _ := storyWithTasks(t, repo)
@@ -359,7 +363,8 @@ func TestSideTableGhost(t *testing.T) {
 	require.Equal(t, issue.MustValue([]string{story}), blocked.tables[0].ghost.draft.Fields["blocks"])
 
 	// a stored relation of the shown issue: a ghost whose link is this
-	// issue's own field, added to after Create (C8)
+	// issue's own field, added to after Create (doc/design/views.md, "A
+	// relation stored on the parent")
 	stored, err := specCall(t, repo, story, `{"expand":"blocks"}`)
 	require.NoError(t, err)
 	require.NotNil(t, stored.tables[0].ghost)

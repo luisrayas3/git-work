@@ -80,7 +80,7 @@ func drawnLine(t *testing.T, drawn, text string) string {
 
 // TestListDrawsKeysWhole: with a namespace set, the id column is the key,
 // never cut, and as wide as the widest key, so a hash beside it lines up
-// (doc/design/alias-ids.md A3).
+// (doc/design/cli.md, "A key is never cut").
 func TestListDrawsKeysWhole(t *testing.T) {
 	repo := keyedRepo(t)
 	newKeyed(t, repo, jiraKey, map[string]any{"title": "keyed"})
@@ -102,7 +102,7 @@ func cellAt(line, text string) int {
 
 // TestIdStyleDimsTheFallback: an alias is drawn at full strength and the
 // hash an issue fell back to dim; with no namespace every id is dim, as it
-// always was (A3).
+// always was (doc/design/cli.md, "A hash is drawn faint").
 func TestIdStyleDimsTheFallback(t *testing.T) {
 	repo := keyedRepo(t)
 	keyed := newKeyed(t, repo, jiraKey, map[string]any{"title": "keyed"})
@@ -125,7 +125,8 @@ func TestIdStyleDimsTheFallback(t *testing.T) {
 }
 
 // TestCopyCopiesWhatIsShown: the id copy keys copy the key where it is drawn
-// and the whole hash where the hash is, and a link copies its key (A7).
+// and the whole hash where the hash is, and a link copies its key
+// (doc/design/cli.md, "Copy copies what is drawn").
 func TestCopyCopiesWhatIsShown(t *testing.T) {
 	repo := keyedRepo(t)
 	story := newKeyed(t, repo, jiraKey, map[string]any{"type": "story", "title": "the story"})
@@ -194,7 +195,8 @@ func TestBoardAndGanttDrawKeysWhole(t *testing.T) {
 }
 
 // TestOrderStaysOnTheHash: the (rank, id) tie-break reads the id, never what
-// is drawn, so a setting cannot move a row (A8).
+// is drawn, so a setting cannot move a row (doc/design/cli.md, "Order stays
+// on the hash").
 func TestOrderStaysOnTheHash(t *testing.T) {
 	repo := keyedRepo(t)
 	var ids []string

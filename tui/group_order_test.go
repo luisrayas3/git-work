@@ -9,8 +9,8 @@ import (
 )
 
 // Groups are ordered by the value they stand for, never by where the query
-// first put a row in them (doc/design/empty-groups.md, E4), on every view
-// (Q2).
+// first put a row in them (doc/design/views.md, "Group order"), on every
+// view.
 
 // rootGroupOrder is the groups a list's or a gantt's roots are drawn in.
 func rootGroupOrder(nodes []treeRow, order []int) []string {

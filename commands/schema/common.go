@@ -17,14 +17,16 @@ import (
 // warnDuplicates prints, on stderr, every entity a key resolves away from.
 //
 // Two clones defining one key before either pushes is the one failure the
-// entity boundary leaves (E7). The winner is deterministic, and saying so is
+// entity boundary leaves (doc/design/schema.md, "Duplicate keys").
+// The winner is deterministic, and saying so is
 // the difference between a team repairing it and a team losing an edit.
 func warnDuplicates(env *execenv.Env) {
 	env.Warn(host.SchemaDuplicates(env.Backend))
 }
 
 // schemaRef reads the entity a command names: a positional KEY, or --id ID,
-// never both, and the caller says which (schema-archive-id.md, A1).
+// never both, and the caller says which
+// (doc/design/schema.md, "Key or id, and the caller says which").
 // A writer must name one; `log` may name none, every entity.
 func schemaRef(args []string, id string, required bool) (host.SchemaRef, error) {
 	switch {
@@ -50,7 +52,8 @@ func addIdFlag(cmd *cobra.Command, id *string) {
 // printImport is the end of import and of init: --dry-run prints the changes
 // per entity, as JSON, in the same shape `issue set --dry-run` prints its
 // operations, and a real write prints the ids it created and nothing else
-// (cli-convention.md).
+// (doc/design/cli.md, "Writers print ids";
+// doc/design/cli.md, "`--dry-run` prints what would be committed").
 func printImport(env *execenv.Env, dryRun bool, changes []schema.Change, created []entity.Id) error {
 	if dryRun {
 		return env.Out.PrintJSON(changes)

@@ -14,22 +14,23 @@ import (
 )
 
 // The palette is the box `esc` opens in the middle of the page
-// (doc/design/app.md, A1, A4, 2026-10-15; drawn as a box, 2026-10-29):
-// where you are, this page's
-// commands, and everywhere's commands, each drawn with its letter.
+// (doc/design/tui.md, "The palette is a box over the page"): where you are,
+// this page's commands, and everywhere's commands, each drawn with its
+// letter.
 //
 // The keys a person needs with no menu are the ones every program has —
 // arrows, enter, space, tab, page up and down, home and end — and every other
 // command is here, under a letter that means one thing on every page, so the
-// menu teaches the keys it lists. A letter is the command's alt key (A2):
-// pressed on the palette, it is handed to the page as alt+letter, so `esc w`
-// typed slowly and `esc w` typed quickly, which arrives as alt+w, are one
-// key and one code path.
+// menu teaches the keys it lists (doc/design/tui.md, "A letter means one
+// thing on every page"). A letter is the command's alt key
+// (doc/design/tui.md, "Keys on the palette"): pressed on the palette, it is
+// handed to the page as alt+letter, so `esc w` typed slowly and `esc w` typed
+// quickly, which arrives as alt+w, are one key and one code path.
 //
 // A second `esc` is back: off the page, and from the first page out of the
 // program, so one stray `esc` still cannot end a session. That was the call
-// line's double press (terminal-renderer.md, 2026-09-28), and the call line
-// is the palette's first section now.
+// line's double press (doc/design/tui.md, "Back is two presses"), and the
+// call line is the palette's first section now.
 //
 // While a page is editing, filtering, grabbing or showing the help, `esc` is
 // that state's own and cancels it; the palette opens only on a page at rest.
@@ -50,7 +51,7 @@ func entry(c *chord, what ...string) paletteEntry {
 }
 
 // everywhere is the palette's last section: the commands that mean the same
-// on every page, in A1's order: search, new, home, run a flow, help, quit;
+// on every page, in this order: search, new, home, run a flow, help, quit;
 // then close, which is the palette's own.
 func everywhere() []paletteEntry {
 	return []paletteEntry{
@@ -66,7 +67,7 @@ func everywhere() []paletteEntry {
 
 // pageCommands is the palette's middle section: what this page answers,
 // then edit the query (j) where the kind has one, and reset it (J) where it
-// was edited (A10, query_edit.go).
+// was edited (doc/design/tui.md, "Editing the query"; query_edit.go).
 func (r *root) pageCommands() []paletteEntry {
 	out := pageCommands(r.top())
 	if hasQuery(r.top()) {
@@ -80,7 +81,8 @@ func (r *root) pageCommands() []paletteEntry {
 
 // pageCommands is what a page answers of its own.
 // A show page adds change what is expanded (e), link (l) and unlink (u)
-// (A6, A7; show_palette.go).
+// (doc/design/tui.md, "Changing what is expanded"; doc/design/tui.md,
+// "Linking from the palette"; show_palette.go).
 func pageCommands(p page) []paletteEntry {
 	filter := entry(keys.filter, "filter")
 	foldAll := entry(keys.foldAll, "fold all")
@@ -140,7 +142,8 @@ func atRest(p page) bool {
 	case *newPage:
 		return p.help == nil && p.editor == nil && !p.inText()
 	case *homePage:
-		// typed into, its esc clears the text first, as a picker's does (A5)
+		// typed into, its esc clears the text first, as a picker's does
+		// (doc/design/tui.md, "Pickers are typed into")
 		return p.help == nil && p.picker.text() == ""
 	case *outputPage:
 		return p.help == nil
@@ -148,8 +151,9 @@ func atRest(p page) bool {
 	return true
 }
 
-// typingFilters says a printable key starts this page's filter (A3): a list,
-// a board, a gantt, the kinds whose rows are what is typed after.
+// typingFilters says a printable key starts this page's filter
+// (doc/design/tui.md, "Typing filters"): a list, a board, a gantt, the kinds
+// whose rows are what is typed after.
 func typingFilters(p page) (start func(), ok bool) {
 	switch p := p.(type) {
 	case *listPage:
@@ -182,7 +186,7 @@ func letter(press tea.KeyPressMsg) (string, bool) {
 	return "", false
 }
 
-// altOf is the key a letter is (A2).
+// altOf is the key a letter is (doc/design/tui.md, "`esc x` is `alt+x`").
 func altOf(letter string) tea.KeyPressMsg {
 	return tea.KeyPressMsg{Code: []rune(letter)[0], Mod: tea.ModAlt}
 }
@@ -221,7 +225,7 @@ func showsOf(p page) json.RawMessage {
 }
 
 // openCreator is `n`: the creator on an empty draft, over the page, its type
-// the first thing chosen (doc/design/create.md).
+// the first thing chosen (doc/design/views.md, "The creator page").
 func openCreator(p page) tea.Cmd {
 	repo := repoOf(p)
 	if repo == nil {

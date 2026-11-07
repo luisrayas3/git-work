@@ -18,7 +18,7 @@ import (
 
 // repoSchema compiles testdata/schema.yaml, the fields the label mapping
 // writes into, shaped as the tracker's were the day the migration ran
-// (store-migration.md).
+// (doc/design/migration.md, "The schema comes first").
 func repoSchema(t *testing.T) *schema.Schema {
 	t.Helper()
 	data, err := os.ReadFile("testdata/schema.yaml")

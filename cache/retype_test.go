@@ -14,7 +14,8 @@ import (
 // TestIssueTypeChangeChecksRetypeTargets: a set that changes the type is
 // refused where the current type's retype_targets does not list the new
 // one, whether planned or committed through Update; UpdateShape, a pull's,
-// commits it anyway, and a new issue is never checked (type-change.md, TC2).
+// commits it anyway, and a new issue is never checked
+// (doc/design/issue.md, "A type change is a set").
 func TestIssueTypeChangeChecksRetypeTargets(t *testing.T) {
 	c, i, me := newUpdateTestIssue(t)
 

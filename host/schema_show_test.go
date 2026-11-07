@@ -28,7 +28,7 @@ types:
 // TestSchemaImportTypeShow: a type's show is written, read back and exported
 // as it was given, so export | import is a no-op; it is checked as a view's
 // shows entry is, against the schema the import leaves, before anything is
-// written (doc/design/app.md A7).
+// written (doc/design/views.md, "A spec is checked as show's call is").
 func TestSchemaImportTypeShow(t *testing.T) {
 	repo, _ := atTestRepo(t)
 

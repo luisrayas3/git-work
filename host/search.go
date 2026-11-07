@@ -10,7 +10,7 @@ import (
 )
 
 // Search over the issues' id, aliases, title and description
-// (doc/design/app.md, A9).
+// (doc/design/query.md, "Search scans the excerpts").
 //
 // It is an in-memory substring scan over the excerpts,
 // which carry the description, so no entity is read:
@@ -39,7 +39,7 @@ const (
 // SearchExcerpts returns the issues whose id, alias, title or description
 // contain text, best match first.
 // The archived are left out unless includeArchive brings them back,
-// as in the list (doc/design/include-archive.md).
+// as in the list (doc/design/query.md, "The switch is `include_archive`").
 // Empty text matches every issue, so a finder opened with nothing typed
 // shows the default list.
 //

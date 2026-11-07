@@ -18,7 +18,7 @@ import (
 // and it is the command side of `work.user.me()`:
 // both are one call to `host.UserMe`,
 // so a script and a shell can never disagree about who is writing
-// (doc/design/cli-convention.md).
+// (doc/design/cli.md, "The command line and Starlark are one API").
 func newUserMeCommand(env *execenv.Env) *cobra.Command {
 	options := userOptions{}
 

@@ -13,12 +13,12 @@ import (
 // idWidth is the narrowest id column: the seven characters of a short hash,
 // the same every other surface prints, so an id read here is an id that can
 // be typed there. A column holding a Jira key is as wide as the widest key,
-// because a key is never cut (doc/design/alias-ids.md A3).
+// because a key is never cut (doc/design/cli.md, "A key is never cut").
 const idWidth = 7
 
 // indentWidth is what one level of nesting moves a child table right by:
 // the whole table, header and rows, as one unit
-// (doc/design/terminal-renderer.md, Nesting).
+// (doc/design/views.md, "A nested layer is its own table").
 const indentWidth = 2
 
 func (p *listPage) View() string {
@@ -91,7 +91,8 @@ func (p *listPage) hintLine() string {
 		return hints(hint{"enter", "new issue"})
 	}
 	// a row that stands for no issue opens nothing and edits nothing: what
-	// is left is a link to follow, its fold and its grab (R2)
+	// is left is a link to follow, its fold and its grab (doc/design/query.md,
+	// "A row that stands for no issue")
 	none := row.id == ""
 	if key := p.fieldKey(); key != "" {
 		linked := len(row.links[key]) > 0
@@ -130,7 +131,8 @@ type listBody struct {
 
 // body draws the body (listBody).
 //
-// The list is a table of tables (doc/design/terminal-renderer.md, Nesting).
+// The list is a table of tables (doc/design/views.md, "A nested layer is its
+// own table").
 // The roots are the top table, whose header is the page's second line and
 // never changes. The rows under an opened parent are a child table: indented
 // as one unit, headed by its own header line above its first row, its
@@ -362,7 +364,7 @@ func (p *listPage) treeRoom() int {
 // idWidths is the id column of every layer family: the widest id its rows
 // draw, at least idWidth, measured over every row of the family, hidden or
 // drawn, so that folding moves nothing. A Jira key is never cut, because a
-// cut key is another issue's (doc/design/alias-ids.md A3).
+// cut key is another issue's (doc/design/cli.md, "A key is never cut").
 func (p *listPage) idWidths() []int {
 	out := make([]int, len(p.nest.layers))
 	for family := range out {

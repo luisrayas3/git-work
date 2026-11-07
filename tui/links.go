@@ -12,17 +12,19 @@ import (
 	"github.com/git-bug/git-bug/schema"
 )
 
-// Link fields (doc/design/link-fields.md): a relation marked `link: true` —
-// `blocks`, `clones`, the fields a Jira link type becomes — is not a row of
-// show's fields table. Every link of the issue is folded into one row,
-// `links`, a count and then each relation with entries and its own count,
-// at the place the first link field would have had (L3). The issues
+// Link fields: a relation marked `link: true` — `blocks`, `clones`, the
+// fields a Jira link type becomes — is not a row of show's fields table.
+// Every link of the issue is folded into one row, `links`, a count and then
+// each relation with entries and its own count, at the place the first link
+// field would have had (doc/design/views.md, "The links row"). The issues
 // themselves are side tables, one per relation with entries, wherever a
-// spec's `expand` names `links` (L4). Enter on the row goes to those tables,
-// and space opens a picker of the link relations, stored and inverse, whose
-// choice opens the relation's membership picker; a write there is one add or
-// one remove, on this issue for a stored relation and on the other one for
-// an inverse, which is that issue's stored field (L5).
+// spec's `expand` names `links` (doc/design/views.md, "Side tables are
+// `expand`"). Enter on the row goes to those tables, and space opens a picker
+// of the link relations, stored and inverse, whose choice opens the
+// relation's membership picker; a write there is one add or one remove, on
+// this issue for a stored relation and on the other one for an inverse, which
+// is that issue's stored field (doc/design/views.md, "Editing links from the
+// row").
 
 // linkRel is one link relation of an issue, with what it holds.
 type linkRel struct {
@@ -82,8 +84,9 @@ func issueLinks(repo *cache.RepoCache, typeKey, id string, fields map[string]iss
 
 // linksLabel is the `links` row's value: the count, then each relation with
 // entries and its own, stored first, or `—` where there is none in either
-// direction, so the row says so rather than leaving it in doubt (L3). A link
-// field the call's fields draw as its own row is left out of the count.
+// direction, so the row says so rather than leaving it in doubt
+// (doc/design/views.md, "The links row"). A link field the call's fields draw
+// as its own row is left out of the count.
 func linksLabel(rels []linkRel, drawn []string) string {
 	total := 0
 	var parts []string
@@ -150,7 +153,8 @@ type linkEdit struct {
 }
 
 // linkRelationsEditor is space on the `links` row: every link relation,
-// stored and inverse, with its count (L5).
+// stored and inverse, with its count (doc/design/views.md, "Editing links
+// from the row").
 func linkRelationsEditor(rels []linkRel) (*editor, string) {
 	if len(rels) == 0 {
 		return nil, "no link relation for this type"
@@ -167,10 +171,11 @@ func linkRelationsEditor(rels []linkRel) (*editor, string) {
 }
 
 // linkMembersEditor is the chosen relation's membership picker, the finder
-// (doc/design/app.md A5): the issues it may link, the ones it links marked,
-// where enter adds or removes the one under the cursor. For a stored link it
-// is narrowed to the field's target types; for an inverse, to the types that
-// store the relation, since the write is to that issue's field.
+// (doc/design/tui.md, "The finder"): the issues it may link, the ones it
+// links marked, where enter adds or removes the one under the cursor. For a
+// stored link it is narrowed to the field's target types; for an inverse, to
+// the types that store the relation, since the write is to that issue's
+// field.
 func linkMembersEditor(repo *cache.RepoCache, self string, rels []linkRel, rel *linkRel) *editor {
 	members := map[string]bool{}
 	for _, id := range rel.ids {
@@ -235,7 +240,9 @@ func (l *linkEdit) relation(name string) *linkRel {
 // writeLink is one membership change, through the writer every edit goes
 // through: on this issue's field for a stored relation, on the other
 // issue's stored field for an inverse, one commit to one entity either way
-// (L5; app.md A6). It says what it wrote, naming the issue written.
+// (doc/design/views.md, "Editing links from the row"; doc/design/tui.md,
+// "Linking from the palette"). It says what it wrote, naming the issue
+// written.
 func writeLink(repo *cache.RepoCache, self string, rel *linkRel, target choice) (string, error) {
 	written, key, item := self, rel.Name, target.value
 	field := rel.Field

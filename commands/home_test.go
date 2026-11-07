@@ -11,7 +11,7 @@ import (
 
 // TestBareWorkWithNoTerminalIsTheHelp: the home flow draws, so with nowhere
 // to draw it bare `git work` prints the help, as it always did, home flow
-// or not (doc/design/app.md, A8).
+// or not (doc/design/flows.md, "`git work` is `git work flow run home`").
 func TestBareWorkWithNoTerminalIsTheHelp(t *testing.T) {
 	env := newQuickstartTestEnv(t)
 	_, _, err := host.FlowImport(env.Backend, []host.FlowSource{{Origin: "test", Script: `def home():

@@ -26,14 +26,16 @@ func TestPresetJira(t *testing.T) {
 	require.Equal(t, "backlog", status.Values[0].Id)
 	require.Equal(t, "canceled", status.Values[len(status.Values)-1].Category)
 
-	// hierarchy is target_types on each type's parent (D4)
+	// hierarchy is target_types on each type's parent
+	// (doc/design/schema.md, "Hierarchy is target types")
 	parent, _ := story.Fields.Get("parent")
 	require.Equal(t, []string{"epic"}, parent.TargetTypes)
 	subtask, _ := doc.Types.Get("subtask")
 	subtaskParent, _ := subtask.Fields.Get("parent")
 	require.Equal(t, []string{"story", "task"}, subtaskParent.TargetTypes)
 
-	// an iteration is a type, and its dates and capacity are its fields (D5)
+	// an iteration is a type, and its dates and capacity are its fields
+	// (doc/design/schema.md, "Iterations are a type")
 	iteration, ok := doc.Types.Get("iteration")
 	require.True(t, ok)
 	require.Equal(t, []string{"status", "start", "end", "capacity"}, iteration.Fields.Keys())
@@ -95,7 +97,8 @@ func TestPresetLinear(t *testing.T) {
 //
 // A preset that does not survive init | export | import is a preset that
 // rewrites the store every time someone exports it, so the round trip is the
-// only thing that says a preset is representable at all (E9).
+// only thing that says a preset is representable at all
+// (doc/design/schema.md, "Position is the order").
 func TestPresetRoundTrip(t *testing.T) {
 	require.Equal(t, []string{"jira", "linear"}, PresetNames())
 

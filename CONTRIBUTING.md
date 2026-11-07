@@ -40,9 +40,13 @@ every command it names exists.
 
 ## Design first
 
-Every story gets a design document in [`doc/design`](./doc/design),
-approved before its code is written.
-It records the decisions and why, not a plan of steps.
+Every story's design is written on the story issue,
+and approved there before its code is written:
+the decisions and why, not a plan of steps.
+The change that builds it updates the design documents in
+[`doc/design`](./doc/design/README.md),
+which are organized by aspect
+and say what holds now and why.
 
 ## Releases
 

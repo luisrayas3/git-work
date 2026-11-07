@@ -19,10 +19,11 @@ import (
 	"github.com/git-bug/git-bug/view"
 )
 
-// Show's side tables: the `expand` of the issue's type's spec (`shows`,
-// doc/design/app.md A7), the list's spec or a list of it, one flat table per
-// element beside the fields, under them in a window too narrow for both
-// (doc/design/show-side-table.md, approved 2026-10-08, Luis).
+// Show's side tables: the `expand` of the issue's type's spec (`shows`;
+// doc/design/views.md, "`shows` maps a type to a spec"), the list's spec or a
+// list of it, one flat table per element beside the fields, under them in a
+// window too narrow for both (doc/design/views.md, "Side tables are
+// `expand`"; doc/design/views.md, "Side layout").
 //
 // A table is the issues one relation reaches from the shown issue — a stored
 // relation field of its own, or the inverse the schema declares, read as
@@ -54,9 +55,10 @@ type sideTable struct {
 	program *jq.Program
 	// ghost is where the table's ghost puts the issue it creates, nil where
 	// there is none: an inverse whose types disagree on the stored key, the
-	// rows sharing no type to pick it (S6, create.md C8). A stored relation
-	// of the shown issue has one: its link is written on this issue after
-	// Create.
+	// rows sharing no type to pick it (doc/design/views.md, "No ghost where
+	// there is nothing to write"). A stored relation of the shown issue has
+	// one: its link is written on this issue after Create
+	// (doc/design/views.md, "A relation stored on the parent").
 	ghost *placement
 	// rows are every issue the relation reaches, the query applied, in
 	// (rank, id) order; the filter narrows what is drawn, never this
@@ -93,9 +95,9 @@ type sideGrab struct {
 
 // newShowView is the show page a call describes: the issue drawn by its
 // type's spec, the call's `shows[type]`, else the type's `show` in the
-// schema, else the built-in (doc/design/app.md A7). It is the entry point
-// from the command and from a flow, and from every Enter that opens an issue
-// by a view's `shows` (show_map.go).
+// schema, else the built-in (doc/design/views.md, "A spec is whole, never
+// merged"). It is the entry point from the command and from a flow, and from
+// every Enter that opens an issue by a view's `shows` (show_map.go).
 func newShowView(repo *cache.RepoCache, call *view.Call) (*showPage, error) {
 	p, err := newShowPage(repo, call.String("id"), nil)
 	if err != nil {
@@ -146,7 +148,8 @@ func (p *showPage) applyShows(shows json.RawMessage) error {
 
 // sideSpec is one element of the spec's `expand`, compiled once: a table, or,
 // for `links`, a table per link relation the issue has entries in, which
-// changes with the issue and so is resolved on every load (link-fields.md, L4).
+// changes with the issue and so is resolved on every load
+// (doc/design/views.md, "Side tables are `expand`").
 type sideSpec struct {
 	layer   *view.Layer
 	program *jq.Program
@@ -175,12 +178,13 @@ func (p *showPage) sideTables() []*sideTable {
 }
 
 // sideGhost is where a table's ghost puts the issue it creates: the same
-// write set as a nested layer's (create.md C8), with the shown issue as the
-// parent, the table's relation, and its rows as the type witness. Over an
-// inverse it is the stored field on the child set to this issue's id; over
-// a stored relation of this issue it is this issue's field, written after
-// Create, `(new, replacing …)` where a single relation is set. Show takes
-// no `draft`, so it starts from nothing.
+// write set as a nested layer's (doc/design/views.md, "The prefill is the
+// drop's write set"), with the shown issue as the parent, the table's
+// relation, and its rows as the type witness. Over an inverse it is the
+// stored field on the child set to this issue's id; over a stored relation of
+// this issue it is this issue's field, written after Create, `(new, replacing
+// …)` where a single relation is set. Show takes no `draft`, so it starts
+// from nothing.
 func (p *showPage) sideGhost(s *schema.Schema, table *sideTable, types []string) *placement {
 	shownType, _ := issue.String(p.snapshot.Fields[schema.TypeKey])
 	parent := &scopeParent{id: p.id, typeKey: shownType, relation: table.layer.Relation,
@@ -237,7 +241,8 @@ func (p *showPage) loadSide() {
 		}
 		if table.link && len(candidates) == 0 {
 			// a link relation with no entry has no table, and no (none):
-			// the links row already says so (L4)
+			// the links row already says so (doc/design/views.md, "Side tables
+			// are `expand`")
 			continue
 		}
 		kept = append(kept, table)
@@ -369,7 +374,8 @@ func cloneDoc(doc host.IssueDocument) host.IssueDocument {
 }
 
 // sideCopy copies the row's id, whichever copy key: a row is one issue, and
-// its id is what a command takes, copied as it is shown (alias-ids.md A7).
+// its id is what a command takes, copied as it is shown (doc/design/cli.md,
+// "Copy copies what is drawn").
 func (p *showPage) sideCopy() tea.Cmd {
 	row := p.sideRowAt(p.sideCurrent())
 	if row == nil {
@@ -537,7 +543,7 @@ func sideWidths(table *sideTable) []int {
 		for c, cell := range row.cells {
 			limit := sideFieldMax
 			// neither the title nor the id is capped: a cut key is another
-			// issue's (alias-ids.md A3)
+			// issue's (doc/design/cli.md, "A key is never cut")
 			if c <= 1 {
 				limit = 1 << 20
 			}
@@ -622,7 +628,8 @@ func (p *showPage) sideLines(width int, here position) []sideLine {
 			case on && item == p.side:
 				marker, style = "›", styleCell
 			case len(row.cells) > 0 && p.repo.DisplayNamespace() != "" && !isAlias(row.id, row.cells[0]):
-				// a hash an issue fell back to is dim (alias-ids.md A3)
+				// a hash an issue fell back to is dim (doc/design/cli.md,
+				// "A hash is drawn faint")
 				id := pad(row.cells[0], widths[0])
 				drawn = styleDim.Render(id) + style.Render(strings.TrimPrefix(text, id))
 			}

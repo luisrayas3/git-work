@@ -2,9 +2,10 @@ def board(group_by="type"):
     """The shape of the work as a kanban: open stories, open decisions, and open tasks that belong to no story, a column per open status.
 
     The overview flow's query on a board. Open reads the status category,
-    never the name (schema.yaml, D2): anything whose status is neither
-    completed nor canceled. The columns are the open statuses alone, in
-    schema order, because nothing closed is on the board to fill the others.
+    never the name (doc/design/schema.md, "Categories are fixed"): anything
+    whose status is neither completed nor canceled. The columns are the open
+    statuses alone, in schema order, because nothing closed is on the board
+    to fill the others.
     A task under a story is that story's business and stays out of the way;
     one with no parent is on the board so it can be given one.
     """

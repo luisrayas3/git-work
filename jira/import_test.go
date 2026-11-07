@@ -16,9 +16,10 @@ import (
 	"github.com/git-bug/git-bug/schema"
 )
 
-// The schema half through the real path of JS5, a repository and
-// host.SchemaImport: Derive, import, and the fixpoint and alias
-// preservation that the in-memory tests assume.
+// The schema half through the real path
+// (doc/design/jira.md, "Derive, then the schema import"), a repository and
+// host.SchemaImport: Derive, import, and the fixpoint and alias preservation
+// that the in-memory tests assume.
 func TestDeriveThroughImport(t *testing.T) {
 	srv := jiratest.New(t)
 	email, token := srv.Credentials()

@@ -14,7 +14,8 @@ const TimeFormsHelp = "TIME is " + host.TimeForms
 // parseTimeFlag reads one TIME flag, naming the flag when it refuses.
 //
 // An empty flag is the zero time, which is what the command means by "not
-// given": the host reads that as now, or as no bound (doc/design/report.md).
+// given": the host reads that as now, or as no bound
+// (doc/design/query.md, "`--at`, `--from` and `--to`").
 func parseTimeFlag(name, value string) (time.Time, error) {
 	t, err := host.ParseTime(value, time.Now())
 	if err != nil {

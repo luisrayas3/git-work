@@ -5,7 +5,8 @@ def report(from_="7d", to=None, iteration=None, query=None):
     duration back from now (7d, 2w, 12h), and an absent `to` is now. An
     iteration id takes the window from that issue's start and end fields
     instead, which is why an iteration is not a time form: which fields hold
-    an iteration's dates is policy, and policy lives here (doc/design/report.md).
+    an iteration's dates is policy, and policy lives here
+    (doc/design/flows.md, "What changed since").
 
     `from_` carries a trailing underscore because `from` is a reserved word in
     Starlark, the same reason `work.schema.import_` does.
@@ -26,7 +27,8 @@ def report(from_="7d", to=None, iteration=None, query=None):
 
     def name(id):
         # An issue is named by the id it is drawn by, its human_id, which is
-        # its Jira key when git-work.display.id asks for one (alias-ids.md A9);
+        # its Jira key when git-work.display.id asks for one
+        # (doc/design/cli.md, "`human_id` carries the drawn id; `id` never changes");
         # an issue neither snapshot has is its short hash.
         for snapshot in (after, before):
             if id in snapshot:
@@ -119,8 +121,9 @@ def report(from_="7d", to=None, iteration=None, query=None):
         operations.setdefault(entry["issue"], []).append(entry)
 
     # Which statuses mean closed, read from the schema's categories and never
-    # from a status name (schema.yaml, D2). A status id is read against its
-    # own type first, because a field belongs to exactly one type.
+    # from a status name (doc/design/schema.md, "Categories are fixed").
+    # A status id is read against its own type first, because a field
+    # belongs to exactly one type.
     closed_by_type = {}
     closed_anywhere = {}
     # The same read gives the field order a created issue is described in: the

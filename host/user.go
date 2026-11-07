@@ -9,7 +9,7 @@ import (
 // UserMe returns the identity this repository writes as.
 //
 // It is `git work user me` and `work.user.me()`, the same call twice over
-// (doc/design/cli-convention.md):
+// (doc/design/cli.md, "The command line and Starlark are one API"):
 // a script that filters "my issues" has to ask who that is,
 // and so does a shell.
 func UserMe(repo *cache.RepoCache) (*cmdjson.Identity, error) {
@@ -25,7 +25,8 @@ func UserMe(repo *cache.RepoCache) (*cmdjson.Identity, error) {
 // reads it: the name of the identity it holds, not the 64-character hash the
 // field stores.
 //
-// A Jira user becomes an identity named after its Jira display name (JS16),
+// A Jira user becomes an identity named after its Jira display name
+// (doc/design/jira.md, "Identities"),
 // so an imported assignee reads as Jira shows it. An identity with no name
 // falls back to its login (the Jira account id, when Jira gave no name); an
 // id the store does not resolve, an identity not pulled yet, is its short

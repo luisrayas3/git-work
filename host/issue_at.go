@@ -19,7 +19,7 @@ import (
 // A zero time means "no cut" everywhere here:
 // a zero `at` is the present, a zero `from` is the beginning of time
 // and a zero `to` is the end of it, which is what an absent flag means.
-// Design: doc/design/report.md.
+// Design: doc/design/query.md, "The past".
 
 // IssueGetAt returns one issue whole as it stood at `at`.
 func IssueGetAt(repo *cache.RepoCache, id string, at time.Time) (*cmdjson.IssueSnapshot, error) {
@@ -29,7 +29,8 @@ func IssueGetAt(repo *cache.RepoCache, id string, at time.Time) (*cmdjson.IssueS
 	}
 
 	out := cmdjson.NewIssueSnapshot(snap)
-	// the id it is drawn by, which follows git-work.display.id (alias-ids.md A4)
+	// the id it is drawn by, which follows git-work.display.id
+	// (doc/design/cli.md, "`human_id` carries the drawn id; `id` never changes")
 	out.HumanId = repo.IssueHumanId(snap.Id())
 	return &out, nil
 }
@@ -89,11 +90,12 @@ func IssueListAt(repo *cache.RepoCache, program string, at time.Time, includeArc
 // was then, so the input leaves out what was archived at the time, with no
 // special case here: an issue archived on Wednesday is in Tuesday's input and
 // out of Thursday's, and includeArchive is every issue that existed then
-// (doc/design/include-archive.md, I4).
+// (doc/design/query.md, "`--at` is a replay").
 //
 // This is linear in the store's operations: every issue is read and replayed
 // once, in memory, with no index. Fine for the hundreds of issues this tool is
-// built for, a full pass per call beyond that (doc/design/report.md).
+// built for, a full pass per call beyond that
+// (doc/design/query.md, "`--at` is a replay").
 func IssueListInputAt(repo *cache.RepoCache, at time.Time, includeArchive bool) (any, error) {
 	if at.IsZero() {
 		return IssueListInput(repo, includeArchive)
@@ -115,7 +117,9 @@ func IssueListInputAt(repo *cache.RepoCache, at time.Time, includeArchive bool) 
 			continue
 		}
 		j := cmdjson.NewIssueExcerptAt(snap, excerpt.CreateLamportTime)
-		// the alias drawn is the present one: an id names one issue at every time (A4)
+		// the alias drawn is the present one: an id names one issue at every
+		// time (doc/design/cli.md, "`human_id` carries the drawn id; `id` never
+		// changes")
 		j.HumanId = repo.IssueHumanId(snap.Id())
 		out = append(out, j)
 	}
@@ -179,7 +183,8 @@ func IssueLogBetween(repo *cache.RepoCache, idOrProgram string, from, to time.Ti
 // and because no id prefix is a valid jq program: an id is lowercase hex, and
 // a bare hex word parses as nothing. What does not resolve is compiled as a
 // program, and when that fails too the error names both attempts, so a
-// mistyped id reads as a mistyped id (doc/design/report.md).
+// mistyped id reads as a mistyped id
+// (doc/design/query.md, "The log takes a program").
 //
 // It returns ids rather than loaded issues: the cache holds a bounded number
 // of entities, and the caller resolves each as it reads it.

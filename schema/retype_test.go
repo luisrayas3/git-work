@@ -9,7 +9,8 @@ import (
 )
 
 // retypeDocument has a fixed type, a type with targets, and one that may
-// become any type, which is what a type without retype_targets means (TC1).
+// become any type, which is what a type without retype_targets means
+// (doc/design/schema.md, "A type says what it may become").
 const retypeDocument = `
 types:
   epic:
@@ -92,7 +93,8 @@ func TestRetypeTargetsValidate(t *testing.T) {
 	_, err = ParseDocument([]byte("types:\n  epic:\n    retype_targets: {a: b}\n"))
 	require.Error(t, err)
 
-	// a target archived since is reported on compile, never an error (D4)
+	// a target archived since is reported on compile, never an error
+	// (doc/design/schema.md, "A type says what it may become")
 	s, err := Compile([]Entry{
 		entry("1", config.ShapeType, "epic", map[string]interface{}{AttrRetypeTargets: []string{"gone"}}),
 	})
@@ -117,7 +119,7 @@ func retypeChecker(t *testing.T) *Checker {
 // TestCheckerRetype: a type change the current type's retype_targets does
 // not list is refused naming what it may become; absent targets allow any
 // type; the shape check, a Jira pull's, ignores them; a new issue is not a
-// type change (TC2).
+// type change (doc/design/issue.md, "A type change is a set").
 func TestCheckerRetype(t *testing.T) {
 	c := retypeChecker(t)
 

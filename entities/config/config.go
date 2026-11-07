@@ -1,13 +1,15 @@
 // Package config holds the config entity:
 // the one storage form every configurable thing in the tracker shares
-// (doc/design/config-entity.md, `3556569`).
+// (doc/design/schema.md, "Configuration is entities, not a file").
 //
 // A config entity is a plain document —
 // a shape, a key, a map of attributes with last-writer-wins per attribute,
 // and an archived flag —
-// and four operations write it (E2).
+// and four operations write it
+// (doc/design/schema.md, "Four generic operations").
 // What differs between an issue type, a field and a flow
-// is meaning, consumer and namespace, not storage (E1),
+// is meaning, consumer and namespace, not storage
+// (doc/design/flows.md, "A flow is a config entity"),
 // so the entity code here is written once
 // and parameterised by a Store, which carries the dag.Definition
 // and the shapes its namespace accepts.
@@ -18,7 +20,8 @@
 //
 // As in entities/issue,
 // an operation is validated for shape only:
-// a Validate that fails makes history unreadable (E6, fact 2),
+// a Validate that fails makes history unreadable
+// (doc/design/schema.md, "Structural rules are frozen"),
 // so everything a later binary might learn
 // is checked on the write path instead.
 package config
@@ -36,7 +39,8 @@ import (
 //
 // It is fixed by the create operation and never changes.
 // The word "shape" is deliberate:
-// `kind` is a field's data type and nothing else uses the word (E2).
+// `kind` is a field's data type and nothing else uses the word
+// (doc/design/schema.md, "Four generic operations").
 type Shape string
 
 const (
@@ -53,7 +57,8 @@ const (
 	// and is the key the observer switch and the cache file use.
 	SchemaTypename = "schema"
 	// SchemaNamespace holds types and fields,
-	// which are imported, exported and reconciled together (E1).
+	// which are imported, exported and reconciled together
+	// (doc/design/schema.md, "One entity per type and per field").
 	SchemaNamespace = "work-schema"
 
 	FlowTypename  = "flow"
@@ -134,7 +139,8 @@ func (s *Store) AllowsShape(shape Shape) bool {
 // checkShape refuses a shape that does not belong in this namespace.
 //
 // This is a write-path rule, not an operation rule:
-// an operation may never reject what a later binary writes (E6),
+// an operation may never reject what a later binary writes
+// (doc/design/schema.md, "Structural rules are frozen"),
 // but a store that accepted a flow among the fields
 // would put it in the wrong merge tier and the wrong export.
 func (s *Store) checkShape(shape Shape) error {
@@ -270,7 +276,8 @@ func (c *Config) Operations() []Operation {
 
 // Compile builds the snapshot by applying the operations in the dag's order,
 // which is what makes last-writer-wins per attribute deterministic
-// across clones with no code of ours (E2, fact 1).
+// across clones with no code of ours
+// (doc/design/schema.md, "Four generic operations").
 func (c *Config) Compile() *Snapshot {
 	snap := &Snapshot{
 		id:         c.Id(),

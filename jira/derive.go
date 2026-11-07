@@ -12,10 +12,12 @@ import (
 	"github.com/git-bug/git-bug/schema"
 )
 
-// system is the alias system name this package reads and writes (JS2).
+// system is the alias system name this package reads and writes
+// (doc/design/jira.md, "The mapping is aliases on the schema").
 const system = "jira"
 
-// Field references of the fixed table (JS7); a link type is linkRef.
+// Field references of the fixed table (doc/design/jira.md, "What maps"); a link
+// type is linkRef.
 const (
 	refStatus   = "status"
 	refPriority = "priority"
@@ -26,9 +28,10 @@ const (
 	linkPrefix  = "link:"
 )
 
-// Derive returns current ⊕ Jira (JS5): the document with Jira's types,
-// fields and values adopted or added, Jira's names applied to what is
-// aliased, and nothing removed, archived or re-kinded. It is pure and a
+// Derive returns current ⊕ Jira
+// (doc/design/jira.md, "Derive, then the schema import"): the document with
+// Jira's types, fields and values adopted or added, Jira's names applied to
+// what is aliased, and nothing removed, archived or re-kinded. It is pure and a
 // fixpoint: deriving again from its import changes nothing.
 //
 // The error is a mis-binding: the document maps issue types, none of which
@@ -60,7 +63,8 @@ func (d *deriver) note(level Level, key, format string, args ...any) {
 	d.notes = append(d.notes, Note{Level: level, Key: key, Message: fmt.Sprintf(format, args...)})
 }
 
-// candidate is one local entity as matching sees it (JS6).
+// candidate is one local entity as matching sees it
+// (doc/design/jira.md, "Matching and keys").
 type candidate struct {
 	key, name string
 	aliases   map[string]string
@@ -199,7 +203,7 @@ type want struct {
 	kind     schema.Kind
 	freeform bool
 	inverse  string
-	link     bool // a link type's field, drawn as a link (link-fields.md, L2)
+	link     bool // a link type's field, drawn as a link (doc/design/jira.md, "Link types are link fields")
 	targets  []string
 	values   []jiraValue
 	ordered  bool // values follow Jira's order (priority)
@@ -309,7 +313,8 @@ func customName(s jiraapi.FieldSchema) string {
 	return s.Type
 }
 
-// customKind is JS7's table of custom field kinds, by schema.type.
+// customKind is the table of custom field kinds, by schema.type
+// (doc/design/jira.md, "What maps").
 func customKind(s jiraapi.FieldSchema) (schema.Kind, bool) {
 	switch {
 	case s.Type == "number":
@@ -328,7 +333,8 @@ func customKind(s jiraapi.FieldSchema) (schema.Kind, bool) {
 	return "", false
 }
 
-// storyPoints finds the estimate field (JS7): jsw-story-points, else a
+// storyPoints finds the estimate field (doc/design/jira.md, "What maps"):
+// jsw-story-points, else a
 // number field named exactly "Story Points" or "Story point estimate".
 func storyPoints(p *Project) string {
 	for _, f := range p.Fields {
@@ -427,8 +433,9 @@ func fieldTaken(t *schema.TypeDoc, k string) bool {
 	return false
 }
 
-// classes rank Jira's status categories (JS7): each allows some local
-// categories, and a new value gets the first.
+// classes rank Jira's status categories
+// (doc/design/jira.md, "Status categories"): each allows some local categories,
+// and a new value gets the first.
 var classes = map[string][]schema.Category{
 	"new":           {schema.CategoryUnstarted, schema.CategoryBacklog},
 	"undefined":     {schema.CategoryUnstarted, schema.CategoryBacklog},
@@ -454,7 +461,8 @@ func rankOf(c schema.Category) int {
 	return 0
 }
 
-// values matches Jira's values of one field onto its value list (JS6, JS7):
+// values matches Jira's values of one field onto its value list
+// (doc/design/jira.md, "Matching and keys"; doc/design/jira.md, "What maps"):
 // matched and local values keep their places, new ones join their class
 // (status) or the end, and an ordered field's mapped values follow Jira.
 func (d *deriver) values(where string, current []schema.ValueDoc, w want) []schema.ValueDoc {
@@ -526,7 +534,8 @@ func (d *deriver) values(where string, current []schema.ValueDoc, w want) []sche
 }
 
 // jiraOrder puts the mapped values in Jira's order, each local-only value
-// staying right after the value it followed (JS7: the order is the value).
+// staying right after the value it followed: the order is the value
+// (doc/design/jira.md, "What maps").
 func jiraOrder(vs []schema.ValueDoc, order []string) []schema.ValueDoc {
 	mapped := map[string]bool{}
 	for _, id := range order {
@@ -568,8 +577,9 @@ func typeAliases(doc *schema.Document) []string {
 	return out
 }
 
-// checkBinding refuses a schema mapped against another project (JS5): it
-// maps issue types, and the project has none of them.
+// checkBinding refuses a schema mapped against another project
+// (doc/design/jira.md, "Derive, then the schema import"): it maps issue types,
+// and the project has none of them.
 func checkBinding(aliases []string, p *Project) error {
 	if len(aliases) == 0 {
 		return nil

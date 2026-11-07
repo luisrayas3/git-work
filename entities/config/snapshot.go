@@ -87,7 +87,8 @@ func (snap *Snapshot) AttributeNames() []string {
 }
 
 // Members returns the members of a folded collection, keyed by member id:
-// the `values/<id>` attributes for prefix `values`, say (E3).
+// the `values/<id>` attributes for prefix `values`, say
+// (doc/design/schema.md, "Collections are one attribute per member").
 func (snap *Snapshot) Members(prefix string) map[string]Value {
 	out := map[string]Value{}
 	for name, value := range snap.Attributes {
