@@ -19,9 +19,9 @@ func strOrNil(s string) *string {
 }
 
 // diff is the changelog entry that turns a into b. The item shapes follow
-// jira-api.md §4.1 as vetted: labels as whole space-joined sets, the parent as
-// IssueParentAssociation with no fieldId (C2), Sprint ids comma-space
-// joined (C8), links as Link items with no fieldId.
+// What the changelog holds (doc/design/bridges/jira-api.md, "What the changelog holds"): labels as whole space-joined sets, the parent as
+// IssueParentAssociation with no fieldId (doc/design/bridges/jira-api.md, "What the changelog holds"), Sprint ids comma-space
+// joined (doc/design/bridges/jira-api.md, "What the changelog holds"), links as Link items with no fieldId.
 func (s *Server) diff(a, b *issueState) []item {
 	var items []item
 	sys := func(field string, from, fromS, to, toS *string) {
@@ -93,7 +93,7 @@ func (s *Server) diff(a, b *issueState) []item {
 		default:
 			it.FromString, it.ToString = strOrNil(valueString(x)), strOrNil(valueString(y))
 		}
-		// Sprint items are seen with their fieldId; others often are not (C8).
+		// Sprint items are seen with their fieldId; others often are not (doc/design/bridges/jira-api.md, "What the changelog holds").
 		if f.Kind != KindSprint && s.cfg.omitCustomFieldIDs && s.rng.Intn(2) == 0 {
 			it.FieldID = ""
 		}
@@ -119,7 +119,7 @@ func idOrEmpty(id int) string {
 	return strconv.Itoa(id)
 }
 
-// linkItem is a Link item: "This issue blocks PROJ-20" (§3 of api-vetting).
+// linkItem is a Link item: "This issue blocks PROJ-20" (doc/design/bridges/jira-api.md, "What the changelog holds").
 func (s *Server) linkItem(lid, viewer int, removed bool) item {
 	l := s.links[lid] // a removed link leaves the map after both commits
 	other, text := l.dest, l.typ.Outward

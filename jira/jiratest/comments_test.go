@@ -24,7 +24,7 @@ func TestComments(t *testing.T) {
 	require.Equal(t, c["created"], c["updated"])
 	require.Equal(t, true, c["jsdPublic"])
 	require.Equal(t, "doc", path(c, "body", "type"))
-	require.Contains(t, path(c, "body", "content").([]any)[0], "attrs", "Jira normalises ADF (§4.12)")
+	require.Contains(t, path(c, "body", "content").([]any)[0], "attrs", "Jira normalises ADF")
 	after := s.Issue(key).Updated
 	require.True(t, after.After(updated), "adding a comment bumps updated")
 	require.Empty(t, s.Issue(key).Changelog, "comments are not in the changelog")

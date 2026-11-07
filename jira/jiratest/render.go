@@ -9,10 +9,10 @@ import (
 )
 
 // tsLayout is the platform timestamp: milliseconds and an offset with no
-// colon, in the site's default user zone, never assumed +0000 (C4, C6).
+// colon, in the site's default user zone, never assumed +0000 (doc/design/bridges/jira-api.md, "Timestamps").
 const tsLayout = "2006-01-02T15:04:05.000-0700"
 
-// sprintLayout is the Sprint field's dates, which real sites send in UTC (C3).
+// sprintLayout is the Sprint field's dates, which real sites send in UTC (doc/design/bridges/jira-api.md, "Timestamps").
 const sprintLayout = "2006-01-02T15:04:05.000Z"
 
 func (s *Server) ts(t time.Time) string { return t.In(s.siteZone).Format(tsLayout) }
@@ -121,7 +121,7 @@ func (s *Server) userZone(u *User) string {
 	return s.siteZone.String()
 }
 
-// userJSON is a UserDetails, emailAddress omitted when hidden (R5), or nil.
+// userJSON is a UserDetails, emailAddress omitted when hidden (doc/design/bridges/jira-api.md, "Privacy and account types"), or nil.
 func (s *Server) userJSON(accountID string) any {
 	u := s.user(accountID)
 	if u == nil {
@@ -154,7 +154,7 @@ func (s *Server) projectRefJSON(p *project) map[string]any {
 	}
 }
 
-// issueRef is the short issue of parent, subtasks and issuelinks (R4).
+// issueRef is the short issue of parent, subtasks and issuelinks (doc/design/bridges/jira-api.md, "The issue's fields").
 func (s *Server) issueRef(id int) map[string]any {
 	rec := s.issues[id]
 	if rec == nil {
@@ -180,7 +180,7 @@ func (s *Server) linkTypeJSON(lt LinkType) map[string]any {
 }
 
 // linkJSON is a link as seen from issue viewer: the other side only, under
-// the key naming its role — the source sees outwardIssue: dest (C1).
+// the key naming its role — the source sees outwardIssue: dest (doc/design/bridges/jira-api.md, "Link direction").
 // viewer 0 gives both sides, as GET /issueLink does.
 func (s *Server) linkJSON(l *link, viewer int) map[string]any {
 	m := map[string]any{
@@ -287,7 +287,7 @@ func (s *Server) fieldValue(st *issueState, id string) (any, bool) {
 		return s.ts(st.catChanged), true
 	case "parent":
 		if st.parent == 0 {
-			return nil, false // absent with no parent (R4 accepts absent or null)
+			return nil, false // absent with no parent: absent or null (doc/design/bridges/jira-api.md, "The issue's fields")
 		}
 		return s.issueRef(st.parent), true
 	case "subtasks":
@@ -424,7 +424,7 @@ func (s *Server) issueJSON(rec *record, st *issueState, o renderOpts) map[string
 }
 
 // embeddedChangelog is expand=changelog: at most the 100 newest histories,
-// newest first by the spec, shuffled unless WithOrderedChangelog (C8).
+// newest first by the spec, shuffled unless WithOrderedChangelog (doc/design/bridges/jira-api.md, "What the changelog holds").
 func (s *Server) embeddedChangelog(rec *record) map[string]any {
 	hs := slices.Clone(rec.histories)
 	slices.Reverse(hs)

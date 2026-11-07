@@ -124,7 +124,7 @@ func TestGetIssueShapes(t *testing.T) {
 	m := r.obj(t)
 	f := m["fields"].(map[string]any)
 
-	require.Equal(t, "2026-07-01T09:00:00.000-0700", f["created"], "site zone, ms, no colon (C4)")
+	require.Equal(t, "2026-07-01T09:00:00.000-0700", f["created"], "site zone, ms, no colon")
 	_, err := time.Parse("2006-01-02T15:04:05.000-0700", f["updated"].(string))
 	require.NoError(t, err)
 
@@ -135,16 +135,16 @@ func TestGetIssueShapes(t *testing.T) {
 
 	reporter := f["reporter"].(map[string]any)
 	require.Equal(t, jiratest.RaviID, reporter["accountId"])
-	require.NotContains(t, reporter, "emailAddress", "hidden email is omitted (R5)")
+	require.NotContains(t, reporter, "emailAddress", "hidden email is omitted")
 
 	sprints := f[jiratest.FieldSprint].([]any)
 	require.Len(t, sprints, 1)
 	sp := sprints[0].(map[string]any)
 	require.EqualValues(t, 37, sp["id"])
-	require.Equal(t, "2026-06-22T08:00:00.000Z", sp["startDate"], "sprint dates are UTC Z (C3)")
+	require.Equal(t, "2026-06-22T08:00:00.000Z", sp["startDate"], "sprint dates are UTC Z")
 	require.Regexp(t, `^0\|[0-9a-z]+:$`, f[jiratest.FieldRank])
 	require.Equal(t, 5.0, f[jiratest.FieldStoryPoints])
-	require.Equal(t, 0.0, path(f, "comment", "total"), "comment is a page object (R3)")
+	require.Equal(t, 0.0, path(f, "comment", "total"), "comment is a page object")
 	require.Nil(t, f["resolution"])
 	require.Nil(t, f["duedate"])
 	require.Equal(t, []any{}, f["labels"])
@@ -186,7 +186,7 @@ func TestEditIssue(t *testing.T) {
 	require.Equal(t, []int{37}, is.Custom[jiratest.FieldSprint])
 	require.True(t, is.Updated.After(before), "a write bumps updated")
 
-	t.Run("sprint is a number, not an array (R18)", func(t *testing.T) {
+	t.Run("sprint is a number, not an array", func(t *testing.T) {
 		r := do(t, s, http.MethodPut, "/rest/api/3/issue/"+key, map[string]any{"fields": map[string]any{jiratest.FieldSprint: []int{38}}})
 		require.Equal(t, http.StatusBadRequest, r.status)
 		_, errs := errorBody(t, r)
@@ -215,7 +215,7 @@ func TestEditIssue(t *testing.T) {
 		r := do(t, s, http.MethodPut, "/rest/api/3/issue/"+key, map[string]any{"fields": map[string]any{jiratest.FieldRank: "0|a:"}})
 		require.Equal(t, http.StatusBadRequest, r.status)
 	})
-	t.Run("notifyUsers=false needs an admin (C5)", func(t *testing.T) {
+	t.Run("notifyUsers=false needs an admin", func(t *testing.T) {
 		r := do(t, s, http.MethodPut, "/rest/api/3/issue/"+key+"?notifyUsers=false", map[string]any{"fields": map[string]any{"summary": "x"}})
 		require.Equal(t, http.StatusBadRequest, r.status)
 		msgs, _ := errorBody(t, r)
@@ -251,7 +251,7 @@ func TestEditParent(t *testing.T) {
 		map[string]any{"update": map[string]any{"parent": []any{map[string]any{"set": map[string]any{"none": true}}}}}).status)
 	require.Empty(t, s.Issue(story).Parent)
 
-	// C2: IssueParentAssociation, parent ids in from/to, keys in the strings, no fieldId.
+	// IssueParentAssociation, parent ids in from/to, keys in the strings, no fieldId (doc/design/bridges/jira-api.md, "What the changelog holds").
 	cl := get(t, s, "/rest/api/3/issue/"+story+"?fields=summary&expand=changelog").obj(t)
 	values := path(cl, "changelog", "histories").([]any)
 	require.Len(t, values, 2)
@@ -329,7 +329,7 @@ func TestIssueProperties(t *testing.T) {
 	require.Equal(t, http.StatusBadRequest, do(t, s, http.MethodPut, "/rest/api/3/issue/"+key+"/properties/empty", nil).status)
 }
 
-// TestDescriptionRoundTrip: Jira stores ADF with attrs added (§4.12), and
+// TestDescriptionRoundTrip: Jira stores ADF with attrs added (doc/design/bridges/jira-api.md, "Jira normalises ADF"), and
 // sending the same document again changes nothing.
 func TestDescriptionRoundTrip(t *testing.T) {
 	s := newServer(t)

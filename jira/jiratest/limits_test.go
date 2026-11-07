@@ -42,8 +42,8 @@ func TestRateLimitWindow(t *testing.T) {
 	require.Equal(t, http.StatusOK, get(t, s, "/rest/api/3/serverInfo").status)
 }
 
-// TestPerIssueWriteLimit is jira-api.md §12.1's 20 writes per 2 s on one
-// issue, on a frozen clock.
+// TestPerIssueWriteLimit is Jira's 20 writes per 2 s on one issue
+// (doc/design/bridges/jira-api.md, "Rate limits"), on a frozen clock.
 func TestPerIssueWriteLimit(t *testing.T) {
 	s := newServer(t, jiratest.WithAutoAdvance(0))
 	a := s.CreateIssue(jiratest.IssueSpec{Project: "PROJ", Type: "Task", Summary: "a"})
@@ -107,7 +107,7 @@ func TestChangelogItems(t *testing.T) {
 	require.Equal(t, "38", sprint["to"])
 	require.Equal(t, "PROJ Sprint 5, the long one", sprint["toString"], "parse to, never toString")
 
-	t.Run("custom fieldIds go missing by default (C8)", func(t *testing.T) {
+	t.Run("custom fieldIds go missing by default", func(t *testing.T) {
 		s := newServer(t, jiratest.WithSeed(3))
 		key := s.CreateIssue(jiratest.IssueSpec{Project: "PROJ", Type: "Story", Summary: "s"})
 		missing := 0

@@ -92,7 +92,7 @@ type comment struct {
 	created      time.Time
 	updated      time.Time
 	visibility   json.RawMessage
-	properties   []property // set inline on create (jira-api.md §7.2)
+	properties   []property // set inline on create (doc/design/bridges/jira-api.md, "Adding, editing and deleting comments")
 }
 
 // property is an entity property: {key, value}.
@@ -102,7 +102,7 @@ type property struct {
 }
 
 // link is a stored issue link: source <outward> dest, which POST /issueLink
-// spells {inwardIssue: source, outwardIssue: dest} (C1).
+// spells {inwardIssue: source, outwardIssue: dest} (doc/design/bridges/jira-api.md, "Link direction").
 type link struct {
 	id     int
 	typ    LinkType
@@ -118,7 +118,7 @@ type history struct {
 }
 
 // item is a ChangeDetails; nil strings are JSON nulls, and an empty
-// fieldID is omitted (C2, C8).
+// fieldID is omitted (doc/design/bridges/jira-api.md, "What the changelog holds").
 type item struct {
 	Field      string  `json:"field"`
 	FieldType  string  `json:"fieldtype"`
@@ -151,9 +151,10 @@ type propVersion struct {
 }
 
 // indexProps records rec's properties for search, which sees them through the
-// same lag as fields: entity properties are indexed like fields, and nothing
-// vetted says they reach the index sooner
-// (doc/design/jira.md, "The database decides; the index only finds" relies on
+// same lag as fields: entity properties are indexed like fields, and that
+// they reach the index no sooner is unconfirmed
+// (doc/design/bridges/jira-api.md, "Search index lag";
+// doc/design/jira.md, "The database decides; the index only finds" relies on
 // this).
 func (s *Server) indexProps(rec *record) {
 	rec.propLog = append(rec.propLog, propVersion{maps.Clone(rec.props), s.clock(), s.tick})
@@ -319,7 +320,7 @@ func (s *Server) linkType(id, name string) *LinkType {
 }
 
 // lookup finds a live issue by id or key; a key that no longer matches is
-// resolved "case-insensitively and for moved issues" (jira-api.md §3.1).
+// resolved "case-insensitively and for moved issues" (doc/design/bridges/jira-api.md, "Keys, ids and moves").
 func (s *Server) lookup(idOrKey string) *record {
 	id, err := strconv.Atoi(idOrKey)
 	if err != nil {
@@ -380,13 +381,13 @@ func (s *Server) commit(rec *record, next *issueState, author string, force bool
 	return bumped
 }
 
-// newRank is a LexoRank-shaped string that sorts in creation order (R8).
+// newRank is a LexoRank-shaped string that sorts in creation order (doc/design/bridges/jira-api.md, "The issue's fields").
 func (s *Server) newRank() string {
 	s.next.rank++
 	return "0|i" + fmt.Sprintf("%05s", strconv.FormatInt(int64(s.next.rank), 36)) + ":"
 }
 
-// checkWriteLimit applies the per-issue write limits (jira-api.md §12.1) and
+// checkWriteLimit applies the per-issue write limits (doc/design/bridges/jira-api.md, "Rate limits") and
 // counts the write when it passes.
 func (s *Server) checkWriteLimit(recs ...*record) error {
 	now := s.clock()

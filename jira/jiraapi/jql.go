@@ -8,7 +8,7 @@ import (
 // JQLTime formats t as a JQL date literal, quoted: "yyyy/MM/dd HH:mm" in
 // loc, floored to the minute. Jira reads the literal in the searching
 // user's profile zone, so loc is Myself's Location, not the offset of the
-// timestamps Jira returns (§2.5, C6). The literal has no seconds: query with
+// timestamps Jira returns (doc/design/bridges/jira-api.md, "JQL for incremental sync"; doc/design/bridges/jira-api.md, "Timestamps"). The literal has no seconds: query with
 // >= on a floored watermark and dedupe. nil loc is UTC.
 //
 // In a DST fold two instants format alike, and the server may read the

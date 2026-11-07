@@ -5,7 +5,7 @@ import (
 	"strings"
 )
 
-// systemField is a FieldDetails of a system field (jira-api.md §8.1).
+// systemField is a FieldDetails of a system field (doc/design/bridges/jira-api.md, "Listing fields").
 type systemField struct {
 	id, name   string
 	schema     map[string]any
@@ -23,7 +23,7 @@ func sysSchema(typ string, id string, items ...string) map[string]any {
 }
 
 // systemFields are rendered in this order. comment is the one that is not
-// navigable, so *navigable leaves it out and *all brings it (§4.2).
+// navigable, so *navigable leaves it out and *all brings it (doc/design/bridges/jira-api.md, "Enhanced search").
 var systemFields = []systemField{
 	{id: "summary", name: "Summary", schema: sysSchema("string", "summary"), navigable: true, orderable: true, operations: []string{"set"}},
 	{id: "description", name: "Description", schema: sysSchema("string", "description"), navigable: true, orderable: true, operations: []string{"set"}},
@@ -88,7 +88,7 @@ func (f *CustomField) numericID() int {
 	return n
 }
 
-// schema is the JsonTypeBean (jira-api.md §3.2): Sprint is array of "json" (R6).
+// schema is the JsonTypeBean (doc/design/bridges/jira-api.md, "Field names and schemas"): Sprint is array of "json".
 func (f *CustomField) schema() map[string]any {
 	m := map[string]any{"custom": f.customKey(), "customId": f.numericID()}
 	switch f.Kind {
@@ -118,7 +118,7 @@ func (f *CustomField) operations() []string {
 }
 
 // fieldSel is a parsed fields parameter: *all, *navigable, ids, and -id
-// exclusions, comma-separated or repeated (jira-api.md §2.1, §3.1).
+// exclusions, comma-separated or repeated (doc/design/bridges/jira-api.md, "Enhanced search"; doc/design/bridges/jira-api.md, "The issue's fields").
 type fieldSel struct {
 	all, nav bool
 	ids      map[string]bool

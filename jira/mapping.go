@@ -313,7 +313,7 @@ func (m *Mapping) fromJira(ri *jiraapi.Issue, fm *fieldMap, ix *Index) (v issue.
 		}
 		var items []issue.Value
 		for _, l := range links {
-			// the relation is stored on the source: viewing A, {outwardIssue: B} is A → B (C1)
+			// the relation is stored on the source: viewing A, {outwardIssue: B} is A → B (doc/design/bridges/jira-api.md, "Link direction")
 			if l.Type.ID != fm.link || l.OutwardIssue == nil || !m.syncable(*l.OutwardIssue, ix) {
 				continue
 			}
@@ -582,7 +582,7 @@ func (m *Mapping) toJiraItems(fm *fieldMap, c change, remote *jiraapi.Issue, ix 
 				missing = append(missing, entity.Id(id).Human())
 				continue
 			}
-			// POST /issueLink's inwardIssue is the source (C1)
+			// POST /issueLink's inwardIssue is the source (doc/design/bridges/jira-api.md, "Link direction")
 			w.Add = append(w.Add, newLink{LinkType: fm.link, Source: remote.ID, Destination: jid})
 		}
 		for _, item := range c.Remove {

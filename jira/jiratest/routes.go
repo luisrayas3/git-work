@@ -98,7 +98,7 @@ func matchSegs(pattern, segs []string) (map[string]string, bool) {
 	return vars, true
 }
 
-// gone is the removed search API (C7).
+// gone is the removed search API (doc/design/bridges/jira-api.md, "The old search is removed").
 func gone(*Server, *call) (int, any, error) {
 	return 0, nil, &apiError{status: http.StatusGone, messages: []string{msgRemovedAPI}}
 }
@@ -110,11 +110,11 @@ var selfDenying = map[string]bool{
 	"getFields":                            true, // system fields only
 	"getCreateIssueMetaIssueTypes":         true, // no types
 	"getCreateIssueMetaIssueTypeId":        true,
-	"getTransitions":                       true, // [] without Transition issues (§6.1)
+	"getTransitions":                       true, // [] without Transition issues (doc/design/bridges/jira-api.md, "Listing transitions")
 }
 
 // denials are the documented answers of the other operations to a caller
-// without the permission (the 404s hide existence, jira-api.md §12.3).
+// without the permission (the 404s hide existence, doc/design/bridges/jira-api.md, "Status codes").
 var denials = map[string]func(c *call) *apiError{
 	"getIssue":            deny404Issue,
 	"getComments":         deny404Issue,

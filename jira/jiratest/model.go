@@ -2,7 +2,7 @@ package jiratest
 
 import "time"
 
-// Status categories, as the real site reports them (jira-api-vetting.md R2).
+// Status categories, as the real site reports them (doc/design/bridges/jira-api.md, "Status categories").
 // The spec's examples use "in-flight" and "completed", which no site sends.
 const (
 	CategoryNew           = "new"
@@ -14,7 +14,7 @@ const (
 // projects with their types and workflows, and the site-wide configuration.
 type Site struct {
 	Title       string
-	TimeZone    string // IANA; the "system default user time zone" timestamps render in (C6)
+	TimeZone    string // IANA; the "system default user time zone" timestamps render in (doc/design/bridges/jira-api.md, "Timestamps")
 	Projects    []Project
 	Users       []User
 	Priorities  []Priority
@@ -44,14 +44,14 @@ type Project struct {
 // IssueType is an issue type with its screens and its workflow.
 //
 // Fields are the fields associated with the type (its field configuration
-// context): what PUT accepts, since PUT no longer checks screens (jira-api.md §5.3).
+// context): what PUT accepts, since PUT no longer checks screens (doc/design/bridges/jira-api.md, "Editing an issue").
 // CreateScreen is the subset createmeta lists and POST /issue accepts;
 // nil means all of Fields. summary, issuetype and project are always there.
 type IssueType struct {
 	ID             string
 	Name           string
 	Description    string
-	HierarchyLevel int // -1 sub-task, 0 base, 1 epic (jira-api.md §8.4)
+	HierarchyLevel int // -1 sub-task, 0 base, 1 epic (doc/design/bridges/jira-api.md, "Issue types and hierarchy levels")
 	Fields         []string
 	CreateScreen   []string
 	Required       []string // required on create, beyond summary, issuetype and project
@@ -115,9 +115,9 @@ type User struct {
 	EmailHidden  bool   // emailAddress is omitted, and user search needs the exact address
 	AccountType  string // atlassian (default), app, customer
 	Inactive     bool
-	TimeZone     string // IANA; the zone JQL date literals are read in (C6); "" is the site zone
+	TimeZone     string // IANA; the zone JQL date literals are read in (doc/design/bridges/jira-api.md, "Timestamps"); "" is the site zone
 	APIToken     string
-	ProjectAdmin bool // may send notifyUsers=false (C5)
+	ProjectAdmin bool // may send notifyUsers=false (doc/design/bridges/jira-api.md, "Editing an issue")
 }
 
 // Priority is a site priority.

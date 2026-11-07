@@ -8,7 +8,7 @@ import (
 )
 
 // blockNodes get a localId when the fake normalises ADF, as Jira adds
-// attrs to what it stores (jira-api-vetting.md §4.12).
+// attrs to what it stores (doc/design/bridges/jira-api.md, "Jira normalises ADF").
 var blockNodes = map[string]bool{
 	"paragraph": true, "heading": true, "blockquote": true, "bulletList": true,
 	"orderedList": true, "listItem": true, "codeBlock": true, "panel": true,
@@ -17,7 +17,7 @@ var blockNodes = map[string]bool{
 
 // adfValue checks that raw is an Atlassian Document and returns what Jira
 // would store, or the field error: a JSON string is the documented
-// "Operation value must be an Atlassian Document" (R17), any other
+// "Operation value must be an Atlassian Document" (doc/design/bridges/jira-api.md, "Editing an issue"), any other
 // malformed value INVALID_INPUT (a guess).
 func (s *Server) adfValue(raw json.RawMessage) (json.RawMessage, string) {
 	raw = bytes.TrimSpace(raw)

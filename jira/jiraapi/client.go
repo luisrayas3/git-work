@@ -2,8 +2,8 @@
 // standard library only. It speaks JSON, retries what Jira asks it to retry,
 // and leaves the meaning of site-specific fields to its caller.
 //
-// The authority for every behaviour below is doc/design/bridges/jira-api.md and its
-// vetting, jira-api-vetting.md; section numbers in comments refer to jira-api.md.
+// The authority for every behaviour below is doc/design/bridges/jira-api.md,
+// cited by heading.
 package jiraapi
 
 import (
@@ -28,14 +28,14 @@ import (
 // Config is what New needs. Only BaseURL, Email and Token are required.
 type Config struct {
 	// BaseURL is https://<site>.atlassian.net, or
-	// https://api.atlassian.com/ex/jira/<cloudId> for scoped tokens (§1.1).
+	// https://api.atlassian.com/ex/jira/<cloudId> for scoped tokens (doc/design/bridges/jira-api.md, "Basic auth with an API token").
 	BaseURL string
 	Email   string
 	Token   string
 
 	HTTPClient *http.Client // nil means one with DefaultTimeout
 
-	// MaxRetries bounds the retries of one call; 0 means 4 (§12.1), and a
+	// MaxRetries bounds the retries of one call; 0 means 4 (doc/design/bridges/jira-api.md, "Rate limits"), and a
 	// negative value disables retrying.
 	MaxRetries int
 	// MaxRetryWait is the longest Retry-After the client will sleep through;
@@ -67,7 +67,7 @@ type Client struct {
 // cron run forever; retries then apply as to any transport error.
 const DefaultTimeout = 60 * time.Second
 
-// New returns a client authenticating with Basic email:token (§1.1).
+// New returns a client authenticating with Basic email:token (doc/design/bridges/jira-api.md, "Basic auth with an API token").
 func New(cfg Config) *Client {
 	c := &Client{
 		base:       strings.TrimRight(cfg.BaseURL, "/"),
@@ -105,14 +105,14 @@ func basic(email, token string) string {
 
 // ServerDate is the Date header of the last response received, the server's
 // clock, zero before the first response. Compare it with the local clock
-// before computing a JQL watermark (jira-api-vetting.md §4.4).
+// before computing a JQL watermark (doc/design/bridges/jira-api.md, "The server clock").
 func (c *Client) ServerDate() time.Time {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return c.date
 }
 
-// Error is a non-2xx response. Jira's body is an ErrorCollection (§12.2),
+// Error is a non-2xx response. Jira's body is an ErrorCollection (doc/design/bridges/jira-api.md, "The error body"),
 // decoded leniently: Messages and Fields are empty when the body is not one.
 type Error struct {
 	Method     string
@@ -153,7 +153,7 @@ func StatusCode(err error) int {
 // request is one call. Safe marks a request that may be repeated after a 503:
 // every GET, PUT and DELETE, and the few POSTs that only read or are
 // idempotent by contract. Any request is repeated after a 429, because a
-// rate-limited request is "rejected" before it is processed (§12.1).
+// rate-limited request is "rejected" before it is processed (doc/design/bridges/jira-api.md, "Rate limits").
 type request struct {
 	method string
 	path   string
@@ -239,7 +239,7 @@ func (c *Client) once(ctx context.Context, method, u string, payload []byte) (in
 	return resp.StatusCode, b, resp.Header, nil
 }
 
-// backoff follows the rate-limiting page (§12.1): Retry-After is the minimum
+// backoff follows the rate-limiting page (doc/design/bridges/jira-api.md, "Rate limits"): Retry-After is the minimum
 // delay; without it, 2s doubling to a 30s cap; both jittered by up to 30%.
 func (c *Client) backoff(attempt int, ra time.Duration, hasRA bool) time.Duration {
 	if hasRA {

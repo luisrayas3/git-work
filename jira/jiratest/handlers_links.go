@@ -23,7 +23,7 @@ func refIssue(r ref) string {
 }
 
 // linkIssues is POST /issueLink: inwardIssue is the source and
-// outwardIssue the destination, "source <outward> destination" (C1).
+// outwardIssue the destination, "source <outward> destination" (doc/design/bridges/jira-api.md, "Link direction").
 // 201 with no body; a duplicate creates nothing and still answers 201.
 func (s *Server) linkIssues(c *call) (int, any, error) {
 	var in linkReq
@@ -54,7 +54,7 @@ func (s *Server) linkIssues(c *call) (int, any, error) {
 }
 
 // link stores source <outward> dest once and puts it on both issues.
-// A comment goes on the outwardIssue, as the spec says (C11).
+// A comment goes on the outwardIssue, as the spec says (doc/design/bridges/jira-api.md, "Creating a link").
 func (s *Server) link(src, dst *record, lt LinkType, author string, comment json.RawMessage) int {
 	for _, l := range s.links {
 		if l.typ.ID == lt.ID && l.source == src.cur.id && l.dest == dst.cur.id {

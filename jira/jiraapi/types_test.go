@@ -13,15 +13,15 @@ func TestTimeParsing(t *testing.T) {
 		want   time.Time
 		offset int
 	}{
-		{`"2015-12-02T07:39:15.000-0800"`, want, -8 * 3600}, // jira-api-vetting.md C4
+		{`"2015-12-02T07:39:15.000-0800"`, want, -8 * 3600}, // doc/design/bridges/jira-api.md, "Timestamps"
 		{`"2015-12-02T07:39:15-0800"`, want, -8 * 3600},
 		{`"2015-12-02T15:39:15.000+0000"`, want, 0},
 		{`"2015-12-02T15:39:15.000Z"`, want, 0},
 		{`"2015-12-02T15:39:15Z"`, want, 0},
 		{`"2015-12-03T01:39:15.000+10:00"`, want, 10 * 3600},                                  // agile spec examples
-		{`"2025-03-12T01:36:46.600Z"`, time.Date(2025, 3, 12, 1, 36, 46, 600e6, time.UTC), 0}, // C3
+		{`"2025-03-12T01:36:46.600Z"`, time.Date(2025, 3, 12, 1, 36, 46, 600e6, time.UTC), 0}, // doc/design/bridges/jira-api.md, "Timestamps"
 		{`"2026-09-27T10:03:11.123456+0200"`, time.Date(2026, 9, 27, 8, 3, 11, 123456e3, time.UTC), 2 * 3600},
-		{`1449070755`, want, -1},    // bulkfetch epoch seconds (§4.2)
+		{`1449070755`, want, -1},    // bulkfetch epoch seconds (doc/design/bridges/jira-api.md, "Bulk changelog")
 		{`1449070755000`, want, -1}, // and milliseconds
 		{`null`, time.Time{}, -1},
 		{`""`, time.Time{}, -1},

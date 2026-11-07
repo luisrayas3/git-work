@@ -7,7 +7,7 @@ import (
 )
 
 // available are the transitions out of the issue's status: its own
-// edges and the global ones (jira-api.md §6.1, §8.12).
+// edges and the global ones (doc/design/bridges/jira-api.md, "Listing transitions"; doc/design/bridges/jira-api.md, "Workflows").
 func available(st *issueState) []Transition {
 	var out []Transition
 	for _, t := range st.typ.Workflow.Transitions {
@@ -54,7 +54,7 @@ func (s *Server) getTransitions(c *call) (int, any, error) {
 		return 0, nil, issueNotFound()
 	}
 	list := []map[string]any{}
-	// Without Transition issues the list is empty, not a 403 (jira-api.md §6.1).
+	// Without Transition issues the list is empty, not a 403 (doc/design/bridges/jira-api.md, "Listing transitions").
 	if !c.denied {
 		withFields := parseExpand(c.q["expand"]...)["transitions.fields"]
 		for _, t := range available(rec.cur) {
@@ -94,7 +94,7 @@ func (s *Server) doTransition(c *call) (int, any, error) {
 }
 
 // transition moves the issue along one available edge, with the fields of
-// its screen; a required screen field left unset is a 400 (R16).
+// its screen; a required screen field left unset is a 400 (doc/design/bridges/jira-api.md, "Making a transition").
 func (s *Server) transition(rec *record, id string, up *issueUpdate, author string) *apiError {
 	var tr *Transition
 	for _, t := range available(rec.cur) {

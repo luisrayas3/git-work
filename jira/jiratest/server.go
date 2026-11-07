@@ -2,7 +2,7 @@
 // served over net/http/httptest, for the tests of the Jira client, of schema
 // discovery and of the sync engine.
 //
-// It is written from doc/design/bridges/jira-api.md and jira-api-vetting.md, not from the
+// It is written from doc/design/bridges/jira-api.md, not from the
 // client: it imports nothing from jira/jiraapi and speaks raw JSON with its
 // own types, so a wrong struct tag in the client fails a test instead of
 // being mirrored. Where the documentation leaves a behaviour open, the fake
@@ -184,7 +184,7 @@ func (s *Server) RateLimitNext(n int) {
 }
 
 // ConflictNextTransitions answers the next n transition POSTs with 409,
-// as Jira does for simultaneous transitions on one issue (C9).
+// as Jira does for simultaneous transitions on one issue (doc/design/bridges/jira-api.md, "Making a transition").
 func (s *Server) ConflictNextTransitions(n int) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -342,7 +342,7 @@ func (s *Server) serve(c *call, rt *route, pathKnown bool) {
 func (s *Server) authenticate(r *http.Request) (*User, bool) {
 	auth := r.Header.Get("Authorization")
 	if auth == "" {
-		// Many operations run anonymously when the header is missing (§17.5).
+		// Many operations run anonymously when the header is missing (doc/design/bridges/jira-api.md, "Anonymous calls").
 		return nil, s.cfg.missingAuth == AnonymousOnMissingAuth
 	}
 	scheme, cred, _ := strings.Cut(auth, " ")
@@ -396,7 +396,7 @@ func (s *Server) rateLimited(c *call) bool {
 	return false
 }
 
-// write429 is the documented 429 (jira-api.md §12.1, jira-api-vetting.md R19).
+// write429 is the documented 429 (doc/design/bridges/jira-api.md, "Rate limits").
 func (s *Server) write429(w http.ResponseWriter, reason string, retryAfter, limit int, reset time.Time) {
 	writeError(w, rateError(reason, retryAfter, limit, reset))
 }

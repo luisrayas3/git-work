@@ -16,7 +16,8 @@ what a local type change or a comment delete does to the issue
 is the [issue](issue.md)'s;
 how link fields are drawn is the [views](views.md)'.
 The Jira behaviour everything here relies on is in
-[the API reference](bridges/jira-api.md) and [its vetting](bridges/jira-api-vetting.md);
+[the API reference](bridges/jira-api.md),
+each fact there confirmed or marked unconfirmed;
 [the sandbox](bridges/jira-sandbox.md) says what a test site needs.
 
 ## What the design rests on
@@ -979,7 +980,7 @@ at Jira's `updated` for imports and at Jira's now for the rest.
 Relations resolve through the `Index`,
 built once per run from the excerpts' `jira-id` and the identities' `jira-account-id`,
 and extended as the run imports and creates.
-Links follow [the vetting](bridges/jira-api-vetting.md) C1:
+Links follow [Jira's link direction](bridges/jira-api.md#link-direction):
 in `POST /issueLink`, `inwardIssue` is the source,
 so `{inwardIssue: A, outwardIssue: B, type: Blocks}` means A blocks B,
 and viewing A, `issuelinks` holds `{outwardIssue: B}`.
@@ -1342,7 +1343,7 @@ for the client tests, discovery and the engine scenarios,
 instead of an in-memory client, a file-serving getter and recorded fixtures.
 It imports nothing from `jiraapi`, so a wrong struct tag fails a test
 instead of agreeing with itself.
-Every documented behaviour is its default and every unverified one is a `With…` switch,
+Every documented behaviour is its default and every unconfirmed one is a `With…` switch,
 and the design chooses what works either way:
 the crash matrix runs under both ADF modes,
 and one scenario runs under each switch.
@@ -1355,9 +1356,9 @@ deleted issues dropped from search, and a JQL `id` or `key` naming one refused;
 410 on `/search`; the token omitted on the last page; 429 with `Retry-After`;
 no `Authorization` header is 200-with-nothing on search and 401 on `/myself`.
 
-The behaviours a live site has not confirmed
-are listed in [the vetting](bridges/jira-api-vetting.md#unconfirmed-on-a-live-site),
-each with the fake's answer;
+The behaviours no live site has confirmed
+are marked unconfirmed in [the API reference](bridges/jira-api.md#how-to-read-this),
+each with what is assumed and the fake's answer;
 where the fake has a switch for one, a scenario runs under each side,
 and the sync is built to work either way.
 

@@ -20,7 +20,7 @@ func TestMyself(t *testing.T) {
 	require.Equal(t, jiratest.MiaID, m["accountId"])
 	require.Equal(t, "Mia Krystof", m["displayName"])
 	require.Equal(t, jiratest.MiaEmail, m["emailAddress"])
-	require.Equal(t, "Europe/Berlin", m["timeZone"], "the zone JQL literals are read in (C6)")
+	require.Equal(t, "Europe/Berlin", m["timeZone"], "the zone JQL literals are read in")
 	require.Equal(t, "atlassian", m["accountType"])
 	require.Equal(t, jiratest.MiaID, r.header.Get("X-AAccountId"))
 }
@@ -44,7 +44,7 @@ func TestAuth(t *testing.T) {
 	t.Run("no credentials run anonymously", func(t *testing.T) {
 		require.Equal(t, http.StatusUnauthorized, get(t, s, "/rest/api/3/myself", noAuth).status)
 		r := search(t, s, url.Values{"jql": {"project = PROJ"}, "fields": {"summary"}}, noAuth)
-		require.Equal(t, http.StatusOK, r.status, "200 with nothing in it (§17.5)")
+		require.Equal(t, http.StatusOK, r.status, "200 with nothing in it")
 		require.Empty(t, r.obj(t)["issues"])
 		require.Equal(t, http.StatusNotFound, get(t, s, "/rest/api/3/issue/PROJ-1", noAuth).status)
 		require.Equal(t, http.StatusOK, get(t, s, "/rest/api/3/serverInfo", noAuth).status)

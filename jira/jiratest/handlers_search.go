@@ -8,7 +8,7 @@ import (
 )
 
 // searchReq is SearchAndReconcileRequestBean; expand is a comma-delimited
-// string even in the POST body (jira-api.md §2.1).
+// string even in the POST body (doc/design/bridges/jira-api.md, "Enhanced search").
 type searchReq struct {
 	JQL             string   `json:"jql"`
 	NextPageToken   string   `json:"nextPageToken"`
@@ -43,7 +43,7 @@ func (s *Server) searchPost(c *call) (int, any, error) {
 	return s.search(c, req)
 }
 
-// env is the JQL environment of the caller: dates in their profile zone (C6).
+// env is the JQL environment of the caller: dates in their profile zone (doc/design/bridges/jira-api.md, "Timestamps").
 func (s *Server) env(c *call) (*jqlEnv, error) {
 	loc := s.siteZone
 	if c.user != nil && c.user.TimeZone != "" {
@@ -57,7 +57,7 @@ func (s *Server) env(c *call) (*jqlEnv, error) {
 }
 
 // query runs a JQL query against the index, with the reconciled ids read
-// from the database (jira-api.md §2.4).
+// from the database (doc/design/bridges/jira-api.md, "Search index lag").
 func (s *Server) query(c *call, jql string, reconcile []int64) ([]hit, error) {
 	q, perr := parseJQL(jql)
 	if perr != nil {
@@ -79,7 +79,7 @@ func (s *Server) query(c *call, jql string, reconcile []int64) ([]hit, error) {
 		return nil, perr
 	}
 	if c.user == nil || c.denied {
-		// Anonymous and project-less callers see nothing, with a 200 (§17.5).
+		// Anonymous and project-less callers see nothing, with a 200 (doc/design/bridges/jira-api.md, "Anonymous calls").
 		return nil, nil
 	}
 	fresh := map[int]bool{}
@@ -107,7 +107,7 @@ func (s *Server) search(c *call, req searchReq) (int, any, error) {
 	if len(req.ReconcileIssues) > 50 {
 		return 0, nil, badRequest("The 'reconcileIssues' parameter accepts at most 50 issue ids.")
 	}
-	// maxResults is advisory and at most 5000; pages come shorter (§4.9).
+	// maxResults is advisory and at most 5000; pages come shorter (doc/design/bridges/jira-api.md, "Enhanced search").
 	page := 50
 	if req.MaxResults != nil {
 		page = *req.MaxResults
@@ -126,7 +126,7 @@ func (s *Server) search(c *call, req searchReq) (int, any, error) {
 		if cur.fingerprint != req.JQL {
 			return 0, nil, badRequest("The JQL query does not match the one of the next page token.")
 		}
-		// The ids "should be consistent with each paginated request" (jira-api-vetting.md §4.8).
+		// The ids "should be consistent with each paginated request" (doc/design/bridges/jira-api.md, "Enhanced search").
 		if cur.reconcile != reconcile {
 			return 0, nil, badRequest("The 'reconcileIssues' parameter must be the same on every page of a search.")
 		}
@@ -160,7 +160,7 @@ func (s *Server) search(c *call, req searchReq) (int, any, error) {
 	}
 	out := map[string]any{"issues": issues, "isLast": end >= len(cur.results)}
 	if end < len(cur.results) {
-		// The token is omitted on the last page, with isLast (R13).
+		// The token is omitted on the last page, with isLast (doc/design/bridges/jira-api.md, "Enhanced search").
 		s.next.cursor++
 		token := fmt.Sprintf("tok%dx%d", s.next.cursor, end)
 		s.cursors[token] = &cursor{fingerprint: cur.fingerprint, reconcile: cur.reconcile, results: cur.results, offset: end}

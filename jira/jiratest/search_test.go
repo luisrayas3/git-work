@@ -26,9 +26,9 @@ func TestSearchDefaultsToIDs(t *testing.T) {
 	seedTasks(t, s, 2)
 	m := search(t, s, url.Values{"jql": {"project = PROJ ORDER BY id ASC"}}).obj(t)
 	require.Equal(t, []any{map[string]any{"id": "10001"}, map[string]any{"id": "10002"}}, m["issues"],
-		"by default, IDs only (jira-api.md §2.1)")
+		"by default, IDs only")
 	require.Equal(t, true, m["isLast"])
-	require.NotContains(t, m, "nextPageToken", "omitted on the last page (R13)")
+	require.NotContains(t, m, "nextPageToken", "omitted on the last page")
 	require.NotContains(t, m, "total")
 }
 
@@ -238,7 +238,7 @@ func TestJQLIdOfDeletedIssue(t *testing.T) {
 
 // TestJQLTimeZones: literals are minutes in the caller's profile zone
 // (Europe/Berlin) while responses render in the site zone (Los Angeles),
-// so a client mixing the two up fails (C6).
+// so a client mixing the two up fails (doc/design/bridges/jira-api.md, "Timestamps").
 func TestJQLTimeZones(t *testing.T) {
 	// The clock starts at 16:00:00Z: 18:00 in Berlin, 09:00 in Los Angeles.
 	s := newServer(t, jiratest.WithAutoAdvance(0))
@@ -303,6 +303,6 @@ func TestSearchExpandChangelog(t *testing.T) {
 		order = append(order, path(h, "items").([]any)[0].(map[string]any)["toString"].(string))
 	}
 	require.ElementsMatch(t, []string{"v0", "v1", "v2", "v3", "v4", "v5"}, order)
-	require.NotEqual(t, []string{"v5", "v4", "v3", "v2", "v1", "v0"}, order, "shuffled, not sorted (C8)")
+	require.NotEqual(t, []string{"v5", "v4", "v3", "v2", "v1", "v0"}, order, "shuffled, not sorted")
 	require.True(t, strings.HasPrefix(order[0], "v"))
 }
