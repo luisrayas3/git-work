@@ -19,18 +19,19 @@ import (
 // so a pack from the old format can not be misread as a valid new one
 // even if the version gate were bypassed.
 const (
-	_             dag.OperationType = iota
-	CreateOp                        // 1, kept
-	_                               // 2, retired: SetTitle
-	AddCommentOp                    // 3, kept
-	_                               // 4, retired: SetStatus
-	_                               // 5, retired: LabelChange
-	EditCommentOp                   // 6, kept
-	NoOpOp                          // 7, kept
-	SetMetadataOp                   // 8, kept
-	SetFieldOp                      // 9
-	AddValueOp                      // 10
-	RemoveValueOp                   // 11
+	_               dag.OperationType = iota
+	CreateOp                          // 1, kept
+	_                                 // 2, retired: SetTitle
+	AddCommentOp                      // 3, kept
+	_                                 // 4, retired: SetStatus
+	_                                 // 5, retired: LabelChange
+	EditCommentOp                     // 6, kept
+	NoOpOp                            // 7, kept
+	SetMetadataOp                     // 8, kept
+	SetFieldOp                        // 9
+	AddValueOp                        // 10
+	RemoveValueOp                     // 11
+	DeleteCommentOp                   // 12
 )
 
 // OperationTypeName names an operation type for the outside world.
@@ -56,6 +57,8 @@ func OperationTypeName(t dag.OperationType) string {
 		return "add-value"
 	case RemoveValueOp:
 		return "remove-value"
+	case DeleteCommentOp:
+		return "delete-comment"
 	default:
 		return fmt.Sprintf("unknown-%d", int(t))
 	}
@@ -87,6 +90,8 @@ func operationUnmarshaler(raw json.RawMessage, resolvers entity.Resolvers) (dag.
 		op = &AddValueOperation{}
 	case CreateOp:
 		op = &CreateOperation{}
+	case DeleteCommentOp:
+		op = &DeleteCommentOperation{}
 	case EditCommentOp:
 		op = &EditCommentOperation{}
 	case NoOpOp:

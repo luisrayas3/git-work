@@ -318,6 +318,27 @@ func IssueCommentEdit(repo *cache.RepoCache, commentId string, body string) erro
 	return i.Commit()
 }
 
+// IssueCommentDelete deletes one comment, named by its own id
+// (comment-delete.md). It is replicated and final:
+// the comment leaves every view, and its text stays in the issue's log.
+// The description, the first comment, is refused (CD4).
+func IssueCommentDelete(repo *cache.RepoCache, commentId string) error {
+	i, target, err := repo.Issues().ResolveComment(commentId)
+	if err != nil {
+		return err
+	}
+
+	if comments := i.Snapshot().Comments; len(comments) > 0 && comments[0].CombinedId() == target {
+		return errors.New("the description can not be deleted; rewrite it with `issue comment edit`")
+	}
+
+	if _, err := i.DeleteComment(target); err != nil {
+		return err
+	}
+
+	return i.Commit()
+}
+
 // commit is the end of every writer: --dry-run writes nothing,
 // otherwise the planned operations land as one commit.
 func commit(i *cache.IssueCache, ops []issue.Operation, dryRun bool) ([]issue.Operation, error) {

@@ -102,6 +102,12 @@ is `terminal-renderer.md`; this document is the command line it is reached by.
 - **`rm` is local, `archive` is replicated**, on every tree.
   `rm` deletes the local ref and the entity returns on the next pull;
   `archive` is an operation and reaches every clone.
+- **`delete` is replicated and final**, a third word for a third removal
+  (2026-11-07, `comment-delete.md` CD5).
+  It is an operation like `archive`, reaching every clone and Jira,
+  but there is no undoing it;
+  the history keeps what it removed.
+  `issue comment delete` is the one.
 - **The list is a jq program** (`3c9c24d`) over the array of excerpts,
   the same JSON `git work issue list` prints.
   Its input is the unarchived issues, the archived too with `--include-archive`,
@@ -153,6 +159,7 @@ git work issue add ID ITEMS|- [--dry-run]       # {"key": [item, ...], ...}; set
 git work issue remove ID ITEMS|- [--dry-run]
 git work issue comment new ISSUE_ID BODY|-      # prints the comment id
 git work issue comment edit COMMENT_ID BODY|-
+git work issue comment delete COMMENT_ID        # replicated, final; prints nothing
 git work issue log [ID|PROGRAM] [--from TIME] [--to TIME] [--include-archive]  # half-open [from, to); each entry names its issue
 git work issue archive ID                       # first class on every tree; = set ID '{"archived":true}'
 git work issue rm ID
@@ -218,7 +225,7 @@ git work view board '{"query":"map(select(.fields.status != \"done\"))","columns
 
 `work.issue.list(program, at=None, include_archive=False)`, `work.issue.new(doc)`, `work.issue.get(id, at=None)`,
 `work.issue.set(id, **fields)`, `work.issue.add(id, **items)`, `work.issue.remove(id, **items)`,
-`work.issue.comment.new(id, body)`, `work.issue.comment.edit(id, body)`,
+`work.issue.comment.new(id, body)`, `work.issue.comment.edit(id, body)`, `work.issue.comment.delete(id)`,
 `work.issue.log(id, from_=None, to=None, include_archive=False)`, `work.issue.archive(id)`, `work.issue.rm(id)`;
 `from` is a reserved word in Starlark, so that keyword carries the same
 trailing underscore `work.schema.import_` does;

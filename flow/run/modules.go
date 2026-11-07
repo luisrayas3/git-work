@@ -54,6 +54,7 @@ func (r *runtime) work() *starlarkstruct.Module {
 			sub("comment",
 				verb("new", r.issueCommentNew),
 				verb("edit", r.issueCommentEdit),
+				verb("delete", r.issueCommentDelete),
 			),
 		),
 		// `import` is a reserved word in Starlark, so the one verb that can
@@ -362,6 +363,19 @@ func (r *runtime) issueCommentEdit(thread *starlark.Thread, b *starlark.Builtin,
 	}
 
 	if err := host.IssueCommentEdit(r.repo, id, body); err != nil {
+		return nil, err
+	}
+	return starlark.None, nil
+}
+
+// work.issue.comment.delete(id) — id is the comment's own id.
+func (r *runtime) issueCommentDelete(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+	var id string
+	if err := starlark.UnpackArgs(b.Name(), args, kwargs, "id", &id); err != nil {
+		return nil, err
+	}
+
+	if err := host.IssueCommentDelete(r.repo, id); err != nil {
 		return nil, err
 	}
 	return starlark.None, nil

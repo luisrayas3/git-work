@@ -437,3 +437,28 @@ func (c *IssueCache) EditCommentRaw(author identity.Interface, unixTime int64, t
 	}
 	return op, c.notifyUpdated()
 }
+
+// DeleteComment hides one comment (comment-delete.md CD1).
+func (c *IssueCache) DeleteComment(target entity.CombinedId) (*issue.DeleteCommentOperation, error) {
+	author, err := c.getUserIdentity()
+	if err != nil {
+		return nil, err
+	}
+
+	return c.DeleteCommentRaw(author, time.Now().Unix(), target, nil)
+}
+
+func (c *IssueCache) DeleteCommentRaw(author identity.Interface, unixTime int64, target entity.CombinedId, metadata map[string]string) (*issue.DeleteCommentOperation, error) {
+	comment, err := c.Snapshot().SearchComment(target)
+	if err != nil {
+		return nil, err
+	}
+
+	c.mu.Lock()
+	op, err := issue.DeleteComment(c.entity, author, unixTime, comment.TargetId(), metadata)
+	c.mu.Unlock()
+	if err != nil {
+		return nil, err
+	}
+	return op, c.notifyUpdated()
+}

@@ -7,7 +7,7 @@ import (
 	"github.com/git-bug/git-bug/host"
 )
 
-// newIssueCommentCommand groups the two comment verbs.
+// newIssueCommentCommand groups the comment verbs.
 // There is no comment list: `git work issue get ID` prints the comments,
 // and get is the only reader of an issue's content (cli-convention.md).
 func newIssueCommentCommand(env *execenv.Env) *cobra.Command {
@@ -18,6 +18,7 @@ func newIssueCommentCommand(env *execenv.Env) *cobra.Command {
 
 	cmd.AddCommand(newIssueCommentNewCommand(env))
 	cmd.AddCommand(newIssueCommentEditCommand(env))
+	cmd.AddCommand(newIssueCommentDeleteCommand(env))
 
 	return cmd
 }
@@ -78,4 +79,25 @@ func runIssueCommentEdit(env *execenv.Env, args []string) error {
 	}
 
 	return host.IssueCommentEdit(env.Backend, args[0], body)
+}
+
+func newIssueCommentDeleteCommand(env *execenv.Env) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "delete COMMENT_ID",
+		Short: "Delete a comment from an issue",
+		Long: `Delete one comment, everywhere it is published: every clone on its next pull,
+and Jira on its next sync. Nothing is printed.
+COMMENT_ID is the comment's own id, as get and comment new print it.
+
+A delete is final: there is no undelete. The text is not destroyed in git;
+the issue's log still holds it. The description, the first comment,
+can not be deleted; rewrite it with comment edit.`,
+		Args:    cobra.ExactArgs(1),
+		PreRunE: execenv.LoadBackendEnsureUser(env),
+		RunE: execenv.CloseBackend(env, func(cmd *cobra.Command, args []string) error {
+			return host.IssueCommentDelete(env.Backend, args[0])
+		}),
+	}
+
+	return cmd
 }

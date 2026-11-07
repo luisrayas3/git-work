@@ -73,7 +73,11 @@ A writer prints an id or nothing at all, and diagnostics go to stderr.
   and `git work issue remove ID '{"key": [item, …]}'`
   are for the list-valued fields, with set semantics.
 - `git work issue comment new ID BODY` prints the new comment's id,
-  and `git work issue comment edit COMMENT_ID BODY` rewrites one.
+  `git work issue comment edit COMMENT_ID BODY` rewrites one,
+  and `git work issue comment delete COMMENT_ID` deletes one,
+  on every clone and in Jira.
+  A delete is final; the text stays in `issue log`.
+  The description, the first comment, is edited, never deleted.
 - `git work issue log ID` is the issue's history,
   one JSON object per operation: what changed, by whom, when.
 - `git work issue archive ID` is the replicated removal.
