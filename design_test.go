@@ -23,6 +23,9 @@ var (
 	citationRe = regexp.MustCompile(`doc/design/([a-z0-9_/-]+\.md)(?:,\s*"([^"]+)")?`)
 	// A Markdown link to a .md file, with an optional anchor.
 	linkRe = regexp.MustCompile(`\]\(([^)\s#]*\.md)(?:#([^)\s]+))?\)`)
+	// A bare Markdown file name, not preceded by a directory,
+	// nor opening a string literal (a test's file name, not a reference).
+	bareRe = regexp.MustCompile(`(?:^|[^A-Za-z0-9_./"-])([A-Za-z0-9_-]+\.md)\b`)
 	// What a comment line starts with, stripped before lines are joined.
 	leaderRe  = regexp.MustCompile(`^\s*(//|#|\*|-)?\s*`)
 	headingRe = regexp.MustCompile(`^#{1,6}\s+(.+?)\s*$`)
@@ -39,6 +42,25 @@ func TestDesignCitations(t *testing.T) {
 		h, a, err := readHeadings(path)
 		headings[filepath.ToSlash(path)], anchors[filepath.ToSlash(path)] = h, a
 		return err
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Every Markdown file's name, so a bare name in code can be checked:
+	// one naming a file that exists is a plain reference, not a citation.
+	mdNames := map[string]bool{}
+	err = filepath.WalkDir(".", func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() && filepath.ToSlash(path) == ".git" {
+			return filepath.SkipDir
+		}
+		if !d.IsDir() && filepath.Ext(path) == ".md" {
+			mdNames[filepath.Base(path)] = true
+		}
+		return nil
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -82,6 +104,13 @@ func TestDesignCitations(t *testing.T) {
 		}
 
 		if filepath.Ext(path) != ".md" {
+			// A bare name is not a citation; one that names no file in the
+			// repository is a dead one, such as "(type-change.md, TC8)".
+			for _, m := range bareRe.FindAllStringSubmatch(text, -1) {
+				if !mdNames[m[1]] {
+					t.Errorf("%s: names %s, which is no file in the repository; cite doc/design/<aspect>.md, \"<heading>\"", path, m[1])
+				}
+			}
 			return nil
 		}
 		for _, m := range linkRe.FindAllStringSubmatch(text, -1) {

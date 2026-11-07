@@ -131,6 +131,21 @@ Do not extend them;
   no "revised on", no "supersedes", no order of work, no deferred list
   (future work is an issue).
   What a decision used to be is in git and on the issues.
+- **A rejected alternative is argued in the conditional**:
+  "Not X: it would …",
+  never "X was tried and …" or "X did …".
+  A reason holds now;
+  an anecdote does not.
+- **"Deliberately absent", not "Not done"**:
+  a document may list what it deliberately does not do,
+  under that heading,
+  and every entry carries a standing reason.
+  An entry without one is future work,
+  and future work is an issue.
+- **Unconfirmed facts about an external system go in its reference document**
+  (`doc/design/bridges/` for Jira),
+  not in an aspect;
+  the aspect states the decision that copes with them.
 - **The set of aspects changes only on a human's explicit say-so.**
   New work goes into the aspect it belongs to,
   even when that makes a document longer.
@@ -138,6 +153,10 @@ Do not extend them;
   conservatively and with its reason,
   but does not do it until a human has confirmed that change directly;
   approval of a story's design is not approval of a new aspect.
+- **Continuous integration is not an aspect.**
+  How to use it goes in `CONTRIBUTING.md`;
+  anything about how it runs is kept light enough
+  to live as comments in `.github/workflows/`.
 - **A story's design is written on the story**,
   in its description or a comment,
   and approved there before any of its code is written:
@@ -150,12 +169,22 @@ Do not extend them;
   and never keeps what no longer holds.
   A decision that changes is rewritten in place, where it stands,
   and every sentence elsewhere that it makes wrong is fixed in the same change.
+- **Moving design text keeps its pointers alive.**
+  Whoever moves or removes design text
+  (into an aspect, onto an issue, or out of the repository)
+  repoints, in the same change,
+  every issue comment, task and code citation that pointed at it.
 - **A decision is a heading, and code cites it by document and heading**:
   `(doc/design/views.md, "The ghost")`.
   A heading names the decision, so keep it short and stable;
   renaming one means updating what cites it.
+- **Citations use the full form**, `doc/design/<aspect>.md`:
+  a bare `<name>.md`,
+  or an old decision id such as `TC8` or `JS18`,
+  is not a citation.
   `TestDesignCitations` fails on a citation, or a link between documents,
-  that names a document or heading that does not exist.
+  that names a document or heading that does not exist,
+  and on a bare `<name>.md` in code that names no file in the repository.
 - **Tests own their fixtures.**
   No test reads this repository's `schema.yaml`, `flows/` or tracker:
   those are this project's configuration,

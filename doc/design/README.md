@@ -30,4 +30,9 @@ so that a document never describes what is not built.
 Code cites a decision by document and heading,
 `(doc/design/views.md, "The ghost")`,
 and `TestDesignCitations` checks that every citation resolves.
+Moving or removing design text repoints, in the same change,
+whatever cited it: code, tasks and issue comments.
+A rejected alternative is argued in the conditional,
+and what a document deliberately does not do is listed
+under "Deliberately absent", each entry with its standing reason.
 The full rules are in [`AGENTS.md`](../../AGENTS.md), Working conventions.
