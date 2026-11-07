@@ -252,9 +252,9 @@ git work version
 git work completion SHELL
 ```
 
-`bug`, `label`, `termui`, `bridge` and `wipe` are git-bug's,
-reading or writing its frozen `refs/issues/*` and not the tracker;
-they are being deleted and are not part of the command line above.
+`bug`, `label`, `termui`, `bridge` and `wipe` are git-bug's and frozen:
+they read or write git-bug's `refs/issues/*`, write nothing to the tracker,
+and are not part of the command line above.
 
 ## Aliases
 

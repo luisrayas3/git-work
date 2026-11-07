@@ -35,7 +35,7 @@ Moving or removing design text repoints, in the same change,
 whatever cited it: code, tasks and issue comments
 (an issue comment is repointed by adding a comment, never by rewriting one).
 A decision with its own reasoning and citations has its own heading;
-old decision ids such as `TC8` stay out of code and of these documents.
+old decision ids stay out of code and of these documents.
 A rejected alternative is argued in the conditional,
 and what a document deliberately does not do is listed
 under "Deliberately absent", each entry stating its standing reason.

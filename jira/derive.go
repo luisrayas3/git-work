@@ -157,12 +157,14 @@ func (d *deriver) types() {
 // retype sets each mapped type's retype_targets to the other mapped types
 // of its hierarchy level and with its set of status ids, in the document's
 // order (doc/design/jira.md, "Retype targets follow Jira's levels and workflows"):
-// Jira's edit changes an issue type only
-// within one level and one workflow, so that is what a local type change
-// may do. Jira is canonical for it, as for a type's name, so a list written
-// by hand is rewritten, with a note. A local-only type, unaliased or
-// aliased "", is left alone and never listed: an issue retyped to one would
-// silently stop syncing (doc/design/schema.md, "A type says what it may become").
+// one level and one status-id set is taken as Jira's condition for changing
+// an issue type by edit, the status set standing in for the workflow
+// (doc/design/bridges/jira-api.md, "Changing an issue type by edit"); a
+// refusal it misses is settled on the write. Jira is canonical for it, as
+// for a type's name, so a list written by hand is rewritten, with a note. A
+// local-only type, unaliased or aliased "", is left alone and never listed:
+// an issue retyped to one would silently stop syncing
+// (doc/design/schema.md, "A synced type's targets sync to the same system").
 func (d *deriver) retype() {
 	class := map[string]string{}
 	for _, it := range d.p.IssueTypes {
@@ -189,7 +191,7 @@ func (d *deriver) retype() {
 		}
 		t, _ := d.doc.Types.Get(key)
 		if t.RetypeTargets == nil || !slices.Equal(*t.RetypeTargets, targets) {
-			d.note(LevelInfo, key, "retype_targets %s after Jira levels", orElse(strings.Join(targets, ", "), "(none)"))
+			d.note(LevelInfo, key, "retype_targets %s after Jira levels and workflows", orElse(strings.Join(targets, ", "), "(none)"))
 		}
 		t.RetypeTargets = &targets
 		d.doc.SetType(key, t)

@@ -151,7 +151,7 @@ func decide(b string, hasBase bool, l, r, empty string) (v verdict, conflict boo
 // merge decides one issue per key over base b, the local and the remote
 // documents (doc/design/jira.md, "Three documents per issue"). It is pure.
 // b nil is an issue never synced. With export false every local change is
-// pending instead of in Remote/Comments, as at step 6
+// pending instead of in Remote/Comments, as at step 7
 // (doc/design/jira.md, "One issue at a time").
 // A key in mergePlan.Remote keeps its old base: the engine records the value
 // written in Base.Sent, and confirm settles it

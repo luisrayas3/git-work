@@ -232,7 +232,7 @@ func TestMergeSkipAndExport(t *testing.T) {
 // imports it, and the next run is quiet.
 func TestMergeNormalisedWrite(t *testing.T) {
 	b := base("", "title", str("T"))
-	// we wrote "T  x" (step 6: B'[title] = written); Jira trimmed it to "T x"
+	// we wrote "T  x" (step 7: B'[title] = written); Jira trimmed it to "T x"
 	b.Fields["title"] = str("T  x")
 	l, r := doc("", "title", str("T  x")), doc("", "title", str("T x"))
 	p := merge(b, l, r, isMulti, false)
@@ -369,7 +369,7 @@ func TestMergeDeletedComments(t *testing.T) {
 	require.Empty(t, p.Pending)
 	require.Equal(t, map[string]string{"1": digest("one"), "2": digest("two"), "3": "", "4": "", "5": digest("five")}, p.Base.Comments)
 
-	// step 6, nothing exported: the delete is pending, the import is not
+	// step 7, nothing exported: the delete is pending, the import is not
 	p = merge(b, l, r, isMulti, false)
 	require.Empty(t, p.Deletes)
 	require.Equal(t, []localChange{*imp}, p.Local)

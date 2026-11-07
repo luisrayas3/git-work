@@ -12,7 +12,7 @@ import (
 // may list as retype targets only types synced to that same system; a
 // local-only or ""-aliased target is an import error naming both, checked
 // against the types already in the store; an unaliased type may list
-// anything (doc/design/schema.md, "A type says what it may become").
+// anything (doc/design/schema.md, "A synced type's targets sync to the same system").
 func TestSchemaImportRetypeSystems(t *testing.T) {
 	repo, _ := atTestRepo(t)
 

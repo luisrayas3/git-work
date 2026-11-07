@@ -207,7 +207,7 @@ func (e *engine) report(l Line) {
 		}
 		l.Action = ActionPending
 	}
-	// a key and reason reported twice (step 4 and step 6) is one entry
+	// a key and reason reported twice (step 5 and step 7) is one entry
 	seen := map[[2]string]bool{}
 	l.Pending = slices.DeleteFunc(l.Pending, func(s Skip) bool {
 		k := [2]string{s.Key, s.Reason}

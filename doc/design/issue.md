@@ -111,7 +111,7 @@ that they are built in, and their kinds, is the [schema](schema.md)'s.
 
 The codes shared with git-bug, 1, 3, 6, 7 and 8, keep their numbers,
 because an operation's id hashes its JSON, code included,
-and that is what let the migration keep entity and comment ids.
+so a migrated entity and its comments keep their ids.
 The retired codes 2, 4 and 5 (git-bug's title, status and label changes)
 are never reused,
 so an old pack can not be misread as a valid new one
@@ -308,12 +308,22 @@ It is policy, not shape:
 a pull runs the shape check only,
 so a type changed by a Move in Jira is imported whatever the list says,
 since Jira is the authority on what Jira holds.
-A local type change that is allowed is exported to Jira ([Jira sync](jira.md)).
+A local type change that is allowed is exported to Jira,
+alone and before any other field;
+if Jira refuses it, the sync takes Jira's type back
+and reports a conflict on `type` with Jira's reason
+([Jira sync](jira.md#a-local-type-change-is-exported-alone-and-first)).
 
-The policy is per type, not per issue:
-an epic created locally and never synced cannot become an initiative either.
+### The policy is per type, not per issue
+
+Which types an issue may become is decided by its type alone:
+an epic created locally and never synced cannot become an initiative either,
+when epic's list does not allow it.
 That keeps the checker free of Jira state,
-since whether an issue is linked lives in the sync's base, not the schema.
+since whether an issue is linked lives in the sync's base, not the schema;
+and a repository that syncs to Jira has its types' lists derived from Jira
+([Jira sync](jira.md#retype-targets-follow-jiras-levels-and-workflows)),
+so the rule is the one the sync expects Jira to apply.
 
 ## Rank
 
@@ -341,7 +351,9 @@ every view orders by the built-in `rank`, and every drag writes it
 
 ## Deliberately absent
 
-- **Undelete**, for the reasons in [Delete is final](#delete-is-final).
+- **Undelete.** Jira cannot restore a deleted comment,
+  so an undelete would be a local resurrection Jira never sees
+  ([Delete is final](#delete-is-final)).
 - **Purging a comment's text from git.**
   The history is replicated by design;
   a comment that must not exist anywhere, a leaked secret,

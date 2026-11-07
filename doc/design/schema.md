@@ -314,16 +314,8 @@ types:
   or one listed twice, is an import error;
   one whose type is later archived is a problem on the compiled schema.
 - It is one-way, and need not be symmetric.
-- **A synced type's targets are synced to the same system.**
-  A type with a non-empty alias for a system
-  may list only types with a non-empty alias for that same system;
-  anything else is an import error naming the system and the target.
-  The import checks the schema it would leave,
-  so a partial file meets the types already in the store.
-  A type with no aliases is unconstrained.
-  The rule is about aliases, not Jira, so the schema stays backend-free;
-  without it, an issue linked to a system could be retyped out of the sync,
-  and its type change would have nowhere to go.
+- A synced type may list only types synced to the same system
+  ([below](#a-synced-types-targets-sync-to-the-same-system)).
 - A local write is checked against it, a Jira pull is not
   ([issue](issue.md#a-type-change-is-a-set)).
   For a type mapped to Jira the sync derives it
@@ -337,6 +329,19 @@ It is a property of the type, not of a field,
 so it gives `type` no role:
 `type` is built in already,
 and this is the schema saying what the built-in accepts.
+
+### A synced type's targets sync to the same system
+
+A type with a non-empty alias for a system
+may list as `retype_targets` only types with a non-empty alias for that same system;
+anything else is an import error naming the system and the target.
+A type with no non-empty alias, unaliased or aliased `""` only, is unconstrained.
+The import checks the schema it would leave,
+so a partial file meets the types already in the store.
+
+Without the rule, an issue linked to a system could be retyped out of the sync,
+and its type change would have nowhere to go.
+The rule is about aliases, not Jira, so the schema stays backend-free.
 
 ### Hierarchy is target types
 

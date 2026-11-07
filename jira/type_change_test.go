@@ -178,7 +178,7 @@ func TestTypeChangeRefused(t *testing.T) {
 }
 
 // a linked issue retyped to a local-only type is impossible by a local write
-// (doc/design/schema.md, "A type says what it may become");
+// (doc/design/schema.md, "A synced type's targets sync to the same system");
 // written into the store by hand around the import check, it is a refusal
 // like Jira's: taken back with a conflict, nothing asked of Jira, and the
 // next run quiet (doc/design/jira.md, "A local type change is exported alone and first").

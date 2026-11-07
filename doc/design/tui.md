@@ -115,7 +115,7 @@ nor its `ctrl+u` and `ctrl+d`,
 because a letter at the top level is worth more as text.
 Not three families with a tab each in the help:
 three spellings of every key read as noise to all three,
-and the letters vim needed are the ones typing now uses.
+and vim's letters are the ones typing uses.
 
 ### `esc x` is `alt+x`
 

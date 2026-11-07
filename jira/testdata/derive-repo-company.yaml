@@ -913,11 +913,11 @@ types:
 # info iteration: local-only type: never exported
 # info decision: local-only type: never exported
 # info allocation: local-only type: never exported
-# info epic: retype_targets (none) after Jira levels
-# info story: retype_targets task, bug after Jira levels
-# info task: retype_targets story, bug after Jira levels
-# info bug: retype_targets story, task after Jira levels
-# info subtask: retype_targets (none) after Jira levels
+# info epic: retype_targets (none) after Jira levels and workflows
+# info story: retype_targets task, bug after Jira levels and workflows
+# info task: retype_targets story, bug after Jira levels and workflows
+# info bug: retype_targets story, task after Jira levels and workflows
+# info subtask: retype_targets (none) after Jira levels and workflows
 # warn epic/customfield_10019: Jira field Rank (customfield_10019, com.pyxis.greenhopper.jira:gh-lexo-rank) is not mapped
 # info epic/status: adopts Jira field Status (status)
 # info epic/status:to-do: adopts Jira value To Do (10000)

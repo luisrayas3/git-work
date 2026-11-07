@@ -211,7 +211,7 @@ func TestCrashAfterJiraWrites(t *testing.T) {
 	_, op, err := ic.AddComment("posted, then crashed")
 	require.NoError(t, err)
 	require.NoError(t, ic.Commit())
-	// what step 4 did before the crash, as the token's account
+	// what step 5 did before the crash, as the token's account
 	w.srv.As(jiratest.MiaID).Edit(key, map[string]any{"summary": "Written, then crashed"})
 	email, token := w.srv.Credentials()
 	c := jiraapi.New(jiraapi.Config{BaseURL: w.srv.URL(), Email: email, Token: token})
@@ -598,7 +598,7 @@ func TestPullOffSchemaWritten(t *testing.T) {
 	require.Equal(t, `"`+w.byKey(epic).Id().String()+`"`, field(t, ic, "parent"))
 	w.quiet()
 
-	// the same through step 6: an imported issue whose parent Jira moves
+	// the same through step 7: an imported issue whose parent Jira moves
 	w.srv.Edit(moved, map[string]any{"parent": map[string]any{"key": epic}})
 	lines, sum = w.mustSync(jira.Options{})
 	require.Len(t, lines, 1, "%+v", lines)

@@ -47,8 +47,8 @@ func TestDeriveRetypeTargets(t *testing.T) {
 		require.Nil(t, typeDoc(t, d, "bug").RetypeTargets, `a type aliased "" is local-only`)
 		require.Nil(t, typeDoc(t, d, "allocation").RetypeTargets)
 	}
-	require.True(t, hasNote(notes, LevelInfo, "story", "retype_targets task after Jira levels"))
-	require.True(t, hasNote(notes, LevelInfo, "epic", "retype_targets (none) after Jira levels"))
+	require.True(t, hasNote(notes, LevelInfo, "story", "retype_targets task after Jira levels and workflows"))
+	require.True(t, hasNote(notes, LevelInfo, "epic", "retype_targets (none) after Jira levels and workflows"))
 
 	again, notes, err := Derive(s.export(t), p)
 	require.NoError(t, err)
@@ -56,7 +56,7 @@ func TestDeriveRetypeTargets(t *testing.T) {
 	require.False(t, hasNote(notes, LevelInfo, "story", "retype_targets"), "no change, no note")
 
 	// widened by hand to a mapped type of another level, which a synced type's
-	// targets allow (doc/design/schema.md, "A type says what it may become")
+	// targets allow (doc/design/schema.md, "A synced type's targets sync to the same system")
 	widened := s.export(t)
 	story := typeDoc(t, widened, "story")
 	story.RetypeTargets = &[]string{"task", "epic"}
@@ -66,7 +66,7 @@ func TestDeriveRetypeTargets(t *testing.T) {
 	doc, notes, err = Derive(s.export(t), p)
 	require.NoError(t, err)
 	require.Equal(t, []string{"task"}, *typeDoc(t, doc, "story").RetypeTargets)
-	require.True(t, hasNote(notes, LevelInfo, "story", "retype_targets task after Jira levels"))
+	require.True(t, hasNote(notes, LevelInfo, "story", "retype_targets task after Jira levels and workflows"))
 	changes := s.importDoc(t, doc)
 	require.Len(t, changes, 1)
 	require.JSONEq(t, `["task"]`, string(changes[0].Set[schema.AttrRetypeTargets]))
@@ -99,5 +99,5 @@ func TestDeriveRetypeTargetsWorkflow(t *testing.T) {
 	_, doc, notes, _ := derived(t, starts(t)["repo"], p)
 	require.NotContains(t, *typeDoc(t, doc, "story").RetypeTargets, "task")
 	require.Empty(t, *typeDoc(t, doc, "task").RetypeTargets)
-	require.True(t, hasNote(notes, LevelInfo, "task", "retype_targets (none) after Jira levels"))
+	require.True(t, hasNote(notes, LevelInfo, "task", "retype_targets (none) after Jira levels and workflows"))
 }

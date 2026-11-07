@@ -651,7 +651,7 @@ func TestAdvConcurrentCommentAndBodyEdit(t *testing.T) {
 }
 
 // A Jira user edits the issue between our write and our re-read (the window of
-// steps 4–5; doc/design/jira.md, "One issue at a time"): the change is
+// steps 5–6; doc/design/jira.md, "One issue at a time"): the change is
 // imported, never overwritten.
 func TestAdvJiraEditBetweenWriteAndReread(t *testing.T) {
 	w := newWorld(t)
@@ -1240,7 +1240,7 @@ func TestAdvTeamSite(t *testing.T) {
 }
 
 // WithStaleReads: GET after a write returns the version before it. The
-// re-read of step 5 then sees Jira without our write, and the second merge
+// re-read of step 6 then sees Jira without our write, and the second merge
 // imports the old value over the local edit it just exported.
 func TestAdvStaleReadsRevertLocalEdit(t *testing.T) {
 	w := newWorld(t, jiratest.WithStaleReads())

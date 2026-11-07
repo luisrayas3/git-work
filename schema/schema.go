@@ -172,11 +172,12 @@ func (t *Type) MayBecome(typeKey string) (bool, []string) {
 }
 
 // CheckRetypeSystems refuses a type that syncs to a system listing a retype
-// target that does not (doc/design/schema.md, "A type says what it may become"):
+// target that does not (doc/design/schema.md, "A synced type's targets sync to the same system"):
 // a type with a non-empty alias
 // for a system may become only types with a non-empty alias for that same
 // system, or an issue linked there could be retyped out of the sync. A type
-// with no aliases is unconstrained, and nothing here knows what a system is.
+// with no non-empty alias is unconstrained, and nothing here knows what a
+// system is.
 // An import checks the schema it would leave, so that a partial file is
 // checked against the types already in the store.
 func (s *Schema) CheckRetypeSystems() error {

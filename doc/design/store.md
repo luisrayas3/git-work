@@ -148,7 +148,7 @@ The issue entity is format 5,
 git-bug's bug format 4,
 and each reader refuses the other's packs,
 so the owned issue lives in its own namespace
-rather than beside the bugs it replaced.
+rather than beside git-bug's bugs.
 
 ### Local state is under .git/git-work
 

@@ -471,5 +471,8 @@ within each, last edited first, the default program's order.
 
 ## Deliberately absent
 
-- **No static check of field names** in a query against the schema (see "Unknown is null").
+- **No static check of field names** in a query against the schema:
+  a program runs over mixed types, where a field one type lacks is the common case,
+  so an unknown field reads as null rather than failing the query
+  ([Unknown is null](#unknown-is-null)).
 - **No `$parent`** in a layer query: a row's own `children` makes it unnecessary.

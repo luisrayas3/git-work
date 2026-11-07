@@ -11,7 +11,7 @@ import (
 	"github.com/git-bug/git-bug/util/sorted"
 )
 
-// ---- step 4: the Jira writes ----
+// ---- step 5: the Jira writes ----
 
 // write performs plan's remote changes, each independently. Jira's 2xx is its
 // acceptance: each key and comment written goes into b2.Sent, with b2.Wrote
@@ -19,7 +19,7 @@ import (
 // which confirm settles
 // (doc/design/jira.md, "The base is what Jira was seen to hold"). pairs are the
 // comments it created, by Jira id, from the 201s; imports are the Jira edits of
-// comments it deleted, for step 6 to commit; wrote says anything landed. Only a
+// comments it deleted, for step 7 to commit; wrote says anything landed. Only a
 // run failure is returned.
 func (e *engine) write(ri *jiraapi.Issue, remote Doc, plan mergePlan, b2 *Base, line *Line) (pairs map[string]entity.Id, imports []localChange, wrote bool, err error) {
 	before := e.now()
@@ -161,7 +161,7 @@ func (e *engine) write(ri *jiraapi.Issue, remote Doc, plan mergePlan, b2 *Base, 
 	// a 404 is already gone
 	// (doc/design/jira.md, "A comment deleted locally is deleted in Jira"). A
 	// delete that landed is based at once, since no GET can show it back, and
-	// its import of Jira's edit is step 6's to commit.
+	// its import of Jira's edit is step 7's to commit.
 	for _, cd := range plan.Deletes {
 		err := e.c.DeleteComment(e.ctx, ri.ID, cd.JiraId)
 		if jiraapi.StatusCode(err) == 404 {
@@ -187,7 +187,7 @@ func (e *engine) write(ri *jiraapi.Issue, remote Doc, plan mergePlan, b2 *Base, 
 
 // transition moves the issue to statusId: the transition whose target it is, a
 // required resolution filled with its first allowed value, and one retry on 409
-// after re-reading, at step 4 (doc/design/jira.md, "One issue at a time";
+// after re-reading, at step 5 (doc/design/jira.md, "One issue at a time";
 // jira-api-vetting.md C9). A reason is pending.
 func (e *engine) transition(ri *jiraapi.Issue, statusId string) (string, error) {
 	for try := 0; ; try++ {

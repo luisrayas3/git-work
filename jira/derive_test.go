@@ -38,7 +38,7 @@ func (s *store) importDoc(t *testing.T, doc *schema.Document) []schema.Change {
 	after, err := schema.Compile(schema.Apply(s.entries, changes))
 	require.NoError(t, err)
 	// what the import leaves meets
-	// (doc/design/schema.md, "A type says what it may become")
+	// (doc/design/schema.md, "A synced type's targets sync to the same system")
 	require.NoError(t, after.CheckRetypeSystems(), "a synced type's targets sync too")
 	s.apply(changes)
 	return changes

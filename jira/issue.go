@@ -114,9 +114,9 @@ func (e *engine) syncLinked(ic *cache.IssueCache) error {
 	return e.converge(ic, b, ri, cs, nil, nil, line)
 }
 
-// converge is steps 3–6 (doc/design/jira.md, "One issue at a time") for an
+// converge is steps 3–7 (doc/design/jira.md, "One issue at a time") for an
 // issue on both sides: b is the base (nil for none), meta the create-op
-// metadata step 6 adds for a new link, echo the keys of b.Sent that R
+// metadata step 7 adds for a new link, echo the keys of b.Sent that R
 // answers (a create's, read right after its POST), line what the caller has
 // to report already.
 func (e *engine) converge(ic *cache.IssueCache, b *Base, ri *jiraapi.Issue, cs []jiraapi.Comment, meta map[string]string, echo map[string]bool, line Line) error {
@@ -177,7 +177,7 @@ func (e *engine) converge(ic *cache.IssueCache, b *Base, ri *jiraapi.Issue, cs [
 	if !wrote {
 		return e.commit(ic, b2, ri, cs, meta, &written{refused: rt.refused}, line)
 	}
-	// step 5: what Jira answered is committed even when the re-read fails,
+	// step 6: what Jira answered is committed even when the re-read fails,
 	// against R, where every written key is still pending
 	// (doc/design/jira.md, "The base is what Jira was seen to hold")
 	w := &written{pairs: pairs, imports: imports, echo: map[string]bool{}, refused: rt.refused}
@@ -193,7 +193,7 @@ func (e *engine) converge(ic *cache.IssueCache, b *Base, ri *jiraapi.Issue, cs [
 	return e.commit(ic, b2, ri2, cs2, meta, w, line)
 }
 
-// written is what step 4 leaves step 6: the comments it created, paired from
+// written is what step 5 leaves step 7: the comments it created, paired from
 // their 201s; the Jira edits of the comments it deleted, which R′ no longer
 // holds; the keys it wrote, which R′ answers; a failed re-read.
 type written struct {
@@ -324,11 +324,11 @@ func restore(b2, prior *Base, key string) {
 	}
 }
 
-// commit is step 6: the second merge, decided under the lock on the fresh
+// commit is step 7: the second merge, decided under the lock on the fresh
 // issue, with nothing exported; its local changes, note, pairings and marker
-// are one commit. w is step 4's (nil when nothing was written): its
+// are one commit. w is step 5's (nil when nothing was written): its
 // comments are paired whether or not R′ lists them, and a failed re-read is
-// reported once the rest is committed. line is step 4's; Update calls the
+// reported once the rest is committed. line is step 5's; Update calls the
 // closure exactly once.
 func (e *engine) commit(ic *cache.IssueCache, b2 *Base, ri *jiraapi.Issue, cs []jiraapi.Comment,
 	meta map[string]string, w *written, line Line) error {
@@ -370,7 +370,7 @@ func (e *engine) commit(ic *cache.IssueCache, b2 *Base, ri *jiraapi.Issue, cs []
 			ops = append(ops, issue.NewNoOpOp(e.me, e.now().Unix(), map[string]string{MetaSync: plan.Base.marshal()}))
 		}
 		decided.Conflicts = append(decided.Conflicts, plan.Conflicts...)
-		// a key step 4 already reported pending keeps step 4's reason
+		// a key step 5 already reported pending keeps step 5's reason
 		known := map[string]bool{}
 		for _, s := range line.Pending {
 			known[s.Key] = true

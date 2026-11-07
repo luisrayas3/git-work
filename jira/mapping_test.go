@@ -115,7 +115,7 @@ func (cv *conv) create(local Doc, id entity.Id) string {
 	return ref.Key
 }
 
-// apply is the engine's step 4 in miniature: one PUT, the transition, links.
+// apply is the engine's step 5 in miniature: one PUT, the transition, links.
 func (cv *conv) apply(key string, ws []jiraWrite) {
 	t, ctx := cv.t, context.Background()
 	fields, update := map[string]any{}, map[string][]jiraapi.Op{}

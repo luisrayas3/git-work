@@ -405,8 +405,10 @@ the sync maps the new type to its issue type id
 and sends `PUT /issue/{id}` with `fields.issuetype` and nothing else,
 **before** the edit carrying the other fields,
 because Jira validates every other field against the issue's type as it stands.
-A type change then ends one of three ways:
-refused when written locally, landed in Jira, or taken back with a conflict.
+A type change reaches the sync only once the local check has allowed it
+([issue](issue.md#a-type-change-is-a-set) refuses the rest, before any write).
+The sync then lands it in Jira or takes it back with a conflict;
+a run failure is neither, and leaves it for the next run.
 
 - **Landed**: the type goes into `Sent` like any write,
   and is the run's first write, so `Wrote` is the clock before it.
@@ -415,20 +417,24 @@ refused when written locally, landed in Jira, or taken back with a conflict.
   a field the new type does not map in Jira is no key of that merge,
   so nothing is pending for it,
   and its local value stays on the issue, unsynced, like any local-only field's.
-- **Refused**, by Jira or for any other issue failure: the refusal is final.
+- **Taken back**, refused by Jira or for any other issue failure: the refusal is final.
   The local type becomes the merge's base,
   so the merge takes Jira's type back as it takes any key only Jira changed,
   and the sync reports a conflict on `type` with the reason
   (a `reason` on the report's conflict, and in the [conflict note](#conflict-notes)).
   The local attempt stays in the issue's history;
   the other keys merge under Jira's type, and the next run is quiet.
-- **A type mapped to no Jira issue type** is refused the same way,
+- **Taken back, mapped to no Jira issue type**: refused the same way,
   with no request ("type X is not mapped to a Jira issue type").
+  A type that differs from the base makes the issue a candidate
+  even when no mapped key differs,
+  so an issue whose type changed to an unmapped one is taken back,
+  not skipped as unchanged and silently unlinked.
   The schema import makes it unreachable by a local write
-  ([schema](schema.md#a-type-says-what-it-may-become));
+  ([schema](schema.md#a-synced-types-targets-sync-to-the-same-system));
   only a store written around that check reaches it.
 - **A run failure** (network, auth) is not a refusal:
-  the run stops, as for any write, and the next run retries.
+  the run stops, as for any write, and the next run retries the type.
 
 Not left pending:
 a pending type change would be a discrepancy reported on every run
@@ -438,11 +444,12 @@ with the rest under the new type,
 and one to an unmapped type as its conflict;
 it cannot predict Jira's own refusal.
 
-Local writes are refused where Jira would refuse:
+Local writes are refused where Derive expects Jira to refuse:
 [Derive](#retype-targets-follow-jiras-levels-and-workflows) gives each mapped type
-the `retype_targets` Jira's levels and workflows allow,
-so a refusal is left for what only Jira knows,
-such as a required field unset on this issue.
+the `retype_targets` of its level and status set,
+so a refusal is left for what Derive cannot see:
+a workflow difference the status sets do not show,
+or a required field unset on this issue.
 Not `editmeta` to predict it:
 a request per type change to repeat a check Jira makes anyway on the write,
 whose refusal the sync already settles.
@@ -692,29 +699,30 @@ The `jira` preset marks its link fields the same way.
 
 ### Retype targets follow Jira's levels and workflows
 
-Jira's edit changes an issue type only within one hierarchy level
-and one workflow,
-so Derive sets each mapped type's `retype_targets`
+Derive treats one hierarchy level and one set of status ids
+as Jira's condition for changing an issue type by edit,
+and sets each mapped type's `retype_targets`
 to the other mapped types of its level with the same set of status ids
 (discovery's `GET /project/{key}/statuses`),
 in the document's order.
-Required fields are not considered:
-whether one is set depends on the issue, not the type,
-and a refusal is [settled on the write](#a-local-type-change-is-exported-alone-and-first).
+The condition is an assumption:
+that Jira's edit keeps an issue type within one level and one workflow is unconfirmed,
+and the status set stands in for the workflow,
+which a non-admin cannot read and which two workflows may share
+([API reference](bridges/jira-api.md#changing-an-issue-type-by-edit)).
+A refusal the assumption misses,
+like one for a required field unset on the issue,
+whose being set depends on the issue and not the type,
+is [settled on the write](#a-local-type-change-is-exported-alone-and-first).
 Jira is canonical for what a Jira type can become, as for its name,
 so a list written by hand is rewritten on the next run, with a note.
 A local-only type, unaliased or aliased `""`, keeps its own list
 and is never listed in a mapped type's:
 a linked issue retyped to one would silently stop syncing,
 and the schema import refuses it
-([schema](schema.md#a-type-says-what-it-may-become)).
-
-The policy is per type, not per issue:
-an epic created locally and never synced cannot become an initiative either.
-That keeps the checker free of Jira state,
-since whether an issue is linked lives in the sync's base, not the schema;
-and a repository that syncs to Jira has its types derived from Jira,
-so the rule is Jira's own.
+([schema](schema.md#a-synced-types-targets-sync-to-the-same-system)).
+The list is per type, not per issue
+([issue](issue.md#the-policy-is-per-type-not-per-issue)).
 
 ## One run
 
@@ -729,13 +737,13 @@ so the rule is Jira's own.
    ensure identities for the accounts they name, each its own commit.
    A 404 or a key outside the project is not a failure
    but [Gone](#deletes-and-moves-are-gone)'s business.
-3. **Plan**, lock-free, the type
-   [settled first](#a-local-type-change-is-exported-alone-and-first):
-   a local type change is written alone, or refused and taken back,
-   and then `plan₁ = merge(confirm(B, R), L, fromIssue(R), export=true)`
-   under the type that results,
+3. **Type**, [settled first](#a-local-type-change-is-exported-alone-and-first):
+   a local type change is written to Jira alone, before any other key,
+   or refused and taken back.
+4. **Plan**, lock-free, under the type that results:
+   `plan₁ = merge(confirm(B, R), L, fromIssue(R), export=true)`,
    turned into writes, one per local key.
-4. **Write**, each independent, success recorded per key:
+5. **Write**, each independent, success recorded per key:
    one `PUT` with every edit;
    the transition; link adds and removes; comment creates, edits and deletes.
    A `PUT` refused with per-field `errors` is retried once without those fields,
@@ -745,15 +753,15 @@ so the rule is Jira's own.
    (pending would block "done" on most company-managed workflows);
    any other required field without a default, or no such transition, is pending;
    a 409 re-reads the transitions and retries once.
-5. **Re-read** `R′ = GET` if anything was written, else `R′ = R`.
+6. **Re-read** `R′ = GET` if anything was written, else `R′ = R`.
    Each write that landed is in `B′.Sent`, with `B′.Wrote`
    the `Date` of Jira's response before the first write.
-   A failed re-read commits step 6 against `R`,
+   A failed re-read commits step 7 against `R`,
    where everything written is still pending, and then fails the issue:
    nothing Jira answered is lost.
-6. **Commit**, `IssueCache.UpdateShape`:
+7. **Commit**, `IssueCache.UpdateShape`:
    under the lock, on the fresh snapshot `L′`,
-   with the comments step 4 created paired from their `201`s,
+   with the comments step 5 created paired from their `201`s,
    `plan₂ = merge(confirm(B′, R′), L′, fromIssue(R′), export=false)`;
    the ops are `plan₂`'s local changes
    (each pre-checked: [a pull is checked for shape](#a-pull-is-checked-for-shape-not-policy)),
@@ -762,7 +770,7 @@ so the rule is Jira's own.
    Keys `plan₂` still wants to export are reported pending, not written.
 
 Every local decision is made under the lock on the entity as it is then,
-so a user editing during steps 3–5 is seen by `plan₂` —
+so a user editing during steps 3–6 is seen by `plan₂` —
 a double edit if Jira changed that key, pending otherwise.
 The lock is never held across the network.
 Settling `Sent` before each merge makes each confirmed success collapse to row 1,
@@ -774,17 +782,19 @@ and each stale read a pending key.
 
 | stops after | state | next run |
 | --- | --- | --- |
-| 1–3 | nothing written | the same run |
-| part of 4 | some Jira writes, nothing local | a written key is `l == r`: converged; an unwritten one is still local: written; comments pair by property, creates by their attempt and property |
-| 5, the re-read fails | Jira's answers in hand | step 6 commits them against `R`: pairings from the `201`s, `Sent` and `Wrote`; the issue fails; the next run settles `Sent` |
-| 5, a stale `R′` | Jira does not show the writes | the written keys are pending with `Sent` kept, comments paired; left alone until a `GET` reaches `Wrote` or `Settle` passes |
+| 1–2 | nothing written | the same run |
+| 3 or 4, the type landed | Jira holds the new type, nothing local | the type is `l == r`: converged; the rest is the same run |
+| 3 or 4, no type written | nothing written | the same run; a type Jira refused is sent and refused again, then taken back |
+| part of 5 | some Jira writes, nothing local | a written key is `l == r`: converged; an unwritten one is still local: written; comments pair by property, creates by their attempt and property |
+| 6, the re-read fails | Jira's answers in hand | step 7 commits them against `R`: pairings from the `201`s, `Sent` and `Wrote`; the issue fails; the next run settles `Sent` |
+| 6, a stale `R′` | Jira does not show the writes | the written keys are pending with `Sent` kept, comments paired; left alone until a `GET` reaches `Wrote` or `Settle` passes |
 | the `POST /issue` answer lost | the issue may exist in Jira | the attempt, committed before the `POST`, is in doubt: found by property, linked; not found, pending until `Settle`, then created again |
 | `POST` `201`, the `GET` after it fails | the id and key in hand | committed at once: `jira-id`, `alias:jira` and a `Fresh` marker; a 404 within `Settle` is pending, not gone |
-| 4, refused (400) | Jira refused a key | pending every run until fixed on either side; a refused type change is [taken back](#a-local-type-change-is-exported-alone-and-first) instead |
-| 4, no transition | status diverged | pending with the reason; a later Jira status change imports, with a conflict |
-| 6, shape check | a value that does not fit its field's kind, or names nothing | that key `Retry`, the rest commits |
-| 6, policy check | an enum value or a relation target the schema does not allow | written, reported `off_schema`; converged |
-| 6, lock timeout | nothing local | as "part of 4" |
+| 5, refused (400) | Jira refused a key | pending every run until fixed on either side |
+| 5, no transition | status diverged | pending with the reason; a later Jira status change imports, with a conflict |
+| 7, shape check | a value that does not fit its field's kind, or names nothing | that key `Retry`, the rest commits |
+| 7, policy check | an enum value or a relation target the schema does not allow | written, reported `off_schema`; converged |
+| 7, lock timeout | nothing local | as "part of 5" |
 
 A local edit made after a crash, on a key whose `PUT` landed,
 becomes a double edit that Jira wins, noted; accepted.
@@ -819,7 +829,7 @@ is shape, not policy: without the field there is no kind to fit.
 ### No echo detection
 
 Nothing recognises the sync's own writes; the base makes them harmless.
-Our export, next run: step 6 recorded `b = l = r`,
+Our export, next run: step 7 recorded `b = l = r`,
 and the base's `Updated` is `R′`'s, which the search returns, so step 1 skips it.
 Our import, next run: `b = r = l`, so the key is not a local change.
 Jira normalising what we wrote: `plan₂` imports the normal form in the same commit,
@@ -853,7 +863,7 @@ so the **create attempt** is what stands between a lost answer and a duplicate:
    and local's when local is empty
    (so a Jira default such as priority imports rather than being cleared forever);
    comments are local-only and exported.
-   Step 6 adds `jira-id` and `alias:jira` to the create op, which ends the doubt.
+   Step 7 adds `jira-id` and `alias:jira` to the create op, which ends the doubt.
    When the `GET` fails, the `201` is committed alone,
    so the next run syncs a linked issue rather than doubting a create whose answer it had;
    a 404 while `Settle` has not passed is the index not showing it yet, never `Gone`.
@@ -869,11 +879,11 @@ so the **create attempt** is what stands between a lost answer and a duplicate:
    with the property, and the lower Jira id whose `git-work.id` names the issue
    is linked, after `GET` confirms the property, and resumes as a create.
    Not found, the issue is pending while the attempt is younger than `Settle`
-   (15 minutes, longer than any index lag seen) and created again after.
+   (15 minutes, well past the seconds to minutes the index lags by) and created again after.
    A lost `Refused` makes a refused attempt look in doubt:
    one `Settle` of waiting, never a duplicate.
 
-A crash between `POST` and step 6 is also repaired by the ordinary search:
+A crash between `POST` and step 7 is also repaired by the ordinary search:
 every hit whose `git-work.id` names a local entity without `jira-id`
 is linked, not imported.
 The search's lower bound needs no attempt term:
@@ -903,7 +913,7 @@ by the reporter's identity at `created`,
 with `jira-id`, `alias:jira` and `jira-sync` on the create op,
 which is the first marker.
 An empty set or a null is not stored.
-Comments follow in the ordinary step 6.
+Comments follow in the ordinary step 7.
 A hit of an unmapped type is skipped silently, before any `GET`:
 after Derive, every issue type is mapped or excluded by the schema.
 
@@ -915,7 +925,7 @@ A property naming another local entity is a skip,
 and one naming an absent entity a skip unless [`--adopt`](#orphaned-exports) takes it;
 a 404 is a skip ("alias PROJ-9 names no Jira issue"),
 because creating would give a different key that the immutable alias could never follow.
-Otherwise step 6 adds `jira-id` and the merge runs with no base:
+Otherwise step 7 adds `jira-id` and the merge runs with no base:
 scalars take Jira's value, with a conflict note where they differed, and sets union.
 This is how a first sync with both sides populated avoids duplicates,
 `--dry-run` first.
@@ -956,7 +966,7 @@ Not a built-in age: a push is not bounded the way index lag is.
 A Jira user is an identity with immutable metadata `jira-account-id`;
 an unknown one is created with Jira's display name, its email when Jira shows one,
 and the accountId as login when the display name is empty,
-before step 6 and never inside the write lock, which is not re-entrant.
+before step 7 and never inside the write lock, which is not re-entrant.
 Email adoption is not attempted, because Cloud hides most emails.
 At run start the `/myself` account tags the current user's identity
 when no identity carries it; one that does is left as it is.
@@ -1380,6 +1390,13 @@ Identity tagging uses `Identity.SetMetadata`, which appends a version.
 
 - **Key changes.** `alias:jira` is the key at link time and is never refreshed:
   the link is the Jira id, and Jira resolves old keys itself.
-- **Per-field attribution.** Field imports are the runner's
-  (see [three documents per issue](#three-documents-per-issue)).
-- **Data Center.** Refused at binding: REST v2 and users by name are another client.
+- **Per-field attribution.** Field imports are the runner's:
+  the sync compares states and does not replay Jira's changelog,
+  which is capped, unordered and often names no field,
+  so it does not know which Jira user set a field;
+  Jira's own history stays the authority for who changed what there
+  ([three documents per issue](#three-documents-per-issue)).
+- **Data Center.** Refused at binding:
+  the model is one team, one repository and one Jira Cloud project,
+  and Data Center is not Cloud
+  (REST v2, and users by name rather than by account id).

@@ -627,6 +627,14 @@ Responses:
 
 There is **no optimistic concurrency** (no ETag or If-Match). The last writer wins per field. `[UNVERIFIED]` No such header is documented in the spec.
 
+### Changing an issue type by edit
+
+- `PUT /issue/{id}` with `{"fields":{"issuetype":{"id":"…"}}}` changes an issue's type in place; a refused change is a 400 with the reason under `errors.issuetype` (spec: 400 on a field not settable for the issue).
+- **Unconfirmed**: that the edit is accepted only between issue types of one hierarchy level that share one workflow, and that any other change needs a move, which the REST API does not offer. Source: inferred from Atlassian's help on changing an issue's type in the issue view; no live site has confirmed it for `PUT`. The fake (`jira/jiratest`) refuses on exactly that condition.
+- **Unconfirmed**: that the set of status ids `GET /project/{key}/statuses` lists for an issue type identifies its workflow. A non-admin cannot read workflows (see the workflow discovery section), so the status set is the only stand-in; two workflows may share one status set, and then a change the set allows can still be refused.
+- A required field the new type has and the issue does not set may also refuse the change (spec: 400 on missing required fields); whether it does depends on the issue, not the type.
+- What the sync does about these: [jira.md, "Retype targets follow Jira's levels and workflows"](../jira.md#retype-targets-follow-jiras-levels-and-workflows).
+
 ### 5.4 `DELETE /rest/api/3/issue/{issueIdOrKey}`
 
 `operationId=deleteIssue`.

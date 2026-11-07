@@ -225,7 +225,7 @@ var keys = keymap{
 	help:    newChord("help", "?").on("?"),
 	// g closes the palette and does nothing else, as emacs's C-g quits what
 	// is half typed; esc g typed quickly is alt+g, which is so nothing on a
-	// page (2026-10-30).
+	// page.
 	closePalette: newChord("close the palette").on("g"),
 	// esc opens the palette, and a second esc is back: out of a filter, out
 	// of an issue, and from the first page out of the program

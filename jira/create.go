@@ -287,7 +287,7 @@ func (e *engine) linkRequest(ic *cache.IssueCache) error {
 // importIssue creates a Jira issue locally (B3): the merge against no base
 // and an empty local side, whose admitted fields and body are NewRaw's, by
 // the reporter at its created, the create op the first marker; comments
-// follow in the ordinary step 6.
+// follow in the ordinary step 7.
 func (e *engine) importIssue(jiraId string, adopted entity.Id) error {
 	line := Line{Action: ActionImported, Adopted: adopted}
 	ri, cs, err := e.read(jiraId)
@@ -326,7 +326,7 @@ func (e *engine) importIssue(jiraId string, adopted entity.Id) error {
 			}
 			sets[lc.Key].add(lc.Value)
 		default:
-			continue // comments: step 6
+			continue // comments: step 7
 		}
 		head = append(head, lc)
 	}
