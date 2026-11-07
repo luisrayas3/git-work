@@ -35,6 +35,9 @@ func (s *store) importDoc(t *testing.T, doc *schema.Document) []schema.Change {
 	require.NoError(t, doc.Validate(known))
 	changes, err := schema.Reconcile(doc, s.entries, false)
 	require.NoError(t, err)
+	after, err := schema.Compile(schema.Apply(s.entries, changes))
+	require.NoError(t, err)
+	require.NoError(t, after.CheckRetypeSystems(), "what the import leaves meets TC6")
 	s.apply(changes)
 	return changes
 }
@@ -249,8 +252,16 @@ func TestDeriveJiraChanges(t *testing.T) {
 	require.Equal(t, "3", valueDoc(t, status, "in-progress").Aliases[system], "a dead alias is kept")
 	require.True(t, hasNote(notes, LevelWarn, "story/status:in-progress", "dead alias"))
 	changes = s.importDoc(t, doc)
-	require.Len(t, changes, 1)
-	require.Equal(t, "story/status", changes[0].Key)
+	var fieldChanges []string
+	for _, c := range changes {
+		if c.Shape == config.ShapeField {
+			fieldChanges = append(fieldChanges, c.Key)
+		}
+	}
+	require.Equal(t, []string{"story/status"}, fieldChanges)
+	// story's workflow is no longer its level's other types' (type-change.md, TC7)
+	require.Empty(t, *typeDoc(t, doc, "story").RetypeTargets)
+	require.NotContains(t, *typeDoc(t, doc, "task").RetypeTargets, "story")
 }
 
 // D6: an entity aliased "" is never adopted, across runs, and nothing

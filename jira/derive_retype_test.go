@@ -1,10 +1,12 @@
 package jira
 
 import (
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/git-bug/git-bug/jira/jiraapi"
 	"github.com/git-bug/git-bug/schema"
 )
 
@@ -52,9 +54,10 @@ func TestDeriveRetypeTargets(t *testing.T) {
 	require.Empty(t, s.importDoc(t, again), "a fixpoint")
 	require.False(t, hasNote(notes, LevelInfo, "story", "retype_targets"), "no change, no note")
 
+	// widened by hand to a mapped type of another level: TC6 allows it
 	widened := s.export(t)
 	story := typeDoc(t, widened, "story")
-	story.RetypeTargets = &[]string{"task", "epic", "decision"}
+	story.RetypeTargets = &[]string{"task", "epic"}
 	widened.SetType("story", story)
 	s.importDoc(t, widened)
 
@@ -65,4 +68,33 @@ func TestDeriveRetypeTargets(t *testing.T) {
 	changes := s.importDoc(t, doc)
 	require.Len(t, changes, 1)
 	require.JSONEq(t, `["task"]`, string(changes[0].Set[schema.AttrRetypeTargets]))
+}
+
+// TC7: two types of one level whose workflows have different sets of
+// statuses do not list each other; the same set in another order does.
+func TestDeriveRetypeTargetsWorkflow(t *testing.T) {
+	p, _ := discover(t, "company")
+	byName := map[string]*IssueType{}
+	for i := range p.IssueTypes {
+		byName[p.IssueTypes[i].Name] = &p.IssueTypes[i]
+	}
+	story, task := byName["Story"], byName["Task"]
+	require.NotNil(t, story)
+	require.NotNil(t, task)
+	require.Equal(t, story.Level, task.Level)
+	require.NotEmpty(t, story.Statuses)
+
+	// the same statuses in another order are the same workflow here
+	task.Statuses = slices.Clone(story.Statuses)
+	slices.Reverse(task.Statuses)
+	_, doc, _, _ := derived(t, starts(t)["repo"], p)
+	require.Contains(t, *typeDoc(t, doc, "story").RetypeTargets, "task")
+	require.Contains(t, *typeDoc(t, doc, "task").RetypeTargets, "story")
+
+	// one status more is another workflow
+	task.Statuses = append(slices.Clone(story.Statuses), jiraapi.Status{ID: "99999", Name: "Parked"})
+	_, doc, notes, _ := derived(t, starts(t)["repo"], p)
+	require.NotContains(t, *typeDoc(t, doc, "story").RetypeTargets, "task")
+	require.Empty(t, *typeDoc(t, doc, "task").RetypeTargets)
+	require.True(t, hasNote(notes, LevelInfo, "task", "retype_targets (none) after Jira levels"))
 }

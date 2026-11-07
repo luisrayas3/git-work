@@ -151,28 +151,34 @@ func (d *deriver) types() {
 }
 
 // retype sets each mapped type's retype_targets to the other mapped types
-// of its hierarchy level, in the document's order (type-change.md, TC3):
-// Jira's edit changes an issue type within one level only, so that is what
-// a local type change may do. Jira is canonical for it, as for a type's
-// name, so a list written by hand is rewritten, with a note. A local-only
-// type, unaliased or aliased "", is left alone and never listed: an issue
-// retyped to one would silently stop syncing.
+// of its hierarchy level and with its set of status ids, in the document's
+// order (type-change.md, TC3, TC7): Jira's edit changes an issue type only
+// within one level and one workflow, so that is what a local type change
+// may do. Jira is canonical for it, as for a type's name, so a list written
+// by hand is rewritten, with a note. A local-only type, unaliased or
+// aliased "", is left alone and never listed: an issue retyped to one would
+// silently stop syncing (TC6).
 func (d *deriver) retype() {
-	level := map[string]int{}
+	class := map[string]string{}
 	for _, it := range d.p.IssueTypes {
 		if key, ok := d.mapped[it.Id]; ok {
-			level[key] = it.Level
+			ids := make([]string, 0, len(it.Statuses))
+			for _, st := range it.Statuses {
+				ids = append(ids, st.ID)
+			}
+			slices.Sort(ids)
+			class[key] = fmt.Sprintf("%d %s", it.Level, strings.Join(slices.Compact(ids), ","))
 		}
 	}
 	keys := d.doc.Types.Keys()
 	for _, key := range keys {
-		lv, ok := level[key]
+		c, ok := class[key]
 		if !ok {
 			continue
 		}
 		targets := []string{}
 		for _, other := range keys {
-			if ol, ok := level[other]; ok && other != key && ol == lv {
+			if oc, ok := class[other]; ok && other != key && oc == c {
 				targets = append(targets, other)
 			}
 		}
