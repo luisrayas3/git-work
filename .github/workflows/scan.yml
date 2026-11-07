@@ -20,9 +20,8 @@ jobs:
   # deciding whether the vulnerable code is actually reachable from this
   # module. Same check as `make secure`, pinned to the version in //:go.mod.
   #
-  # Upstream also ran CodeQL here. It is dropped: this fork's own code is a
-  # thin layer over an upstream that CodeQL already scans, and the minutes buy
-  # more elsewhere.
+  # Not CodeQL: this fork's own code is a thin layer over an upstream that
+  # CodeQL already scans, and the minutes would buy more elsewhere.
   govulncheck:
     runs-on: ubuntu-latest
     steps:

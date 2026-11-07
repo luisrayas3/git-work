@@ -99,9 +99,7 @@ func (r *Renderer) Render(ctx context.Context, repo *cache.RepoCache, call *view
 // The program runs on its own goroutine and the caller's stays here, as a
 // worker: a view blocks the script that called it, and the script's thread
 // is the only one Starlark may be re-entered on. A flow run from a page is a
-// job here (home.go), so navigation and redraw never wait on a script;
-// actions injected into views, still deferred
-// (doc/design/tui.md, "Not done"), would run here too.
+// job here (home.go), so navigation and redraw never wait on a script.
 func (r *Renderer) drive(ctx context.Context, repo *cache.RepoCache, stack *root, program *tea.Program) (json.RawMessage, error) {
 	s := &session{ctx: ctx, repo: repo, program: program,
 		jobs: make(chan func()), finished: make(chan struct{})}

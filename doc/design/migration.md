@@ -2,7 +2,7 @@
 
 How git-work leaves git-bug behind:
 `git work migrate`, which replays a git-bug store as issues of the owned model,
-and what the fork renamed and kept of git-bug's names and build.
+and which names are git-work's and which keep git-bug's.
 The store the migration writes into is [store](store.md);
 the issue it produces is [issue](issue.md);
 the schema it checks against is [schema](schema.md).
@@ -13,9 +13,8 @@ the schema it checks against is [schema](schema.md).
 and writes them as issues under `refs/work-issues/*`,
 and copies the identities they are signed by
 from `refs/identities/*` to `refs/work-users/*`.
-It ran on this repository's tracker once;
-it stays, with `entities/bug` as its decoder,
-as the way to import another git-bug repository.
+It is, with `entities/bug` as its decoder,
+the way to import another git-bug repository.
 
 ### A copy, not a move
 
@@ -117,7 +116,7 @@ aborts the run.
 
 The owned model requires a type from the first operation,
 and a board needs every issue in a column;
-git-bug had no type until a label arrived, and an implicit open.
+git-bug has no type until a label arrives, and an implicit open.
 So the create pack gets `SetField type`,
 the first type the issue was ever given, `task` if never,
 and `SetField status "to-do"`,
@@ -167,8 +166,8 @@ and a local history that diverged from the remote's is an error.
 `--dry-run --from` fetches too:
 fetching is not migrating,
 and the plan is only worth printing over the store it will migrate.
-Carrying it in every sync fetched, merged and pushed a frozen store each time,
-and every `git remote prune` dropped its remote-tracking copies for the next sync to bring back.
+Not carried in every sync: it would fetch, merge and push a frozen store each time,
+and every `git remote prune` would drop its remote-tracking copies for the next sync to bring back.
 Not a `--legacy` flag on pull, push and sync:
 it would keep extending a store being left behind, for the one reader that needs it.
 
@@ -183,7 +182,7 @@ Local state is under `.git/git-work` ([store](store.md)),
 and git-work's own git config keys are `git-work.*`
 (`git-work.remote`, `git-work.display.id`, `git-work.jira.*`).
 
-### What still says git-bug
+### What keeps git-bug's names
 
 The Go module path, `github.com/git-bug/git-bug`,
 and the identifiers inherited with the code keep git-bug's names,
@@ -191,21 +190,3 @@ so a cherry-pick from upstream still applies.
 So do the user-identity config key `git-bug.identity`,
 the legacy bridges' `git-bug.bridge.*` keys,
 and the keyring's service name and directory (`git-bug`).
-
-## Continuous integration
-
-### One workflow, no secrets
-
-`build-and-test.yml` builds, vets and tests on ubuntu and macOS,
-with Go 1.26.x (what `AGENTS.md` requires) and 1.27.x (the next toolchain, caught early).
-It needs no secrets: the tests that need a token skip without one.
-Its lint job checks `gofmt -l` and that `go generate` leaves
-`doc/man`, `doc/md` and `misc/completion` as committed,
-since the release archives ship them without a generate step.
-There is no Node toolchain, no web UI, and no Windows runner.
-
-### govulncheck, not CodeQL
-
-`scan.yml` runs `govulncheck`.
-CodeQL's minutes do not pay on a fork of an already-scanned upstream.
-`release.yml` fires only on `v*` tags.

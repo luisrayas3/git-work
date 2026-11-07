@@ -273,8 +273,8 @@ A view never runs a flow:
 where a page offers flows, as home does, it names one,
 and the host runs it.
 
-Non-blocking views were rejected:
-a script that ends while its view is still open has nowhere to live,
+Not non-blocking views:
+a script that ends while its view is still open would have nowhere to live,
 and two views started from one script would compete for one terminal.
 
 ### A view needs a terminal; a flow does not

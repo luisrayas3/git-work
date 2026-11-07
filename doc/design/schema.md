@@ -206,7 +206,7 @@ with no positional form, so a script cannot pass a value whose kind is unsaid.
 
 `archive KEY` and `rm KEY` refuse a key two unarchived entities hold,
 naming them, the winner marked current, and asking for one by id.
-Resolving to the winner and writing to it was rejected:
+Not resolving to the winner and writing to it:
 the intent of a write on a duplicated key is to end the duplication,
 which is a write to the loser,
 and landing on the winner instead is the edit lost without a word.

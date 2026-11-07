@@ -433,14 +433,17 @@ and a rank written between two neighbours is computed from the neighbours the wr
 so a drop on one clone would land somewhere else on another.
 Sorting by key is a jq program's business: `sort_by(.human_id)`.
 
-## Not done
+## Deliberately absent
 
 - **Following a Jira move.**
   An alias is the key at link time and is never refreshed;
-  after a move the old key is drawn, still resolves here, and redirects in Jira.
-  That is the sync's question.
+  after a move the old key is drawn, still resolves here, and redirects in Jira,
+  since the link is the Jira id
+  ([Jira sync](jira.md#deliberately-absent)).
 - **Jira keys as entity ids.**
-  The id stays the hash; an alias sits beside it.
+  The id stays the hash, which every clone computes alike from the create operation;
+  a Jira key exists only once synced, and changes on a move.
+  An alias sits beside the id.
 - **A mixed commit.**
   No caller needs set, add and remove in one commit,
-  so there is no verb for one.
+  so a verb for one would be surface with no user.

@@ -81,11 +81,11 @@ A set keeps its base in every row, [the set merge](#sets-merge-item-wise) decidi
 A comment written and then absent from a `GET` that is not stale
 was deleted in Jira.
 
-A `GET` older than our write cannot have seen it, and one at or past it has;
-counting runs instead reverted local edits with false notes
+A `GET` older than our write cannot have seen it, and one at or past it has.
+Not counting runs: it would revert local edits with false notes
 when a slow `GET` came twice,
-made a local clear a silent take once the base was dropped,
-and posted a comment again every run.
+make a local clear a silent take once the base was dropped,
+and post a comment again every run.
 The read that follows this run's own write and shows it landed
 imports Jira's normal form silently,
 because the only other explanation is a Jira edit in the milliseconds between,
@@ -376,13 +376,12 @@ A paired comment gone from Jira is edited, by the runner,
 to a one-line tombstone, "Deleted in Jira on 2026-09-28.",
 and its base becomes `""`;
 a local edit since the base adds a conflict.
-It is not imported as a `DeleteComment`:
+Not imported as a `DeleteComment`:
 the tombstone works,
-and changing it means deciding what becomes of the comments already tombstoned,
+and changing it would mean deciding what becomes of the comments already tombstoned,
 for no gain.
-An older build that has no `DeleteComment` and meets a comment
-a newer build deleted in Jira writes a tombstone edit,
-which a newer build applies to a comment it no longer has, changing nothing.
+What an older build that has no `DeleteComment` does with such a comment
+is the [issue](issue.md#older-binaries-ignore-a-delete)'s.
 
 ### A Jira type change is imported first
 
@@ -809,7 +808,7 @@ Jira is the authority on what Jira holds,
 and the derived schema only approximates it:
 a real site declares Task a sub-task type and still gives Tasks an Epic parent,
 which the derived `task.parent` does not allow,
-and refusing those parents left the local copy silently disagreeing with Jira on every run.
+and refusing those parents would leave the local copy silently disagreeing with Jira on every run.
 Operations replay whatever was written, and readers tolerate off-schema values,
 since every schema change creates some.
 Local writes keep both checks,
@@ -965,7 +964,7 @@ Two identities carrying one account resolve to the lower id, and both export as 
 Field imports, markers, notes and tombstones are authored by the runner,
 at Jira's `updated` for imports and at Jira's now for the rest.
 
-### Relations and what cannot convert now
+### Relations, and values that cannot convert
 
 Relations resolve through the `Index`,
 built once per run from the excerpts' `jira-id` and the identities' `jira-account-id`,
@@ -1121,8 +1120,8 @@ and nothing local can prevent it, because each has yet to see the other's work:
 | both create one pulled local issue | two Jira issues with one property | after the exchange one `jira-id` wins on the create op (first writer); the other Jira issue is reported as a second issue naming it |
 | both create an identity for one account | two identities with one `jira-account-id` | the lower id is the account's; both export as it; the runner is never re-tagged |
 
-A marker naming its clone was rejected as a guard:
-it catches only what an exchange already made safe,
+Not a marker naming its clone as a guard:
+it would catch only what an exchange already makes safe,
 and it would forbid handing the binding to another clone.
 
 ### Consolidation keeps the copy that reached Jira first
@@ -1161,8 +1160,8 @@ The archive is last so that it is idempotent:
 a failure before it leaves the loser unarchived, so the next scan retries it;
 the fill is gap-only, and the note is matched by its metadata key,
 not its text, so a retry writes neither twice.
-Archived first, an interruption after it was final:
-an archived loser is never a loser again, and its fill and note were lost.
+Not archived first: an interruption after it would be final,
+since an archived loser is never a loser again, and its fill and note would be lost.
 The stamp is create-op metadata, which is the excerpt's `metadata`,
 so a report over archived issues drops the losers with
 `map(select(.metadata["jira-consolidated-into"] == null))`:
@@ -1346,14 +1345,11 @@ deleted issues dropped from search, and a JQL `id` or `key` naming one refused;
 410 on `/search`; the token omitted on the last page; 429 with `Retry-After`;
 no `Authorization` header is 200-with-nothing on search and 401 on `/myself`.
 
-The behaviours a live site has not yet confirmed, each a switch:
-whether `GET /issue` is read-after-write consistent
-(if it is, `Sent` and `Wrote` only cost the normalised-back case its `Settle` of pending);
-whether `expand=properties` is honoured on the comment list
-(if not, the repair is a `GET …/comment/{id}/properties/git-work`
-for each unpaired comment by the token's account, never a digest match);
-whether an issue property reaches the search index with the same lag as fields;
-and how Jira answers JQL naming a deleted id (the fake answers 400, the worse case).
+The behaviours a live site has not confirmed
+are listed in [the vetting](bridges/jira-api-vetting.md#unconfirmed-on-a-live-site),
+each with the fake's answer;
+where the fake has a switch for one, a scenario runs under each side,
+and the sync is built to work either way.
 
 ### Where it lives
 
@@ -1380,11 +1376,8 @@ the reserved `alias_` attributes in `schema`,
 and `host.JiraSchema` and `host.JiraSync`, the one path for commands.
 Identity tagging uses `Identity.SetMetadata`, which appends a version.
 
-## Not done
+## Deliberately absent
 
-- **Starlark.** There is no `work.jira.*`:
-  the sync is reached from the command line only,
-  a known gap in the rule that the command line and Starlark are one API.
 - **Key changes.** `alias:jira` is the key at link time and is never refreshed:
   the link is the Jira id, and Jira resolves old keys itself.
 - **Per-field attribution.** Field imports are the runner's

@@ -27,8 +27,11 @@ make test                # the Go test suite
 
 ## Checks
 
-CI checks that the Go code is formatted (`gofmt -l`), that the generated files
-below are up to date, and that no dependency has a known vulnerability
+CI builds, vets and tests on Linux and macOS, with the Go version `AGENTS.md`
+requires and the next one. It needs no secrets: the tests that need a Jira
+token skip without one, so `go test ./...` passes on a fresh clone too.
+It also checks that the Go code is formatted (`gofmt -l`), that the generated
+files below are up to date, and that no dependency has a known vulnerability
 reachable from our code. That last one is `make secure` locally.
 
 The command reference in `doc/md`, the man pages in `doc/man` and the shell

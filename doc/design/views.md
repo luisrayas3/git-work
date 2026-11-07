@@ -60,9 +60,9 @@ Every argument is in one of three tiers:
 - **optional**: no default; absent, the view does not do that thing.
 
 A tier is what a call must say, never how far the renderer has got.
-Not `feature` for the third, because a help that footnoted it as "not drawn yet"
-read as unimplemented once everything was drawn,
-and an agent went looking for another way to do what `group_by` and `expand` already did.
+Not `feature` for the third: a help that footnoted it as "not drawn yet"
+would read as unimplemented once everything is drawn,
+and send an agent looking for another way to do what `group_by` and `expand` do.
 
 ### The kinds and their arguments
 
@@ -129,8 +129,8 @@ The keys besides `relation` and `expand` are the list's own arguments for that l
 `relation` is needed only where some row above lists no `children` of its own ([query](query.md)).
 `"expand": "children"` is one layer with every default.
 
-Not `depth`, because a number said how far to walk and nothing about what was down there,
-so every level drew the first one's columns.
+Not `depth`: a number says how far to walk and nothing about what is down there,
+so every level would draw the first one's columns.
 A layer is the description, and the shorthand costs nothing.
 
 ### A number repeats a layer
@@ -185,9 +185,9 @@ the header is kept on the first body line, as a group header is.
 A layer's `group_by` sections each of its child tables.
 A detail line is indented with its table.
 
-Not one table with the indent inside the tree cell,
-because that was one table by its header and many by its widths,
-so a child's cells sat under its parent's header and not under its own columns.
+Not one table with the indent inside the tree cell:
+it would be one table by its header and many by its widths,
+so a child's cells would sit under its parent's header and not under its own columns.
 
 ### The fold arrow is a cell
 
@@ -598,7 +598,7 @@ and on archived flips it, both ways: the same press undoes an archive.
 The cursor opens on the first row of the fields table,
 because every other view opens on a cell and the fields are what an issue is opened to read;
 a table with no rows opens on the box.
-Not on the comment box, which left the cursor below what the page was opened to read.
+Not on the comment box, which would leave the cursor below what the page is opened to read.
 
 ### The comment box
 
@@ -613,7 +613,7 @@ Its keys are on the bottom line, as every cell's are.
 It opens two lines tall and grows with the text, its highlighted cursor line turned off.
 No arrow enters or leaves it: it is a stop of `Tab` and `S-Tab` alone,
 because the row drawn beside the box is not where the person came from.
-There is no submit button; it was a second way to do one thing.
+There is no submit button: it would be a second way to do one thing.
 Going back with a draft asks for a second `Esc`, a draft being the one thing on the page the store does not have.
 
 ### The tabs
@@ -656,7 +656,7 @@ In their place is **one row, `links`**, at the first link field's place in schem
 the count, then each relation with any entry and its count, stored first in schema order, then inverses,
 `3 · blocks 1 · implements 1 · is-blocked-by 1`, or `—` with none.
 A Jira site carries a dozen link types, mapped onto every type and empty on most issues;
-drawn as rows they were half the table.
+drawn as rows they would be half the table.
 A spec's `fields` naming a link field draws it as a row and leaves it out of the count;
 naming `links` places the row, and a `fields` without it drops it.
 `links` is a word of the views, not a field: the schema refuses it as a key.
@@ -1007,14 +1007,10 @@ never `value`, since the form invents no number.
 So a cell gets its next allocation through its list's ghost,
 and a blank cell stays the matrix's *nothing here*, one meaning under `Enter`, not two by its contents.
 
-## Not done
+## Deliberately absent
 
 - **Editing in the matrix.** A cell's number edited in place would be a write the matrix invents.
-- **Reparenting by dragging** a row out of its parent, and numbers rolled up onto a folded parent.
-- **Empty groups beyond the board**, and an explicit list of lanes:
-  the group order is shared, so it is cheap to add when a view needs it.
 - **A wildcard spec** for every type not listed: the schema's `show` and the built-in cover them.
 - **Editing a side table's cells**: `←`/`→` are the tab keys, and the child's page is one `Enter` away.
-- **A `links` column** on list, board and gantt: what `Enter` on a count opens is a question for those views.
 - **Storing links differently**, as one field of `{type, target}` pairs:
   every query would grow longer, and `blocks` would stop being a field a flow can name.

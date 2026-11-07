@@ -232,8 +232,8 @@ func TestLinkDirection(t *testing.T) {
 	require.Equal(t, "[]", string(cv.get(b).Fields["blocks"]))
 }
 
-// what cannot convert now is a Skip; an out-of-project relation is dropped
-// (doc/design/jira.md, "Relations and what cannot convert now").
+// a value that cannot convert is a Skip; an out-of-project relation is dropped
+// (doc/design/jira.md, "Relations, and values that cannot convert").
 func TestFromJiraSkips(t *testing.T) {
 	cv := newConv(t)
 	ri := &jiraapi.Issue{ID: "20000", Key: "PROJ-99", Fields: map[string]json.RawMessage{
@@ -265,7 +265,7 @@ func TestFromJiraSkips(t *testing.T) {
 
 // a local value Jira cannot hold is a Skip, never a Retry: the issue stays a
 // candidate because local differs from its base
-// (doc/design/jira.md, "Relations and what cannot convert now").
+// (doc/design/jira.md, "Relations, and values that cannot convert").
 func TestToJiraSkips(t *testing.T) {
 	cv := newConv(t)
 	ws, skips := cv.m.toWrites("task", []change{

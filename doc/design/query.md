@@ -34,9 +34,9 @@ so the rule has one home and no query has to carry the filter.
 what the input is changed.
 Something is hidden, deliberately, and reachable with one word:
 a filter every author must remember is worse than a default every author can lift.
-The case that made it bite is a Jira-bound store,
+The case where it bites is a Jira-bound store,
 where the sync consolidates two copies of one issue by archiving one,
-so a query that forgot the filter reported every row twice.
+so a query that forgot the filter would report every row twice.
 
 An issue named by id is that issue, archived or not:
 `issue get ID` and `issue log ID` take no switch,
@@ -116,7 +116,7 @@ $schema.types[.fields.type].fields.priority.values | map(.id)
 ```
 
 An issue holds a value's id, not what the schema says of it;
-without this a flow had to export the schema in Starlark
+without this a flow would have to export the schema in Starlark
 and interpolate its values into the program,
 and a schema's `show` spec, which has no Starlark, could not do it at all.
 
@@ -226,7 +226,7 @@ are refused, naming the key.
 The cells are the row's fields as the query shaped them,
 and editing a cell edits the issue's stored value.
 
-The issue id was doing two jobs,
+Not the issue id alone: it would do two jobs,
 and an issue reached twice could be drawn only once.
 A key shows once;
 an issue reached twice through the store's relations, with no keys anywhere,
@@ -469,10 +469,7 @@ then a match in the title,
 then a match in the description alone;
 within each, last edited first, the default program's order.
 
-## Not done
+## Deliberately absent
 
-- **Comments are not searched**, nor ranked or stemmed:
-  bleve, kept behind the pristine `RepoIndex`, is the way to them when a workflow asks.
-- **No `label(f)`** giving a value's display name; it is the same shape as `category` when a program wants it.
 - **No static check of field names** in a query against the schema (see "Unknown is null").
-- **No `$parent`** in a layer query: a row's own `children` made it unnecessary.
+- **No `$parent`** in a layer query: a row's own `children` makes it unnecessary.

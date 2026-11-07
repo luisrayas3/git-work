@@ -12,7 +12,7 @@ import (
 )
 
 // Index resolves Jira ids to entity ids and back
-// (doc/design/jira.md, "Relations and what cannot convert now"):
+// (doc/design/jira.md, "Relations, and values that cannot convert"):
 // issues by the jira-id of their create operation,
 // identities by jira-account-id.
 // It is built once per run and extended as the run imports and creates.

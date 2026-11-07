@@ -17,7 +17,7 @@ import (
 
 // Mapping is the seam between the mapping and the engine
 // (doc/design/jira.md, "What maps";
-// doc/design/jira.md, "Relations and what cannot convert now"): compiled once
+// doc/design/jira.md, "Relations, and values that cannot convert"): compiled once
 // per run by Compile, pure, and in local terms on its local side, so that "did
 // it change" is byte equality.
 type Mapping struct {
@@ -215,7 +215,7 @@ func (m *Mapping) Local(snap *issue.Snapshot, typeKey string) Doc {
 // through ADFToText, out-of-project relations dropped, and what cannot
 // convert now in Skip (doc/design/jira.md, "Canonical values";
 // doc/design/jira.md, "Texts merge by digest";
-// doc/design/jira.md, "Relations and what cannot convert now"). An issue of
+// doc/design/jira.md, "Relations, and values that cannot convert"). An issue of
 // an unmapped type has no Type and no fields.
 func (m *Mapping) fromIssue(ri *jiraapi.Issue, cs []jiraapi.Comment, ix *Index) Doc {
 	doc := Doc{Id: ri.ID, Key: ri.Key, Fields: map[string]issue.Value{}}
@@ -279,7 +279,7 @@ func (m *Mapping) fromIssue(ri *jiraapi.Issue, cs []jiraapi.Comment, ix *Index) 
 
 // fromJira converts one field. drop is an out-of-project relation, which the
 // merge must not see at all
-// (doc/design/jira.md, "Relations and what cannot convert now").
+// (doc/design/jira.md, "Relations, and values that cannot convert").
 func (m *Mapping) fromJira(ri *jiraapi.Issue, fm *fieldMap, ix *Index) (v issue.Value, skip *Skip, drop bool) {
 	retry := func(format string, args ...any) (issue.Value, *Skip, bool) {
 		return nil, &Skip{Key: fm.key, Reason: fmt.Sprintf(format, args...), Retry: true}, false
@@ -422,7 +422,7 @@ func (m *Mapping) fromJira(ri *jiraapi.Issue, fm *fieldMap, ix *Index) (v issue.
 // syncable says a related issue can be, or is, a local issue: one of
 // another project, or of an issue type the schema does not map or excludes,
 // never imports, and a relation to it is dropped
-// (doc/design/jira.md, "Relations and what cannot convert now").
+// (doc/design/jira.md, "Relations, and values that cannot convert").
 func (m *Mapping) syncable(ref jiraapi.IssueRef, ix *Index) bool {
 	if _, ok := ix.Issue(ref.ID); ok {
 		return true
@@ -439,7 +439,7 @@ func (m *Mapping) syncable(ref jiraapi.IssueRef, ix *Index) bool {
 
 // toWrites turns merged changes into writes, one per local key, the description
 // included; remote gives the link ids a removal deletes. A value Jira cannot
-// hold is a Skip (doc/design/jira.md, "Relations and what cannot convert now"):
+// hold is a Skip (doc/design/jira.md, "Relations, and values that cannot convert"):
 // pending, and a candidate anyway because local differs from the base.
 func (m *Mapping) toWrites(typeKey string, ch []change, remote *jiraapi.Issue, ix *Index) ([]jiraWrite, []Skip) {
 	var writes []jiraWrite

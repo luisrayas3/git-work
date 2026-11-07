@@ -167,6 +167,25 @@ Each entry gives the choice that works whichever way the truth falls. The fake s
 | Issue-property writes do not bump `updated` and are not in the changelog | Do not use property writes as change signals | Do not bump |
 | `Epic Link` still returned on some sites | Read `parent` only | Do not emit Epic Link |
 
+### Unconfirmed on a live site
+
+What the sync's design depends on and no live site has confirmed yet,
+with what the sync does either way and what the fake (`jira/jiratest`) answers:
+
+- **Whether `GET /issue` is read-after-write consistent.**
+  The sync does not trust it: a write goes into the base's `Sent` with `Wrote`,
+  settled against a later `GET` by Jira's clock.
+  If it is consistent, `Sent` and `Wrote` only cost the normalised-back case its `Settle` of pending.
+  The fake is consistent by default; `WithStaleReads` makes it lag.
+- **Whether `expand=properties` is honoured on the comment list.**
+  If not, the repair is a `GET …/comment/{id}/properties/git-work`
+  for each unpaired comment by the token's account, never a digest match.
+  The fake honours it by default; `WithCommentProperties(false)` drops it.
+- **Whether an issue property reaches the search index with the same lag as fields.**
+  The fake indexes properties with the search's lag (`WithIndexLag`).
+- **How Jira answers JQL naming a deleted id.**
+  The fake answers 400, the worse case.
+
 ## 4. Missing items (a sync tool needs these; jira-api.md did not cover them)
 
 1. **Issue entity properties as the Jira-side sync marker.**

@@ -10,7 +10,7 @@ is the [schema](schema.md).
 The dag, the namespaces and the write lock every write takes are the [store](store.md);
 the verbs and their arguments are the [command line](cli.md);
 the Jira side of every decision here is the [Jira sync](jira.md);
-how a git-bug store became this one is the [migration](migration.md).
+how a git-bug store becomes this one is the [migration](migration.md).
 
 ## The model
 
@@ -30,8 +30,8 @@ which keeps every old operation readable forever
 and reinterprets git-bug's `SetStatusOp` and labels as fields:
 that carries git-bug's model, title, status and labels as special members,
 for as long as the store exists.
-The store was migrated once instead,
-which one team with no external clones could afford.
+Instead a store is migrated once,
+which one team with no external clones can afford.
 
 ### A structural core and a fields map
 
@@ -339,7 +339,7 @@ No view takes a rank argument:
 every view orders by the built-in `rank`, and every drag writes it
 ([schema](schema.md#rank-is-built-in)).
 
-## Not done
+## Deliberately absent
 
 - **Undelete**, for the reasons in [Delete is final](#delete-is-final).
 - **Purging a comment's text from git.**

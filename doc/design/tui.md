@@ -24,7 +24,7 @@ It is the one backend;
 there is no GUI, and no `--gui`.
 
 `git work termui`, git-bug's gocui interface,
-still exists among the frozen legacy packages and is not this renderer.
+is one of the frozen legacy packages and is not this renderer.
 
 ### Bubble Tea, Go only
 
@@ -152,12 +152,12 @@ on a nested row's arrow it folds,
 and on what has no cell to edit (a list's id, a card, a bar) it grabs.
 
 Two keys, one to go and one to change, is the split every file manager has.
-Not one action key that opens, edits or follows by where it lands,
-which read as one key meaning three things
-and made a link take two presses to follow.
+Not one action key that opens, edits or follows by where it lands:
+it would read as one key meaning three things
+and make a link take two presses to follow.
 Not `ctrl+enter`:
 without the kitty protocol a terminal sends the same byte for it as for `enter`,
-so it was one key on one machine and another elsewhere,
+so it would be one key on one machine and another elsewhere,
 and a key that is one key here and another there is not a key the renderer reads.
 Not `F2` either: a function key is not where a hand is.
 Every action is the direction keys, `enter` and `space`,
@@ -510,8 +510,8 @@ The last action's message is right-aligned,
 with the count beside it where a kind has one (*moved · 12 issues*),
 and stays until the next action replaces it.
 Not the message over the whole line:
-then the one moment a user had just done something new
-was the one moment the keys were hidden.
+then the one moment a user has just done something new
+would be the one moment the keys are hidden.
 Where the window cannot hold both, the hints win whole
 and the right side is cut from its left,
 because a count and the end of a refusal are what is read at that edge.
@@ -666,7 +666,7 @@ Every write goes through package `host`,
 so the renderer gets the schema check and the write lock
 and there is nothing for two implementations to disagree about.
 
-## Not done
+## Deliberately absent
 
 - **The mouse.**
   A click would edit, follow or switch, and the wheel scroll;

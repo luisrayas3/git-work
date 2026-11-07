@@ -100,17 +100,15 @@ an identity merges only by fast-forward.
 and then validates them in an order where every commit comes after all its parents
 (`parentsFirst`, Kahn's algorithm),
 the root first.
-A reversed breadth-first walk is not such an order:
-when a merge joins two branches whose lengths differ by more than one,
-the root is reached through the short branch before the long one is exhausted,
-and the read failed with `creation lamport time not set`
-or `panic: DFS failed`.
-The merge had already moved the ref,
-so one pull after unequal divergence made the entity unreadable on every clone that took it.
-The stored DAG was always valid;
-the fix is in the reader alone and changes no format.
+Not a reversed breadth-first walk: it is not such an order.
+When a merge joins two branches whose lengths differ by more than one,
+the root would be reached through the short branch before the long one is exhausted,
+and the read would fail (`creation lamport time not set`, or a panic).
+The merge moves the ref before any read,
+so one pull after unequal divergence would make the entity unreadable on every clone that took it.
+The stored DAG is valid either way;
+the order is the reader's alone and is no part of the format.
 `TestMergeUnevenBranches` (`entity/dag`) and `TestIssueUnequalDivergence` (`cache`) cover it.
-Upstream git-bug had the same reader and no fix when this one was made.
 
 Not a workaround above `entity/dag`:
 `read` is the only reader and the merge commit's shape is fixed by `dag.merge`,
@@ -142,7 +140,7 @@ and is not carried by `git work pull`, `push` or `sync`.
 A namespace is `work-issues`, not `work/issues`.
 A namespace also names its clock files and its cache file,
 so a slash in it would make directories of them,
-and the identity refs were already flat.
+and the identity refs are flat already.
 
 ### Two formats never share a namespace
 
@@ -314,11 +312,10 @@ Not the poll alone: it would work, at a full interval's latency.
 ### No search index
 
 The cache keeps no full-text index.
-git-bug's bleve index over titles and comment bodies
-was a second on-disk structure to keep coherent with the excerpts,
-and its document count was the only consistency check the cache had.
+Not a bleve index over titles and comment bodies, as git-bug keeps:
+it would be a second on-disk structure to keep coherent with the excerpts,
+and its document count would be the cache's only consistency check.
 Searching what was said in a comment is the loss, accepted:
 none of the workflows does it.
-The `bleve` dependency stays in `go.mod`, used only by `repository`'s index,
-since it is the full-text search that would come back if comment search is ever needed.
+The `bleve` dependency stays in `go.mod`, used only by `repository`'s index.
 How queries search is [query](query.md).

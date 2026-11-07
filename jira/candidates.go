@@ -483,7 +483,7 @@ func (e *engine) changed(snap *issue.Snapshot, b *Base) bool {
 
 // repass re-runs, once, the issues left with Retry keys, when the run added
 // issues they might have been waiting for
-// (doc/design/jira.md, "Relations and what cannot convert now").
+// (doc/design/jira.md, "Relations, and values that cannot convert").
 func (e *engine) repass() error {
 	if !e.grew || e.opts.DryRun {
 		return nil

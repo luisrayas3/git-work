@@ -102,7 +102,7 @@ type change struct {
 
 // Skip is a key that could not be converted or written now, and why.
 // Retry keeps the issue a candidate on the next run
-// (doc/design/jira.md, "Relations and what cannot convert now").
+// (doc/design/jira.md, "Relations, and values that cannot convert").
 type Skip struct {
 	Key    string `json:"key"`
 	Reason string `json:"reason"`
