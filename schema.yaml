@@ -58,8 +58,9 @@ shared:
       - {id: infra,       name: Infrastructure}
 
 types:
-  # retype_targets mirrors Jira's hierarchy levels (type-change.md): a story
-  # sits a level above its tasks and decisions, which may swap with each other.
+  # retype_targets mirrors Jira's hierarchy levels
+  # (doc/design/jira.md, "Retype targets follow Jira's levels"): a story sits
+  # a level above its tasks and decisions, which may swap with each other.
   story:
     name: Story
     description: A user-facing change, designed on the issue before its tasks.
