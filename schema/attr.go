@@ -29,6 +29,11 @@ const (
 	// show draws an issue of the type where the call's `shows` does not say
 	// (doc/design/app.md A7). Like link, only the views read it.
 	AttrShow = "show"
+	// AttrRetypeTargets is a type's retype targets, a JSON array of type
+	// keys: the types its issues may become (type-change.md, TC1). Absent
+	// is any type, `[]` none. One attribute, not one per member as target
+	// types are, because absent and empty differ.
+	AttrRetypeTargets = "retype_targets"
 
 	// ValuesPrefix folds an enum's values one attribute per member,
 	// `values/<id>`, so two people adding two statuses both keep theirs (E3).

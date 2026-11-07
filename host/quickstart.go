@@ -115,6 +115,14 @@ func writeQuickstartSchema(b *strings.Builder, s *schema.Schema) {
 		if fields == 0 {
 			b.WriteString("No field of its own.\n")
 		}
+		// a set of `type` is refused outside these (type-change.md, TC2)
+		if t.RetypeTargets != nil {
+			if len(*t.RetypeTargets) == 0 {
+				b.WriteString("\nIts issues keep this type: `retype_targets` is empty.\n")
+			} else {
+				b.WriteString("\nIts issues may become: " + strings.Join(*t.RetypeTargets, ", ") + ".\n")
+			}
+		}
 	}
 }
 

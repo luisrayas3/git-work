@@ -377,6 +377,11 @@ func (c *IssueCache) checkOperations(currentType string, ops []issue.Operation, 
 		}
 		return err
 	}
+	// a type change is checked once, from the type the issue has to the one
+	// the batch leaves it with (type-change.md, TC2)
+	if err := collect(checker.CheckRetype(currentType, typeKey)); err != nil {
+		return err
+	}
 	for _, op := range ops {
 		var err error
 		switch op := op.(type) {

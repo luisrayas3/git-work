@@ -38,7 +38,7 @@ type Resolver interface {
 // on a field the type has, and whether an identity or issue it names exists.
 // The policy check asks what the schema allows on top:
 // an enum value among the field's values, a relation's target among its
-// target types. A local write gets both; a Jira pull gets the shape check
+// target types, a type change among the old type's retype targets. A local write gets both; a Jira pull gets the shape check
 // only, because Jira is the authority on what Jira holds
 // and the derived schema only approximates it.
 type Checker struct {
@@ -124,7 +124,8 @@ func (c *Checker) CheckNew(fields map[string]json.RawMessage) error {
 //
 // currentType is the issue's type as it stands;
 // a set that changes the type is checked against the new one,
-// because that is what the issue will be.
+// because that is what the issue will be,
+// and the change itself against the current type's retype targets.
 func (c *Checker) CheckFields(currentType string, fields map[string]json.RawMessage) error {
 	if !c.Validating() {
 		return nil
@@ -149,8 +150,37 @@ func (c *Checker) CheckFields(currentType string, fields map[string]json.RawMess
 		return problems.err()
 	}
 
+	if err := c.CheckRetype(currentType, typeKey); err != nil {
+		problems.add("%v", err)
+	}
 	c.checkFields(problems, typeKey, fields)
 	return problems.err()
+}
+
+// CheckRetype refuses changing an issue's type from one type to another
+// that the first type's retype targets do not list (type-change.md, TC2),
+// naming the types it may become. It is policy: the shape check, which a
+// Jira pull runs, allows any change, since a Move in Jira is Jira's to
+// make. An issue with no type yet, or a type the schema lacks, has no
+// targets to check against, and neither has a new issue.
+func (c *Checker) CheckRetype(from, to string) error {
+	if !c.Validating() || c.ShapeOnly || from == "" || from == to {
+		return nil
+	}
+	t, known := c.Schema.Type(from)
+	if !known {
+		return nil
+	}
+	ok, allowed := t.MayBecome(to)
+	if ok {
+		return nil
+	}
+	list := "(none)"
+	if len(allowed) > 0 {
+		list = strings.Join(allowed, ", ")
+	}
+	return &Problems{List: []string{fmt.Sprintf("%s: type change from %s to %s is not allowed; allowed: %s",
+		TypeKey, from, to, list)}}
 }
 
 // CheckItems validates an `add` or a `remove`: items of list-valued fields.

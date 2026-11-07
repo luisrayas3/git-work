@@ -129,11 +129,32 @@ type Type struct {
 	// parse and check it; it changes no storage, write or query.
 	Show json.RawMessage `json:"show,omitempty"`
 
+	// RetypeTargets are the types an issue of this type may become by a
+	// `set` of its type (type-change.md, TC1): nil is any type, empty is
+	// none. It is policy: a local write is checked against it, a Jira pull
+	// is not (TC2).
+	RetypeTargets *[]string `json:"retype_targets,omitempty"`
+
 	// Fields are the type's fields by key, built-ins included.
 	Fields map[string]*Field `json:"fields"`
 
 	// EntityId is the type entity's id.
 	EntityId entity.Id `json:"entity_id,omitempty"`
+}
+
+// MayBecome reports whether an issue of the type may be retyped to another,
+// and else the types it may become, for the refusal (TC1). Absent retype
+// targets allow any type.
+func (t *Type) MayBecome(typeKey string) (bool, []string) {
+	if t.RetypeTargets == nil || typeKey == t.Key {
+		return true, nil
+	}
+	for _, target := range *t.RetypeTargets {
+		if target == typeKey {
+			return true, nil
+		}
+	}
+	return false, *t.RetypeTargets
 }
 
 // Field returns one field of the type by key.

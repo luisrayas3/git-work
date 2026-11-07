@@ -89,7 +89,8 @@ Every write is checked against the schema before anything is committed,
 and every problem is reported at once rather than the first one:
 an unknown key is refused naming the fields the type does have,
 an enum value naming the values the field accepts,
-a relation naming the types it may point at.
+a relation naming the types it may point at,
+a type change naming the types the issue may become.
 
 The listing is a jq program.
 `git work issue list 'PROGRAM'` runs PROGRAM
@@ -195,6 +196,10 @@ so they merge like issues do.
   In the file, YAML anchors share a definition between types.
 - A type's `show`, `show: {expand: [children, links]}`, is how show draws its issues
   where a view's `shows` does not say; the import checks it as a view's spec is checked.
+- A type's `retype_targets`, `retype_targets: [task, bug]`, lists the types its issues
+  may become by a `set` of `type`: absent is any type, `[]` none.
+  A Jira pull imports a type changed there whatever it says,
+  and the Jira sync derives it for a mapped type from Jira's hierarchy levels.
 - `git work schema log [KEY]` is a key's history,
   and `git work schema archive KEY` removes it, replicated.
 

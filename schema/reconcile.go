@@ -190,7 +190,7 @@ func Apply(current []Entry, changes []Change) []Entry {
 // removes one, so an alias-free file unmaps nothing (JS2).
 func typeAttributeNames(name string) bool {
 	switch name {
-	case AttrName, AttrDescription, AttrOrdinal, AttrShow:
+	case AttrName, AttrDescription, AttrOrdinal, AttrShow, AttrRetypeTargets:
 		return true
 	}
 	return false
@@ -218,6 +218,10 @@ func typeAttributes(t TypeDoc, ordinal int) map[string]config.Value {
 	}
 	if t.Show != nil {
 		attributes[AttrShow] = mustValue(t.Show)
+	}
+	if t.RetypeTargets != nil {
+		// never null: `[]` is a type that is fixed, absent one that is not
+		attributes[AttrRetypeTargets] = mustValue(append([]string{}, (*t.RetypeTargets)...))
 	}
 	aliasAttributes(attributes, t.Aliases, AliasName)
 	return attributes

@@ -121,9 +121,17 @@ func Compile(entries []Entry) (*Schema, error) {
 		}
 	}
 
-	// dangling relation targets are reported, never an error (D4)
+	// dangling relation and retype targets are reported, never an error (D4)
 	for _, key := range s.TypeKeys() {
 		t := s.Types[key]
+		if t.RetypeTargets != nil {
+			for _, target := range *t.RetypeTargets {
+				if _, ok := s.Types[target]; !ok {
+					s.Problems = append(s.Problems,
+						fmt.Sprintf("type %s: retype target %s does not exist", t.Key, target))
+				}
+			}
+		}
 		for _, fieldKey := range t.FieldKeys() {
 			field := t.Fields[fieldKey]
 			for _, target := range field.TargetTypes {
@@ -161,15 +169,28 @@ func compileType(e Entry) (*Type, error) {
 		show = append(json.RawMessage(nil), raw...)
 	}
 
+	var retype *[]string
+	if raw, ok := e.Attributes[AttrRetypeTargets]; ok {
+		var targets []string
+		if err := unmarshalAttr(raw, &targets); err != nil {
+			return nil, fmt.Errorf("attribute %s is not a list of type keys", AttrRetypeTargets)
+		}
+		if targets == nil {
+			targets = []string{}
+		}
+		retype = &targets
+	}
+
 	return &Type{
-		Key:         e.Key,
-		Name:        name,
-		Description: description,
-		Ordinal:     ordinal,
-		Aliases:     aliases,
-		Show:        show,
-		Fields:      map[string]*Field{},
-		EntityId:    e.Id,
+		Key:           e.Key,
+		Name:          name,
+		Description:   description,
+		Ordinal:       ordinal,
+		Aliases:       aliases,
+		Show:          show,
+		RetypeTargets: retype,
+		Fields:        map[string]*Field{},
+		EntityId:      e.Id,
 	}, nil
 }
 

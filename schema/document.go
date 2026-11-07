@@ -24,6 +24,7 @@ import (
 //	  epic:
 //	    name: Epic
 //	    aliases: {jira: "10000"}  # what it is in another system (JS2)
+//	    retype_targets: []        # the types it may become; absent is any (TC1)
 //	    fields:
 //	      status: *status
 //	      parent: {kind: relation, inverse: children, target_types: [initiative]}
@@ -55,8 +56,13 @@ type TypeDoc struct {
 	Aliases map[string]string `yaml:"aliases,omitempty"`
 	// Show is how show draws an issue of the type where a view's `shows`
 	// does not say (doc/design/app.md A7): what show takes less the id.
-	Show   *ShowDoc  `yaml:"show,omitempty"`
-	Fields *fieldMap `yaml:"fields,omitempty"`
+	Show *ShowDoc `yaml:"show,omitempty"`
+	// RetypeTargets are the types an issue of this type may become by a
+	// `set` of its type (type-change.md, TC1): nil is any type, which is
+	// what a schema written before it means; empty is none, the type is
+	// fixed once the issue is created.
+	RetypeTargets *[]string `yaml:"retype_targets,omitempty"`
+	Fields        *fieldMap `yaml:"fields,omitempty"`
 }
 
 // ShowDoc is a type's show spec in the document: `fields`, the rows of
@@ -252,11 +258,12 @@ func Export(s *Schema) *Document {
 	for _, typeKey := range s.TypeKeys() {
 		t := s.Types[typeKey]
 		entry := TypeDoc{
-			Name:        t.Name,
-			Description: t.Description,
-			Aliases:     copyAliases(t.Aliases),
-			Show:        exportShow(t.Show),
-			Fields:      newOrderedMap[FieldDoc](),
+			Name:          t.Name,
+			Description:   t.Description,
+			Aliases:       copyAliases(t.Aliases),
+			Show:          exportShow(t.Show),
+			RetypeTargets: copyTargets(t.RetypeTargets),
+			Fields:        newOrderedMap[FieldDoc](),
 		}
 
 		for _, fieldKey := range t.FieldKeys() {
@@ -321,6 +328,16 @@ func exportShow(raw json.RawMessage) *ShowDoc {
 	return &show
 }
 
+// copyTargets keeps a document from sharing a type's retype targets,
+// nil staying nil and empty staying empty: the two mean any and none.
+func copyTargets(targets *[]string) *[]string {
+	if targets == nil {
+		return nil
+	}
+	out := append([]string{}, (*targets)...)
+	return &out
+}
+
 // copyAliases keeps a document from sharing a map with the schema it came from.
 func copyAliases(aliases map[string]string) map[string]string {
 	if len(aliases) == 0 {
@@ -366,6 +383,18 @@ func (d *Document) Validate(knownTypes []string) error {
 			}
 			if _, err := json.Marshal(t.Show); err != nil {
 				problems.add("%s: show: %v", where, err)
+			}
+		}
+		if t.RetypeTargets != nil {
+			seen := map[string]bool{}
+			for _, target := range *t.RetypeTargets {
+				switch _, ok := known[target]; {
+				case seen[target]:
+					problems.add("%s: retype target %s appears twice", where, target)
+				case !ok:
+					problems.add("%s: retype target %s is neither in this document nor in the store", where, target)
+				}
+				seen[target] = true
 			}
 		}
 		d.validateType(problems, typeKey, t, known)
