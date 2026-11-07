@@ -63,6 +63,7 @@ types:
     description: A big user story that needs to be broken down.
     aliases:
       jira: "10000"
+    retype_targets: []
     fields:
       status:
         kind: enum
@@ -187,6 +188,9 @@ types:
     description: Functionality or a feature expressed as a user goal.
     aliases:
       jira: "10001"
+    retype_targets:
+    - task
+    - bug
     fields:
       status:
         kind: enum
@@ -341,6 +345,9 @@ types:
     description: A small, distinct piece of work.
     aliases:
       jira: "10002"
+    retype_targets:
+    - story
+    - bug
     fields:
       status:
         kind: enum
@@ -496,6 +503,9 @@ types:
     description: A problem or error.
     aliases:
       jira: "10004"
+    retype_targets:
+    - story
+    - task
     fields:
       status:
         kind: enum
@@ -641,6 +651,7 @@ types:
     description: A small piece of work that's part of a larger task.
     aliases:
       jira: "10003"
+    retype_targets: []
     fields:
       status:
         kind: enum
@@ -902,6 +913,11 @@ types:
 # info iteration: local-only type: never exported
 # info decision: local-only type: never exported
 # info allocation: local-only type: never exported
+# info epic: retype_targets (none) after Jira levels
+# info story: retype_targets task, bug after Jira levels
+# info task: retype_targets story, bug after Jira levels
+# info bug: retype_targets story, task after Jira levels
+# info subtask: retype_targets (none) after Jira levels
 # warn epic/customfield_10019: Jira field Rank (customfield_10019, com.pyxis.greenhopper.jira:gh-lexo-rank) is not mapped
 # info epic/status: adopts Jira field Status (status)
 # info epic/status:to-do: adopts Jira value To Do (10000)
@@ -1032,11 +1048,11 @@ types:
 # info subtask/iteration: local-only field: never exported
 
 # changes
-# {"action":"update","shape":"type","key":"epic","id":"0000000000000000000000000000000000000000000000000000000000000002","set":{"alias_jira":"10000","description":"A big user story that needs to be broken down."}}
-# {"action":"update","shape":"type","key":"story","id":"0000000000000000000000000000000000000000000000000000000000000003","set":{"alias_jira":"10001","description":"Functionality or a feature expressed as a user goal."}}
-# {"action":"update","shape":"type","key":"task","id":"0000000000000000000000000000000000000000000000000000000000000004","set":{"alias_jira":"10002","description":"A small, distinct piece of work."}}
-# {"action":"update","shape":"type","key":"bug","id":"0000000000000000000000000000000000000000000000000000000000000005","set":{"alias_jira":"10004","description":"A problem or error."}}
-# {"action":"update","shape":"type","key":"subtask","id":"0000000000000000000000000000000000000000000000000000000000000006","set":{"alias_jira":"10003","description":"A small piece of work that's part of a larger task."}}
+# {"action":"update","shape":"type","key":"epic","id":"0000000000000000000000000000000000000000000000000000000000000002","set":{"alias_jira":"10000","description":"A big user story that needs to be broken down.","retype_targets":[]}}
+# {"action":"update","shape":"type","key":"story","id":"0000000000000000000000000000000000000000000000000000000000000003","set":{"alias_jira":"10001","description":"Functionality or a feature expressed as a user goal.","retype_targets":["task","bug"]}}
+# {"action":"update","shape":"type","key":"task","id":"0000000000000000000000000000000000000000000000000000000000000004","set":{"alias_jira":"10002","description":"A small, distinct piece of work.","retype_targets":["story","bug"]}}
+# {"action":"update","shape":"type","key":"bug","id":"0000000000000000000000000000000000000000000000000000000000000005","set":{"alias_jira":"10004","description":"A problem or error.","retype_targets":["story","task"]}}
+# {"action":"update","shape":"type","key":"subtask","id":"0000000000000000000000000000000000000000000000000000000000000006","set":{"alias_jira":"10003","description":"A small piece of work that's part of a larger task.","retype_targets":[]}}
 # {"action":"update","shape":"field","key":"epic/status","id":"0000000000000000000000000000000000000000000000000000000000000016","set":{"alias_jira":"status","alias_jira/done":"10002","alias_jira/in-progress":"3","alias_jira/to-do":"10000"}}
 # {"action":"update","shape":"field","key":"epic/priority","id":"0000000000000000000000000000000000000000000000000000000000000017","set":{"alias_jira":"priority","alias_jira/high":"2","alias_jira/highest":"1","alias_jira/low":"4","alias_jira/lowest":"5","alias_jira/medium":"3"}}
 # {"action":"update","shape":"field","key":"epic/assignee","id":"0000000000000000000000000000000000000000000000000000000000000018","set":{"alias_jira":"assignee"}}

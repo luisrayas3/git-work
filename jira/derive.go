@@ -40,6 +40,7 @@ func Derive(current *schema.Document, p *Project) (*schema.Document, []Note, err
 	}
 	d := &deriver{p: p, doc: doc, mapped: map[string]string{}}
 	d.types()
+	d.retype()
 	for _, it := range p.IssueTypes {
 		if key, ok := d.mapped[it.Id]; ok {
 			d.fields(key, it)
@@ -146,6 +147,41 @@ func (d *deriver) types() {
 		case a != "" && !claimed[key]:
 			d.note(LevelWarn, key, "dead alias: %s has no issue type %s", d.p.Key, a)
 		}
+	}
+}
+
+// retype sets each mapped type's retype_targets to the other mapped types
+// of its hierarchy level, in the document's order (type-change.md, TC3):
+// Jira's edit changes an issue type within one level only, so that is what
+// a local type change may do. Jira is canonical for it, as for a type's
+// name, so a list written by hand is rewritten, with a note. A local-only
+// type, unaliased or aliased "", is left alone and never listed: an issue
+// retyped to one would silently stop syncing.
+func (d *deriver) retype() {
+	level := map[string]int{}
+	for _, it := range d.p.IssueTypes {
+		if key, ok := d.mapped[it.Id]; ok {
+			level[key] = it.Level
+		}
+	}
+	keys := d.doc.Types.Keys()
+	for _, key := range keys {
+		lv, ok := level[key]
+		if !ok {
+			continue
+		}
+		targets := []string{}
+		for _, other := range keys {
+			if ol, ok := level[other]; ok && other != key && ol == lv {
+				targets = append(targets, other)
+			}
+		}
+		t, _ := d.doc.Types.Get(key)
+		if t.RetypeTargets == nil || !slices.Equal(*t.RetypeTargets, targets) {
+			d.note(LevelInfo, key, "retype_targets %s after Jira levels", orElse(strings.Join(targets, ", "), "(none)"))
+		}
+		t.RetypeTargets = &targets
+		d.doc.SetType(key, t)
 	}
 }
 
@@ -551,6 +587,10 @@ func copyDocument(src *schema.Document) *schema.Document {
 		// The whole value, so an attribute a type gains is carried too.
 		c := t
 		c.Aliases = maps.Clone(t.Aliases)
+		if t.RetypeTargets != nil {
+			targets := slices.Clone(*t.RetypeTargets)
+			c.RetypeTargets = &targets
+		}
 		if t.Show != nil {
 			show := *t.Show
 			show.Fields = slices.Clone(show.Fields)
