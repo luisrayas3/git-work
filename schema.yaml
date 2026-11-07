@@ -57,9 +57,12 @@ shared:
       - {id: infra,       name: Infrastructure}
 
 types:
+  # retype_targets mirrors Jira's hierarchy levels (type-change.md): a story
+  # sits a level above its tasks and decisions, which may swap with each other.
   story:
     name: Story
     description: A user-facing change, designed in doc/design before its tasks.
+    retype_targets: []
     fields:
       status: *status
       priority: *priority
@@ -70,6 +73,7 @@ types:
   task:
     name: Task
     description: Work that is not a user-facing story.
+    retype_targets: [decision]
     fields:
       status: *status
       priority: *priority
@@ -84,6 +88,7 @@ types:
   decision:
     name: Decision
     description: A design call and its reasoning; closed once it is recorded.
+    retype_targets: [task]
     fields:
       status: *status
       priority: *priority
