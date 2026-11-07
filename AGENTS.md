@@ -131,6 +131,8 @@ Do not extend them;
   no "revised on", no "supersedes", no order of work, no deferred list
   (future work is an issue).
   What a decision used to be is in git and on the issues.
+  This repository's own schema and flows may illustrate a principle,
+  never stand in for one.
 - **A rejected alternative is argued in the conditional**:
   "Not X: it would …",
   never "X was tried and …" or "X did …".
@@ -148,14 +150,19 @@ Do not extend them;
 - **An external system's behaviour that is inferred, not confirmed,
   is recorded in its reference document as unconfirmed**
   (`doc/design/bridges/` for Jira).
-  The aspect states the rule that copes with it,
+  A fact is confirmed by the spec or another named source;
+  one seen on a live site says so, as a stronger mark.
+  The aspect states the rule that copes with an unconfirmed fact,
   and may name the assumption,
-  but never states it as fact.
+  but never states it as fact,
+  and neither does a code comment.
 - **The reference documents in `doc/design/bridges/` meet the same standard**:
   they say what holds now about the external system,
   each fact confirmed or unconfirmed and with its source,
   not how the knowledge was gathered:
-  no vetting logs, corrections lists or "added later" sections.
+  no vetting logs, corrections lists or "added later" sections,
+  and none of the system's own history (rollouts, removal dates, old forms);
+  a current fact cites its source, not how it came about.
 - **The set of aspects changes only on a human's explicit say-so.**
   New work goes into the aspect it belongs to,
   even when that makes a document longer.
@@ -184,6 +191,7 @@ Do not extend them;
   (into an aspect, onto an issue, or out of the repository)
   repoints, in the same change,
   every issue comment, task and code citation that pointed at it.
+  Splitting a decision out under its own heading is a move.
   Repointing an issue comment adds a comment naming the new place:
   an issue's existing comments are its record,
   and are never rewritten for this.
