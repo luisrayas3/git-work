@@ -475,7 +475,9 @@ func (m *Mapping) toJira(tm *typeMap, c change, remote *jiraapi.Issue, ix *Index
 		}
 		return edit("summary", s)
 	case schema.TypeKey:
-		return no("change the type in Jira (JS18)")
+		// written alone and first by the engine, never with the other fields
+		// (type-change.md, TC4)
+		return no("the type is written on its own")
 	}
 
 	fm, ok := tm.fields[c.Key]

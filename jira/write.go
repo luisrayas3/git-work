@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 
 	"github.com/git-bug/git-bug/entities/issue"
 	"github.com/git-bug/git-bug/entity"
@@ -28,12 +29,7 @@ func (e *engine) write(ri *jiraapi.Issue, remote Doc, plan mergePlan, b2 *Base, 
 		b2.Sent[key] = v
 		b2.Wrote = before
 	}
-	writes, skips := e.m.toWrites(remote.Type, plan.Remote, ri, e.ix)
-	line.Pending = append(line.Pending, skips...)
 	failed := map[string]bool{}
-	for _, s := range skips {
-		failed[s.Key] = true
-	}
 	pend := func(key, reason string) {
 		failed[key] = true
 		line.Pending = append(line.Pending, Skip{Key: key, Reason: reason})
@@ -49,6 +45,37 @@ func (e *engine) write(ri *jiraapi.Issue, remote Doc, plan mergePlan, b2 *Base, 
 			pend(key, err.Error())
 		}
 		return nil
+	}
+
+	// a local type change goes alone and first: Jira checks every other
+	// field against the issue's type as it stands, so the rest is mapped
+	// under the type that landed, or the old one on a refusal
+	// (type-change.md, TC4)
+	typ, rest := remote.Type, plan.Remote
+	if at := slices.IndexFunc(plan.Remote, func(ch change) bool { return ch.Key == typeKey }); at >= 0 {
+		rest = slices.Delete(slices.Clone(plan.Remote), at, at+1)
+		next, _ := issue.String(plan.Remote[at].Set)
+		if id, ok := e.m.issueType(next); !ok {
+			pend(typeKey, "type "+next+" is local-only")
+		} else {
+			err := e.c.EditIssue(e.ctx, ri.ID, map[string]any{"issuetype": map[string]string{"id": id}}, nil)
+			var apiErr *jiraapi.Error
+			switch {
+			case err == nil:
+				wrote, typ = true, next
+			case runFatal(err):
+				return nil, nil, wrote, err
+			case errors.As(err, &apiErr) && apiErr.Fields["issuetype"] != "":
+				pend(typeKey, "Jira refused issuetype: "+apiErr.Fields["issuetype"])
+			default:
+				pend(typeKey, err.Error())
+			}
+		}
+	}
+	writes, skips := e.m.toWrites(typ, rest, ri, e.ix)
+	line.Pending = append(line.Pending, skips...)
+	for _, s := range skips {
+		failed[s.Key] = true
 	}
 
 	// one PUT with every edit; per-field refusals are retried once without them

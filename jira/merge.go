@@ -17,7 +17,8 @@ const BodyKey = "body"
 // pending entry: comment:<Jira id>, or comment:<op> before it has one.
 const commentKey = "comment"
 
-// typeKey is the built-in type field: import-only in v1 (JS18).
+// typeKey is the built-in type field. A Jira change is imported first
+// (JS18); a local one is exported alone, before the rest (type-change.md, TC4).
 const typeKey = "type"
 
 // localKind is what one localChange commits.
@@ -99,7 +100,6 @@ type mergePlan struct {
 const (
 	reasonNotExported = "local change not written to Jira this run"
 	reasonLossy       = "the Jira text holds content git-work cannot write back"
-	reasonTypeChange  = "change the type in Jira"
 	reasonDeleted     = "deleted in Jira"
 )
 
@@ -207,8 +207,6 @@ func merge(b *Base, local, remote Doc, multi func(key string) bool, export bool)
 			}
 		case give:
 			switch {
-			case k == typeKey:
-				pending(k, reasonTypeChange)
 			case k == BodyKey && remote.Lossy:
 				pending(k, reasonLossy) // JS11: never overwritten
 			default:

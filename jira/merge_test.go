@@ -251,10 +251,21 @@ func TestMergeType(t *testing.T) {
 	require.Len(t, p.Local, 2)
 	require.Equal(t, "type", p.Local[0].Key)
 
-	// a local type change is pending, never exported
+	// a local type change is exported (type-change.md, TC4), its base kept
+	// until Jira holds it; without export it waits like any other key
 	p = merge(b, doc("", "type", str("bug"), "status", str("to-do")), doc("", "type", str("task"), "status", str("to-do")), isMulti, true)
+	require.Equal(t, []change{{Key: "type", Set: str("bug")}}, p.Remote)
+	require.Empty(t, p.Pending)
+	require.JSONEq(t, `"task"`, string(p.Base.Fields["type"]))
+	p = merge(b, doc("", "type", str("bug"), "status", str("to-do")), doc("", "type", str("task"), "status", str("to-do")), isMulti, false)
 	require.Empty(t, p.Remote)
-	require.Equal(t, []Skip{{Key: "type", Reason: reasonTypeChange}}, p.Pending)
+	require.Equal(t, []Skip{{Key: "type", Reason: reasonNotExported}}, p.Pending)
+
+	// changed on both sides: Jira's, and a conflict (TC5, JS9)
+	p = merge(b, doc("", "type", str("bug"), "status", str("to-do")), doc("", "type", str("story"), "status", str("to-do")), isMulti, true)
+	require.Empty(t, p.Remote)
+	require.Equal(t, []Conflict{{Key: "type", Local: str("bug"), Jira: str("story")}}, p.Conflicts)
+	require.Equal(t, "type", p.Local[0].Key)
 }
 
 func TestMergeComments(t *testing.T) {

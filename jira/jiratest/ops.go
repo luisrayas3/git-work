@@ -314,6 +314,36 @@ func (a *Actor) Move(key, projectKey string) string {
 	return newKey
 }
 
+// MoveType is the web UI's Move of an issue to another issue type of its
+// project, which may cross hierarchy levels as an edit's type change may
+// not (setType). The status is kept where the new type's workflow has it,
+// else it is the workflow's initial one, and a parent is dropped when the
+// level changes.
+func (a *Actor) MoveType(key, typeName string) {
+	a.s.t.Helper()
+	a.do(func() error {
+		rec, err := a.mustIssue(key)
+		if err != nil {
+			return err
+		}
+		p := rec.cur.project
+		t := p.issueType(typeName)
+		if t == nil {
+			return fmt.Errorf("project %s has no type %s", p.def.Key, typeName)
+		}
+		next := rec.cur.clone()
+		next.typ = t
+		if !slices.ContainsFunc(workflowStatuses(p, t), func(s *Status) bool { return s.ID == next.status.ID }) {
+			next.status = p.status(t.Workflow.Initial)
+		}
+		if t.HierarchyLevel != rec.cur.typ.HierarchyLevel {
+			next.parent = 0
+		}
+		a.s.commit(rec, next, a.id, false)
+		return nil
+	})
+}
+
 // Link links source <outward> dest ("source blocks dest") and returns the link id.
 func (a *Actor) Link(source, linkType, dest string) string {
 	a.s.t.Helper()
@@ -366,6 +396,7 @@ func (s *Server) DeleteComment(key, id string)     { s.t.Helper(); s.UI().Delete
 func (s *Server) Delete(key string)                { s.t.Helper(); s.UI().Delete(key) }
 func (s *Server) Move(key, project string) string  { s.t.Helper(); return s.UI().Move(key, project) }
 func (s *Server) Link(src, typ, dst string) string { s.t.Helper(); return s.UI().Link(src, typ, dst) }
+func (s *Server) MoveType(key, typeName string)    { s.t.Helper(); s.UI().MoveType(key, typeName) }
 
 // Issue is the stored state of an issue, for assertions.
 type Issue struct {

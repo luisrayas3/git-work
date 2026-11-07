@@ -1448,7 +1448,8 @@ func TestAdvClockSkew(t *testing.T) {
 // ---- structure: types, keys, links, deletes ----
 
 // JS18: a type changed in Jira is imported, its fields remapped; a local
-// type change on a linked issue is pending, never exported.
+// type change on a linked issue within one level is exported
+// (type-change.md, TC4, which supersedes JS18's pending).
 func TestAdvTypeChangeInJira(t *testing.T) {
 	w := newWorld(t)
 	key, ic := w.imported("Retyped")
@@ -1464,10 +1465,14 @@ func TestAdvTypeChangeInJira(t *testing.T) {
 	w.set(ic.Id(), "type", str("story"))
 	w.srv.ResetRequests()
 	lines, _ := w.mustSync(jira.Options{})
-	require.Zero(t, w.srv.Writes())
-	require.Equal(t, "Bug", w.srv.Issue(key).Type)
-	require.NotEmpty(t, lines)
-	require.Equal(t, `"story"`, field(t, ic, "type"), "kept locally, pending")
+	require.Equal(t, 1, w.srv.Writes())
+	require.Equal(t, "Story", w.srv.Issue(key).Type)
+	require.Len(t, lines, 1)
+	require.Empty(t, lines[0].Pending)
+	require.Equal(t, `"story"`, field(t, ic, "type"))
+	require.Equal(t, `["kept"]`, field(t, ic, "labels"))
+	w.still()
+	w.quietFull()
 }
 
 // A move out of the project and back gives a new key on the same id: the

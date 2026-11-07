@@ -364,6 +364,8 @@ the first `Esc` clears the text and the second cancels.
 - `git work jira sync` (or `git work sync --jira`) syncs one bound clone
   with one Jira Cloud project, both ways, field by field;
   Jira wins a field edited on both sides and says so in a comment.
+  A type changed locally is written to Jira first, alone;
+  a type Jira refuses, or one it does not map, stays pending.
   A clone is bound by `git config git-work.jira.url`, `git-work.jira.project`
   and `git-work.jira.email`, with the token in `JIRA_API_TOKEN` or git's credential store.
   `git work jira schema` prints the schema the project maps to, to review and import first.

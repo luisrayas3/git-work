@@ -1,8 +1,18 @@
 # A type change is refused where Jira would refuse it, and written where Jira allows it
 
-Status: **approved, 2026-11-07.**
+Status: **approved, 2026-11-07; implemented, 2026-11-07.**
 Supersedes JS18's second half (`jira-sync.md`):
 a local type change is no longer always pending.
+`retype_targets` is one attribute on the type entity, a JSON array,
+because absent and empty differ;
+`Checker.CheckRetype` is the policy check, which the cache runs once per batch.
+Implementing TC4 found one more place JS18 relied on:
+the candidate filter compared only the keys the local type maps,
+so an issue retyped to a local-only type looked unchanged and was skipped silently;
+a type differing from the base now makes the issue a candidate,
+and its type is pending on every run (`TestTypeChangeToLocalOnly`).
+`jiratest` gained `MoveType`, the web UI's Move across levels,
+for the pull test.
 
 ## Problem
 

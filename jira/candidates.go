@@ -435,6 +435,11 @@ func (e *engine) orphan(h hit) {
 // changed reports whether the issue differs from its base locally.
 func (e *engine) changed(snap *issue.Snapshot, b *Base) bool {
 	typ, _ := issue.String(snap.Fields[typeKey])
+	// a type changed to one with no mapping has no mapped key to show it,
+	// and is pending, not silently unlinked (type-change.md, TC4)
+	if !same(canonical(form(typeKey, snap.Fields[typeKey]), false), canonical(b.Fields[typeKey], false)) {
+		return true
+	}
 	l := e.m.Local(snap, typ)
 	for k, v := range l.Fields {
 		multi := e.m.multi(typ, k)
