@@ -19,7 +19,8 @@ What a decision used to be is in git's history and on the tracker's issues.
 | [`jira.md`](jira.md) | the Jira sync |
 | [`migration.md`](migration.md) | moving from git-bug: the store migration and importing a git-bug repository |
 
-[`bridges/`](bridges) holds the Jira Cloud API reference the sync was built against,
+[`bridges/`](bridges) holds the Jira Cloud API reference the sync relies on,
+each fact marked confirmed or unconfirmed with its source,
 and how to set up a Jira sandbox to test it.
 
 ## How these documents change
@@ -31,8 +32,13 @@ Code cites a decision by document and heading,
 `(doc/design/views.md, "The ghost")`,
 and `TestDesignCitations` checks that every citation resolves.
 Moving or removing design text repoints, in the same change,
-whatever cited it: code, tasks and issue comments.
+whatever cited it: code, tasks and issue comments
+(an issue comment is repointed by adding a comment, never by rewriting one).
+A decision with its own reasoning and citations has its own heading;
+old decision ids such as `TC8` stay out of code and of these documents.
 A rejected alternative is argued in the conditional,
 and what a document deliberately does not do is listed
-under "Deliberately absent", each entry with its standing reason.
+under "Deliberately absent", each entry stating its standing reason.
+What Jira is inferred, not confirmed, to do is recorded as unconfirmed in `bridges/`,
+and the aspect states the rule that copes with it.
 The full rules are in [`AGENTS.md`](../../AGENTS.md), Working conventions.

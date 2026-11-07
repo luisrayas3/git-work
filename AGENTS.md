@@ -140,12 +140,22 @@ Do not extend them;
   a document may list what it deliberately does not do,
   under that heading,
   and every entry carries a standing reason.
+  The reason is stated in the entry itself:
+  a cross-reference alone is not one,
+  and neither is a cost alone ("another client").
   An entry without one is future work,
   and future work is an issue.
-- **Unconfirmed facts about an external system go in its reference document**
-  (`doc/design/bridges/` for Jira),
-  not in an aspect;
-  the aspect states the decision that copes with them.
+- **An external system's behaviour that is inferred, not confirmed,
+  is recorded in its reference document as unconfirmed**
+  (`doc/design/bridges/` for Jira).
+  The aspect states the rule that copes with it,
+  and may name the assumption,
+  but never states it as fact.
+- **The reference documents in `doc/design/bridges/` meet the same standard**:
+  they say what holds now about the external system,
+  each fact confirmed or unconfirmed and with its source,
+  not how the knowledge was gathered:
+  no vetting logs, corrections lists or "added later" sections.
 - **The set of aspects changes only on a human's explicit say-so.**
   New work goes into the aspect it belongs to,
   even when that makes a document longer.
@@ -174,14 +184,22 @@ Do not extend them;
   (into an aspect, onto an issue, or out of the repository)
   repoints, in the same change,
   every issue comment, task and code citation that pointed at it.
+  Repointing an issue comment adds a comment naming the new place:
+  an issue's existing comments are its record,
+  and are never rewritten for this.
 - **A decision is a heading, and code cites it by document and heading**:
   `(doc/design/views.md, "The ghost")`.
   A heading names the decision, so keep it short and stable;
   renaming one means updating what cites it.
+  A decision with its own reasoning and its own citations gets its own heading;
+  a refinement that only qualifies its parent stays a bullet under it.
 - **Citations use the full form**, `doc/design/<aspect>.md`:
   a bare `<name>.md`,
   or an old decision id such as `TC8` or `JS18`,
   is not a citation.
+  Old decision ids may stay in issue titles
+  and in the approved design record on an issue;
+  never in code or in `doc/design`.
   `TestDesignCitations` fails on a citation, or a link between documents,
   that names a document or heading that does not exist,
   and on a bare `<name>.md` in code that names no file in the repository.
