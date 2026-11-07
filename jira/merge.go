@@ -65,6 +65,17 @@ func (cw commentWrite) key() string {
 	return commentKey + ":" + cw.JiraId
 }
 
+// commentDelete is a comment deleted locally to delete in Jira
+// (comment-delete.md CD6). Import, when set, is Jira's text edited since
+// the base, committed once the delete lands so that it is not lost to git.
+type commentDelete struct {
+	Op     entity.Id
+	JiraId string
+	Import *localChange
+}
+
+func (cd commentDelete) key() string { return commentKey + ":" + cd.JiraId }
+
 // Conflict is a double edit Jira won (JS21). Key is a field, "body" or
 // "comment"; texts are not repeated, the local one is in the history.
 type Conflict struct {
@@ -79,6 +90,7 @@ type mergePlan struct {
 	Local     []localChange
 	Remote    []change
 	Comments  []commentWrite
+	Deletes   []commentDelete
 	Conflicts []Conflict
 	Pending   []Skip
 	Base      Base // what to record once Local commits
@@ -212,7 +224,7 @@ func merge(b *Base, local, remote Doc, multi func(key string) bool, export bool)
 	return p
 }
 
-// mergeComments is JS12's table.
+// mergeComments is JS12's table, with comment-delete.md CD6's rows.
 // A comment key in skipped (a write a stale GET does not show) is left alone.
 func mergeComments(p *mergePlan, b, nb *Base, local, remote Doc, skipped map[string]bool, pending func(key, reason string), exportOr func(string, func())) {
 	if nb.Comments == nil {
@@ -227,11 +239,50 @@ func mergeComments(p *mergePlan, b, nb *Base, local, remote Doc, skipped map[str
 		}
 		byOp[lc.Op] = lc
 	}
+	deletedByJira := map[string]*docComment{}
+	deletedByOp := map[entity.Id]*docComment{}
+	for i := range local.Deleted {
+		d := &local.Deleted[i]
+		if d.JiraId != "" {
+			deletedByJira[d.JiraId] = d
+		}
+		deletedByOp[d.Op] = d
+	}
 	done := map[entity.Id]bool{}
 
 	for _, rc := range remote.Comments {
 		rd := digest(rc.Text.Text)
 		key := commentKey + ":" + rc.JiraId
+		d, deleted := deletedByJira[rc.JiraId]
+		if !deleted && rc.Op != "" {
+			// our own export whose pairing never committed, deleted since
+			d, deleted = deletedByOp[rc.Op]
+		}
+		if deleted {
+			// deleted locally, present in Jira (comment-delete.md CD6)
+			done[d.Op] = true
+			bd, hasBase := b.Comments[rc.JiraId]
+			if skipped[key] || hasBase && bd == "" {
+				continue
+			}
+			var imp *localChange
+			if hasBase && bd != rd {
+				// Jira's edit since the base goes into git first; no conflict
+				imp = &localChange{Kind: localEditComment, Op: d.Op, JiraId: rc.JiraId,
+					Text: rc.Text.Text, Author: rc.Editor, At: rc.Edited}
+			}
+			exported := false
+			exportOr(key, func() {
+				exported = true
+				p.Deletes = append(p.Deletes, commentDelete{Op: d.Op, JiraId: rc.JiraId, Import: imp})
+			})
+			if !exported && imp != nil {
+				// the delete waits; the import does not, and Jira's text is the base
+				p.Local = append(p.Local, *imp)
+				nb.Comments[rc.JiraId] = rd
+			}
+			continue
+		}
 		if lc, ok := byJira[rc.JiraId]; ok {
 			done[lc.Op] = true
 			if skipped[key] {
@@ -294,6 +345,14 @@ func mergeComments(p *mergePlan, b, nb *Base, local, remote Doc, skipped map[str
 			p.Conflicts = append(p.Conflicts, Conflict{Key: commentKey, Comment: lc.JiraId})
 		}
 		nb.Comments[lc.JiraId] = ""
+	}
+	// deleted locally, paired, gone from Jira: settled, with no request and
+	// no tombstone (comment-delete.md CD6); never paired: never exported
+	for _, d := range local.Deleted {
+		if done[d.Op] || d.JiraId == "" || skipped[commentKey+":"+d.JiraId] {
+			continue
+		}
+		nb.Comments[d.JiraId] = ""
 	}
 	if len(nb.Comments) == 0 {
 		nb.Comments = nil

@@ -64,6 +64,7 @@ type Doc struct {
 	Fields   map[string]issue.Value // mapped keys, title, type and BodyKey included
 	Lossy    bool                   // remote only: the description holds what git-work cannot write back (JS11)
 	Comments []docComment           // #1 on
+	Deleted  []docComment           // local only: comments a DeleteComment hid, no text (comment-delete.md CD6)
 	Skip     []Skip                 // remote only: what could not convert now
 }
 

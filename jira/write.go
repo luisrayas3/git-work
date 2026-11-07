@@ -17,8 +17,9 @@ import (
 // its acceptance: each key and comment written goes into b2.Sent, with
 // b2.Wrote Jira's clock before the first write, and the base stays until a
 // GET shows it (I2, confirm). pairs are the comments it created, by Jira id,
-// from the 201s; wrote says anything landed. Only a run failure is returned.
-func (e *engine) write(ri *jiraapi.Issue, remote Doc, plan mergePlan, b2 *Base, line *Line) (pairs map[string]entity.Id, wrote bool, err error) {
+// from the 201s; imports are the Jira edits of comments it deleted, for step 6
+// to commit; wrote says anything landed. Only a run failure is returned.
+func (e *engine) write(ri *jiraapi.Issue, remote Doc, plan mergePlan, b2 *Base, line *Line) (pairs map[string]entity.Id, imports []localChange, wrote bool, err error) {
 	before := e.now()
 	sent := func(key string, v issue.Value) {
 		if b2.Sent == nil {
@@ -71,7 +72,7 @@ func (e *engine) write(ri *jiraapi.Issue, remote Doc, plan mergePlan, b2 *Base, 
 		if err == nil || runFatal(err) || retried || !errors.As(err, &apiErr) || apiErr.StatusCode != 400 {
 			for _, w := range edits {
 				if err := try(w.Key, err); err != nil {
-					return nil, wrote, err
+					return nil, nil, wrote, err
 				}
 			}
 			break
@@ -102,17 +103,17 @@ func (e *engine) write(ri *jiraapi.Issue, remote Doc, plan mergePlan, b2 *Base, 
 				continue
 			}
 			if err := try(w.Key, err); err != nil {
-				return nil, wrote, err
+				return nil, nil, wrote, err
 			}
 		case writeLink:
 			for _, l := range w.Add {
 				if err := try(w.Key, e.c.CreateIssueLink(e.ctx, l.LinkType, l.Source, l.Destination)); err != nil {
-					return nil, wrote, err
+					return nil, nil, wrote, err
 				}
 			}
 			for _, id := range w.Remove {
 				if err := try(w.Key, e.c.DeleteIssueLink(e.ctx, id)); err != nil {
-					return nil, wrote, err
+					return nil, nil, wrote, err
 				}
 			}
 		}
@@ -134,7 +135,7 @@ func (e *engine) write(ri *jiraapi.Issue, remote Doc, plan mergePlan, b2 *Base, 
 		if cw.JiraId == "" {
 			c, err := e.c.AddComment(e.ctx, ri.ID, adf, jiraapi.Property{Key: PropertyKey, Value: map[string]string{"op": cw.Op.String()}})
 			if err := try(cw.key(), err); err != nil {
-				return nil, wrote, err
+				return nil, nil, wrote, err
 			}
 			if err == nil {
 				pairs[c.ID] = cw.Op
@@ -144,14 +145,37 @@ func (e *engine) write(ri *jiraapi.Issue, remote Doc, plan mergePlan, b2 *Base, 
 		}
 		_, err := e.c.UpdateComment(e.ctx, ri.ID, cw.JiraId, adf)
 		if err := try(cw.key(), err); err != nil {
-			return nil, wrote, err
+			return nil, nil, wrote, err
 		}
 		if err == nil {
 			sent(cw.key(), issue.StringValue(digest(cw.Text)))
 		}
 	}
+
+	// comment-delete.md CD6: a 404 is already gone. A delete that landed is
+	// based at once, since no GET can show it back, and its import of
+	// Jira's edit is step 6's to commit.
+	for _, cd := range plan.Deletes {
+		err := e.c.DeleteComment(e.ctx, ri.ID, cd.JiraId)
+		if jiraapi.StatusCode(err) == 404 {
+			err = nil
+		}
+		if err := try(cd.key(), err); err != nil {
+			return nil, nil, wrote, err
+		}
+		if err != nil {
+			continue
+		}
+		if b2.Comments == nil {
+			b2.Comments = map[string]string{}
+		}
+		b2.Comments[cd.JiraId] = ""
+		if cd.Import != nil {
+			imports = append(imports, *cd.Import)
+		}
+	}
 	line.exports(plan, remote, failed)
-	return pairs, wrote, nil
+	return pairs, imports, wrote, nil
 }
 
 // transition moves the issue to statusId: the transition whose target it

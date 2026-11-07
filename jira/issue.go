@@ -132,7 +132,7 @@ func (e *engine) converge(ic *cache.IssueCache, b *Base, ri *jiraapi.Issue, cs [
 	if b != nil {
 		b2 = b.clone()
 	}
-	pairs, wrote, err := e.write(ri, remote, plan1, b2, &line)
+	pairs, imports, wrote, err := e.write(ri, remote, plan1, b2, &line)
 	if err != nil {
 		return e.fail(line, err)
 	}
@@ -141,7 +141,7 @@ func (e *engine) converge(ic *cache.IssueCache, b *Base, ri *jiraapi.Issue, cs [
 	}
 	// step 5: what Jira answered is committed even when the re-read fails,
 	// against R, where every written key is still pending (I2)
-	w := &written{pairs: pairs, echo: map[string]bool{}}
+	w := &written{pairs: pairs, imports: imports, echo: map[string]bool{}}
 	for k := range b2.Sent {
 		if b == nil || b.Sent[k] == nil {
 			w.echo[k] = true
@@ -155,9 +155,11 @@ func (e *engine) converge(ic *cache.IssueCache, b *Base, ri *jiraapi.Issue, cs [
 }
 
 // written is what step 4 leaves step 6: the comments it created, paired from
-// their 201s; the keys it wrote, which R′ answers; a failed re-read.
+// their 201s; the Jira edits of the comments it deleted, which R′ no longer
+// holds; the keys it wrote, which R′ answers; a failed re-read.
 type written struct {
 	pairs   map[string]entity.Id
+	imports []localChange
 	echo    map[string]bool
 	readErr error
 }
@@ -219,6 +221,7 @@ func (e *engine) commit(ic *cache.IssueCache, b2 *Base, ri *jiraapi.Issue, cs []
 		b, r := e.settle(b2, local, r, w.echo)
 		plan := merge(b, local, r, e.multi(r.Type), false)
 		plan.Local = append(plan.Local, paired...)
+		plan.Local = append(plan.Local, w.imports...)
 		typ, _ := issue.String(snap.Fields[typeKey])
 		pending, off := e.admit(&plan, typ, b)
 		decided.Pending = append(decided.Pending, pending...)

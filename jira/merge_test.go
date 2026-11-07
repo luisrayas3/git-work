@@ -322,6 +322,53 @@ func TestMergeComments(t *testing.T) {
 	}, p.Base.Comments)
 }
 
+// comment-delete.md CD6: the rows of a comment deleted locally.
+func TestMergeDeletedComments(t *testing.T) {
+	c := func(jiraId string, op entity.Id, text string) docComment {
+		return docComment{JiraId: jiraId, Op: op, Editor: "ed", Edited: t0, Text: docText{text, true}}
+	}
+	b := base("")
+	b.Comments = map[string]string{"1": digest("one"), "2": digest("two"), "3": digest("three"), "4": "", "5": digest("five")}
+	l, r := doc(""), doc("")
+	l.Deleted = []docComment{
+		{Op: "op0"},              // never paired → never exported
+		{Op: "op1", JiraId: "1"}, // present, base → DELETE
+		{Op: "op2", JiraId: "2"}, // present, edited in Jira → import, DELETE, no conflict
+		{Op: "op3", JiraId: "3"}, // gone from Jira → base "", nothing else
+		{Op: "op4", JiraId: "4"}, // base "" → nothing
+		{Op: "op6"},              // exported, pairing crashed → DELETE
+	}
+	r.Comments = []docComment{
+		c("1", "", "one"),
+		c("2", "", "two, theirs"),
+		{JiraId: "4", Text: docText{"four", false}},
+		c("6", "op6", "six"),
+	}
+
+	p := merge(b, l, r, isMulti, true)
+	imp := &localChange{Kind: localEditComment, Op: "op2", JiraId: "2", Text: "two, theirs", Author: "ed", At: t0}
+	require.Equal(t, []commentDelete{{Op: "op1", JiraId: "1"}, {Op: "op2", JiraId: "2", Import: imp}, {Op: "op6", JiraId: "6"}}, p.Deletes)
+	require.Empty(t, p.Local, "the import waits for the delete to land")
+	require.Empty(t, p.Comments)
+	require.Empty(t, p.Conflicts)
+	require.Empty(t, p.Pending)
+	require.Equal(t, map[string]string{"1": digest("one"), "2": digest("two"), "3": "", "4": "", "5": digest("five")}, p.Base.Comments)
+
+	// step 6, nothing exported: the delete is pending, the import is not
+	p = merge(b, l, r, isMulti, false)
+	require.Empty(t, p.Deletes)
+	require.Equal(t, []localChange{*imp}, p.Local)
+	require.Empty(t, p.Conflicts)
+	require.ElementsMatch(t, []string{commentKey + ":1", commentKey + ":2", commentKey + ":6"}, func() []string {
+		var keys []string
+		for _, s := range p.Pending {
+			keys = append(keys, s.Key)
+		}
+		return keys
+	}())
+	require.Equal(t, digest("two, theirs"), p.Base.Comments["2"])
+}
+
 // M13: the current base is the marker with the greatest Updated.
 func TestCurrentBase(t *testing.T) {
 	repo := repository.NewMockRepo()

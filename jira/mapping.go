@@ -161,11 +161,20 @@ func (m *Mapping) Local(snap *issue.Snapshot, typeKey string) Doc {
 		}
 		return byOp[id]
 	}
+	var deleted []entity.Id
+	added := map[entity.Id]bool{}
 	for _, op := range snap.Operations {
 		if edit, ok := op.(*issue.EditCommentOperation); ok {
 			c := at(edit.Target)
 			c.Edited, c.Editor = op.Time(), op.Author().Id().String()
 			continue
+		}
+		if del, ok := op.(*issue.DeleteCommentOperation); ok {
+			deleted = append(deleted, del.Target)
+			continue
+		}
+		if _, ok := op.(*issue.AddCommentOperation); ok {
+			added[op.Id()] = true
 		}
 		c := at(op.Id())
 		c.At = op.Time()
@@ -179,6 +188,18 @@ func (m *Mapping) Local(snap *issue.Snapshot, typeKey string) Doc {
 			lc.Author = sc.Author.Id().String()
 		}
 		doc.Comments = append(doc.Comments, lc)
+	}
+	// the comments a DeleteComment hid (comment-delete.md CD6): gone from
+	// snap.Comments, so known from the operations alone
+	seen := map[entity.Id]bool{}
+	for _, target := range deleted {
+		if !added[target] || seen[target] {
+			continue
+		}
+		seen[target] = true
+		dc := *at(target)
+		dc.Op = target
+		doc.Deleted = append(doc.Deleted, dc)
 	}
 	return doc
 }

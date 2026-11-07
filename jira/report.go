@@ -51,6 +51,7 @@ type CommentCounts struct {
 	Exported   int `json:"exported"`
 	Edited     int `json:"edited"`
 	Tombstoned int `json:"tombstoned"`
+	Deleted    int `json:"deleted"` // deleted locally, so deleted in Jira (comment-delete.md CD6)
 }
 
 func (c *CommentCounts) empty() bool { return c == nil || *c == CommentCounts{} }

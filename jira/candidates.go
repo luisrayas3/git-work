@@ -456,6 +456,12 @@ func (e *engine) changed(snap *issue.Snapshot, b *Base) bool {
 			return true
 		}
 	}
+	// a paired comment deleted locally and not yet in Jira (comment-delete.md CD6)
+	for _, c := range l.Deleted {
+		if bd, ok := b.Comments[c.JiraId]; c.JiraId != "" && (!ok || bd != "") {
+			return true
+		}
+	}
 	return false
 }
 

@@ -245,6 +245,11 @@ func (l *Line) exports(plan mergePlan, remote Doc, failed map[string]bool) {
 			l.comments().Edited++
 		}
 	}
+	for _, cd := range plan.Deletes {
+		if !failed[cd.key()] {
+			l.comments().Deleted++
+		}
+	}
 }
 
 func (l *Line) imported(key string, v issue.Value) {
