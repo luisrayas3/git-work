@@ -198,8 +198,9 @@ so they merge like issues do.
   where a view's `shows` does not say; the import checks it as a view's spec is checked.
 - A type's `retype_targets`, `retype_targets: [task, bug]`, lists the types its issues
   may become by a `set` of `type`: absent is any type, `[]` none.
+  A type synced to a system (a non-empty alias) may list only types synced to it.
   A Jira pull imports a type changed there whatever it says,
-  and the Jira sync derives it for a mapped type from Jira's hierarchy levels.
+  and the Jira sync derives it for a mapped type from Jira's hierarchy levels and workflows.
 - `git work schema log [KEY]` is a key's history,
   and `git work schema archive KEY` removes it, replicated.
 
@@ -364,8 +365,9 @@ the first `Esc` clears the text and the second cancels.
 - `git work jira sync` (or `git work sync --jira`) syncs one bound clone
   with one Jira Cloud project, both ways, field by field;
   Jira wins a field edited on both sides and says so in a comment.
-  A type changed locally is written to Jira first, alone;
-  a type Jira refuses, or one it does not map, stays pending.
+  A type changed locally is written to Jira first, alone,
+  and the rest synced under the new type's mapping;
+  a type Jira refuses is taken back, reported as a conflict with Jira's reason.
   A clone is bound by `git config git-work.jira.url`, `git-work.jira.project`
   and `git-work.jira.email`, with the token in `JIRA_API_TOKEN` or git's credential store.
   `git work jira schema` prints the schema the project maps to, to review and import first.

@@ -2,7 +2,9 @@ package jira
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
 	"time"
@@ -115,15 +117,37 @@ func (e *engine) syncLinked(ic *cache.IssueCache) error {
 // the keys of b.Sent that R answers (a create's, read right after its
 // POST), line what the caller has to report already.
 func (e *engine) converge(ic *cache.IssueCache, b *Base, ri *jiraapi.Issue, cs []jiraapi.Comment, meta map[string]string, echo map[string]bool, line Line) error {
+	snap := ic.Snapshot()
+	prior := b
 	remote := e.m.fromIssue(ri, cs, e.ix)
-	local := e.m.Local(ic.Snapshot(), remote.Type)
+	local := e.m.Local(snap, remote.Type)
 	b, remote = e.settle(b, local, remote, echo)
+
+	// the type first, then every other key under the type it leaves
+	// (type-change.md, TC8)
+	rt, err := e.retype(b, local, remote, ri)
+	if err != nil {
+		return e.fail(line, err)
+	}
+	switch {
+	case rt.landed != "":
+		ri = rt.ri
+		remote = e.m.fromIssue(ri, cs, e.ix)
+		local = e.m.Local(snap, remote.Type)
+		b, remote = e.settle(prior, local, remote, echo)
+	case rt.refused != nil:
+		b = rt.base(b)
+	}
 	plan1 := merge(b, local, remote, e.multi(remote.Type), true)
 	if e.opts.DryRun {
 		line.DryRun = true
 		line.record(plan1.Local, remote)
 		line.exports(plan1, remote, nil)
-		line.Conflicts, line.Pending = plan1.Conflicts, append(line.Pending, plan1.Pending...)
+		rt.report(&line)
+		if rt.refused != nil {
+			line.Conflicts = append(line.Conflicts, *rt.refused)
+		}
+		line.Conflicts, line.Pending = append(line.Conflicts, plan1.Conflicts...), append(line.Pending, plan1.Pending...)
 		e.report(line)
 		return nil
 	}
@@ -136,12 +160,22 @@ func (e *engine) converge(ic *cache.IssueCache, b *Base, ri *jiraapi.Issue, cs [
 	if err != nil {
 		return e.fail(line, err)
 	}
+	if rt.landed != "" {
+		// written alone and before the rest, so it is the first write (I2)
+		if b2.Sent == nil {
+			b2.Sent = map[string]issue.Value{}
+		}
+		b2.Sent[typeKey] = form(typeKey, issue.StringValue(rt.landed))
+		b2.Wrote = rt.at
+		wrote = true
+	}
+	rt.report(&line)
 	if !wrote {
-		return e.commit(ic, b2, ri, cs, meta, nil, line)
+		return e.commit(ic, b2, ri, cs, meta, &written{refused: rt.refused}, line)
 	}
 	// step 5: what Jira answered is committed even when the re-read fails,
 	// against R, where every written key is still pending (I2)
-	w := &written{pairs: pairs, imports: imports, echo: map[string]bool{}}
+	w := &written{pairs: pairs, imports: imports, echo: map[string]bool{}, refused: rt.refused}
 	for k := range b2.Sent {
 		if b == nil || b.Sent[k] == nil {
 			w.echo[k] = true
@@ -162,6 +196,99 @@ type written struct {
 	imports []localChange
 	echo    map[string]bool
 	readErr error
+	refused *Conflict // a local type change Jira refused, taken back
+}
+
+// retyped is how a local type change ended (type-change.md, TC8): landed in
+// Jira, with ri the issue as Jira now holds it, or refused, with the
+// conflict that reports it. Neither is a local type change not given, or a
+// dry run's change to a mapped type, which landed reports as a real run
+// would on Jira's acceptance.
+type retyped struct {
+	landed  string // the type written
+	ri      *jiraapi.Issue
+	at      time.Time // the clock before the write (I2)
+	refused *Conflict
+}
+
+// retype decides the type before any other key: when the merge would give
+// it (changed locally only), it is written to Jira alone, since Jira checks
+// every other field against the issue's type as it stands. A run failure is
+// returned; any other failure, and a type with no Jira issue type, is a
+// refusal, which is final: Jira's type is taken back.
+func (e *engine) retype(b *Base, local, remote Doc, ri *jiraapi.Issue) (retyped, error) {
+	var rt retyped
+	if b == nil || remote.Type == "" {
+		return rt, nil
+	}
+	for _, s := range remote.Skip {
+		if s.Key == typeKey {
+			return rt, nil
+		}
+	}
+	bv, hasBase := b.Fields[typeKey]
+	lv, rv := local.Fields[typeKey], remote.Fields[typeKey]
+	if v, _ := decide(string(canon(bv)), hasBase, string(form(typeKey, lv)), string(form(typeKey, rv)), string(form(typeKey, null))); v != give {
+		return rt, nil
+	}
+	next, _ := issue.String(lv)
+	refuse := func(reason string) {
+		rt.refused = &Conflict{Key: typeKey, Local: canon(lv), Jira: canon(rv), Reason: reason}
+	}
+	id, ok := e.m.issueType(next)
+	if !ok {
+		refuse("type " + next + " is not mapped to a Jira issue type")
+		return rt, nil
+	}
+	rt.at = e.now()
+	if !e.opts.DryRun {
+		err := e.c.EditIssue(e.ctx, ri.ID, map[string]any{"issuetype": map[string]string{"id": id}}, nil)
+		var apiErr *jiraapi.Error
+		switch {
+		case err == nil:
+		case runFatal(err):
+			return rt, err
+		case errors.As(err, &apiErr) && apiErr.Fields["issuetype"] != "":
+			refuse("Jira refused issuetype: " + apiErr.Fields["issuetype"])
+			return rt, nil
+		default:
+			refuse(err.Error())
+			return rt, nil
+		}
+	}
+	rt.landed, rt.ri = next, e.withIssueType(ri, id)
+	return rt, nil
+}
+
+// withIssueType is ri as Jira holds it once its issue type is id: the rest
+// of the issue is merged under the type it now has.
+func (e *engine) withIssueType(ri *jiraapi.Issue, id string) *jiraapi.Issue {
+	it := jiraapi.IssueType{ID: id}
+	for _, pt := range e.p.IssueTypes {
+		if pt.Id == id {
+			it.Name, it.HierarchyLevel, it.Subtask = pt.Name, pt.Level, pt.Level < 0
+		}
+	}
+	raw, _ := json.Marshal(it)
+	out := *ri
+	out.Fields = maps.Clone(ri.Fields)
+	out.Fields["issuetype"] = raw
+	return &out
+}
+
+// base is the merge's base once a type change is refused: the local type,
+// so that the merge takes Jira's back as it takes any key only Jira changed.
+func (rt retyped) base(b *Base) *Base {
+	b = b.clone()
+	b.Fields[typeKey] = form(typeKey, rt.refused.Local)
+	return b
+}
+
+// report adds a landed type to the line's exports.
+func (rt retyped) report(line *Line) {
+	if rt.landed != "" {
+		line.exported(typeKey, issue.StringValue(rt.landed))
+	}
 }
 
 // settle is the base a merge against remote starts from: a create's first
@@ -220,6 +347,9 @@ func (e *engine) commit(ic *cache.IssueCache, b2 *Base, ri *jiraapi.Issue, cs []
 		}
 		b, r := e.settle(b2, local, r, w.echo)
 		plan := merge(b, local, r, e.multi(r.Type), false)
+		if w.refused != nil {
+			plan.Conflicts = refusedConflict(plan, *w.refused)
+		}
 		plan.Local = append(plan.Local, paired...)
 		plan.Local = append(plan.Local, w.imports...)
 		typ, _ := issue.String(snap.Fields[typeKey])
@@ -264,6 +394,27 @@ func (e *engine) commit(ic *cache.IssueCache, b2 *Base, ri *jiraapi.Issue, cs []
 	}
 	e.report(decided)
 	return nil
+}
+
+// refusedConflict reports a refused type change as the conflict it is,
+// with Jira's reason, when the merge takes Jira's type back: the base was
+// the local type, so the take carries no conflict of its own. A type taken
+// over a further local change is a conflict already, and gains the reason.
+func refusedConflict(plan mergePlan, c Conflict) []Conflict {
+	for i := range plan.Conflicts {
+		if plan.Conflicts[i].Key == typeKey {
+			out := slices.Clone(plan.Conflicts)
+			out[i].Reason = c.Reason
+			return out
+		}
+	}
+	for _, lc := range plan.Local {
+		if lc.Kind == localSet && lc.Key == typeKey {
+			c.Jira = lc.Value
+			return append([]Conflict{c}, plan.Conflicts...)
+		}
+	}
+	return plan.Conflicts
 }
 
 // admit drops from plan.Local each field change the shape check refuses,
@@ -383,7 +534,11 @@ func conflictNote(now time.Time, cs []Conflict) string {
 		case commentKey:
 			fmt.Fprintf(&sb, "- comment %s: the local edit is kept in its history\n", c.Comment)
 		default:
-			fmt.Fprintf(&sb, "- %s: local %s -> Jira %s\n", c.Key, c.Local, c.Jira)
+			fmt.Fprintf(&sb, "- %s: local %s -> Jira %s", c.Key, c.Local, c.Jira)
+			if c.Reason != "" {
+				fmt.Fprintf(&sb, " (%s)", c.Reason)
+			}
+			sb.WriteString("\n")
 		}
 	}
 	return strings.TrimSuffix(sb.String(), "\n")

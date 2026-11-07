@@ -81,8 +81,20 @@ func (r *issueRef) set(fields map[string]issue.Value) error {
 	return ic.CommitOperations(ops)
 }
 
-// TC4: Story → Task writes issuetype alone and first, then the rest under
-// Task's mapping: a key Task lacks in Jira is pending, the others land.
+// retarget widens a type's retype_targets by hand after the import, as TC3
+// allows; the next sync's derive takes it back.
+func retarget(t *testing.T, w *world, typ string, targets ...string) {
+	t.Helper()
+	ce, err := w.c.Schema().ResolveKey(config.ShapeType, typ)
+	require.NoError(t, err)
+	_, err = ce.Set(schema.AttrRetypeTargets, config.MustValue(targets))
+	require.NoError(t, err)
+}
+
+// TC4, TC8: Story → Task writes issuetype alone and first, then the rest
+// under Task's mapping; a key Task lacks in Jira is not a key of that merge,
+// so nothing is pending for it, and it stays on the issue. A dry run first
+// reports the same.
 func TestTypeChangeExported(t *testing.T) {
 	w := newWorld(t, jiratest.WithSite(retypeSite()))
 	key, ref := storyIssue(t, w, "Becomes a task")
@@ -90,8 +102,18 @@ func TestTypeChangeExported(t *testing.T) {
 	require.NoError(t, ref.set(map[string]issue.Value{
 		"type": str("task"), "labels": issue.Value(`["moved"]`), "estimate": issue.MustValue(3),
 	}))
+
 	w.srv.ResetRequests()
-	lines, _ := w.mustSync(jira.Options{})
+	lines, _ := w.mustSync(jira.Options{DryRun: true})
+	require.Zero(t, w.srv.Writes())
+	require.Len(t, lines, 1)
+	require.Empty(t, lines[0].Pending)
+	require.JSONEq(t, `"task"`, string(lines[0].Exported["type"]))
+	require.Contains(t, lines[0].Exported, "labels")
+	require.NotContains(t, lines[0].Exported, "estimate")
+
+	w.srv.ResetRequests()
+	lines, _ = w.mustSync(jira.Options{})
 
 	edits := puts(w.srv)
 	require.Len(t, edits, 2)
@@ -109,57 +131,79 @@ func TestTypeChangeExported(t *testing.T) {
 	require.Equal(t, []string{"moved"}, got.Labels)
 
 	require.Len(t, lines, 1)
-	require.Equal(t, []jira.Skip{{Key: "estimate", Reason: "task/estimate is local-only"}}, lines[0].Pending)
+	require.Empty(t, lines[0].Pending, "estimate is not a key of Task's merge")
+	require.Empty(t, lines[0].Conflicts)
 	require.JSONEq(t, `"task"`, string(lines[0].Exported["type"]))
+	require.NotContains(t, lines[0].Exported, "estimate")
 
 	ic := w.byKey(key)
 	require.Equal(t, `"task"`, field(t, ic, "type"))
-	require.Equal(t, `3`, field(t, ic, "estimate"), "kept locally")
+	require.Equal(t, `3`, field(t, ic, "estimate"), "kept locally, unsynced")
 	w.quiet()
 }
 
-// TC4: a type change Jira refuses is pending with Jira's message, and the
-// other fields still land, under the old type.
+// TC8: a type change Jira refuses is final: Jira's type is taken back
+// locally and reported as a conflict with Jira's message, the rest merges
+// under the old type (Story's estimate is its story points), and the next
+// run is quiet.
 func TestTypeChangeRefused(t *testing.T) {
 	w := newWorld(t, jiratest.WithSite(retypeSite()))
 	key, ref := storyIssue(t, w, "Not a bug in Jira")
 
-	require.NoError(t, ref.set(map[string]issue.Value{"type": str("bug"), "labels": issue.Value(`["kept"]`)}))
+	// Bug is on another workflow, so derive does not list it (TC7)
+	require.ErrorContains(t, ref.set(map[string]issue.Value{"type": str("bug")}), "type change from story to bug is not allowed")
+	retarget(t, w, "story", "task", "bug")
+	require.NoError(t, ref.set(map[string]issue.Value{
+		"type": str("bug"), "labels": issue.Value(`["kept"]`), "estimate": issue.MustValue(5),
+	}))
 	lines, _ := w.mustSync(jira.Options{})
 
 	got := w.srv.Issue(key)
 	require.Equal(t, "Story", got.Type)
 	require.Equal(t, []string{"kept"}, got.Labels)
+	require.EqualValues(t, 5, got.Custom[jiratest.FieldStoryPoints], "merged under Story's mapping")
 	require.Len(t, lines, 1)
-	require.Equal(t, []jira.Skip{{Key: "type", Reason: "Jira refused issuetype: The issue type selected is invalid."}},
-		lines[0].Pending)
-	require.Equal(t, `"bug"`, field(t, w.byKey(key), "type"), "kept locally, pending")
+	reason := "Jira refused issuetype: The issue type selected is invalid."
+	require.Equal(t, []jira.Conflict{{Key: "type", Local: str("bug"), Jira: str("story"), Reason: reason}}, lines[0].Conflicts)
+	require.Empty(t, lines[0].Pending)
+	require.Empty(t, lines[0].OffSchema)
+	require.JSONEq(t, `"story"`, string(lines[0].Imported["type"]))
+
+	ic := w.byKey(key)
+	require.Equal(t, `"story"`, field(t, ic, "type"), "taken back")
+	require.Contains(t, notesText(ic), "- type: local \"bug\" -> Jira \"story\" ("+reason+")")
+	w.quiet()
 }
 
-// TC4: a type the schema maps to no Jira issue type is pending, and nothing
-// is asked of Jira for it.
+// TC6 makes a linked issue retyped to a local-only type impossible by a
+// local write; written into the store by hand around the import check, it
+// is a refusal like Jira's (TC8): taken back with a conflict, nothing asked
+// of Jira, and the next run quiet.
 func TestTypeChangeToLocalOnly(t *testing.T) {
 	w := newWorld(t, jiratest.WithSite(retypeSite()))
 	key, ref := storyIssue(t, w, "Becomes local")
 
-	// widened by hand after the import, as TC3 allows; the next derive takes it back
-	story, err := w.c.Schema().ResolveKey(config.ShapeType, "story")
-	require.NoError(t, err)
-	_, err = story.Set(schema.AttrRetypeTargets, config.MustValue([]string{"task", "iteration"}))
-	require.NoError(t, err)
+	retarget(t, w, "story", "task", "iteration")
 	require.NoError(t, ref.set(map[string]issue.Value{"type": str("iteration")}))
 
 	w.srv.ResetRequests()
-	lines, _ := w.mustSync(jira.Options{})
+	lines, _ := w.mustSync(jira.Options{DryRun: true})
+	require.Zero(t, w.srv.Writes())
+	require.Len(t, lines, 1)
+	reason := "type iteration is not mapped to a Jira issue type"
+	want := []jira.Conflict{{Key: "type", Local: str("iteration"), Jira: str("story"), Reason: reason}}
+	require.Equal(t, want, lines[0].Conflicts, "a dry run reports what the run does")
+
+	retarget(t, w, "story", "task", "iteration")
+	w.srv.ResetRequests()
+	lines, _ = w.mustSync(jira.Options{})
 	require.Zero(t, w.srv.Writes())
 	require.Equal(t, "Story", w.srv.Issue(key).Type)
 	require.Len(t, lines, 1)
-	require.Equal(t, []jira.Skip{{Key: "type", Reason: "type iteration is local-only"}}, lines[0].Pending)
-
-	// and it stays pending on the next run, never silently unlinked
-	lines, _ = w.mustSync(jira.Options{})
-	require.Len(t, lines, 1)
-	require.Equal(t, []jira.Skip{{Key: "type", Reason: "type iteration is local-only"}}, lines[0].Pending)
+	require.Equal(t, want, lines[0].Conflicts)
+	require.Empty(t, lines[0].Pending)
+	require.Equal(t, `"story"`, field(t, w.byKey(key), "type"))
+	w.quiet()
 }
 
 // TC2 and TC5: a Move in Jira across levels is imported though the schema

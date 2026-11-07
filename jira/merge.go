@@ -18,7 +18,8 @@ const BodyKey = "body"
 const commentKey = "comment"
 
 // typeKey is the built-in type field. A Jira change is imported first
-// (JS18); a local one is exported alone, before the rest (type-change.md, TC4).
+// (JS18); a local one is exported alone, before the rest, or taken back when
+// Jira refuses it (type-change.md, TC4, TC8).
 const typeKey = "type"
 
 // localKind is what one localChange commits.
@@ -79,11 +80,14 @@ func (cd commentDelete) key() string { return commentKey + ":" + cd.JiraId }
 
 // Conflict is a double edit Jira won (JS21). Key is a field, "body" or
 // "comment"; texts are not repeated, the local one is in the history.
+// Reason is why Jira's value was taken when it is not a double edit: a
+// local type change Jira refused (type-change.md, TC8).
 type Conflict struct {
 	Key     string      `json:"key"`
 	Local   issue.Value `json:"local,omitempty"`
 	Jira    issue.Value `json:"jira,omitempty"`
 	Comment string      `json:"comment,omitempty"`
+	Reason  string      `json:"reason,omitempty"`
 }
 
 // mergePlan is merge's decision for one issue.

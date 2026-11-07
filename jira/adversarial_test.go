@@ -1448,8 +1448,8 @@ func TestAdvClockSkew(t *testing.T) {
 // ---- structure: types, keys, links, deletes ----
 
 // JS18: a type changed in Jira is imported, its fields remapped; a local
-// type change on a linked issue within one level is exported
-// (type-change.md, TC4, which supersedes JS18's pending).
+// type change on a linked issue within one level and workflow is exported
+// (type-change.md, TC4, TC8, which supersede JS18's pending).
 func TestAdvTypeChangeInJira(t *testing.T) {
 	w := newWorld(t)
 	key, ic := w.imported("Retyped")

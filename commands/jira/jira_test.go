@@ -83,3 +83,16 @@ func TestJiraUnbound(t *testing.T) {
 	err := runJiraSync(env, syncOptions{format: "json"}, nil)
 	require.ErrorContains(t, err, host.JiraURLKey)
 }
+
+// A conflict's reason, a refused type change's (type-change.md, TC8), is
+// in the text line as it is in the JSON one.
+func TestJiraSyncTextConflictReason(t *testing.T) {
+	l := jira.Line{Jira: "PROJ-1", Action: jira.ActionUpdated, Conflicts: []jira.Conflict{
+		{Key: "type", Reason: "Jira refused issuetype: invalid"},
+		{Key: "priority"},
+	}}
+	require.Equal(t, "-  PROJ-1  updated  conflict type (Jira refused issuetype: invalid)  conflict priority", textLine(l))
+	raw, err := json.Marshal(l.Conflicts[0])
+	require.NoError(t, err)
+	require.JSONEq(t, `{"key":"type","reason":"Jira refused issuetype: invalid"}`, string(raw))
+}

@@ -155,6 +155,10 @@ func textLine(l jira.Line) string {
 		parts = append(parts, "exported "+strings.Join(sorted.Keys(l.Exported), ","))
 	}
 	for _, c := range l.Conflicts {
+		if c.Reason != "" {
+			parts = append(parts, "conflict "+c.Key+" ("+c.Reason+")")
+			continue
+		}
 		parts = append(parts, "conflict "+c.Key)
 	}
 	for _, p := range l.Pending {

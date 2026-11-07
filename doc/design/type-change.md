@@ -157,7 +157,20 @@ and now it can when only it changed.
 
 ## Addendum, 2026-11-07: no type change is left pending
 
-Status: **approved, 2026-11-07.**
+Status: **approved, 2026-11-07; implemented, 2026-11-07.**
+TC6 is `Schema.CheckRetypeSystems`, run by `git work schema import`
+on the schema the import would leave, so a partial file meets the store.
+TC8 decides `type` in `converge` before the first merge:
+a landed write re-maps the issue read under the new type,
+and a refusal makes the local type the merge's base,
+so both merges take Jira's back as any key only Jira changed;
+`commit` then adds the conflict, which gained a `reason`
+(in the JSON line, the text line and the issue's conflict note).
+A type with no Jira issue type, reachable only by writing the store around TC6,
+is refused the same way, with no request (`TestTypeChangeToLocalOnly`).
+`--dry-run` reports a change to a mapped type as exported,
+with the rest under the new type, and one to an unmapped type as its conflict;
+it cannot predict Jira's own refusal.
 
 TC4 left three ways for a local type change to end pending,
 and a pending type change is a discrepancy nobody is likely to resolve:
