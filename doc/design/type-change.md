@@ -155,6 +155,68 @@ It is listed here only because, before this change,
 the local side could never win a `type` key,
 and now it can when only it changed.
 
+## Addendum, 2026-11-07: no type change is left pending
+
+Status: **approved, 2026-11-07.**
+
+TC4 left three ways for a local type change to end pending,
+and a pending type change is a discrepancy nobody is likely to resolve:
+a target type that never syncs (pending on every run),
+fields the new type does not map in Jira (pending once),
+and a refusal by Jira (pending on every run).
+The goal now is that a local type change ends one of three ways only:
+refused when written, landed in Jira, or taken back with a conflict.
+TC6–TC8 replace TC4's pending outcomes;
+the rest of TC1–TC5 stands.
+
+### TC6 — A synced type's targets are synced in the same system
+
+A type with an alias for a system (non-empty)
+may list in `retype_targets` only types with a non-empty alias for that same system.
+Anything else is a schema import error naming the system and the target.
+The rule is about aliases, not Jira, so the schema stays backend-free,
+and derive (TC3) already meets it.
+A linked issue therefore never becomes a local-only type,
+and TC4's "type X is local-only" pending can no longer arise from a local write.
+
+A type with no aliases at all is unconstrained, as before.
+
+### TC7 — Derive also requires the same workflow
+
+Jira refuses an `issuetype` edit across workflows as it does across levels.
+Derive already reads each issue type's statuses (`GET /project/{key}/statuses`),
+so a mapped type's `retype_targets` is now the mapped types
+at the same hierarchy level **and with the same set of status ids**.
+This narrows TC3; its note and overwrite behaviour are unchanged.
+Required fields are not considered:
+whether one is set depends on the issue, not the type,
+and TC8 settles the refusal if it happens.
+
+### TC8 — The type is settled first, and a refusal is final
+
+Replacing TC4 steps 3–4:
+
+- **Merge under the type the issue ends with.**
+  The sync decides `type` first,
+  then merges every other key with the mapping of the type that results
+  (the new type when the write lands, the remote type otherwise),
+  as an import of a type change already does (JS18).
+  A field the new type does not map in Jira is then not a key of the merge,
+  so nothing is pending for it.
+  Its local value stays on the issue, unsynced, like any local-only field's.
+- **A refusal reverts.**
+  When Jira refuses the `issuetype` write,
+  the sync takes Jira's type back locally, as `take` would,
+  and reports a conflict on `type` with Jira's message as the reason,
+  rather than a pending item.
+  The local attempt stays in the issue's history.
+  The other keys then merge under Jira's type.
+- **A run failure** (network, auth: `runFatal`) is not a refusal:
+  the run stops as for any write, and the next run retries.
+
+With TC6 and TC7, a revert should be rare:
+it is left for what only Jira knows, such as a required field unset on this issue.
+
 ## What this does not change
 
 - **Subtasks and parents.**
@@ -185,3 +247,12 @@ Each test owns its schema (`AGENTS.md`).
   a refused type change is pending with Jira's message
   and the other fields still land;
   a pulled Epic → Initiative is imported even though `retype_targets` forbids it locally.
+
+Addendum tests (TC6–TC8):
+
+- Schema: a Jira-aliased type listing a local-only or `""`-aliased target
+  is an import error; an unaliased type may list anything.
+- Derive: two level-0 types with different status sets do not list each other.
+- Sync: Story → Task with a field Task does not map leaves nothing pending;
+  a refused change reverts the local type, reports a conflict with Jira's message,
+  merges the rest under the old type, and the next run is quiet.
