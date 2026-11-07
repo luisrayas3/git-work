@@ -14,7 +14,7 @@ import (
 // level, in the document's order; a local-only type, unaliased or aliased "",
 // keeps its own and is never listed; a list widened by hand is taken back, with
 // a note, and a second derivation writes nothing
-// (doc/design/jira.md, "Retype targets follow Jira's levels").
+// (doc/design/jira.md, "Retype targets follow Jira's levels and workflows").
 func TestDeriveRetypeTargets(t *testing.T) {
 	p, _ := discover(t, "company")
 	// the preset's initiative adopts a level above the epic; with bug
@@ -55,7 +55,8 @@ func TestDeriveRetypeTargets(t *testing.T) {
 	require.Empty(t, s.importDoc(t, again), "a fixpoint")
 	require.False(t, hasNote(notes, LevelInfo, "story", "retype_targets"), "no change, no note")
 
-	// widened by hand to a mapped type of another level: TC6 allows it
+	// widened by hand to a mapped type of another level, which a synced type's
+	// targets allow (doc/design/schema.md, "A type says what it may become")
 	widened := s.export(t)
 	story := typeDoc(t, widened, "story")
 	story.RetypeTargets = &[]string{"task", "epic"}
@@ -71,8 +72,9 @@ func TestDeriveRetypeTargets(t *testing.T) {
 	require.JSONEq(t, `["task"]`, string(changes[0].Set[schema.AttrRetypeTargets]))
 }
 
-// TC7: two types of one level whose workflows have different sets of
-// statuses do not list each other; the same set in another order does.
+// two types of one level whose workflows have different sets of statuses
+// do not list each other; the same set in another order does
+// (doc/design/jira.md, "Retype targets follow Jira's levels and workflows").
 func TestDeriveRetypeTargetsWorkflow(t *testing.T) {
 	p, _ := discover(t, "company")
 	byName := map[string]*IssueType{}

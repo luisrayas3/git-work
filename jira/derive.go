@@ -156,12 +156,13 @@ func (d *deriver) types() {
 
 // retype sets each mapped type's retype_targets to the other mapped types
 // of its hierarchy level and with its set of status ids, in the document's
-// order (type-change.md, TC3, TC7): Jira's edit changes an issue type only
+// order (doc/design/jira.md, "Retype targets follow Jira's levels and workflows"):
+// Jira's edit changes an issue type only
 // within one level and one workflow, so that is what a local type change
 // may do. Jira is canonical for it, as for a type's name, so a list written
 // by hand is rewritten, with a note. A local-only type, unaliased or
 // aliased "", is left alone and never listed: an issue retyped to one would
-// silently stop syncing (TC6).
+// silently stop syncing (doc/design/schema.md, "A type says what it may become").
 func (d *deriver) retype() {
 	class := map[string]string{}
 	for _, it := range d.p.IssueTypes {

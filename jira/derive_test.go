@@ -37,7 +37,9 @@ func (s *store) importDoc(t *testing.T, doc *schema.Document) []schema.Change {
 	require.NoError(t, err)
 	after, err := schema.Compile(schema.Apply(s.entries, changes))
 	require.NoError(t, err)
-	require.NoError(t, after.CheckRetypeSystems(), "what the import leaves meets TC6")
+	// what the import leaves meets
+	// (doc/design/schema.md, "A type says what it may become")
+	require.NoError(t, after.CheckRetypeSystems(), "a synced type's targets sync too")
 	s.apply(changes)
 	return changes
 }
@@ -149,7 +151,8 @@ func marshal(t *testing.T, doc *schema.Document) string {
 	return string(out)
 }
 
-// D2 and D3: a golden per starting schema and site, then a fixpoint.
+// a golden per starting schema and site, then a fixpoint
+// (doc/design/jira.md, "Derive, then the schema import").
 func TestDerive(t *testing.T) {
 	for siteName := range sites {
 		p, _ := discover(t, siteName)
@@ -220,8 +223,9 @@ func setStatus(p *Project, id string, fn func(*jiraapi.Status)) {
 	}
 }
 
-// D4: a Jira rename sets one values/<id> per field and keeps the id; an
-// added status gets its value and alias; a removed one changes nothing and warns.
+// a Jira rename sets one values/<id> per field and keeps the id; an added
+// status gets its value and alias; a removed one changes nothing and warns
+// (doc/design/jira.md, "Derive, then the schema import").
 func TestDeriveJiraChanges(t *testing.T) {
 	p, _ := discover(t, "company")
 	s, _, _, _ := derived(t, starts(t)["preset"], p)
@@ -259,13 +263,14 @@ func TestDeriveJiraChanges(t *testing.T) {
 		}
 	}
 	require.Equal(t, []string{"story/status"}, fieldChanges)
-	// story's workflow is no longer its level's other types' (type-change.md, TC7)
+	// story's workflow is no longer its level's other types'
+	// (doc/design/jira.md, "Retype targets follow Jira's levels and workflows")
 	require.Empty(t, *typeDoc(t, doc, "story").RetypeTargets)
 	require.NotContains(t, *typeDoc(t, doc, "task").RetypeTargets, "story")
 }
 
-// D6: an entity aliased "" is never adopted, across runs, and nothing
-// replaces it.
+// an entity aliased "" is never adopted, across runs, and nothing replaces
+// it (doc/design/jira.md, "Matching and keys").
 func TestDeriveExcluded(t *testing.T) {
 	p, _ := discover(t, "company")
 	start := starts(t)["preset"]
@@ -316,8 +321,9 @@ func TestDeriveKeepsShow(t *testing.T) {
 	require.Empty(t, s.importDoc(t, again))
 }
 
-// D7: a person marks Won't Do canceled once and every derivation keeps it;
-// Jira moving the status out of the done class resets it and warns.
+// a person marks Won't Do canceled once and every derivation keeps it; Jira
+// moving the status out of the done class resets it and warns
+// (doc/design/jira.md, "Status categories").
 func TestDeriveCategories(t *testing.T) {
 	p, _ := discover(t, "company")
 	s, doc, _, _ := derived(t, starts(t)["preset"], p)
@@ -351,8 +357,9 @@ func TestDeriveCategories(t *testing.T) {
 	require.True(t, hasNote(notes, LevelWarn, "task/status:wont-do", "reset to started"))
 }
 
-// D8: a schema mapped against the company project refuses the team one,
-// in Derive (before anything is imported) and in Compile.
+// a schema mapped against the company project refuses the team one, in
+// Derive (before anything is imported) and in Compile
+// (doc/design/jira.md, "Derive, then the schema import").
 func TestBindingRefused(t *testing.T) {
 	company, _ := discover(t, "company")
 	team, _ := discover(t, "team")
@@ -369,8 +376,8 @@ func TestBindingRefused(t *testing.T) {
 	require.ErrorContains(t, err, "no type of the schema is mapped")
 }
 
-// D9: two entities with one alias, which two clones can produce by merging,
-// make Compile refuse.
+// two entities with one alias, which two clones can produce by merging, make
+// Compile refuse (doc/design/jira.md, "Duplicate aliases are refused").
 func TestCompileDuplicateAlias(t *testing.T) {
 	p, _ := discover(t, "company")
 	for name, attr := range map[string]struct{ key, name, value string }{

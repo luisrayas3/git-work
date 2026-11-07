@@ -32,7 +32,7 @@ func discover(t *testing.T, name string, opts ...jiratest.Option) (*Project, *ji
 	return p, srv
 }
 
-// D1: one golden per fixture.
+// one golden per fixture (doc/design/jira.md, "Discovery").
 func TestDiscover(t *testing.T) {
 	for name := range sites {
 		t.Run(name, func(t *testing.T) {

@@ -400,32 +400,55 @@ Jira's, and a conflict.
 
 ### A local type change is exported alone and first
 
-When the merge gives `type` (changed locally, not in Jira),
+The sync settles `type` before any other key.
+When the merge would give it (changed locally, not in Jira),
 the sync maps the new type to its issue type id
 and sends `PUT /issue/{id}` with `fields.issuetype` and nothing else,
 **before** the edit carrying the other fields,
 because Jira validates every other field against the issue's type as it stands.
-The type that landed goes into `Sent` like any write,
-and the remaining keys are mapped and written under the new type's mapping;
-a key the new type lacks is pending as local-only.
-A refusal is pending with Jira's own message,
-and the rest is written under the old type.
-A type with no Jira mapping is pending ("type X is local-only");
-a type differing from the base makes the issue a candidate,
-so such an issue is pending every run rather than skipped silently.
+A type change then ends one of three ways:
+refused when written locally, landed in Jira, or taken back with a conflict.
+
+- **Landed**: the type goes into `Sent` like any write,
+  and is the run's first write, so `Wrote` is the clock before it.
+  Every other key is merged under the new type's mapping,
+  as an [import of a type change](#a-jira-type-change-is-imported-first) is:
+  a field the new type does not map in Jira is no key of that merge,
+  so nothing is pending for it,
+  and its local value stays on the issue, unsynced, like any local-only field's.
+- **Refused**, by Jira or for any other issue failure: the refusal is final.
+  The local type becomes the merge's base,
+  so the merge takes Jira's type back as it takes any key only Jira changed,
+  and the sync reports a conflict on `type` with the reason
+  (a `reason` on the report's conflict, and in the [conflict note](#conflict-notes)).
+  The local attempt stays in the issue's history;
+  the other keys merge under Jira's type, and the next run is quiet.
+- **A type mapped to no Jira issue type** is refused the same way,
+  with no request ("type X is not mapped to a Jira issue type").
+  The schema import makes it unreachable by a local write
+  ([schema](schema.md#a-type-says-what-it-may-become));
+  only a store written around that check reaches it.
+- **A run failure** (network, auth) is not a refusal:
+  the run stops, as for any write, and the next run retries.
+
+Not left pending:
+a pending type change would be a discrepancy reported on every run
+that nobody is likely to resolve.
+`--dry-run` reports a change to a mapped type as exported,
+with the rest under the new type,
+and one to an unmapped type as its conflict;
+it cannot predict Jira's own refusal.
 
 Local writes are refused where Jira would refuse:
-[Derive](#retype-targets-follow-jiras-levels) gives each mapped type
-the `retype_targets` Jira's levels allow.
-Levels are not all Jira checks —
-a target type under another workflow, or with a required field unset,
-can still be refused —
-and Jira's message says which.
+[Derive](#retype-targets-follow-jiras-levels-and-workflows) gives each mapped type
+the `retype_targets` Jira's levels and workflows allow,
+so a refusal is left for what only Jira knows,
+such as a required field unset on this issue.
 Not `editmeta` to predict it:
 a request per type change to repeat a check Jira makes anyway on the write,
-whose refusal already lands in the report's pending list.
+whose refusal the sync already settles.
 Not Jira's Move API:
-a change across levels is made in Jira and imported.
+a change across levels or workflows is made in Jira and imported.
 
 ## The mapping
 
@@ -668,16 +691,24 @@ so a store derived before the mark gets it as an update of each such field,
 and a local `link: false` on a link-type field is set back.
 The `jira` preset marks its link fields the same way.
 
-### Retype targets follow Jira's levels
+### Retype targets follow Jira's levels and workflows
 
-Jira's edit changes an issue type only within one hierarchy level,
+Jira's edit changes an issue type only within one hierarchy level
+and one workflow,
 so Derive sets each mapped type's `retype_targets`
-to the other mapped types of its level, in the document's order.
+to the other mapped types of its level with the same set of status ids
+(discovery's `GET /project/{key}/statuses`),
+in the document's order.
+Required fields are not considered:
+whether one is set depends on the issue, not the type,
+and a refusal is [settled on the write](#a-local-type-change-is-exported-alone-and-first).
 Jira is canonical for what a Jira type can become, as for its name,
 so a list written by hand is rewritten on the next run, with a note.
 A local-only type, unaliased or aliased `""`, keeps its own list
 and is never listed in a mapped type's:
-a linked issue retyped to one would never be exported again.
+a linked issue retyped to one would silently stop syncing,
+and the schema import refuses it
+([schema](schema.md#a-type-says-what-it-may-become)).
 
 The policy is per type, not per issue:
 an epic created locally and never synced cannot become an initiative either.
@@ -699,11 +730,14 @@ so the rule is Jira's own.
    ensure identities for the accounts they name, each its own commit.
    A 404 or a key outside the project is not a failure
    but [Gone](#deletes-and-moves-are-gone)'s business.
-3. **Plan**, lock-free:
-   `plan₁ = merge(confirm(B, R), L, fromIssue(R), export=true)`,
+3. **Plan**, lock-free, the type
+   [settled first](#a-local-type-change-is-exported-alone-and-first):
+   a local type change is written alone, or refused and taken back,
+   and then `plan₁ = merge(confirm(B, R), L, fromIssue(R), export=true)`
+   under the type that results,
    turned into writes, one per local key.
 4. **Write**, each independent, success recorded per key:
-   a type change alone; one `PUT` with every other edit;
+   one `PUT` with every edit;
    the transition; link adds and removes; comment creates, edits and deletes.
    A `PUT` refused with per-field `errors` is retried once without those fields,
    which become pending; a 400 naming no field sent makes every key of it pending.
@@ -747,7 +781,7 @@ and each stale read a pending key.
 | 5, a stale `R′` | Jira does not show the writes | the written keys are pending with `Sent` kept, comments paired; left alone until a `GET` reaches `Wrote` or `Settle` passes |
 | the `POST /issue` answer lost | the issue may exist in Jira | the attempt, committed before the `POST`, is in doubt: found by property, linked; not found, pending until `Settle`, then created again |
 | `POST` `201`, the `GET` after it fails | the id and key in hand | committed at once: `jira-id`, `alias:jira` and a `Fresh` marker; a 404 within `Settle` is pending, not gone |
-| 4, refused (400) | Jira refused a key | pending every run until fixed on either side |
+| 4, refused (400) | Jira refused a key | pending every run until fixed on either side; a refused type change is [taken back](#a-local-type-change-is-exported-alone-and-first) instead |
 | 4, no transition | status diverged | pending with the reason; a later Jira status change imports, with a conflict |
 | 6, shape check | a value that does not fit its field's kind, or names nothing | that key `Retry`, the rest commits |
 | 6, policy check | an enum value or a relation target the schema does not allow | written, reported `off_schema`; converged |
@@ -1042,14 +1076,17 @@ an empty or unloadable zone fails the run.
 
 ### Conflict notes
 
-A double edit that Jira wins writes, in the same commit as the import,
+A double edit that Jira wins,
+or a local type change Jira [refused](#a-local-type-change-is-exported-alone-and-first),
+writes, in the same commit as the import,
 **one note per issue per run**:
 a comment by the runner, metadata `jira-note = conflict`,
-listing every overridden key:
+listing every overridden key, with the reason when there is one:
 
 ```
 Jira sync, 2026-09-28 14:03 UTC: Jira's values replaced local edits.
 - status: local "in-review" -> Jira "done"
+- type: local "bug" -> Jira "story" (Jira refused issuetype: The issue type selected is invalid.)
 - body: the local description edit is kept in its history
 - comment 10231: the local edit is kept in its history
 ```
@@ -1236,6 +1273,7 @@ or `failed` (with `"error"`).
 An issue with nothing to do is not a line but counted in `unchanged`.
 The body appears in `imported` and `exported` as its first line, at most 60 characters;
 a conflict on a text repeats no text;
+a conflict that is no double edit, a refused type change, carries its `reason`;
 `retry` appears only when true;
 empty members are omitted, the cursor too when there is none.
 A pending key of `*` is the whole issue.

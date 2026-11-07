@@ -308,16 +308,27 @@ types:
     retype_targets: [task, bug]
 ```
 
-- **Absent** is any type, so a schema written before it loses nothing;
+- **Absent** is any type, so a schema that does not state it restricts nothing;
   **empty** is none, the type is fixed once the issue is created.
 - A target that is neither in the document nor in the store,
   or one listed twice, is an import error;
   one whose type is later archived is a problem on the compiled schema.
 - It is one-way, and need not be symmetric.
+- **A synced type's targets are synced to the same system.**
+  A type with a non-empty alias for a system
+  may list only types with a non-empty alias for that same system;
+  anything else is an import error naming the system and the target.
+  The import checks the schema it would leave,
+  so a partial file meets the types already in the store.
+  A type with no aliases is unconstrained.
+  The rule is about aliases, not Jira, so the schema stays backend-free;
+  without it, an issue linked to a system could be retyped out of the sync,
+  and its type change would have nowhere to go.
 - A local write is checked against it, a Jira pull is not
   ([issue](issue.md#a-type-change-is-a-set)).
-  For a type mapped to Jira the sync derives it from Jira's hierarchy levels
-  ([Jira sync](jira.md)).
+  For a type mapped to Jira the sync derives it
+  from Jira's hierarchy levels and workflows
+  ([Jira sync](jira.md#retype-targets-follow-jiras-levels-and-workflows)).
 
 It is one attribute holding a JSON list,
 not one attribute per member as `target_types` is,

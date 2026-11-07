@@ -84,8 +84,8 @@ func TestJiraUnbound(t *testing.T) {
 	require.ErrorContains(t, err, host.JiraURLKey)
 }
 
-// A conflict's reason, a refused type change's (type-change.md, TC8), is
-// in the text line as it is in the JSON one.
+// A conflict's reason, a refused type change's
+// (doc/design/jira.md, "A local type change is exported alone and first"), is in the text line as it is in the JSON one.
 func TestJiraSyncTextConflictReason(t *testing.T) {
 	l := jira.Line{Jira: "PROJ-1", Action: jira.ActionUpdated, Conflicts: []jira.Conflict{
 		{Key: "type", Reason: "Jira refused issuetype: invalid"},

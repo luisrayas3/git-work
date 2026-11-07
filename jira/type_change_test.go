@@ -81,8 +81,9 @@ func (r *issueRef) set(fields map[string]issue.Value) error {
 	return ic.CommitOperations(ops)
 }
 
-// retarget widens a type's retype_targets by hand after the import, as TC3
-// allows; the next sync's derive takes it back.
+// retarget widens a type's retype_targets by hand after the import; the
+// next sync's derive takes it back
+// (doc/design/jira.md, "Retype targets follow Jira's levels and workflows").
 func retarget(t *testing.T, w *world, typ string, targets ...string) {
 	t.Helper()
 	ce, err := w.c.Schema().ResolveKey(config.ShapeType, typ)
@@ -91,10 +92,10 @@ func retarget(t *testing.T, w *world, typ string, targets ...string) {
 	require.NoError(t, err)
 }
 
-// TC4, TC8: Story → Task writes issuetype alone and first, then the rest
-// under Task's mapping; a key Task lacks in Jira is not a key of that merge,
-// so nothing is pending for it, and it stays on the issue. A dry run first
-// reports the same.
+// Story → Task writes issuetype alone and first, then the rest under Task's
+// mapping; a key Task lacks in Jira is not a key of that merge, so nothing is
+// pending for it, and it stays on the issue. A dry run first reports the
+// same (doc/design/jira.md, "A local type change is exported alone and first").
 func TestTypeChangeExported(t *testing.T) {
 	w := newWorld(t, jiratest.WithSite(retypeSite()))
 	key, ref := storyIssue(t, w, "Becomes a task")
@@ -142,15 +143,16 @@ func TestTypeChangeExported(t *testing.T) {
 	w.quiet()
 }
 
-// TC8: a type change Jira refuses is final: Jira's type is taken back
-// locally and reported as a conflict with Jira's message, the rest merges
-// under the old type (Story's estimate is its story points), and the next
-// run is quiet.
+// a type change Jira refuses is final: Jira's type is taken back locally and
+// reported as a conflict with Jira's message, the rest merges under the old
+// type (Story's estimate is its story points), and the next run is quiet
+// (doc/design/jira.md, "A local type change is exported alone and first").
 func TestTypeChangeRefused(t *testing.T) {
 	w := newWorld(t, jiratest.WithSite(retypeSite()))
 	key, ref := storyIssue(t, w, "Not a bug in Jira")
 
-	// Bug is on another workflow, so derive does not list it (TC7)
+	// Bug is on another workflow, so derive does not list it
+	// (doc/design/jira.md, "Retype targets follow Jira's levels and workflows")
 	require.ErrorContains(t, ref.set(map[string]issue.Value{"type": str("bug")}), "type change from story to bug is not allowed")
 	retarget(t, w, "story", "task", "bug")
 	require.NoError(t, ref.set(map[string]issue.Value{
@@ -175,10 +177,11 @@ func TestTypeChangeRefused(t *testing.T) {
 	w.quiet()
 }
 
-// TC6 makes a linked issue retyped to a local-only type impossible by a
-// local write; written into the store by hand around the import check, it
-// is a refusal like Jira's (TC8): taken back with a conflict, nothing asked
-// of Jira, and the next run quiet.
+// a linked issue retyped to a local-only type is impossible by a local write
+// (doc/design/schema.md, "A type says what it may become");
+// written into the store by hand around the import check, it is a refusal
+// like Jira's: taken back with a conflict, nothing asked of Jira, and the
+// next run quiet (doc/design/jira.md, "A local type change is exported alone and first").
 func TestTypeChangeToLocalOnly(t *testing.T) {
 	w := newWorld(t, jiratest.WithSite(retypeSite()))
 	key, ref := storyIssue(t, w, "Becomes local")

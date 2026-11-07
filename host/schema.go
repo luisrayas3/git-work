@@ -149,7 +149,8 @@ func SchemaImport(repo *cache.RepoCache, doc *schema.Document, prune bool, dryRu
 		return nil, nil, err
 	}
 	// a synced type's retype targets sync too, checked on what the import
-	// leaves, so a partial file meets the types in the store (type-change.md, TC6)
+	// leaves, so a partial file meets the types in the store
+	// (doc/design/schema.md, "A type says what it may become")
 	if err := after.CheckRetypeSystems(); err != nil {
 		return nil, nil, err
 	}

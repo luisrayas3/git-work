@@ -445,7 +445,8 @@ func (e *engine) orphan(h hit) {
 func (e *engine) changed(snap *issue.Snapshot, b *Base) bool {
 	typ, _ := issue.String(snap.Fields[typeKey])
 	// a type changed to one with no mapping has no mapped key to show it,
-	// and is taken back, not silently unlinked (type-change.md, TC4, TC8)
+	// and is taken back, not silently unlinked
+	// (doc/design/jira.md, "A local type change is exported alone and first")
 	if !same(canonical(form(typeKey, snap.Fields[typeKey]), false), canonical(b.Fields[typeKey], false)) {
 		return true
 	}

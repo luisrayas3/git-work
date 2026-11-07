@@ -49,7 +49,8 @@ func (e *engine) write(ri *jiraapi.Issue, remote Doc, plan mergePlan, b2 *Base, 
 	}
 
 	// a local type change is written before this, alone, and remote is
-	// already under the type it left (type-change.md, TC8)
+	// already under the type it left
+	// (doc/design/jira.md, "A local type change is exported alone and first")
 	writes, skips := e.m.toWrites(remote.Type, plan.Remote, ri, e.ix)
 	line.Pending = append(line.Pending, skips...)
 	for _, s := range skips {

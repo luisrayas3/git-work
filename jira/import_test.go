@@ -56,12 +56,13 @@ func TestDeriveThroughImport(t *testing.T) {
 	require.NoError(t, err)
 	require.NotEmpty(t, changes)
 
-	// D3: Derive(export(import(Derive(x)))) writes nothing
+	// Derive(export(import(Derive(x)))) writes nothing
+	// (doc/design/jira.md, "Derive, then the schema import")
 	changes, _, err = host.SchemaImport(repo, derive(), false, true)
 	require.NoError(t, err)
 	require.Empty(t, changes)
 
-	// D5: the alias-free starting schema unmaps nothing, and export | import is zero operations
+	// the alias-free starting schema unmaps nothing, and export | import is zero operations
 	_, _, err = host.SchemaImport(repo, tracker, false, false)
 	require.NoError(t, err)
 	s, err := repo.LoadSchema()

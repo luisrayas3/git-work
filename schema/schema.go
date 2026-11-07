@@ -172,7 +172,8 @@ func (t *Type) MayBecome(typeKey string) (bool, []string) {
 }
 
 // CheckRetypeSystems refuses a type that syncs to a system listing a retype
-// target that does not (type-change.md, TC6): a type with a non-empty alias
+// target that does not (doc/design/schema.md, "A type says what it may become"):
+// a type with a non-empty alias
 // for a system may become only types with a non-empty alias for that same
 // system, or an issue linked there could be retyped out of the sync. A type
 // with no aliases is unconstrained, and nothing here knows what a system is.
@@ -195,7 +196,7 @@ func (s *Schema) CheckRetypeSystems() error {
 		for _, target := range *t.RetypeTargets {
 			other, ok := s.Types[target]
 			if !ok {
-				continue // a dangling target is reported on compile (D4)
+				continue // a dangling target is the compiled schema's problem
 			}
 			for _, system := range systems {
 				if other.Aliases[system] == "" {

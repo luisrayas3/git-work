@@ -127,7 +127,7 @@ func (e *engine) converge(ic *cache.IssueCache, b *Base, ri *jiraapi.Issue, cs [
 	b, remote = e.settle(b, local, remote, echo)
 
 	// the type first, then every other key under the type it leaves
-	// (type-change.md, TC8)
+	// (doc/design/jira.md, "A local type change is exported alone and first")
 	rt, err := e.retype(b, local, remote, ri)
 	if err != nil {
 		return e.fail(line, err)
@@ -164,7 +164,8 @@ func (e *engine) converge(ic *cache.IssueCache, b *Base, ri *jiraapi.Issue, cs [
 		return e.fail(line, err)
 	}
 	if rt.landed != "" {
-		// written alone and before the rest, so it is the first write (I2)
+		// written alone and before the rest, so it is the first write
+		// (doc/design/jira.md, "The base is what Jira was seen to hold")
 		if b2.Sent == nil {
 			b2.Sent = map[string]issue.Value{}
 		}
@@ -203,7 +204,8 @@ type written struct {
 	refused *Conflict // a local type change Jira refused, taken back
 }
 
-// retyped is how a local type change ended (type-change.md, TC8): landed in
+// retyped is how a local type change ended
+// (doc/design/jira.md, "A local type change is exported alone and first"): landed in
 // Jira, with ri the issue as Jira now holds it, or refused, with the
 // conflict that reports it. Neither is a local type change not given, or a
 // dry run's change to a mapped type, which landed reports as a real run
@@ -211,7 +213,7 @@ type written struct {
 type retyped struct {
 	landed  string // the type written
 	ri      *jiraapi.Issue
-	at      time.Time // the clock before the write (I2)
+	at      time.Time // the clock before the write, the base's Wrote
 	refused *Conflict
 }
 

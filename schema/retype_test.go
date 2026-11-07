@@ -149,7 +149,7 @@ func TestCheckerRetype(t *testing.T) {
 
 // TestCheckRetypeSystems: a target must sync to every system the type
 // syncs to; an unaliased type, or one aliased "" only, is unconstrained
-// (type-change.md, TC6).
+// (doc/design/schema.md, "A type says what it may become").
 func TestCheckRetypeSystems(t *testing.T) {
 	s, err := Compile([]Entry{
 		entry("1", config.ShapeType, "story", map[string]interface{}{AliasName("jira"): "1", AliasName("linear"): "a",
