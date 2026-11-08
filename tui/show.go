@@ -1251,7 +1251,7 @@ func (p *showPage) body(here position) (lines []string, from, to int) {
 			from, to = start+heads[p.commentAt()], start+heads[p.commentAt()]
 		}
 	case tabDescription:
-		lines = append(lines, p.descriptionLines()...)
+		lines = append(lines, p.descriptionLines(here.stop == stopTabs)...)
 	case tabLog:
 		lines = append(lines, p.logLines()...)
 	}
@@ -1465,34 +1465,37 @@ func (p *showPage) deleteComment() tea.Cmd {
 }
 
 // descriptionLines is the issue's body, the first comment, which it always
-// has, wrapped: a description is read, not scanned.
+// has, drawn as the box that edits it draws it, and marked `›` when the
+// cursor is on it: a description is read, not scanned, and the box opened
+// over it moves nothing.
 //
 // While the editor is open — and after an esc, while it holds a draft — the
-// box stands in the tab's place, so that the text being rewritten is where
-// the text being read was, and an unwritten draft is never out of sight.
-//
-// Over the box, where the author and the time are over the description, a
-// dim line says what the box holds, so that a draft left with esc does not
-// read as the description written: the keys that work it are on the bottom
-// line, and only there
+// box stands in the tab's place, so that an unwritten draft is never out of
+// sight. The author and the time stay over it; a draft left with esc says so
+// after them, so that it does not read as the description written. The keys
+// that work the editor are on the bottom line, and only there
 // (doc/design/tui.md, "Key hints are on the bottom line only").
-func (p *showPage) descriptionLines() []string {
-	if p.desc != nil {
-		said := " being rewritten"
-		if !p.editingDesc {
-			said = " a draft, not written"
-		}
-		return append([]string{styleDim.Render(fit(said, p.width))}, p.desc.View(p.width, false)...)
-	}
+func (p *showPage) descriptionLines(on bool) []string {
 	if len(p.snapshot.Comments) == 0 {
 		return []string{styleDim.Render(" (no description)")}
 	}
 	body := p.snapshot.Comments[0]
-	lines := []string{styleDim.Render(fit(fmt.Sprintf(" %s  %s", body.Author.DisplayName(), body.FormatTimeRel()), p.width))}
+	said := fmt.Sprintf(" %s  %s", body.Author.DisplayName(), body.FormatTimeRel())
+	if p.desc != nil {
+		if !p.editingDesc {
+			said += "  (a draft, not written)"
+		}
+		text := p.desc.View(p.width, false)
+		if on && !p.editingDesc {
+			text[0] = markGutter(text[0])
+		}
+		return append([]string{styleDim.Render(fit(said, p.width))}, text...)
+	}
+	lines := []string{styleDim.Render(fit(said, p.width))}
 	if strings.TrimSpace(body.Message) == "" {
 		return append(lines, styleDim.Render(" (no description)"))
 	}
-	return append(lines, prose(body.Message, p.width)...)
+	return append(lines, boxed(body.Message, p.width, on)...)
 }
 
 // logLines is what was done to the issue, one operation to a line, the

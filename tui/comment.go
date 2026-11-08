@@ -40,7 +40,8 @@ func newCommentBox(width int) *commentBox {
 	area.MinHeight = commentMinHeight
 	area.MaxHeight = commentMaxHeight
 	area.SetHeight(commentMinHeight)
-	area.SetWidth(max(width-commentGutter-1, 20))
+	area.Prompt = boxBar
+	area.SetWidth(boxWidth(width))
 	area.KeyMap.InsertNewline = keys.newline.binding
 	c := &commentBox{area: area}
 	c.restyle()
@@ -80,7 +81,45 @@ func (c *commentBox) focus(on bool) {
 }
 
 func (c *commentBox) resize(width int) {
-	c.area.SetWidth(max(width-commentGutter-1, 20))
+	c.area.SetWidth(boxWidth(width))
+}
+
+// boxWidth is the textarea's width in a window: all of it but the gutter
+// and a column at the right edge.
+func boxWidth(width int) int {
+	return max(width-commentGutter-1, 20)
+}
+
+// boxBar is the textarea's prompt, the bar down the box's left.
+const boxBar = "┃ "
+
+// boxed is text read where a box will be typed in, drawn as the box draws
+// it: the gutter, marked `›` on the first line when the cursor is on it, the
+// bar, and the text wrapped where the textarea wraps it, so that opening the
+// box over it moves nothing (doc/design/views.md, "Editing the
+// description").
+//
+// The textarea keeps a word on a line only with the space after it, so it
+// wraps one column short of its width; this wraps there too.
+func boxed(text string, width int, on bool) []string {
+	wrap := max(boxWidth(width)-ansi.StringWidth(boxBar)-1, 1)
+	bar := lipgloss.NewStyle().Foreground(lipgloss.Color("7")).Render(boxBar)
+	var lines []string
+	for _, line := range strings.Split(text, "\n") {
+		for _, piece := range strings.Split(ansi.Wrap(line, wrap, ""), "\n") {
+			lines = append(lines, fit(" "+bar+piece, width))
+		}
+	}
+	if on {
+		lines[0] = markGutter(lines[0])
+	}
+	return lines
+}
+
+// markGutter draws `›` in a line's gutter, as a row under the cursor is
+// marked.
+func markGutter(line string) string {
+	return styleRow().Render("›") + ansi.Cut(line, commentGutter, ansi.StringWidth(line))
 }
 
 // commentGutter is the column left of the box's text, where `›` marks the

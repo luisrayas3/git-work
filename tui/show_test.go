@@ -640,3 +640,35 @@ func TestTheCommentBoxGrows(t *testing.T) {
 	page = send(page, "tab", "space", "a", "alt+enter", "b", "alt+enter", "c", "alt+enter", "d").(*showPage)
 	require.Len(t, page.box.View(page.width, false), 4)
 }
+
+// TestTheDescriptionKeepsItsColumn: opening the description's editor moves
+// nothing: the header is the one read, and the text is drawn as the box draws
+// it, in its column and wrapped where it wraps, at every width
+// (doc/design/views.md, "Editing the description").
+func TestTheDescriptionKeepsItsColumn(t *testing.T) {
+	text := "a description long enough to wrap, with words of every length: " +
+		"a an the issue description wrapping marginal boundary x yy zzz"
+	for width := 40; width <= 120; width++ {
+		box := newCommentBox(width)
+		box.area.SetValue(text)
+		box.focus(false)
+		read, editing := plainLines(boxed(text, width, false)), plainLines(box.View(width, false))
+		for at := range read {
+			require.Equal(t, strings.TrimRight(editing[at], " "), strings.TrimRight(read[at], " "), "width %d, line %d", width, at)
+		}
+		require.Equal(t, "", strings.TrimSpace(strings.Join(editing[len(read):], "")), "width %d: no line more", width)
+	}
+
+	repo := testRepo(t)
+	id := newIssue(t, repo, map[string]any{"title": "one"})
+	shown := send(show(t, repo, id, nil), "tab", "tab").(*showPage)
+	read := plainLines(shown.descriptionLines(true))
+	require.True(t, strings.HasPrefix(read[1], "›┃ the body"), "marked as the box is")
+	require.True(t, strings.HasPrefix(plainLines(shown.descriptionLines(false))[1], " ┃ the body"), "and not, off it")
+
+	shown = send(shown, "space").(*showPage)
+	require.True(t, shown.editingDesc)
+	editing := plainLines(shown.descriptionLines(true))
+	require.Equal(t, read[0], editing[0], "the same header")
+	require.True(t, strings.HasPrefix(editing[1], " ┃ the body"), "in the text, no mark")
+}

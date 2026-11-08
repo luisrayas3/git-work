@@ -618,7 +618,8 @@ in the text the textarea's cursor is drawn, so on and in are two looks.
 Not a `›` on every line: a marker repeated down the margin would read as a list, not as one place.
 The box always has a one-column gutter on its left, where that `›` is drawn,
 so its text is in the same column whether the cursor is elsewhere, on the box, or in its text.
-This holds for every box a text is typed in on a page: show's comment box, the description editor, and the creator page's description box.
+This holds for every box a text is typed in on a page: show's comment box, the description editor, and the creator page's description box;
+the description read is drawn in the same columns ([editing the description](#editing-the-description)).
 Its keys are on the bottom line, as every cell's are.
 It opens two lines tall and grows with the text, its highlighted cursor line turned off.
 No arrow enters or leaves it: it is a stop of `Tab` and `S-Tab` alone,
@@ -668,10 +669,15 @@ An empty body is refused with the bell: the model has no issue without one.
 The editor stands where the text was read and is drawn there, blurred, while it holds an unwritten draft;
 `Esc` opens the palette over it, as in the box, and a second `Esc` leaves it;
 leaving the page with a draft asks for a second `Esc`, and an editor left untouched keeps nothing.
-Where the author and time stand over the description,
-a dim line over the editor says what it holds,
-whether it is being rewritten or is a draft left unwritten,
-so a draft never reads as the description written.
+Opening the editor moves nothing:
+the description is read drawn as the box draws it, with the box's gutter and bar,
+its text in the box's column and wrapped where the box wraps it,
+and the author and time stay over it.
+With the cursor on it, it is marked `›` on its first line, as the box is.
+Not the text read as prose, flush with the page: the box opened over it would move it two columns right and rewrap it.
+A draft left unwritten says so after the author and time,
+so a draft never reads as the description written;
+while it is being typed in, its cursor and the bottom line say so.
 Its keys are on the bottom line, as the box's are
 ([key hints are on the bottom line only](tui.md#key-hints-are-on-the-bottom-line-only)).
 The text is written in [the external editor](#the-external-editor) as on the comment box:

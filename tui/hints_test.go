@@ -376,11 +376,11 @@ func TestKeyHintsAreOnTheBottomLineOnly(t *testing.T) {
 	// holds is said, and its keys are not
 	shown := send(show(t, repo, id, nil), "tab", "tab", "space").(*showPage)
 	require.True(t, shown.editingDesc)
-	noKeys("the description's editor", shown.descriptionLines())
+	noKeys("the description's editor", shown.descriptionLines(true))
 	shown = send(shown, "x", "esc").(*showPage)
 	require.NotNil(t, shown.desc, "a draft kept")
-	noKeys("the description's draft", shown.descriptionLines())
-	drawn := ansiPattern.ReplaceAllString(strings.Join(shown.descriptionLines(), "\n"), "")
+	noKeys("the description's draft", shown.descriptionLines(true))
+	drawn := ansiPattern.ReplaceAllString(strings.Join(shown.descriptionLines(true), "\n"), "")
 	require.Contains(t, drawn, "a draft, not written")
 
 	// the help: column headers over the table, and the one key out on the
