@@ -696,7 +696,9 @@ type want2 struct {
 // rate-limit bursts and transition conflicts; the oracle follows each local
 // value until the base confirms it and requires every overwrite of one to be
 // in a conflict note; after the rounds the sides converge within K runs,
-// agree, and hold no duplicate.
+// agree, and hold no duplicate. One seed per variant: seeds 12 and 13
+// reached no code seed 11 does not, and 12 missed the transition's 409
+// retry.
 func TestAdv2PropertyHarsh(t *testing.T) {
 	variants := map[string][]jiratest.Option{
 		"harsh":          {jiratest.WithIndexLag(3, 0), jiratest.WithStaleReads(), jiratest.WithCommentBumps(true, true)},
@@ -710,19 +712,18 @@ func TestAdv2PropertyHarsh(t *testing.T) {
 			}
 		}
 	})
+	const seed = 11
 	var bugs []string
 	for _, name := range names {
-		for seed := uint64(11); seed <= 13; seed++ {
-			t.Run(fmt.Sprintf("%s/seed%d", name, seed), func(t *testing.T) {
-				if v := harshRun(t, seed, 30, variants[name]...); len(v) > 0 {
-					bugs = append(bugs, fmt.Sprintf("%s/seed%d: %s", name, seed, v[0]))
-					for _, x := range v {
-						t.Log("violation: " + x)
-					}
-					t.Errorf("%d violation(s), first: %s", len(v), v[0])
+		t.Run(fmt.Sprintf("%s/seed%d", name, seed), func(t *testing.T) {
+			if v := harshRun(t, seed, 30, variants[name]...); len(v) > 0 {
+				bugs = append(bugs, fmt.Sprintf("%s/seed%d: %s", name, seed, v[0]))
+				for _, x := range v {
+					t.Log("violation: " + x)
 				}
-			})
-		}
+				t.Errorf("%d violation(s), first: %s", len(v), v[0])
+			}
+		})
 	}
 	if len(bugs) > 0 {
 		t.Logf("oracle violations: %q", bugs)

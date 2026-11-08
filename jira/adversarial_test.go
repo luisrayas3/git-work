@@ -240,17 +240,23 @@ func TestAdvLocalNormalisationConverges(t *testing.T) {
 		{"start-date", str("2027-02-28"), `"2027-02-28"`},
 		{"priority", str("lowest"), `"lowest"`},
 	}
-	for _, tc := range cases {
-		t.Run(tc.key+"="+string(tc.v)[:min(len(tc.v), 20)], func(t *testing.T) {
-			w := newWorld(t)
-			_, ic := w.imported("Normalise")
-			w.set(ic.Id(), tc.key, tc.v)
-			w.converge(3)
-			require.Equal(t, tc.want, field(t, ic, tc.key))
-			require.Empty(t, notes(ic, jira.NoteConflict), "no conflict without a Jira edit")
-			w.quietFull()
-		})
+	// one issue per case, in one world: the cases share nothing but the setup
+	w := newWorld(t)
+	keys := make([]string, len(cases))
+	for i := range cases {
+		keys[i] = w.srv.CreateIssue(jiratest.IssueSpec{Project: "PROJ", Type: "Task", Summary: fmt.Sprintf("Normalise %02d", i), Description: "the body"})
 	}
+	w.mustSync(jira.Options{})
+	for i, tc := range cases {
+		w.set(w.byKey(keys[i]).Id(), tc.key, tc.v)
+	}
+	w.converge(3)
+	for i, tc := range cases {
+		ic := w.byKey(keys[i])
+		require.Equal(t, tc.want, field(t, ic, tc.key), "%s=%s", tc.key, tc.v)
+		require.Empty(t, notes(ic, jira.NoteConflict), "no conflict without a Jira edit: %s=%s", tc.key, tc.v)
+	}
+	w.quietFull()
 }
 
 // A Jira-side value in a shape the local canonical form differs from is
@@ -270,17 +276,22 @@ func TestAdvJiraNormalisationImportsOnce(t *testing.T) {
 		{"summary", "  spaced  ", "title", `"spaced"`},
 		{"duedate", "2026-02-28", "due", `"2026-02-28"`},
 	}
-	for _, tc := range cases {
-		t.Run(fmt.Sprintf("%s=%v", tc.field, tc.v), func(t *testing.T) {
-			w := newWorld(t)
-			key, ic := w.imported("Jira shapes")
-			w.srv.Edit(key, map[string]any{tc.field: tc.v})
-			w.mustSync(jira.Options{})
-			require.Equal(t, tc.want, field(t, ic, tc.key))
-			w.still()
-			w.quietFull()
-		})
+	// one issue per case, in one world: the cases share nothing but the setup
+	w := newWorld(t)
+	keys := make([]string, len(cases))
+	for i := range cases {
+		keys[i] = w.srv.CreateIssue(jiratest.IssueSpec{Project: "PROJ", Type: "Task", Summary: fmt.Sprintf("Jira shapes %02d", i), Description: "the body"})
 	}
+	w.mustSync(jira.Options{})
+	for i, tc := range cases {
+		w.srv.Edit(keys[i], map[string]any{tc.field: tc.v})
+	}
+	w.mustSync(jira.Options{})
+	for i, tc := range cases {
+		require.Equal(t, tc.want, field(t, w.byKey(keys[i]), tc.key), "%s=%v", tc.field, tc.v)
+	}
+	w.still()
+	w.quietFull()
 }
 
 // Descriptions: the text model must survive a trip through Jira, or a local
@@ -467,45 +478,59 @@ func writesOfOneRun(t *testing.T) []string {
 }
 
 // A crash at every write of one run, before the request is sent and after
-// it landed with its response lost, with the state file saved by the host
-// (a run that stopped) or not (a process killed): the next runs converge
-// with no duplicate and nothing lost.
+// it landed with its response lost, the process killed so the state file is
+// not saved: the next runs converge with no duplicate and nothing lost. Only
+// the store survives such a crash; a run that stopped and saved its state
+// adds the failed hit's re-read and the held cursor, which
+// TestAdvFailedHitThenDeleted and TestAdvE17CursorHoldsAtFailure cover.
+//
+// Under verbatim ADF, only the writes that carry ADF (the comment and the
+// create) crash: the mode changes what Jira holds of a text, and nothing of
+// a PUT's or a transition's recovery.
 func TestAdvCrashAtEveryWrite(t *testing.T) {
 	names := writesOfOneRun(t)
 	t.Logf("writes: %q", names)
+	carriesADF := func(name string) bool {
+		return name == "POST /rest/api/3/issue" || strings.HasSuffix(name, "/comment")
+	}
 	for _, variant := range []struct {
-		name string
-		opts []jiratest.Option
-	}{{"default", nil}, {"verbatim-adf", []jiratest.Option{jiratest.WithVerbatimADF()}}} {
-		t.Run(variant.name, func(t *testing.T) { crashMatrix(t, names, variant.opts) })
+		name  string
+		opts  []jiratest.Option
+		crash func(name string) bool
+	}{
+		{"default", nil, func(string) bool { return true }},
+		{"verbatim-adf", []jiratest.Option{jiratest.WithVerbatimADF()}, carriesADF},
+	} {
+		t.Run(variant.name, func(t *testing.T) { crashMatrix(t, names, variant.crash, variant.opts) })
 	}
 }
 
-func crashMatrix(t *testing.T, names []string, opts []jiratest.Option) {
+func crashMatrix(t *testing.T, names []string, crashAt func(name string) bool, opts []jiratest.Option) {
 	for n := 1; n <= len(names); n++ {
+		if !crashAt(names[n-1]) {
+			continue
+		}
 		for _, landed := range []bool{false, true} {
-			for _, save := range []bool{true, false} {
-				name := fmt.Sprintf("%d_%s_landed=%v_saved=%v", n, strings.ReplaceAll(names[n-1], "/", "_"), landed, save)
-				t.Run(name, func(t *testing.T) {
-					cw := crashSetup(t, opts...)
-					h := &hookRT{}
-					crash := func(r *http.Request, i int) error {
-						if i == n {
-							return errCrash
-						}
-						return nil
+			name := fmt.Sprintf("%d_%s_landed=%v", n, strings.ReplaceAll(names[n-1], "/", "_"), landed)
+			t.Run(name, func(t *testing.T) {
+				cw := crashSetup(t, opts...)
+				h := &hookRT{}
+				crash := func(r *http.Request, i int) error {
+					if i == n {
+						return errCrash
 					}
-					if landed {
-						h.after = crash
-					} else {
-						h.before = crash
-					}
-					_, _, err := cw.runWith(context.Background(), h, jira.Options{}, save)
-					require.Error(t, err, "the run stops at the crash")
-					cw.recover()
-					cw.check()
-				})
-			}
+					return nil
+				}
+				if landed {
+					h.after = crash
+				} else {
+					h.before = crash
+				}
+				_, _, err := cw.runWith(context.Background(), h, jira.Options{}, false)
+				require.Error(t, err, "the run stops at the crash")
+				cw.recover()
+				cw.check()
+			})
 		}
 	}
 }
@@ -1611,21 +1636,21 @@ type localEdit struct {
 	prev  string // the value before the round: setting it again is no edit
 }
 
-// TestAdvPropertyRandomEdits: for several seeds, rounds of random edits on
-// both sides of a few issues with a sync after each round; no local edit
-// is overwritten without a note, and after the last round the two sides
-// agree and a --full run writes nothing.
+// TestAdvPropertyRandomEdits: rounds of random edits on both sides of a few
+// issues with a sync after each round; no local edit is overwritten without
+// a note, and after the last round the two sides agree and a --full run
+// writes nothing. One seed per variant: further seeds reached no code the
+// first does not.
 func TestAdvPropertyRandomEdits(t *testing.T) {
 	variants := map[string][]jiratest.Option{
 		"default":  {jiratest.WithCommentBumps(true, true)},
 		"no-props": {jiratest.WithCommentBumps(true, true), jiratest.WithCommentProperties(false), jiratest.WithVerbatimADF()},
 	}
+	const seed = 1
 	for name, opts := range variants {
-		for seed := uint64(1); seed <= 4; seed++ {
-			t.Run(fmt.Sprintf("%s/seed%d", name, seed), func(t *testing.T) {
-				propRun(t, seed, 25, opts...)
-			})
-		}
+		t.Run(fmt.Sprintf("%s/seed%d", name, seed), func(t *testing.T) {
+			propRun(t, seed, 25, opts...)
+		})
 	}
 }
 
