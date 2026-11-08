@@ -296,7 +296,7 @@ Not squeezing every column to fit, because a column four cells wide is not a col
 and not a constant, because how wide a column should be depends on the board
 — two columns of long titles, or eight of short ones —
 which the renderer cannot tell from the data.
-32 is a title line that reads as a line; 20 shredded titles to a word a line.
+32 is a title line that reads as a line; 20 would shred titles to a word a line.
 Below 10 is refused at parse time (`Min` on the row), narrower than a card's id line.
 A `column_width` left at its default is not spelled on the first line.
 

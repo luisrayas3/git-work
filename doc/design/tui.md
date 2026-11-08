@@ -698,11 +698,16 @@ and there is nothing for two implementations to disagree about.
   what it costs is the terminal's own drag-select,
   which a terminal keeps behind `shift` once a program asks for the mouse.
 - **A confirmation.**
-  The renderer asks no questions;
-  what is final is a chord instead.
+  The renderer asks no questions:
+  a question would put a second step between every final action and its key,
+  and a chord already makes the action deliberate,
+  two keys that no single stray press types.
 - **Reparenting by grab**:
   moving a row under another would write a relation,
-  and a grab moves within a scope.
+  so a drop would change what an issue belongs to,
+  not only where it is drawn,
+  while a grab moves within one scope, writing its rank and the group it crosses into;
+  a parent is set by editing its field, which names the relation it writes.
 - **A list that returns a choice** (`pick`).
   A flow that needs an issue takes its id on the command line,
   which is what an agent needs and what a human typing a command already has.

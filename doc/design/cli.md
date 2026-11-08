@@ -445,5 +445,8 @@ Sorting by key is a jq program's business: `sort_by(.human_id)`.
   a Jira key exists only once synced, and changes on a move.
   An alias sits beside the id.
 - **A mixed commit.**
-  No caller needs set, add and remove in one commit,
-  so a verb for one would be surface with no user.
+  One verb committing set, add and remove together
+  would be a second grammar over the same three operations,
+  and would add nothing:
+  `set` takes any number of keys in one commit and states a set whole,
+  so any change that must land as one commit is one `set`.

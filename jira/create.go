@@ -284,7 +284,7 @@ func (e *engine) linkRequest(ic *cache.IssueCache) error {
 	return e.converge(ic, b, ri, cs, map[string]string{MetaId: ri.ID}, nil, line)
 }
 
-// importIssue creates a Jira issue locally (B3): the merge against no base
+// importIssue creates a Jira issue locally: the merge against no base
 // and an empty local side, whose admitted fields and body are NewRaw's, by
 // the reporter at its created, the create op the first marker; comments
 // follow in the ordinary step 7.
