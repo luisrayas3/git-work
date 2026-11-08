@@ -119,7 +119,9 @@ Do not extend them;
 - Never write with `git work bug`:
   it writes the frozen copy, not the tracker.
 
-## Working conventions
+## Design documents
+
+### What they are
 
 - **The design documents are organized by aspect, not by feature.**
   `doc/design/README.md` lists them,
@@ -133,11 +135,51 @@ Do not extend them;
   What a decision used to be is in git and on the issues.
   This repository's own schema and flows may illustrate a principle,
   never stand in for one.
+- **Only architectural decisions are documented.**
+  A choice such as which key does what, a label's wording or a colour
+  is not a decision:
+  the code and what it generates
+  (the keymap in `tui/keys.go`, and the help drawn from it)
+  are its record.
+  A document states the architecture such choices sit in
+  (one keymap; `esc` as the alt prefix; hints on the bottom line only;
+  every command reachable from the palette),
+  never the table of keys or why a letter was picked.
+- **The set of aspects changes only on a human's explicit say-so.**
+  New work goes into the aspect it belongs to,
+  even when that makes a document longer.
+  An agent may *recommend* adding, splitting or merging an aspect,
+  conservatively and with its reason,
+  but does not do it until a human has confirmed that change directly;
+  approval of a story's design is not approval of a new aspect.
+- **The reference documents in `doc/reference/` meet the same standard**
+  for an external system (`doc/reference/jira-api.md` for Jira):
+  they say what holds now about it,
+  each fact confirmed or unconfirmed and with its source,
+  not how the knowledge was gathered:
+  no vetting logs, corrections lists or "added later" sections,
+  and none of the system's own history (rollouts, removal dates, old forms);
+  a current fact cites its source, not how it came about.
+- **Continuous integration is not an aspect.**
+  How to use it goes in `CONTRIBUTING.md`;
+  anything about how it runs is kept light enough
+  to live as comments in `.github/workflows/`.
+
+### Writing them
+
+- **Now-only: a sentence reads true to someone who never saw the old behaviour.**
+  No "still", "stays", "no longer", "again", "is gone" or "instead of",
+  and nothing named only to say it is absent.
+- **Code comments meet the same now-only standard.**
+  Touching a function turns its dated or id references into citations.
 - **A rejected alternative is argued in the conditional**:
   "Not X: it would …",
   never "X was tried and …" or "X did …".
   A reason holds now;
   an anecdote does not.
+- **An example illustrating a reason is generic or hypothetical.**
+  The incident that prompted a decision is an anecdote,
+  and belongs on the issue.
 - **"Deliberately absent", not "Not done"**:
   a document may list what it deliberately does not do,
   under that heading,
@@ -148,32 +190,45 @@ Do not extend them;
   An entry without one is future work,
   and future work is an issue.
 - **An external system's behaviour that is inferred, not confirmed,
-  is recorded in its reference document as unconfirmed**
-  (`doc/reference/jira-api.md` for Jira).
+  is recorded in its reference document as unconfirmed.**
   A fact is confirmed by the spec or another named source;
   one seen on a live site says so, as a stronger mark.
   The aspect states the rule that copes with an unconfirmed fact,
   and may name the assumption,
   but never states it as fact,
   and neither does a code comment.
-- **The reference documents in `doc/reference/` meet the same standard**:
-  they say what holds now about the external system,
-  each fact confirmed or unconfirmed and with its source,
-  not how the knowledge was gathered:
-  no vetting logs, corrections lists or "added later" sections,
-  and none of the system's own history (rollouts, removal dates, old forms);
-  a current fact cites its source, not how it came about.
-- **The set of aspects changes only on a human's explicit say-so.**
-  New work goes into the aspect it belongs to,
-  even when that makes a document longer.
-  An agent may *recommend* adding, splitting or merging an aspect,
-  conservatively and with its reason,
-  but does not do it until a human has confirmed that change directly;
-  approval of a story's design is not approval of a new aspect.
-- **Continuous integration is not an aspect.**
-  How to use it goes in `CONTRIBUTING.md`;
-  anything about how it runs is kept light enough
-  to live as comments in `.github/workflows/`.
+
+### Citing them
+
+- **A decision is a heading, and code cites it by document and heading**:
+  `(doc/design/views.md, "The ghost")`;
+  a fact about an external system is cited the same way,
+  `(doc/reference/jira-api.md, "Link direction")`.
+  A heading names the decision, so keep it short and stable;
+  renaming one means updating what cites it.
+- **When a decision gets its own heading**:
+  when it has its own reasoning and its own citations,
+  when it has its own "Not X",
+  or when code relies on it and not on the rest of the section;
+  that code cites the new heading, never the section around it.
+  A refinement that only qualifies its parent stays a bullet under it.
+  The headings a story's design names are a proposal;
+  this rule decides.
+- **Citations use the full form**, `doc/design/<aspect>.md` or `doc/reference/<name>.md`:
+  a bare `<name>.md`,
+  or an old decision id such as `TC8` or `JS18`,
+  is not a citation.
+  Old decision ids may stay in issue titles
+  and in the approved design record on an issue;
+  never in code or in `doc/design`.
+- **`TestDesignCitations` checks them**:
+  it fails on a citation into `doc/design` or `doc/reference`,
+  or a link between documents,
+  that names a document or heading that does not exist,
+  and on a bare `<name>.md` in code that names no file in the repository.
+
+### A story's lifecycle
+
 - **A story's design is written on the story**,
   in its description or a comment,
   and approved there before any of its code is written:
@@ -181,11 +236,23 @@ Do not extend them;
   A design that contradicts its tasks says so on the story
   *and* in a comment on the task,
   since whoever picks the task up may never read the story.
+- **What is built differs from or adds to the approved design**:
+  comment on the story before the commit,
+  naming each difference and why.
+  A decision not on the story is not approved:
+  ask, or leave it out.
 - **The change that builds a decision updates its aspect document**,
   so a document never describes what is not built
   and never keeps what no longer holds.
-  A decision that changes is rewritten in place, where it stands,
-  and every sentence elsewhere that it makes wrong is fixed in the same change.
+  An approved decision moves into its aspect with its reasons.
+  A decision that changes is rewritten in place, where it stands.
+- **Every sentence a change makes wrong is fixed in the same change,
+  read by meaning.**
+  A decision that makes an exception to a general rule
+  is stated at that rule too;
+  check the rules it bends,
+  not only the lines that mention its name;
+  a placeholder or example that becomes a real name is rewritten.
 - **Moving design text keeps its pointers alive.**
   Whoever moves or removes design text
   (into an aspect, onto an issue, or out of the repository)
@@ -195,25 +262,13 @@ Do not extend them;
   Repointing an issue comment adds a comment naming the new place:
   an issue's existing comments are its record,
   and are never rewritten for this.
-- **A decision is a heading, and code cites it by document and heading**:
-  `(doc/design/views.md, "The ghost")`;
-  a fact about an external system is cited the same way,
-  `(doc/reference/jira-api.md, "Link direction")`.
-  A heading names the decision, so keep it short and stable;
-  renaming one means updating what cites it.
-  A decision with its own reasoning and its own citations gets its own heading;
-  a refinement that only qualifies its parent stays a bullet under it.
-- **Citations use the full form**, `doc/design/<aspect>.md` or `doc/reference/<name>.md`:
-  a bare `<name>.md`,
-  or an old decision id such as `TC8` or `JS18`,
-  is not a citation.
-  Old decision ids may stay in issue titles
-  and in the approved design record on an issue;
-  never in code or in `doc/design`.
-  `TestDesignCitations` fails on a citation into `doc/design` or `doc/reference`,
-  or a link between documents,
-  that names a document or heading that does not exist,
-  and on a bare `<name>.md` in code that names no file in the repository.
+- **A story closes with its pointers**:
+  when a story is done,
+  a comment on it names the heading each of its decisions now stands under;
+  its design comment stays as approved.
+
+## Working conventions
+
 - **Tests own their fixtures.**
   No test reads this repository's `schema.yaml`, `flows/` or tracker:
   those are this project's configuration,

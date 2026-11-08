@@ -25,20 +25,36 @@ each fact marked confirmed or unconfirmed with its source.
 
 ## How these documents change
 
-A story's design is written on the story issue and approved there.
-The change that builds it rewrites the decisions it changes, where they stand,
-so that a document never describes what is not built.
-Code cites a decision by document and heading,
-`(doc/design/views.md, "The ghost")`,
-and `TestDesignCitations` checks that every citation resolves.
-Moving or removing design text repoints, in the same change,
-whatever cited it: code, tasks and issue comments
-(an issue comment is repointed by adding a comment, never by rewriting one).
-A decision with its own reasoning and citations has its own heading;
-old decision ids stay out of code and of these documents.
+Only architectural decisions are recorded here:
+which key does what, a label's wording or a colour is the code's to record
+(the keymap in `tui/keys.go`, and the help drawn from it),
+and a document states only the architecture such choices sit in.
+Every sentence reads true to someone who never saw the old behaviour,
+code comments included;
+an example illustrating a reason is generic,
+and the incident that prompted a decision belongs on the issue.
 A rejected alternative is argued in the conditional,
 and what a document deliberately does not do is listed
 under "Deliberately absent", each entry stating its standing reason.
 What Jira is inferred, not confirmed, to do is recorded as unconfirmed in the reference,
 and the aspect states the rule that copes with it.
-The full rules are in [`AGENTS.md`](../../AGENTS.md), Working conventions.
+
+A story's design is written on the story issue and approved there;
+what is built that differs from or adds to it is commented on the story first,
+and a decision not on the story is not approved.
+The change that builds a decision moves it into its aspect with its reasons,
+rewrites the decisions it changes where they stand,
+and fixes, by meaning, every sentence it makes wrong,
+so that a document never describes what is not built.
+When the story is done, a comment on it names the heading each decision now stands under.
+
+Code cites a decision by document and heading,
+`(doc/design/views.md, "The ghost")`,
+and `TestDesignCitations` checks that every citation resolves.
+A decision with its own reasoning and citations, its own "Not X",
+or code relying on it alone has its own heading;
+old decision ids stay out of code and of these documents.
+Moving or removing design text repoints, in the same change,
+whatever cited it: code, tasks and issue comments
+(an issue comment is repointed by adding a comment, never by rewriting one).
+The full rules are in [`AGENTS.md`](../../AGENTS.md), "Design documents".

@@ -12,7 +12,7 @@ import (
 )
 
 // The design documents and the reference documents are cited by document
-// and heading (AGENTS.md, Working conventions), so a renamed heading or a
+// and heading (AGENTS.md, Design documents), so a renamed heading or a
 // removed document must fail here rather than leave a citation pointing at
 // nothing.
 
