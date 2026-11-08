@@ -47,6 +47,11 @@ func (e *engine) scan() (*local, error) {
 		}
 		l.byId[id] = ex
 		jid := ex.CreateMetadata[MetaId]
+		if ids, ok := e.ix.Unresolved(jid); ok {
+			// neither linked nor a loser: nothing of it syncs this run
+			e.unorderable(jid, ex.CreateMetadata[MetaAlias], ids)
+			continue
+		}
 		switch {
 		case jid != "":
 			if winner, _ := e.ix.Issue(jid); winner == id {
@@ -90,7 +95,10 @@ func (e *engine) runIds() error {
 			return err
 		}
 		md := ic.Snapshot().Operations[0].AllMetadata()
+		ids, unresolved := e.ix.Unresolved(md[MetaId])
 		switch {
+		case unresolved:
+			e.unorderable(md[MetaId], md[MetaAlias], ids)
 		case md[MetaId] != "":
 			if winner, _ := e.ix.Issue(md[MetaId]); winner != id {
 				err = e.consolidate(ic, winner)
@@ -392,6 +400,10 @@ func (e *engine) runHit(h hit, owner map[entity.Id]string, l *local) error {
 		}
 		return e.syncLinked(ic)
 	}
+	if _, ok := e.ix.Unresolved(h.id); ok {
+		// reported by the scan; importing it would make a third copy
+		return nil
+	}
 
 	if h.prop != "" {
 		ex, ok := l.byId[h.prop]
@@ -422,6 +434,25 @@ func (e *engine) runHit(h hit, owner map[entity.Id]string, l *local) error {
 		return nil
 	}
 	return e.importIssue(h.id, "")
+}
+
+// unorderable reports a Jira id whose local copies the rule cannot order,
+// once a run: none of them imports, exports or is consolidated until a
+// person archives all but one
+// (doc/design/jira.md, "Copies the rule cannot order are skipped").
+func (e *engine) unorderable(jiraId, key string, ids []entity.Id) {
+	for _, id := range ids {
+		e.done[id] = true
+	}
+	if e.unordered[jiraId] {
+		return
+	}
+	e.unordered[jiraId] = true
+	if key == "" {
+		key = jiraId
+	}
+	e.report(Line{Jira: key, Action: ActionSkipped,
+		Pending: []Skip{{Key: "*", Reason: unorderable(ids)}}})
 }
 
 // adoptable says an issue created from an absent entity is old enough

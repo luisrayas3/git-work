@@ -200,6 +200,12 @@ func (e *engine) linkCreated(ic *cache.IssueCache, jiraId string) error {
 	id := ic.Id()
 	e.done[id] = true
 	line := Line{Issue: id, Action: ActionCreated}
+	if ids, ok := e.ix.Unresolved(jiraId); ok {
+		line.Action = ActionSkipped
+		line.Pending = append(line.Pending, Skip{Key: "*", Reason: "the Jira issue created from it is skipped: " + unorderable(ids)})
+		e.report(line)
+		return nil
+	}
 	if other, ok := e.ix.Issue(jiraId); ok && other != id {
 		// an adopted copy of this issue's own export: this one reached
 		// Jira first, so the copy is consolidated into it and it links
@@ -269,6 +275,9 @@ func (e *engine) linkRequest(ic *cache.IssueCache) error {
 	}
 	if other, ok := e.ix.Issue(ri.ID); ok && other != id {
 		return skip(key + " is already linked to " + other.Human())
+	}
+	if ids, ok := e.ix.Unresolved(ri.ID); ok {
+		return skip(key + " is skipped: " + unorderable(ids))
 	}
 	if from := propertyOf(ri.Properties[PropertyKey]).Id; from != "" && from != id {
 		if _, err := e.repo.Issues().ResolveExcerpt(from); err == nil {

@@ -3,6 +3,8 @@ package jira
 import (
 	"encoding/json"
 	"fmt"
+	"sort"
+	"strings"
 	"time"
 
 	"github.com/git-bug/git-bug/cache"
@@ -16,35 +18,45 @@ import (
 // issues by the jira-id of their create operation,
 // identities by jira-account-id.
 // It is built once per run and extended as the run imports and creates.
-// Of two issues naming one Jira id,
-// the one that reached Jira first is the Jira id's.
+// Of several issues naming one Jira id,
+// the one that reached Jira first is the Jira id's;
+// a Jira id whose copies the rule cannot order has none, and is unresolved.
 type Index struct {
 	issues     map[string]entity.Id // Jira issue id -> issue
 	jiraIssues map[entity.Id]string
 	users      map[string]entity.Id // accountId -> identity
 	accounts   map[entity.Id]string
-	absent     map[string]Orphan // Jira issue id -> the orphan the state remembers
+	absent     map[string]Orphan      // Jira issue id -> the orphan the state remembers
+	unresolved map[string][]entity.Id // Jira issue id -> copies the rule cannot order
 }
 
 // NewIndex reads every excerpt once.
 func NewIndex(repo *cache.RepoCache) (*Index, error) {
-	issues, users := map[string]entity.Id{}, map[string]entity.Id{}
+	copies, users := map[string][]entity.Id{}, map[string]entity.Id{}
 	for _, id := range repo.Issues().AllIds() {
 		e, err := repo.Issues().ResolveExcerpt(id)
 		if err != nil {
 			return nil, err
 		}
 		if jid := e.CreateMetadata[MetaId]; jid != "" {
-			// two issues naming one Jira id: the one that reached Jira
-			// first wins, whatever either has archived; scan consolidates
-			// the other
-			if other, ok := issues[jid]; !ok {
-				issues[jid] = id
-			} else if winner, err := firstToSync(repo, id, other); err != nil {
-				return nil, err
-			} else {
-				issues[jid] = winner
-			}
+			copies[jid] = append(copies[jid], id)
+		}
+	}
+	issues, unresolved := map[string]entity.Id{}, map[string][]entity.Id{}
+	for jid, ids := range copies {
+		// several issues naming one Jira id: the store's rule picks the
+		// winner, and scan consolidates the others; copies the rule cannot
+		// order are left to a person
+		// (doc/design/jira.md, "Copies the rule cannot order are skipped")
+		winner, err := repo.Issues().FirstReached(Reach, ids)
+		switch {
+		case entity.IsErrMultipleMatch(err):
+			sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
+			unresolved[jid] = ids
+		case err != nil:
+			return nil, err
+		default:
+			issues[jid] = winner
 		}
 	}
 	var holders []entity.Id
@@ -69,7 +81,28 @@ func NewIndex(repo *cache.RepoCache) (*Index, error) {
 	for i, id := range holders {
 		ix.accounts[id] = accounts[i]
 	}
+	ix.unresolved = unresolved
 	return ix, nil
+}
+
+// Unresolved is the copies of a Jira id the rule cannot order, sorted:
+// two or more issues naming it, none of which reached Jira, and not exactly
+// one of them unarchived
+// (doc/design/jira.md, "Copies the rule cannot order are skipped").
+func (ix *Index) Unresolved(jiraId string) ([]entity.Id, bool) {
+	ids, ok := ix.unresolved[jiraId]
+	return ids, ok
+}
+
+// unorderable is the reason an unresolved Jira id is skipped, naming every
+// copy.
+func unorderable(ids []entity.Id) string {
+	names := make([]string, len(ids))
+	for i, id := range ids {
+		names[i] = id.Human()
+	}
+	return fmt.Sprintf("%d local copies of one Jira issue (%s) and no way to order them; archive all but one",
+		len(ids), strings.Join(names, ", "))
 }
 
 // indexOf builds an index from its tables, for tests.
@@ -131,6 +164,9 @@ func (ix *Index) Absent(jiraId string) (Orphan, bool) {
 // waiting is why a relation target is not imported yet,
 // naming the orphan skip that causes it when the state remembers one.
 func (ix *Index) waiting(jiraId, key string) string {
+	if ids, ok := ix.unresolved[jiraId]; ok {
+		return key + " is skipped: " + unorderable(ids)
+	}
 	o, ok := ix.absent[jiraId]
 	if !ok {
 		return key + " is not imported yet"

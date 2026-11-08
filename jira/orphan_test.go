@@ -427,3 +427,61 @@ func TestKeyNamesTheKeptCopy(t *testing.T) {
 	require.Equal(t, y, l.Issue, "y is the copy consolidated")
 	require.Equal(t, x, named(), "after consolidation: the same copy")
 }
+
+// Two local copies of one Jira issue with no contact with Jira are skipped,
+// reported once naming both, and the run goes on; once a person archives one,
+// the next run syncs the other, and the key names it
+// (doc/design/jira.md, "Copies the rule cannot order are skipped").
+func TestUnorderableCopiesAreSkipped(t *testing.T) {
+	w := newWorld(t)
+	jira.Register(w.c)
+	key := w.srv.CreateIssue(jiratest.IssueSpec{Project: "PROJ", Type: "Task", Summary: "Twice"})
+	jid := w.srv.Issue(key).ID
+	newCopy := func() entity.Id {
+		t.Helper()
+		ic, _, err := w.c.Issues().NewWithMetadata("Twice", "", map[string]issue.Value{
+			"type": issue.StringValue("task"),
+		}, map[string]string{jira.MetaId: jid, jira.MetaAlias: key})
+		require.NoError(t, err)
+		return ic.Id()
+	}
+	a, b := newCopy(), newCopy()
+	normal := w.newLocal("Normal", "", nil)
+
+	_, err := w.c.Issues().ResolvePrefixOrAlias(key)
+	require.True(t, entity.IsErrMultipleMatch(err), "the key refuses to choose: %v", err)
+	before := w.refs()
+
+	lines, sum := w.mustSync(jira.Options{})
+	var pair []jira.Line
+	for _, l := range lines {
+		if l.Jira == key || l.Issue == a || l.Issue == b {
+			pair = append(pair, l)
+		}
+	}
+	require.Len(t, pair, 1, "%+v", lines)
+	require.Equal(t, jira.ActionSkipped, pair[0].Action)
+	require.Len(t, pair[0].Pending, 1)
+	require.Contains(t, pair[0].Pending[0].Reason, a.Human())
+	require.Contains(t, pair[0].Pending[0].Reason, b.Human())
+	require.Equal(t, 1, sum.Skipped, "%+v", lines)
+	require.Equal(t, 1, sum.Created, "the normal issue syncs: %+v", lines)
+	require.NotEmpty(t, jiraKeyOf(t, mustIssue(t, w.c, normal)))
+	require.Equal(t, 3, w.localIssues(), "no third copy imported")
+	after := w.refs()
+	for _, id := range []entity.Id{a, b} {
+		ref := "refs/work-issues/" + id.String()
+		require.Equal(t, before[ref], after[ref], "copy %s untouched", id.Human())
+	}
+
+	// the resolution: archive every copy but one
+	w.set(b, "archived", issue.MustValue(true))
+	lines, sum = w.mustSync(jira.Options{})
+	require.Zero(t, sum.Skipped, "%+v", lines)
+	l, ok := lineOf(lines, key)
+	require.True(t, ok, "%+v", lines)
+	require.Equal(t, a, l.Issue)
+	require.Equal(t, a, w.byKey(key).Id(), "the key names the copy that syncs")
+	require.Equal(t, 3, w.localIssues())
+	w.quiet()
+}

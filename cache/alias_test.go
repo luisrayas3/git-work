@@ -55,7 +55,8 @@ func newCopy(t *testing.T, c *RepoCache, key, linked string, reached int64) *Iss
 }
 
 // archive archives a copy, as consolidation does to the one it does not keep:
-// nothing alias resolution reads.
+// alias resolution reads the archive only when no copy reached the system,
+// and the consolidation stamp never.
 func archive(t *testing.T, c *RepoCache, loser *IssueCache) {
 	t.Helper()
 	me, err := c.GetUserIdentity()
@@ -160,7 +161,38 @@ func TestAliasUnorderable(t *testing.T) {
 	})
 }
 
-// TestAliasReachedBeatsHandSet: a copy whose alias was set by hand and never
+// TestAliasArchiveBreaksATie: of copies none of which reached the system,
+// the one copy not archived is first, for alias resolution and the rule
+// consolidation calls; with none or two left it is ambiguous
+// (doc/design/cli.md, "Archiving breaks a tie nothing else orders").
+func TestAliasArchiveBreaksATie(t *testing.T) {
+	c := newSchemaTestCache(t)
+	c.Issues().SetReach("jira", testReach)
+	a := newAliased(t, c, "PROJ-7")
+	b := newAliased(t, c, "PROJ-7")
+	d := newAliased(t, c, "PROJ-7")
+	ids := []entity.Id{a.Id(), b.Id(), d.Id()}
+
+	archive(t, c, b)
+	_, err := c.Issues().ResolveAlias("PROJ-7")
+	requireAmbiguous(t, err, ids...)
+	_, err = c.Issues().FirstReached(testReach, ids)
+	requireAmbiguous(t, err, ids...)
+
+	archive(t, c, d)
+	i, err := c.Issues().ResolveAlias("PROJ-7")
+	require.NoError(t, err)
+	require.Equal(t, a.Id(), i.Id())
+	first, err := c.Issues().FirstReached(testReach, ids)
+	require.NoError(t, err)
+	require.Equal(t, a.Id(), first)
+
+	archive(t, c, a)
+	_, err = c.Issues().ResolveAlias("PROJ-7")
+	requireAmbiguous(t, err, ids...)
+}
+
+// TestAliasReachedBeatsHandSet:a copy whose alias was set by hand and never
 // reached the system loses to the copy that did.
 func TestAliasReachedBeatsHandSet(t *testing.T) {
 	c := newSchemaTestCache(t)

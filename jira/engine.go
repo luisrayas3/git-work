@@ -59,7 +59,7 @@ func Sync(ctx context.Context, repo *cache.RepoCache, c *jiraapi.Client, p *Proj
 		opts.MaxDeletes = 10
 	}
 	e := &engine{ctx: ctx, repo: repo, c: c, p: p, m: m, st: st, opts: opts, emit: emit,
-		authors: map[string]identity.Interface{}, done: map[entity.Id]bool{}, missing: map[string]bool{}, cursor: st.Cursor}
+		authors: map[string]identity.Interface{}, done: map[entity.Id]bool{}, missing: map[string]bool{}, unordered: map[string]bool{}, cursor: st.Cursor}
 
 	err := e.setup()
 	if err == nil {
@@ -97,20 +97,21 @@ type engine struct {
 	opts Options
 	emit func(Line)
 
-	ix      *Index
-	me      *cache.IdentityCache
-	schema  *schema.Schema
-	checker *schema.Checker
-	authors map[string]identity.Interface // accountId -> identity, this run
-	done    map[entity.Id]bool
-	retry   []entity.Id // issues left with Retry keys, re-run once at the end
-	grew    bool        // the run imported or created an issue
-	cursor  time.Time
-	sum     Summary
-	missing map[string]bool      // Jira ids a GET found deleted or moved out
-	created map[entity.Id]string // in-doubt creates found by the created search; nil until searched
-	since   time.Time            // the created search's bound, before Overlap
-	doubt   time.Time            // the oldest in-doubt attempt of the run's creates
+	ix        *Index
+	me        *cache.IdentityCache
+	schema    *schema.Schema
+	checker   *schema.Checker
+	authors   map[string]identity.Interface // accountId -> identity, this run
+	done      map[entity.Id]bool
+	retry     []entity.Id // issues left with Retry keys, re-run once at the end
+	grew      bool        // the run imported or created an issue
+	cursor    time.Time
+	sum       Summary
+	missing   map[string]bool      // Jira ids a GET found deleted or moved out
+	unordered map[string]bool      // Jira ids reported this run as copies the rule cannot order
+	created   map[entity.Id]string // in-doubt creates found by the created search; nil until searched
+	since     time.Time            // the created search's bound, before Overlap
+	doubt     time.Time            // the oldest in-doubt attempt of the run's creates
 }
 
 // fatal marks an error that stops the run

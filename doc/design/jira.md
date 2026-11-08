@@ -1186,14 +1186,17 @@ Every input is an immutable fact of the copy's own history,
 identical in every clone that holds it,
 so two clones holding both copies agree, with no window.
 The archived flag is not an input:
-it is replicated but mutable, and reading it opens a window in which two clones disagree.
+it is replicated but mutable, and reading it opens a window in which two clones disagree;
+it counts only among copies none of which has a contact,
+where there is no order to disagree with
+([below](#copies-the-rule-cannot-order-are-skipped)).
 This order is Jira's hook into the store's rule for which copy is canonical
 ([cli](cli.md#the-copy-that-reached-the-system-first-is-canonical)),
 which the `Index`, consolidation and alias resolution all call,
 so the copy that syncs, the copy that survives and the copy the key names are one,
 before the consolidating run and after it.
-A copy with a `jira-id` always has a contact,
-since the link is committed with a marker or after an attempt;
+A copy the sync linked has a contact,
+since the sync commits a link with a marker or after an attempt;
 a copy whose `alias:jira` was set by hand and has neither
 is never first, so the copy the sync linked wins.
 
@@ -1226,6 +1229,34 @@ An original that arrives unlinked
 (an attempt and no `jira-id`, pushed after a crash)
 finds the Jira issue its adopted copy is linked to by its property,
 wins by the rule, and links as a create once the copy is consolidated.
+
+### Copies the rule cannot order are skipped
+
+Two or more local issues can carry one `jira-id` with no contact among them,
+a state only a writer other than the sync leaves;
+the rule then has no order,
+and takes the one unarchived copy if there is exactly one
+([cli](cli.md#archiving-breaks-a-tie-nothing-else-orders)).
+Otherwise the `Index` records the Jira id as unresolved and gives it no winner,
+and the run reports it once, `skipped`,
+with a reason naming every copy and asking for all but one to be archived.
+Nothing of it moves that run:
+no copy imports, exports or is consolidated,
+its hit is not imported as one more copy,
+a link request or an in-doubt create naming it is skipped,
+and a relation to it waits with the same reason;
+everything else syncs.
+Not a run failure: one Jira issue's local state is an issue's problem
+([Failure classes](#failure-classes)).
+Not the lower entity id:
+alias resolution refuses to choose there,
+and the sync would keep a copy the key does not name and nobody picked.
+Once a person archives every copy but one,
+the next run's `Index` makes that copy the winner and it syncs as linked,
+its first marker then a contact,
+so the immutable order holds from then on.
+The archived copies are not consolidated:
+they are archived already, and none has been to Jira.
 
 ### Every relation names the surviving copy
 
@@ -1356,6 +1387,9 @@ or **for the run** (401, 429 or 5xx after the client's retries, a network error)
 An issue failure is reported and the run goes on;
 a run failure stops the run, saves the state file with the cursor where it stopped,
 and exits 1.
+Local copies of one Jira issue that the rule cannot order
+are that issue's problem, not the run's:
+[skipped](#copies-the-rule-cannot-order-are-skipped), reported, and the run goes on.
 What the engine does with a key it cannot sync is one value,
 `Skip{Key, Reason, Retry}`: leave the key alone this pass, and retry next run or not.
 `pending` in the report is every `Skip`,

@@ -1,6 +1,7 @@
 package cache
 
 import (
+	"encoding/json"
 	"sort"
 	"sync"
 	"time"
@@ -58,7 +59,9 @@ func (c *RepoCacheIssue) reachOf(namespace string) ReachFunc {
 // issue: the copy that reached the system first, by reach, ties to the lower
 // entity id; a copy that never reached it is never first
 // (doc/design/cli.md, "The copy that reached the system first is canonical").
-// When none has reached it the copies are ambiguous, an ErrMultipleMatch
+// When none has reached it, the one copy not archived is first
+// (doc/design/cli.md, "Archiving breaks a tie nothing else orders");
+// without exactly one, the copies are ambiguous, an ErrMultipleMatch
 // naming every one.
 //
 // The caller knows the copies are of one issue: the Jira sync's consolidation
@@ -73,9 +76,10 @@ func (c *RepoCacheIssue) FirstReached(reach ReachFunc, ids []entity.Id) (entity.
 }
 
 type reached struct {
-	id    entity.Id
-	reach Reach
-	ok    bool
+	id       entity.Id
+	reach    Reach
+	ok       bool
+	archived bool
 }
 
 // reachAll loads each copy and reads its reach.
@@ -86,9 +90,12 @@ func (c *RepoCacheIssue) reachAll(reach ReachFunc, ids []entity.Id) ([]reached, 
 		if err != nil {
 			return nil, err
 		}
-		r, ok := reach(ic.Snapshot())
+		snap := ic.Snapshot()
+		r, ok := reach(snap)
 		r.At = r.At.UTC()
-		copies = append(copies, reached{id: id, reach: r, ok: ok && !r.At.IsZero()})
+		var archived bool
+		_ = json.Unmarshal(snap.Fields[issue.ArchivedKey], &archived)
+		copies = append(copies, reached{id: id, reach: r, ok: ok && !r.At.IsZero(), archived: archived})
 	}
 	return copies, nil
 }
@@ -106,6 +113,21 @@ func firstOf(copies []reached, ids []entity.Id) (entity.Id, error) {
 		if first == nil || before(cp, first) {
 			first = cp
 		}
+	}
+	if first != nil {
+		return first.id, nil
+	}
+	// nothing reached the system: a person's archive of every copy but one
+	// is the only order left
+	// (doc/design/cli.md, "Archiving breaks a tie nothing else orders")
+	for i := range copies {
+		if copies[i].archived {
+			continue
+		}
+		if first != nil {
+			return "", ambiguous(ids)
+		}
+		first = &copies[i]
 	}
 	if first == nil {
 		return "", ambiguous(ids)

@@ -292,6 +292,8 @@ Not "skip the archived" or "skip the consolidated":
 both are later, mutable facts,
 and the key would be ambiguous from a pull of another clone's import
 until the next sync, though the sync already knows which copy it keeps.
+The one place the archive counts is where nothing else orders the copies
+([below](#archiving-breaks-a-tie-nothing-else-orders)).
 
 The rule is the store's, in `cache` beside alias resolution,
 and backend-neutral: what "reached first" means is the system's,
@@ -305,11 +307,33 @@ Every input is an immutable fact of a copy's history,
 so every clone holding the copies agrees.
 An alias is ambiguous, an error naming every carrier,
 when the rule cannot order its carriers:
-when none reached the system,
+when none reached the system and not exactly one is unarchived,
 when its namespace has no hook,
 when the copies that reached it are linked to two external issues (a key moved or reused),
 or when it is carried in two namespaces.
 Only an alias two issues carry loads their entities; any other resolves from the excerpts.
+
+### Archiving breaks a tie nothing else orders
+
+When no copy reached the system,
+the history holds no order,
+and the rule takes the one copy that is not archived;
+with none, or two or more, the copies stay ambiguous.
+So a person resolves copies the rule cannot order
+by archiving every copy but the one to keep,
+the replicated removal, which reaches every clone.
+The Jira sync skips such copies until then
+([jira](jira.md#copies-the-rule-cannot-order-are-skipped)),
+and the copy it then syncs gains a contact,
+so from that run on the immutable order decides, whatever is archived later.
+Not the lower entity id:
+it would choose a copy where the person has not,
+and alias resolution and the sync would keep a copy nobody picked.
+Not `issue rm`: it removes the local ref only,
+and the copy comes back on the next pull.
+Two people archiving opposite copies leave both archived and the tie unbroken,
+unless each clone synced its copy in between,
+when both have a contact and the first-contact order decides.
 
 ### `git-work.display.id` draws an alias in place of the hash
 
