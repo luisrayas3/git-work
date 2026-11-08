@@ -281,7 +281,7 @@ and an `optional` one is off until it is named.
   A type the call leaves out is shown by its `show` in the schema,
   else by `{"expand":["links"]}`, the whole spec and never merged,
   drawn dim on the first line as a defaulted argument is.
-  `esc e` on show toggles what its type's spec expands,
+  `esc x` on show toggles what its type's spec expands,
   among the type's relations and `links`,
   for that page and the pages it opens: nothing is written,
   and the changed spec is part of the call on the first line.
@@ -298,6 +298,10 @@ and an `optional` one is off until it is named.
   `↑` and `↓` walk the comments, newest first,
   and `esc d` deletes the one under the cursor as `git work issue comment delete` does:
   at once, with no question, its text kept in the log tab.
+- `esc e` on show's comment box, its description tab, or new's description box,
+  on the box or typing in it, writes the text in git's editor
+  (`GIT_EDITOR`, `core.editor`, `VISUAL`, `EDITOR`);
+  on exit the text is the box's draft, and `Enter` still sends or writes it.
 - On a list and a gantt a row the query makes may carry a top-level `key`,
   its identity on the screen, so one issue can be drawn twice;
   its `id` stays the issue it acts on, and may be left out beside a key,

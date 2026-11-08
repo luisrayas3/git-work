@@ -21,7 +21,7 @@ func TestPaletteListsShowsOwn(t *testing.T) {
 	stack := stackOf(page, 140, 50)
 	run(stack, "esc")
 	drawn := drawnStack(stack)
-	for _, item := range []string{"e expand", "l link", "u unlink"} {
+	for _, item := range []string{"x expand", "l link", "u unlink"} {
 		require.Contains(t, drawn, item)
 	}
 
@@ -101,7 +101,7 @@ func TestPaletteUnlink(t *testing.T) {
 	require.Contains(t, page.status, "no link to remove")
 }
 
-// TestPaletteExpand: `e` toggles what the type's spec expands, for this page
+// TestPaletteExpand: `x` toggles what the type's spec expands, for this page
 // and the pages it opens; nothing is written, and the first line spells the
 // changed spec as part of the call (doc/design/tui.md, "Changing what is
 // expanded").
@@ -118,7 +118,7 @@ func TestPaletteExpand(t *testing.T) {
 	require.NotEmpty(t, page.defaulted, "the built-in spec, drawn dim")
 	require.Len(t, page.tables, 1, "links: the blocks table")
 
-	send(page, "alt+e")
+	send(page, "alt+x")
 	require.NotNil(t, page.editor)
 	drawn := plainView(page)
 	for _, name := range []string{"parent", "blocks", "children", "blocked_by", "links"} {
@@ -151,7 +151,7 @@ func TestPaletteExpand(t *testing.T) {
 	// a spec's layer is kept as given; the last element out drops expand
 	page, err = specCall(t, repo, story, `{"fields":["status"],"expand":{"relation":"children","fields":["status"]}}`)
 	require.NoError(t, err)
-	send(page, "alt+e")
+	send(page, "alt+x")
 	narrowAndChoose(page, "blocks")
 	require.JSONEq(t, `{"story":{"fields":["status"],"expand":[{"relation":"children","fields":["status"]},"blocks"]}}`,
 		string(page.call.Raw("shows")))

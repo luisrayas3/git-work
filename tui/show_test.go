@@ -555,7 +555,7 @@ func TestTheDescriptionEditorKeepsADraft(t *testing.T) {
 	require.NotNil(t, cmd, "the bell")
 	page = updated.(*showPage)
 	require.True(t, page.editingDesc, "still in the editor")
-	require.Contains(t, plainView(page), "a description cannot be emptied")
+	require.Equal(t, "a description cannot be emptied", page.status)
 
 	document, err = host.IssueGet(repo, id)
 	require.NoError(t, err)

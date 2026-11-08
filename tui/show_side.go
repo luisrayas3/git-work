@@ -112,7 +112,7 @@ func newShowView(repo *cache.RepoCache, call *view.Call) (*showPage, error) {
 // applyShows draws the page by a `shows`: its type's spec read from it, the
 // call's `shows` made it, so that the pages this one opens are opened by the
 // same, and the page loaded again. It is how the page is first drawn, and
-// how `e` redraws it by a changed spec (show_palette.go).
+// how `x` redraws it by a changed spec (show_palette.go).
 func (p *showPage) applyShows(shows json.RawMessage) error {
 	s, _ := p.repo.LoadSchema()
 	typeKey, _ := issue.String(p.snapshot.Fields[schema.TypeKey])

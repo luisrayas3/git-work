@@ -68,6 +68,9 @@ type newPage struct {
 	cell   int
 	row    int
 	warned bool
+	// escaped says the last key was the esc that left the description's
+	// text: an `e` after it is `esc e` typed slowly (external.go).
+	escaped bool
 
 	editor *editor
 	help   *help
@@ -309,6 +312,9 @@ func (p *newPage) Update(msg tea.Msg) (page, tea.Cmd) {
 	case tea.KeyPressMsg:
 		return p.key(msg)
 
+	case externalTextMsg:
+		return p, p.textBack(msg)
+
 	case tea.PasteMsg:
 		if p.editor == nil && !p.inText() {
 			return p, p.paste(msg.Content)
@@ -349,9 +355,14 @@ func (p *newPage) key(press tea.KeyPressMsg) (page, tea.Cmd) {
 	}
 
 	here := p.current()
+	escaped := p.escaped
+	p.escaped = false
 	switch {
 	case keys.back.matches(press):
 		return p.leave()
+
+	case keys.external.matches(press), escaped && press.String() == keys.external.letter:
+		return p, p.external(here)
 
 	case keys.next.matches(press):
 		p.moveFocus(1)
@@ -449,7 +460,10 @@ func (p *newPage) textKey(press tea.KeyPressMsg) (page, tea.Cmd) {
 	switch {
 	case keys.act.matches(press), keys.cancel.matches(press):
 		p.setTyping(false)
+		p.escaped = keys.cancel.matches(press)
 		return p, nil
+	case keys.external.matches(press):
+		return p, p.external(p.current())
 	case keys.next.matches(press):
 		p.moveFocus(1)
 		return p, nil
@@ -501,6 +515,40 @@ func (p *newPage) edit(here position) tea.Cmd {
 		return bell()
 	}
 	return p.startEdit(p.field(), nil)
+}
+
+// external is `esc e`: the description, on its box or in its text, written
+// in $EDITOR (external.go); anywhere else rings.
+func (p *newPage) external(here position) tea.Cmd {
+	if here.stop != stopBox {
+		p.status = "no text here"
+		return bell()
+	}
+	cmd, err := editExternally(p.repo, targetComment, p.body.area.Value())
+	if err != nil {
+		p.status = err.Error()
+		return bell()
+	}
+	return cmd
+}
+
+// textBack is the editor's exit: what it left is the description's draft,
+// the cursor in its text; enter accepts it there as it accepts what is
+// typed, and nothing is created until Create. An editor that failed leaves
+// the draft as it was, and says why.
+func (p *newPage) textBack(msg externalTextMsg) tea.Cmd {
+	if msg.err != nil {
+		p.status = msg.err.Error()
+		return bell()
+	}
+	p.focusStop(stopBox)
+	p.setTyping(true)
+	keepText(p.body, msg)
+	p.status = ""
+	if !msg.changed() {
+		p.status = "unchanged"
+	}
+	return nil
 }
 
 func (p *newPage) follow(id string) tea.Cmd {
@@ -868,9 +916,9 @@ func (p *newPage) hintLine() string {
 // anywhere, because nothing is written until Create.
 func draftBoxHints(typing bool) []hint {
 	if typing {
-		return []hint{{"enter", "done"}, {"alt+enter", "newline"}, {"esc", "leave"}}
+		return []hint{{"enter", "done"}, {"alt+enter", "newline"}, {"esc e", "editor"}, {"esc", "leave"}}
 	}
-	return []hint{{"space", "type"}, {"tab", "skip"}}
+	return []hint{{"space", "type"}, {"tab", "skip"}, {"esc e", "editor"}}
 }
 
 // human is an id as the status line names it.

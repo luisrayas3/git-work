@@ -83,6 +83,10 @@ type showPage struct {
 	// typing says the cursor is in the box's text, where keys are text;
 	// space on the box starts it, and enter (sent) or esc ends it.
 	typing bool
+	// escaped says the last key was the esc that left a text, the box's or
+	// the description's: an `e` after it is `esc e` typed slowly, and writes
+	// the text in $EDITOR as alt+e does (external.go).
+	escaped bool
 	// cell is the header cell under the cursor, kept while the cursor is
 	// elsewhere, like row; it starts on the title.
 	cell int
@@ -448,6 +452,9 @@ func (p *showPage) Update(msg tea.Msg) (page, tea.Cmd) {
 	case tea.KeyPressMsg:
 		return p.key(msg)
 
+	case externalTextMsg:
+		return p, p.textBack(msg)
+
 	case tea.PasteMsg:
 		if p.editor == nil && p.typingIn() == nil {
 			return p, p.paste(msg.Content)
@@ -498,9 +505,14 @@ func (p *showPage) key(press tea.KeyPressMsg) (page, tea.Cmd) {
 	}
 
 	here := p.current()
+	escaped := p.escaped
+	p.escaped = false
 	switch {
 	case keys.back.matches(press):
 		return p.leave()
+
+	case keys.external.matches(press), escaped && press.String() == keys.external.letter:
+		return p, p.external(here)
 
 	case keys.next.matches(press):
 		p.moveFocus(1)
@@ -669,8 +681,11 @@ func (p *showPage) textKey(press tea.KeyPressMsg) (page, tea.Cmd) {
 	switch {
 	case keys.act.matches(press):
 		return p, p.submitComment()
+	case keys.external.matches(press):
+		return p, p.external(p.current())
 	case keys.cancel.matches(press):
 		p.setTyping(false)
+		p.escaped = true
 		if p.box.draft() != "" {
 			p.status = "draft kept"
 		}
@@ -700,9 +715,12 @@ func (p *showPage) descKey(press tea.KeyPressMsg) (page, tea.Cmd) {
 	switch {
 	case keys.act.matches(press):
 		return p, p.submitDescription()
+	case keys.external.matches(press):
+		return p, p.external(p.current())
 	case keys.cancel.matches(press):
 		p.editingDesc = false
 		p.desc.focus(false)
+		p.escaped = true
 		// an editor opened and left untouched leaves nothing behind: the tab
 		// reads the store again, and there is no draft to say was kept
 		if !p.descDirty() {
@@ -852,6 +870,68 @@ func (p *showPage) edit(here position) tea.Cmd {
 		return bell()
 	}
 	return p.startEdit(p.field(), nil)
+}
+
+// external is `esc e`: the text of the box under the cursor, or the one the
+// cursor is in, written in $EDITOR (external.go). The description goes as
+// its editor's draft, or as the body the store has when no editor is open;
+// anywhere else rings.
+func (p *showPage) external(here position) tea.Cmd {
+	var cmd tea.Cmd
+	var err error
+	switch {
+	case p.editingDesc || (here.stop == stopTabs && p.tab == tabDescription):
+		if len(p.snapshot.Comments) == 0 {
+			p.status = "no description"
+			return bell()
+		}
+		text := p.snapshot.Comments[0].Message
+		if p.desc != nil {
+			text = p.desc.area.Value()
+		}
+		cmd, err = editExternally(p.repo, targetDescription, text)
+	case here.stop == stopBox:
+		cmd, err = editExternally(p.repo, targetComment, p.box.area.Value())
+	default:
+		p.status = "no text here"
+		return bell()
+	}
+	if err != nil {
+		p.status = err.Error()
+		return bell()
+	}
+	return cmd
+}
+
+// textBack is the editor's exit: what it left goes into the box it was
+// opened from, as the draft, and the cursor into its text. Nothing is sent
+// or written; enter still does that. An editor that failed leaves the draft
+// as it was, and says why.
+func (p *showPage) textBack(msg externalTextMsg) tea.Cmd {
+	if msg.err != nil {
+		p.status = msg.err.Error()
+		return bell()
+	}
+	switch msg.target {
+	case targetDescription:
+		if p.tab != tabDescription || p.current().stop != stopTabs {
+			p.tab = tabDescription
+			p.focusStop(stopTabs)
+		}
+		if cmd := p.editDescription(); cmd != nil {
+			return cmd
+		}
+		keepText(p.desc, msg)
+	default:
+		p.focusStop(stopBox)
+		p.setTyping(true)
+		keepText(p.box, msg)
+	}
+	p.status = ""
+	if !msg.changed() {
+		p.status = "unchanged"
+	}
+	return nil
 }
 
 // toLinkTables is enter on the links row, its tables' table of contents:
@@ -1465,7 +1545,7 @@ func (p *showPage) hintLine() string {
 	case stopTabs:
 		// the description is the one tab with something to edit
 		if p.tab == tabDescription {
-			return hints(hint{"space", "edit"}, hint{"←→", "tab"})
+			return hints(hint{"space", "edit"}, hint{"esc e", "editor"}, hint{"←→", "tab"})
 		}
 		if p.onComment() {
 			return hints(hint{"esc d", "delete"}, hint{"←→", "tab"})

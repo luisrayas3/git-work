@@ -621,6 +621,19 @@ because the row drawn beside the box is not where the person came from.
 There is no submit button: it would be a second way to do one thing.
 Going back with a draft asks for a second `Esc`, a draft being the one thing on the page the store does not have.
 
+`esc e` (`M-e`), on the box or in its text, writes the draft in an external editor.
+The editor is git's, in git's order — `GIT_EDITOR`, `core.editor`, `VISUAL`, `EDITOR`, then the first common one on the `PATH` —
+because a tracker kept in git uses the editor git does.
+It is a shell command, as git's is, so one with arguments (`code --wait`) runs.
+The draft goes to a temporary `.md` file and the screen is suspended while the editor runs;
+on its exit the file's text, less its trailing whitespace, is the draft, and the cursor is in the text.
+`Enter` still sends: not *saving sends*, because on new `Enter` accepts the draft rather than creating,
+so one exit would mean two things.
+The editor failing, or the file left as it was, leaves the draft as it was, a failure said in the status line.
+`M-e` is no textarea key, so it is read before the text gets it;
+`Esc` then `e` typed slowly from the text is `Esc` leaving it, then `e` read as `esc e`.
+Anywhere on show or new but a text box it rings.
+
 ### The tabs
 
 The tabs are drawn as tabs under the box.
@@ -649,6 +662,9 @@ a dim line over the editor says what it holds,
 so a draft never reads as the description written.
 Its keys are on the bottom line, as the box's are
 ([key hints are on the bottom line only](tui.md#key-hints-are-on-the-bottom-line-only)).
+`esc e` on the tab or in its editor writes the text in the external editor, as on the comment box:
+the editor's draft, or the body the store has when none is open;
+on exit the editor is open on what came back, and `Enter` writes it.
 
 ### The fields table
 
@@ -861,6 +877,7 @@ The type picker is the schema's types; with no type the table is empty, the fiel
 The fields table has show's editors and the `links` row over the draft's stored link fields,
 offering no inverse, since the draft has no id to write into another issue.
 The description box is the comment box over the body; `Enter` accepts the text into the draft, and an empty one is allowed.
+`esc e` writes it in the external editor as on show's box, what comes back being the draft's body; nothing is created on the editor's exit.
 Create is the only way to commit, and `Enter` elsewhere opens or does nothing, so nothing creates by accident.
 
 The page opens **on the title, typing**, when the type is set, and on the type cell when it is not:
@@ -1031,3 +1048,6 @@ and a blank cell stays the matrix's *nothing here*, one meaning under `Enter`, n
 - **Editing a side table's cells**: `←`/`→` are the tab keys, and the child's page is one `Enter` away.
 - **Storing links differently**, as one field of `{type, target}` pairs:
   every query would grow longer, and `blocks` would stop being a field a flow can name.
+- **The external editor on the command line.**
+  `issue comment new` stays plumbing, its body an argument or `-`:
+  an agent calls it, and an editor prompt would block it.

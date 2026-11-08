@@ -80,9 +80,10 @@ func (r *root) pageCommands() []paletteEntry {
 }
 
 // pageCommands is what a page answers of its own.
-// A show page adds change what is expanded (e), link (l) and unlink (u)
+// A show page adds change what is expanded (x), link (l) and unlink (u)
 // (doc/design/tui.md, "Changing what is expanded"; doc/design/tui.md,
-// "Linking from the palette"; show_palette.go).
+// "Linking from the palette"; show_palette.go), and on a text box, show's
+// or new's, the editor (e; external.go).
 func pageCommands(p page) []paletteEntry {
 	filter := entry(keys.filter, "filter")
 	foldAll := entry(keys.foldAll, "fold all")
@@ -111,11 +112,17 @@ func pageCommands(p page) []paletteEntry {
 		if p.onComment() {
 			own = append(own, entry(keys.deleteComment, "delete comment"))
 		}
+		if here := p.current().stop; here == stopBox || (here == stopTabs && p.tab == tabDescription) {
+			own = append([]paletteEntry{entry(keys.external, "editor")}, own...)
+		}
 		if p.current().stop == stopSide {
 			return append([]paletteEntry{filter, copyCell, copyId}, own...)
 		}
 		return append([]paletteEntry{copyCell, copyId}, own...)
 	case *newPage:
+		if p.current().stop == stopBox {
+			return []paletteEntry{copyCell, entry(keys.external, "editor")}
+		}
 		return []paletteEntry{copyCell}
 	case *outputPage:
 		return []paletteEntry{entry(keys.copy, "copy output")}

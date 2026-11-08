@@ -56,7 +56,7 @@ func TestHelpIsTheKeymap(t *testing.T) {
 	newIssue(t, repo, map[string]any{"title": "one"})
 
 	page := list(t, repo, "")
-	page.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
+	page.Update(tea.WindowSizeMsg{Width: 120, Height: 50})
 	page = send(page, "?").(*listPage)
 	drawn := plainView(page)
 	for _, spelling := range []string{
@@ -234,7 +234,7 @@ func TestAPaletteLetterIsItsAltKey(t *testing.T) {
 
 	// a letter that is no command rings and leaves the palette open
 	run(stack, "esc")
-	_, cmd = stack.Update(press("x"))
+	_, cmd = stack.Update(press("k"))
 	require.Equal(t, bell()(), cmd())
 	require.True(t, stack.palette)
 

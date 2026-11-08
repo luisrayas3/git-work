@@ -119,6 +119,7 @@ type keymap struct {
 	top, bottom           *chord
 	next, previous        *chord
 	act, edit, newline    *chord
+	external              *chord
 	copy, copyId, paste   *chord
 	filter                *chord
 	grab                  *chord
@@ -168,6 +169,10 @@ var keys = keymap{
 	// A newline in a comment: alt+enter is escape, enter, which every
 	// terminal sends; shift+enter only where the terminal tells it from enter.
 	newline: newChord("typing: newline in comment", "alt+enter", "shift+enter"),
+	// A box's text written in $EDITOR, git's: show's comment box and its
+	// description, new's description (external.go). alt+e is no textarea
+	// key, so it works from inside the text as well as on the box.
+	external: newChord("on a text box: write it in $EDITOR").on("e"),
 
 	// Copy and paste are the terminal's first: cmd+c and ctrl+shift+c copy
 	// what the mouse selected, and cmd+v and ctrl+shift+v paste, arriving as
@@ -200,7 +205,7 @@ var keys = keymap{
 	// the ones it opens, and a link added or removed, inverses written to
 	// the other issue (doc/design/tui.md, "Changing what is expanded";
 	// doc/design/tui.md, "Linking from the palette"; show_palette.go).
-	expand: newChord("show: change what is expanded").on("e"),
+	expand: newChord("show: change what is expanded").on("x"),
 	link:   newChord("show: link to an issue").on("l"),
 	unlink: newChord("show: unlink an issue").on("u"),
 	// Delete is final and replicated, so it is a chord, never one stray
@@ -243,7 +248,7 @@ func helpRows() []*chord {
 		keys.up, keys.down, keys.left, keys.right,
 		keys.pageUp, keys.pageDn, keys.top, keys.bottom,
 		keys.next, keys.previous,
-		keys.act, keys.edit, keys.grab, keys.newline,
+		keys.act, keys.edit, keys.grab, keys.newline, keys.external,
 		keys.copy, keys.copyId, keys.paste,
 		keys.filter, keys.foldAll, keys.openEverything, keys.expand, keys.link, keys.unlink, keys.deleteComment, keys.editQuery, keys.resetQuery, keys.nextTab, keys.previousTab,
 		keys.search, keys.newIssue, keys.home, keys.runFlow, keys.closePalette, keys.back, keys.help, keys.quit,

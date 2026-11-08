@@ -38,7 +38,7 @@ type editor struct {
 	// opens (links.go), and on the palette's link and unlink; nil on every
 	// other
 	link *linkEdit
-	// expand says the editor is the palette's `e`, the relations a show
+	// expand says the editor is the palette's `x`, the relations a show
 	// page's spec expands toggled (show_palette.go)
 	expand bool
 }

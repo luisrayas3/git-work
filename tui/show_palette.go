@@ -22,7 +22,7 @@ import (
 //     relations only, as the row does.
 //   - `u` picks one of the issue's links, across every link relation, stored
 //     and inverse, and removes it: one write, an inverse's to the other issue.
-//   - `e` changes the spec of the issue's type for this page and the pages it
+//   - `x` changes the spec of the issue's type for this page and the pages it
 //     opens: a picker over the relations the schema gives the type, stored
 //     and inverse, and `links`, the ones the spec expands marked, where enter
 //     toggles one and the page is redrawn at once, the picker staying open
@@ -84,7 +84,7 @@ func (p *showPage) shownSpec() (*view.Spec, *schema.Schema, string) {
 	return spec, s, typeKey
 }
 
-// startExpand is `e`: the relations the type has, stored and inverse, then
+// startExpand is `x`: the relations the type has, stored and inverse, then
 // links, the ones the spec expands marked, the cursor on at.
 func (p *showPage) startExpand(at string) tea.Cmd {
 	spec, s, typeKey := p.shownSpec()

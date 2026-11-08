@@ -114,9 +114,9 @@ func grabHints(moves ...hint) string {
 // (2026-10-08).
 func boxHints(typing bool) []hint {
 	if typing {
-		return []hint{{"enter", "send"}, {"alt+enter", "newline"}, {"esc", "leave"}}
+		return []hint{{"enter", "send"}, {"alt+enter", "newline"}, {"esc e", "editor"}, {"esc", "leave"}}
 	}
-	return []hint{{"space", "type"}, {"tab", "skip"}}
+	return []hint{{"space", "type"}, {"tab", "skip"}, {"esc e", "editor"}}
 }
 
 // descHints are the description editor's keys on show, in the status line,
@@ -126,7 +126,7 @@ func boxHints(typing bool) []hint {
 // They are the box's keys, except that what enter does is write and not
 // send: the description is one text being rewritten, not one more comment.
 func descHints() []hint {
-	return []hint{{"enter", "write"}, {"alt+enter", "newline"}, {"esc", "leave"}}
+	return []hint{{"enter", "write"}, {"alt+enter", "newline"}, {"esc e", "editor"}, {"esc", "leave"}}
 }
 
 // foldHints are the tree's keys on the row under the cursor, nothing on a

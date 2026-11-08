@@ -259,7 +259,8 @@ so the menu teaches the keys it lists.
 | `Z` | open every row, leaves too | a nested list or gantt |
 | `w` | copy the cell | list, matrix, show, new |
 | `c` | copy the id; on a matrix, the command | list, board, gantt, matrix, show |
-| `e` | change what is expanded | show |
+| `e` | write the text in `$EDITOR` | show's comment box and description, new's description, on the box or in its text |
+| `x` | change what is expanded | show |
 | `l` `u` | link, unlink | show |
 | `d` | delete the comment under the cursor | show's comments tab |
 | `j` | edit the query | every kind that takes one |
@@ -340,7 +341,8 @@ and the status line names the issue written.
 
 ### Changing what is expanded
 
-`e` on a show page is a picker that toggles:
+`x` on a show page is a picker that toggles
+(`x`, so that `e` is the text's edit in `$EDITOR`, [views](views.md#the-comment-box)):
 the type's relations, stored and inverse, then `links`,
 the ones the page's spec expands marked `● expanded`.
 `enter` toggles the one under the cursor and the page is redrawn at once,
