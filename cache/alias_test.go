@@ -1,6 +1,7 @@
 package cache
 
 import (
+	"strconv"
 	"testing"
 	"time"
 
@@ -10,73 +11,179 @@ import (
 	"github.com/git-bug/git-bug/entity"
 )
 
-// newAliased creates a task carrying alias:jira = key.
+// The test system's hook reads two create-op keys: the external issue a copy
+// is linked to, and the second it first reached the system. A copy with
+// neither never reached it.
+const (
+	testLinked  = "test-linked"
+	testReached = "test-reached"
+)
+
+func testReach(snap *issue.Snapshot) (Reach, bool) {
+	at, ok := snap.GetCreateMetadata(testReached)
+	if !ok {
+		return Reach{}, false
+	}
+	sec, err := strconv.ParseInt(at, 10, 64)
+	if err != nil {
+		return Reach{}, false
+	}
+	linked, _ := snap.GetCreateMetadata(testLinked)
+	return Reach{Issue: linked, At: time.Unix(sec, 0)}, true
+}
+
+// newAliased creates a task carrying alias:jira = key, with no contact.
 func newAliased(t *testing.T, c *RepoCache, key string) *IssueCache {
 	t.Helper()
+	return newCopy(t, c, key, "", 0)
+}
+
+// newCopy creates a task carrying alias:jira = key, linked to the external
+// issue linked and first reaching it at the second reached, when not zero.
+func newCopy(t *testing.T, c *RepoCache, key, linked string, reached int64) *IssueCache {
+	t.Helper()
+	md := map[string]string{AliasMetadataPrefix + "jira": key}
+	if reached != 0 {
+		md[testLinked] = linked
+		md[testReached] = strconv.FormatInt(reached, 10)
+	}
 	i, _, err := c.Issues().NewWithMetadata("copy of "+key, "", map[string]issue.Value{
 		"type": issue.StringValue("task"),
-	}, map[string]string{AliasMetadataPrefix + "jira": key})
+	}, md)
 	require.NoError(t, err)
 	return i
 }
 
-// consolidate stamps loser's create operation as the Jira sync does
-// (doc/design/jira.md, "Consolidation keeps the copy that reached Jira first").
-func consolidate(t *testing.T, c *RepoCache, loser, winner *IssueCache) {
+// archive archives a copy, as consolidation does to the one it does not keep:
+// nothing alias resolution reads.
+func archive(t *testing.T, c *RepoCache, loser *IssueCache) {
 	t.Helper()
 	me, err := c.GetUserIdentity()
 	require.NoError(t, err)
 	require.NoError(t, loser.UpdateShape(func(snap *issue.Snapshot) ([]issue.Operation, error) {
 		return []issue.Operation{
+			issue.NewSetFieldOp(me, time.Now().Unix(), "archived", issue.MustValue(true)),
 			issue.NewSetMetadataOp(me, time.Now().Unix(), snap.Operations[0].Id(),
-				map[string]string{ConsolidatedIntoMetadata: winner.Id().String()}),
+				map[string]string{"test-consolidated-into": "x"}),
 		}, nil
 	}))
 }
 
-// TestAliasNamesTheSurvivor: once a sync has consolidated two copies of one
-// Jira issue, the key they both carry names the survivor, on every resolve
-// path; before that it is ambiguous
-// (doc/design/cli.md, "A consolidated duplicate is drawn by its hash").
-func TestAliasNamesTheSurvivor(t *testing.T) {
-	c := newSchemaTestCache(t)
-	winner := newAliased(t, c, "PROJ-7")
-	loser := newAliased(t, c, "PROJ-7")
-
-	_, err := c.Issues().ResolveAlias("PROJ-7")
+func requireAmbiguous(t *testing.T, err error, ids ...entity.Id) {
+	t.Helper()
 	var multiple *entity.ErrMultipleMatch
-	require.ErrorAs(t, err, &multiple, "two unconsolidated copies are ambiguous")
+	require.ErrorAs(t, err, &multiple)
+	require.ElementsMatch(t, ids, multiple.Matching)
+	for _, id := range ids {
+		require.Contains(t, err.Error(), id.String())
+	}
+}
 
-	consolidate(t, c, loser, winner)
+// TestAliasNamesTheFirstToReach: of two copies of one external issue, the
+// key names the one that reached the system first, before any consolidation
+// and after it, on every resolve path
+// (doc/design/cli.md, "The copy that reached the system first is canonical").
+func TestAliasNamesTheFirstToReach(t *testing.T) {
+	c := newSchemaTestCache(t)
+	c.Issues().SetReach("jira", testReach)
+	later := newCopy(t, c, "PROJ-7", "10007", 200)
+	first := newCopy(t, c, "PROJ-7", "10007", 100)
+
+	check := func() {
+		i, err := c.Issues().ResolveAlias("PROJ-7")
+		require.NoError(t, err)
+		require.Equal(t, first.Id(), i.Id())
+
+		i, err = c.Issues().ResolvePrefixOrAlias("PROJ-7")
+		require.NoError(t, err)
+		require.Equal(t, first.Id(), i.Id())
+
+		excerpt, err := c.Issues().ResolveExcerptPrefixOrAlias("PROJ-7")
+		require.NoError(t, err)
+		require.Equal(t, first.Id(), excerpt.Id())
+
+		id, err := c.Issues().FirstReached(testReach, []entity.Id{later.Id(), first.Id()})
+		require.NoError(t, err)
+		require.Equal(t, first.Id(), id, "the rule consolidation calls")
+	}
+	check()
+	archive(t, c, later)
+	check()
+
+	// the other copy is still reached by its own id
+	i, err := c.Issues().ResolvePrefixOrAlias(later.Id().Human())
+	require.NoError(t, err)
+	require.Equal(t, later.Id(), i.Id())
+}
+
+// TestAliasTieGoesToTheLowerId: two copies that reached the system at one
+// second, at one rank, are ordered by entity id.
+func TestAliasTieGoesToTheLowerId(t *testing.T) {
+	c := newSchemaTestCache(t)
+	c.Issues().SetReach("jira", testReach)
+	a := newCopy(t, c, "PROJ-9", "10009", 100)
+	b := newCopy(t, c, "PROJ-9", "10009", 100)
+
+	i, err := c.Issues().ResolveAlias("PROJ-9")
+	require.NoError(t, err)
+	require.Equal(t, min(a.Id(), b.Id()), i.Id())
+}
+
+// TestAliasUnorderable: copies the rule cannot order are ambiguous, and the
+// error names every one: copies that never reached the system, copies of a
+// namespace with no hook, and copies linked to two external issues.
+func TestAliasUnorderable(t *testing.T) {
+	t.Run("never reached", func(t *testing.T) {
+		c := newSchemaTestCache(t)
+		c.Issues().SetReach("jira", testReach)
+		a := newAliased(t, c, "PROJ-7")
+		b := newAliased(t, c, "PROJ-7")
+		_, err := c.Issues().ResolvePrefixOrAlias("PROJ-7")
+		requireAmbiguous(t, err, a.Id(), b.Id())
+		_, err = c.Issues().ResolveExcerptPrefixOrAlias("PROJ-7")
+		requireAmbiguous(t, err, a.Id(), b.Id())
+	})
+	t.Run("no hook", func(t *testing.T) {
+		c := newSchemaTestCache(t)
+		a := newCopy(t, c, "PROJ-7", "10007", 100)
+		b := newCopy(t, c, "PROJ-7", "10007", 200)
+		_, err := c.Issues().ResolveAlias("PROJ-7")
+		requireAmbiguous(t, err, a.Id(), b.Id())
+	})
+	t.Run("two external issues", func(t *testing.T) {
+		c := newSchemaTestCache(t)
+		c.Issues().SetReach("jira", testReach)
+		a := newCopy(t, c, "PROJ-7", "10007", 100)
+		b := newCopy(t, c, "PROJ-7", "10070", 200)
+		_, err := c.Issues().ResolveAlias("PROJ-7")
+		requireAmbiguous(t, err, a.Id(), b.Id())
+	})
+}
+
+// TestAliasReachedBeatsHandSet: a copy whose alias was set by hand and never
+// reached the system loses to the copy that did.
+func TestAliasReachedBeatsHandSet(t *testing.T) {
+	c := newSchemaTestCache(t)
+	c.Issues().SetReach("jira", testReach)
+	newAliased(t, c, "PROJ-7")
+	synced := newCopy(t, c, "PROJ-7", "10007", 100)
 
 	i, err := c.Issues().ResolveAlias("PROJ-7")
 	require.NoError(t, err)
-	require.Equal(t, winner.Id(), i.Id())
-
-	i, err = c.Issues().ResolvePrefixOrAlias("PROJ-7")
-	require.NoError(t, err)
-	require.Equal(t, winner.Id(), i.Id())
-
-	excerpt, err := c.Issues().ResolveExcerptPrefixOrAlias("PROJ-7")
-	require.NoError(t, err)
-	require.Equal(t, winner.Id(), excerpt.Id())
-
-	// the loser is still reached by its own id
-	i, err = c.Issues().ResolvePrefixOrAlias(loser.Id().Human())
-	require.NoError(t, err)
-	require.Equal(t, loser.Id(), i.Id())
+	require.Equal(t, synced.Id(), i.Id())
 }
 
-// TestAliasOfOnlyStampedCopies: a stamped copy whose survivor is gone from
-// this clone (a local rm) is still what its key names.
-func TestAliasOfOnlyStampedCopies(t *testing.T) {
+// TestAliasOfTheOnlyCopy: a copy whose keeper is gone from this clone
+// (a local rm) is what its key names.
+func TestAliasOfTheOnlyCopy(t *testing.T) {
 	c := newSchemaTestCache(t)
-	winner := newAliased(t, c, "PROJ-8")
-	loser := newAliased(t, c, "PROJ-8")
-	consolidate(t, c, loser, winner)
-	require.NoError(t, c.Issues().Remove(winner.Id().String()))
+	c.Issues().SetReach("jira", testReach)
+	first := newCopy(t, c, "PROJ-8", "10008", 100)
+	later := newCopy(t, c, "PROJ-8", "10008", 200)
+	archive(t, c, later)
+	require.NoError(t, c.Issues().Remove(first.Id().String()))
 
 	i, err := c.Issues().ResolveAlias("PROJ-8")
 	require.NoError(t, err)
-	require.Equal(t, loser.Id(), i.Id())
+	require.Equal(t, later.Id(), i.Id())
 }

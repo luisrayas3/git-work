@@ -11,7 +11,6 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/git-bug/git-bug/cache"
 	"github.com/git-bug/git-bug/entities/issue"
 	"github.com/git-bug/git-bug/entity"
 	"github.com/git-bug/git-bug/jira/jiraapi"
@@ -29,7 +28,7 @@ const (
 	// MetaConsolidatedInto is on a consolidated loser's create op: the winner's
 	// id, so a program can drop losers
 	// (doc/design/jira.md, "Consolidation keeps the copy that reached Jira first").
-	MetaConsolidatedInto = cache.ConsolidatedIntoMetadata
+	MetaConsolidatedInto = "jira-consolidated-into"
 	// MetaConsolidatedFrom is on a consolidation note: the loser's id, so a
 	// consolidation retried after an interruption notes once
 	// (doc/design/jira.md, "Consolidation keeps the copy that reached Jira first").

@@ -399,3 +399,31 @@ func TestConsolidatedStamp(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, wx.CreateMetadata[jira.MetaConsolidatedInto])
 }
+
+// A Jira key names the copy consolidation keeps: before the consolidating
+// run, while both copies are live, and after it, by the one rule both call
+// (doc/design/cli.md, "The copy that reached the system first is canonical").
+func TestKeyNamesTheKeptCopy(t *testing.T) {
+	b, x, y, _ := twoCopies(t)
+	jira.Register(b.c)
+	pkey := jiraKeyOf(t, mustIssue(t, b.c, y))
+	require.Equal(t, pkey, jiraKeyOf(t, mustIssue(t, b.c, x)))
+
+	named := func() entity.Id {
+		t.Helper()
+		ic, err := b.c.Issues().ResolvePrefixOrAlias(pkey)
+		require.NoError(t, err)
+		ex, err := b.c.Issues().ResolveExcerptPrefixOrAlias(pkey)
+		require.NoError(t, err)
+		require.Equal(t, ic.Id(), ex.Id())
+		return ic.Id()
+	}
+	require.Equal(t, x, named(), "two live copies: the one the sync will keep")
+
+	lines, sum := b.mustSync(jira.Options{})
+	require.Equal(t, 1, sum.Consolidated, "%+v", lines)
+	l, ok := lineOf(lines, pkey)
+	require.True(t, ok)
+	require.Equal(t, y, l.Issue, "y is the copy consolidated")
+	require.Equal(t, x, named(), "after consolidation: the same copy")
+}

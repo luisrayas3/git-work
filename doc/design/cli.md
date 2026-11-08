@@ -271,6 +271,46 @@ A relation value takes an id prefix or an alias like any `ID` position,
 and is stored as the full id it resolves to, on every write, the Jira pull's included,
 so a key never reaches the store as a value.
 
+### The copy that reached the system first is canonical
+
+Two local copies of one external issue both carry its alias:
+two clones import one Jira issue before they exchange,
+or one adopts an export whose original arrives later.
+One rule says which copy is canonical,
+and everything that asks calls it:
+alias resolution, and so what is drawn,
+and the Jira sync's [consolidation](jira.md#consolidation-keeps-the-copy-that-reached-jira-first),
+so a key names the copy the sync keeps
+before consolidation has run in a clone and after it.
+The canonical copy is the one that reached the system first;
+at one moment, the lower rank the system gives;
+then the lower entity id.
+A copy that never reached the system is never first,
+so a copy whose alias was set by hand, with no contact,
+loses to one the sync linked.
+Not "skip the archived" or "skip the consolidated":
+both are later, mutable facts,
+and the key would be ambiguous from a pull of another clone's import
+until the next sync, though the sync already knows which copy it keeps.
+
+The rule is the store's, in `cache` beside alias resolution,
+and backend-neutral: what "reached first" means is the system's,
+an ordering hook per alias namespace that reads a copy's own history
+and says which external issue it is linked to, when it first reached the system, and its rank.
+Jira's hook is the sync's first-contact order
+([jira](jira.md#consolidation-keeps-the-copy-that-reached-jira-first)),
+registered where a command opens the store;
+the sync's consolidation passes the same hook itself.
+Every input is an immutable fact of a copy's history,
+so every clone holding the copies agrees.
+An alias is ambiguous, an error naming every carrier,
+when the rule cannot order its carriers:
+when none reached the system,
+when its namespace has no hook,
+when the copies that reached it are linked to two external issues (a key moved or reused),
+or when it is carried in two namespaces.
+Only an alias two issues carry loads their entities; any other resolves from the excerpts.
+
 ### `git-work.display.id` draws an alias in place of the hash
 
 ```sh
@@ -320,8 +360,8 @@ One rule covers every case where the two could disagree:
 | linked issue, one copy | `PROJ-12` | the key resolves to it |
 | not exported yet | `3f9a1c2` | it has no alias |
 | excluded from the sync (`aliases: {jira: ""}`) | `3f9a1c2` | the empty alias is "never sync", not a name |
-| a consolidated duplicate | `3f9a1c2` | the key names the survivor |
-| two unconsolidated copies of one key | `3f9a1c2` each | the key is ambiguous until a sync settles them |
+| a duplicate, consolidated or not | `3f9a1c2` | the key names the copy that reached Jira first |
+| two copies of one key the rule cannot order | `3f9a1c2` each | the key is ambiguous |
 | an all-hex alias that is another issue's prefix | `3f9a1c2` | a prefix is resolved before an alias |
 
 The rule is what makes copying what is drawn safe:
@@ -329,17 +369,15 @@ anything drawn as an id can be pasted back.
 It costs one index of aliases, rebuilt when the excerpts change,
 from the create metadata the excerpts already carry.
 
-### A consolidated duplicate is drawn by its hash
+### A duplicate is drawn by its hash
 
-After a sync consolidates two local copies of one Jira issue,
-both create operations still carry the alias, because create metadata is immutable;
-the loser is archived and stamped `jira-consolidated-into`.
-An alias resolves to the one issue carrying it that is not so stamped,
-and is ambiguous only when more than one unstamped issue carries it,
-the window before a sync consolidates them.
-So the survivor is drawn by the key,
-and the loser, which the key no longer names,
-by its hash wherever `include_archive` brings it back.
+Both local copies of one Jira issue carry its key, because create metadata is immutable,
+and the key names the [canonical](#the-copy-that-reached-the-system-first-is-canonical) one.
+So the copy the sync keeps is drawn by the key,
+before consolidation and after it,
+and the other copy, which the key does not name,
+by its hash, wherever `include_archive` brings it back once it is consolidated.
+Where the rule cannot order the copies, each is drawn by its hash.
 
 ### A hash is drawn faint
 

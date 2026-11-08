@@ -10,6 +10,7 @@ import (
 
 	"github.com/git-bug/git-bug/cache"
 	"github.com/git-bug/git-bug/gitcli"
+	"github.com/git-bug/git-bug/jira"
 	"github.com/git-bug/git-bug/repository"
 	"github.com/git-bug/git-bug/util/interrupt"
 )
@@ -54,6 +55,9 @@ func LoadBackend(env *Env) func(*cobra.Command, []string) error {
 
 		var events chan cache.BuildEvent
 		env.Backend, events = cache.NewRepoCache(env.Repo)
+		// a Jira key names the copy the sync keeps
+		// (doc/design/cli.md, "The copy that reached the system first is canonical")
+		jira.Register(env.Backend)
 
 		err = CacheBuildProgressBar(env, events)
 		if err != nil {

@@ -81,38 +81,38 @@ func (c *RepoCache) IssueHumanId(id entity.Id) string {
 // for, that alias: the issue ResolvePrefixOrAlias would answer for it.
 //
 // One pass over the excerpts, under the read lock, with the generation they
-// were read at, so the index is current exactly as long as the generation is.
+// were read at, so the index is current exactly as long as the generation is;
+// an alias two issues carry loads them after it, as aliasId does.
 func (c *RepoCacheIssue) drawnAliases(namespace string) (uint64, map[entity.Id]string) {
 	key := AliasMetadataPrefix + namespace
 
 	c.mu.RLock()
 	gen := c.generation
-	all := map[string][]entity.Id{}
-	live := map[string][]entity.Id{}
+	drawn := map[string]bool{}
+	all := map[string][]carrier{}
 	for id, excerpt := range c.excerpts {
-		alias := excerpt.CreateMetadata[key]
-		if alias == "" {
-			continue
+		if alias := excerpt.CreateMetadata[key]; alias != "" {
+			drawn[alias] = true
 		}
-		all[alias] = append(all[alias], id)
-		if !excerpt.Consolidated() {
-			live[alias] = append(live[alias], id)
+		seen := map[string]bool{}
+		for k, alias := range excerpt.CreateMetadata {
+			if !strings.HasPrefix(k, AliasMetadataPrefix) || alias == "" || seen[alias] {
+				continue
+			}
+			seen[alias] = true
+			name, _ := excerpt.aliasNamespace(alias)
+			all[alias] = append(all[alias], carrier{id, name})
 		}
 	}
 	c.mu.RUnlock()
 
-	names := make(map[entity.Id]string, len(all))
-	for alias, carriers := range all {
-		// the same choice aliasId makes (doc/design/cli.md,
-		// "A consolidated duplicate is drawn by its hash")
-		var named entity.Id
-		switch {
-		case len(live[alias]) == 1:
-			named = live[alias][0]
-		case len(live[alias]) == 0 && len(carriers) == 1:
-			named = carriers[0]
-		default:
-			continue // ambiguous until a sync consolidates them
+	names := make(map[entity.Id]string, len(drawn))
+	for alias := range drawn {
+		// the choice aliasId makes (doc/design/cli.md,
+		// "A duplicate is drawn by its hash")
+		named, err := c.aliasNamed(all[alias])
+		if err != nil {
+			continue // ambiguous
 		}
 		// an id prefix is tried before an alias, so an all-hex alias that is
 		// the prefix of exactly one other issue names that issue instead

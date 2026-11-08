@@ -1182,8 +1182,15 @@ identical in every clone that holds it,
 so two clones holding both copies agree, with no window.
 The archived flag is not an input:
 it is replicated but mutable, and reading it opens a window in which two clones disagree.
-The `Index` uses the same rule,
-so the copy that syncs and the copy that survives are one.
+This order is Jira's hook into the store's rule for which copy is canonical
+([cli](cli.md#the-copy-that-reached-the-system-first-is-canonical)),
+which the `Index`, consolidation and alias resolution all call,
+so the copy that syncs, the copy that survives and the copy the key names are one,
+before the consolidating run and after it.
+A copy with a `jira-id` always has a contact,
+since the link is committed with a marker or after an attempt;
+a copy whose `alias:jira` was set by hand and has neither
+is never first, so the copy the sync linked wins.
 
 A consolidation, in this order:
 
@@ -1422,6 +1429,8 @@ the closure on the fresh snapshot, its operations checked as one change
 against the type they set, committed behind one ref update;
 the closure calls no cache writer and no network),
 `NewRawShape`, `issue.NewNoOpOp`,
+`FirstReached` and `SetReach`, the store's rule for the canonical copy and its hook,
+which `commands/execenv` gives Jira's `Reach` where it opens the store,
 the reserved `alias_` attributes in `schema`,
 `gitcli.CredentialHelper`,
 and `host.JiraSchema` and `host.JiraSync`, the one path for commands.

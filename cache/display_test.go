@@ -41,21 +41,29 @@ func TestIssueHumanId(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, other.Id().Human(), c.IssueHumanId(other.Id()))
 
-	// two unconsolidated copies of one key: both hashes, the key is ambiguous
-	winner := newAliased(t, c, "PROJ-2")
-	loser := newAliased(t, c, "PROJ-2")
-	require.Equal(t, winner.Id().Human(), c.IssueHumanId(winner.Id()))
-	require.Equal(t, loser.Id().Human(), c.IssueHumanId(loser.Id()))
+	// two copies of one key the rule cannot order: both hashes, the key is
+	// ambiguous
+	a := newAliased(t, c, "PROJ-2")
+	b := newAliased(t, c, "PROJ-2")
+	require.Equal(t, a.Id().Human(), c.IssueHumanId(a.Id()))
+	require.Equal(t, b.Id().Human(), c.IssueHumanId(b.Id()))
 
-	// consolidated: the survivor is the key, the loser its hash
-	// (doc/design/cli.md, "A consolidated duplicate is drawn by its hash"); the
-	// index follows the write without anything being told
-	consolidate(t, c, loser, winner)
-	require.Equal(t, "PROJ-2", c.IssueHumanId(winner.Id()))
-	require.Equal(t, loser.Id().Human(), c.IssueHumanId(loser.Id()))
+	// two copies it can order: the one that reached the system first is the
+	// key, the other its hash, before consolidation and after it
+	// (doc/design/cli.md, "A duplicate is drawn by its hash"); the index
+	// follows each write without anything being told
+	c.Issues().SetReach("jira", testReach)
+	later := newCopy(t, c, "PROJ-3", "10003", 200)
+	require.Equal(t, "PROJ-3", c.IssueHumanId(later.Id()))
+	first := newCopy(t, c, "PROJ-3", "10003", 100)
+	require.Equal(t, "PROJ-3", c.IssueHumanId(first.Id()))
+	require.Equal(t, later.Id().Human(), c.IssueHumanId(later.Id()))
+	archive(t, c, later)
+	require.Equal(t, "PROJ-3", c.IssueHumanId(first.Id()))
+	require.Equal(t, later.Id().Human(), c.IssueHumanId(later.Id()))
 
 	// every drawn alias resolves back to its issue
-	for _, i := range []*IssueCache{keyed, winner} {
+	for _, i := range []*IssueCache{keyed, first} {
 		back, err := c.Issues().ResolvePrefixOrAlias(c.IssueHumanId(i.Id()))
 		require.NoError(t, err)
 		require.Equal(t, i.Id(), back.Id())

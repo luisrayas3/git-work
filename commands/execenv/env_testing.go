@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/git-bug/git-bug/cache"
+	"github.com/git-bug/git-bug/jira"
 	"github.com/git-bug/git-bug/repository"
 )
 
@@ -88,6 +89,7 @@ func newTestEnv(t *testing.T, isTerminal bool) *Env {
 
 	backend, err := cache.NewRepoCacheNoEvents(repo)
 	require.NoError(t, err)
+	jira.Register(backend)
 
 	t.Cleanup(func() {
 		backend.Close()
@@ -121,6 +123,7 @@ func ExecuteTest(t *testing.T, env *Env, cmd *cobra.Command, args ...string) err
 		if err != nil {
 			return err
 		}
+		jira.Register(backend)
 		env.Backend = backend
 		t.Cleanup(func() { _ = backend.Close() })
 		return nil

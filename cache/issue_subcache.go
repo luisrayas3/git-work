@@ -19,6 +19,9 @@ type RepoCacheIssue struct {
 	// checker compiles the live schema, which a create is measured against
 	// before the entity is written (bb9e89e).
 	checker checkerFunc
+
+	// reaches orders the copies of one alias (canonical.go).
+	reaches reaches
 }
 
 // AliasMetadataPrefix is the create-op metadata key prefix that holds an
@@ -102,25 +105,15 @@ func (c *RepoCacheIssue) CheckNew(fields map[string]issue.Value) error {
 	return checker.CheckNew(rawValues(fields))
 }
 
-// ConsolidatedIntoMetadata is the create-op metadata key the Jira sync
-// stamps on a consolidated loser: the id of the copy it was consolidated into
-// (doc/design/jira.md, "Consolidation keeps the copy that reached Jira first").
-//
-// It lives here because alias resolution reads it
-// (doc/design/cli.md, "A consolidated duplicate is drawn by its hash"):
-// both copies keep the alias, which is immutable, and only the survivor is
-// what the alias names.
-const ConsolidatedIntoMetadata = "jira-consolidated-into"
-
-// ResolveAlias retrieves the issue carrying the given external id under any
+// ResolveAlias retrieves the issue an external id names, under any
 // alias:<name> key of its create operation.
 //
-// A consolidated loser keeps the alias it shares with its survivor, so the
-// copies not stamped ConsolidatedIntoMetadata are matched first, and the alias
-// is ambiguous only when more than one of them carries it, the window before a
-// sync consolidates them. When every carrier is stamped, which a local `rm` of
-// the survivor can leave, they are matched as they are
-// (doc/design/cli.md, "A consolidated duplicate is drawn by its hash").
+// Two local copies of one external issue both carry its alias, which is
+// immutable, so the alias names the copy that reached the system first, by
+// the namespace's ordering hook (SetReach), and is ambiguous when the hook
+// cannot order the copies (doc/design/cli.md, "A duplicate is drawn by its
+// hash"; doc/design/cli.md, "The copy that reached the system first is
+// canonical").
 func (c *RepoCacheIssue) ResolveAlias(alias string) (*IssueCache, error) {
 	id, err := c.aliasId(alias)
 	if err != nil {
@@ -129,7 +122,8 @@ func (c *RepoCacheIssue) ResolveAlias(alias string) (*IssueCache, error) {
 	return c.Resolve(id)
 }
 
-// ResolveExcerptAlias is ResolveAlias over the excerpts, which loads no entity.
+// ResolveExcerptAlias is ResolveAlias over the excerpts, which loads an
+// entity only for an alias two issues carry.
 func (c *RepoCacheIssue) ResolveExcerptAlias(alias string) (*IssueExcerpt, error) {
 	id, err := c.aliasId(alias)
 	if err != nil {
@@ -139,15 +133,17 @@ func (c *RepoCacheIssue) ResolveExcerptAlias(alias string) (*IssueExcerpt, error
 }
 
 func (c *RepoCacheIssue) aliasId(alias string) (entity.Id, error) {
-	id, err := c.resolveMatcher(func(excerpt *IssueExcerpt) bool {
-		return excerpt.HasAlias(alias) && !excerpt.Consolidated()
-	})
-	if entity.IsErrNotFound(err) {
-		return c.resolveMatcher(func(excerpt *IssueExcerpt) bool {
-			return excerpt.HasAlias(alias)
-		})
+	var carriers []carrier
+	if alias != "" {
+		c.mu.RLock()
+		for id, excerpt := range c.excerpts {
+			if name, ok := excerpt.aliasNamespace(alias); ok {
+				carriers = append(carriers, carrier{id, name})
+			}
+		}
+		c.mu.RUnlock()
 	}
-	return id, err
+	return c.aliasNamed(carriers)
 }
 
 // ResolvePrefixOrAlias resolves an id prefix, and falls back to an alias when

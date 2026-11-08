@@ -35,9 +35,9 @@ func NewIndex(repo *cache.RepoCache) (*Index, error) {
 			return nil, err
 		}
 		if jid := e.CreateMetadata[MetaId]; jid != "" {
-			// two issues naming one Jira id:
-			// the one that reached Jira first wins, ties to the lower id,
-			// whatever either has archived; scan consolidates the other
+			// two issues naming one Jira id: the one that reached Jira
+			// first wins, whatever either has archived; scan consolidates
+			// the other
 			if other, ok := issues[jid]; !ok {
 				issues[jid] = id
 			} else if winner, err := firstToSync(repo, id, other); err != nil {
@@ -139,42 +139,42 @@ func (ix *Index) waiting(jiraId, key string) string {
 		key, o.Created.UTC().Format("2006-01-02"), o.From.Human())
 }
 
-// firstToSync is the winner of two issues naming one Jira id:
-// the one whose first contact with Jira is earliest, on Jira's clock;
-// at one second an export before an import,
-// since its POST is what the import read;
-// then the lower entity id.
-// Every input is an immutable fact of the issue's own history,
-// so every clone holding both agrees, whatever either has archived.
-func firstToSync(repo *cache.RepoCache, a, b entity.Id) (entity.Id, error) {
-	fa, err := firstSyncOf(repo, a)
-	if err != nil {
-		return "", err
-	}
-	fb, err := firstSyncOf(repo, b)
-	if err != nil {
-		return "", err
-	}
-	switch {
-	case fa.at.Equal(fb.at) && fa.export == fb.export:
-		return min(a, b), nil
-	case fa.at.Equal(fb.at):
-		if fa.export {
-			return a, nil
-		}
-		return b, nil
-	case fb.at.IsZero() || !fa.at.IsZero() && fa.at.Before(fb.at):
-		return a, nil
-	}
-	return b, nil
+// Namespace is the alias namespace the sync writes Jira keys in:
+// the <name> of MetaAlias.
+const Namespace = "jira"
+
+// Register gives the store Jira's ordering hook, so that a Jira key names
+// the copy consolidation keeps (doc/design/cli.md, "The copy that reached
+// the system first is canonical"). Whatever opens a store for a command
+// calls it; the sync's own consolidation passes Reach itself.
+func Register(repo *cache.RepoCache) {
+	repo.Issues().SetReach(Namespace, Reach)
 }
 
-func firstSyncOf(repo *cache.RepoCache, id entity.Id) (contact, error) {
-	ic, err := repo.Issues().Resolve(id)
-	if err != nil {
-		return contact{}, err
+// Reach is Jira's ordering hook: a copy's first contact with Jira, on
+// Jira's clock, to the second, an export's attempt ranked before an import's
+// read at one second, since its POST is what the read saw; false when the
+// copy has never reached Jira
+// (doc/design/jira.md, "Consolidation keeps the copy that reached Jira first").
+// Every input is an immutable fact of the copy's own history,
+// so every clone holding the copies agrees, whatever any has archived.
+func Reach(snap *issue.Snapshot) (cache.Reach, bool) {
+	first := firstSync(snap)
+	if first.at.IsZero() {
+		return cache.Reach{}, false
 	}
-	return firstSync(ic.Snapshot()), nil
+	jid, _ := snap.GetCreateMetadata(MetaId)
+	rank := 1
+	if first.export {
+		rank = 0
+	}
+	return cache.Reach{Issue: jid, At: first.at, Rank: rank}, true
+}
+
+// firstToSync is the winner of two issues naming one Jira id: the store's
+// rule over Reach, which breaks a tie by the lower entity id.
+func firstToSync(repo *cache.RepoCache, a, b entity.Id) (entity.Id, error) {
+	return repo.Issues().FirstReached(Reach, []entity.Id{a, b})
 }
 
 // contact is an issue's first contact with Jira:

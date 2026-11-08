@@ -129,23 +129,26 @@ func (e *IssueExcerpt) Aliases() map[string]string {
 	return aliases
 }
 
-// Consolidated reports whether the Jira sync consolidated this copy into
-// another (ConsolidatedIntoMetadata).
-func (e *IssueExcerpt) Consolidated() bool {
-	return e.CreateMetadata[ConsolidatedIntoMetadata] != ""
-}
-
 // HasAlias reports whether any of the issue's aliases is that external id.
 func (e *IssueExcerpt) HasAlias(alias string) bool {
+	_, ok := e.aliasNamespace(alias)
+	return ok
+}
+
+// aliasNamespace is the namespace the issue carries that external id in,
+// the lowest of them if more than one.
+func (e *IssueExcerpt) aliasNamespace(alias string) (string, bool) {
 	if alias == "" {
-		return false
+		return "", false
 	}
+	found, ok := "", false
 	for key, value := range e.CreateMetadata {
-		if strings.HasPrefix(key, AliasMetadataPrefix) && value == alias {
-			return true
+		name, is := strings.CutPrefix(key, AliasMetadataPrefix)
+		if is && value == alias && (!ok || name < found) {
+			found, ok = name, true
 		}
 	}
-	return false
+	return found, ok
 }
 
 // FieldString returns a field decoded as a string, and whether it is one.
