@@ -477,7 +477,8 @@ func TestIssueList(t *testing.T) {
 	require.Error(t, runIssueList(env, issueListOptions{format: "json"}, []string{`map(`}))
 }
 
-// TestIssueListForms runs both list forms from argv (2026-10-08):
+// TestIssueListForms runs both list forms from argv (doc/design/cli.md, "The bare noun
+// is the human form of list"):
 // `issue list` is the plumbing, JSON by default,
 // the bare `issue` is its human form, text by default,
 // and they take the same program and the same flags.

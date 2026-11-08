@@ -48,8 +48,8 @@ func run(stack *root, spelling string) tea.Msg {
 }
 
 // TestHelpIsTheKeymap: one table, generated from the keymap, each action
-// with its keys and its letter on the palette; vim's letters are gone, and a
-// stray key keeps it open (doc/design/tui.md, "The help is the keymap";
+// with its keys and its letter on the palette; vim's letters are not in it,
+// and a stray key keeps it open (doc/design/tui.md, "The help is the keymap";
 // doc/design/tui.md, "One keymap").
 func TestHelpIsTheKeymap(t *testing.T) {
 	repo := testRepo(t)
@@ -90,8 +90,8 @@ func TestHelpIsTheKeymap(t *testing.T) {
 	require.Nil(t, page.help)
 }
 
-// TestVimLettersAreText: hjkl, g, G, y, p and q no longer move, copy, paste
-// or quit; on a list a letter starts the filter with itself
+// TestVimLettersAreText: hjkl, g, G, y, p and q do not move, copy, paste or
+// quit; on a list a letter starts the filter with itself
 // (doc/design/tui.md, "One keymap"; doc/design/tui.md, "Typing filters").
 func TestVimLettersAreText(t *testing.T) {
 	repo := testRepo(t)
@@ -157,7 +157,7 @@ func TestEscOpensThePalette(t *testing.T) {
 	require.True(t, strings.HasPrefix(lines[0], "list"), "the page is still drawn above it")
 	// the call in full: the kind once, in the breadcrumb, then each
 	// argument a line, and the query a section of its own, unfolded as the
-	// pipeline it is (2026-10-30)
+	// pipeline it is (doc/design/tui.md, "Where you are")
 	require.Equal(t, 1, strings.Count(drawn, "│ list "), "the kind is said once")
 	require.Contains(t, drawn, "│ group_by    status ", "each argument named in the left column")
 	require.Contains(t, drawn, "│ query       sort_by(.edit_time.lamport, .edit_time.timestamp)")
@@ -326,7 +326,8 @@ func TestAShowPagesCommands(t *testing.T) {
 }
 
 // TestThePaletteCutsALongQuery: a query longer than twelve lines shows its
-// first eleven and how many more there are (2026-10-30).
+// first eleven and how many more there are (doc/design/tui.md, "Where you
+// are").
 func TestThePaletteCutsALongQuery(t *testing.T) {
 	repo := testRepo(t)
 	newIssue(t, repo, map[string]any{"title": "one"})

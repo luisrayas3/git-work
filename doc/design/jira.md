@@ -839,7 +839,7 @@ and refusing such parents would leave the local copy silently disagreeing with J
 Operations replay whatever was written, and readers tolerate off-schema values,
 since every schema change creates some.
 Local writes keep both checks,
-so git-work still cannot create a Task with an Epic parent.
+so git-work cannot create a Task with an Epic parent.
 A key that is not a field of the issue's type, or a type the schema lacks,
 is shape, not policy: without the field there is no kind to fit.
 
@@ -1359,7 +1359,7 @@ and gives up an offset-paged read past 10000 items (a server ignoring `startAt`)
 
 `jira/jiratest.Server` is the single double
 for the client tests, discovery and the engine scenarios,
-instead of an in-memory client, a file-serving getter and recorded fixtures.
+so every one of them goes through the client's real requests.
 It imports nothing from `jiraapi`, so a wrong struct tag fails a test
 instead of agreeing with itself.
 It answers as the reference says Jira does.

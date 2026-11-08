@@ -254,7 +254,7 @@ so a decision that depends on the issue's current state
 (a three-way merge, say)
 is made on it and not on what was read before.
 `TestConcurrentWritersLoseOperations` shows the loss without it;
-`TestConcurrentCacheWritersKeepBothOperations`, that it is gone.
+`TestConcurrentCacheWritersKeepBothOperations`, that the lock and the re-read prevent it.
 
 Not a compare-and-swap ref update:
 `repository`'s `UpdateRef` is a bare set, and `entity/dag`'s commit path is git-bug's;

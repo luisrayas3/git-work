@@ -406,7 +406,7 @@ func (p *newPage) key(press tea.KeyPressMsg) (page, tea.Cmd) {
 // down is within a stop first, and to the next stop at its edge, except
 // that the description box is a stop of Tab and S-Tab alone, as show's
 // comment box is: no arrow enters it or leaves it, so Create, under it, is
-// reached by Tab (2026-10-08).
+// reached by Tab (doc/design/views.md, "The creator page").
 func (p *newPage) down(here position) tea.Cmd {
 	switch here.stop {
 	case stopHeader:
@@ -513,7 +513,8 @@ func (p *newPage) edit(here position) tea.Cmd {
 }
 
 // external is `esc e`: the description, on its box or in its text, written
-// in $EDITOR (external.go); anywhere else rings.
+// in git's editor (doc/design/views.md, "The external editor"); anywhere
+// else rings.
 func (p *newPage) external(here position) tea.Cmd {
 	if here.stop != stopBox {
 		p.status = "no text here"

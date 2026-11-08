@@ -12,14 +12,15 @@ import (
 // One keymap (doc/design/tui.md, "One keymap").
 //
 // The standard keys and emacs's ctrl and alt keys are read, and nothing
-// else: vim's single letters went, because a letter at the top level is
-// worth more as text, and typing on a list, a board or a gantt filters it.
+// else: not vim's single letters, because a letter at the top level is worth
+// more as text, and typing on a list, a board or a gantt filters it.
 // The keys a person needs with no menu are the ones every program has; every
 // other command is on the palette `esc` opens, under a letter (palette.go).
 //
 // A command's letter is also its alt key, by definition (doc/design/tui.md,
-// "`esc x` is `alt+x`"): a terminal sends alt+x as ESC then x, which is what
-// esc then x typed quickly sends, so the two are one key on every terminal.
+// "`esc` is the alt prefix"): a terminal sends alt and a letter as ESC then
+// the letter, which is what esc then the letter typed quickly sends, so the
+// two are one key on every terminal.
 // That is why the letters agree with emacs's alt keys wherever emacs has one:
 // w copies, v pages up, < and > go to the first and the last.
 //
@@ -49,7 +50,7 @@ func newChord(what string, keys ...string) *chord {
 }
 
 // on gives the action a letter on the palette, and with it the alt key the
-// letter is (doc/design/tui.md, "`esc x` is `alt+x`"). A shifted letter is
+// letter is (doc/design/tui.md, "`esc` is the alt prefix"). A shifted letter is
 // also spelled with the modifier by a terminal that reports it rather than
 // the character — alt+shift+, for alt+< — so both spellings are bound.
 func (c *chord) on(letter string) *chord {
@@ -160,19 +161,19 @@ var keys = keymap{
 	// edits"): enter opens the issue under the cursor, or the one a link
 	// names, and sends a comment being typed; space edits the cell under the
 	// cursor, starts typing in the comment box, and on what has no cell — an
-	// id, a card, a bar — grabs. ctrl+enter and f2 are gone, because
-	// ctrl+enter is enter on every terminal without the kitty keyboard
-	// protocol, and a key that is one key here and another there is not a key
-	// the renderer reads (2026-09-28).
+	// id, a card, a bar — grabs. Not ctrl+enter, which is enter on every
+	// terminal without the kitty keyboard protocol: a key that is one key
+	// here and another there is not a key the renderer reads.
 	act:  newChord("open issue, follow link; typing: send comment", "enter"),
 	edit: newChord("edit cell (a link: change it); on the box: write", "space", " "),
 	// A newline in a comment: alt+enter is escape, enter, which every
 	// terminal sends; shift+enter only where the terminal tells it from enter.
 	newline: newChord("typing: newline in comment", "alt+enter", "shift+enter"),
-	// A box's text written in $EDITOR, git's: show's comment box and its
-	// description, new's description (external.go). alt+e is no textarea
-	// key, so it works from inside the text as well as on the box.
-	external: newChord("on a text box: write it in $EDITOR").on("e"),
+	// A box's text written in git's editor: show's comment box and its
+	// description, new's description (doc/design/views.md, "The external
+	// editor"). alt+e is no textarea key, so it works from inside the text
+	// as well as on the box.
+	external: newChord("on a text box: write it in the editor").on("e"),
 
 	// Copy and paste are the terminal's first: cmd+c and ctrl+shift+c copy
 	// what the mouse selected, and cmd+v and ctrl+shift+v paste, arriving as
@@ -182,7 +183,7 @@ var keys = keymap{
 	copy:   newChord("copy cell", "ctrl+c", "super+c", "ctrl+shift+c", "super+shift+c").on("w"),
 	copyId: newChord("copy id").on("c"),
 	// A paste key that reaches the program asks the terminal for its
-	// clipboard over OSC 52. ctrl+v stays emacs's page down: a standard
+	// clipboard over OSC 52. ctrl+v is emacs's page down: a standard
 	// user's ctrl+v is the terminal's paste, or ^V, and never a paste here.
 	paste: newChord("paste into field", "super+v", "ctrl+shift+v", "super+shift+v", "ctrl+y").
 		show("terminal paste", "ctrl+y"),
@@ -192,8 +193,9 @@ var keys = keymap{
 	filter: newChord("filter (or type)", "/", "ctrl+s").on("f"),
 	grab:   newChord("on id, card, bar: grab / drop (move it)", "space", " "),
 	// One nested row is folded with space on its arrow, the cell after its
-	// id; the whole tree at once is a palette command, `Z` being text now
-	// (doc/design/tui.md, "A letter means one thing on every page"). Tab and
+	// id; the whole tree at once is a palette command, a letter on a page
+	// being text (doc/design/tui.md, "A letter means one thing on every
+	// page"). Tab and
 	// shift-tab, the next and previous stop, are into the first child and up
 	// to the parent.
 	foldAll: newChord("fold / unfold every row (nested)").on("z"),
@@ -209,7 +211,7 @@ var keys = keymap{
 	link:   newChord("show: link to an issue").on("l"),
 	unlink: newChord("show: unlink an issue").on("u"),
 	// Delete is final and replicated, so it is a chord, never one stray
-	// key, and asks nothing first: there is no confirmation yet
+	// key, and asks nothing first: there is no confirmation in the renderer
 	// (doc/design/tui.md, "Deleting a comment").
 	deleteComment: newChord("show: delete the comment under the cursor (comments tab)").on("d"),
 	// The query is edited in the palette and the page drawn again from it;
@@ -229,8 +231,8 @@ var keys = keymap{
 	runFlow: newChord("run a flow").on("r"),
 	help:    newChord("help", "?").on("?"),
 	// g closes the palette and does nothing else, as emacs's C-g quits what
-	// is half typed; esc g typed quickly is alt+g, which is so nothing on a
-	// page.
+	// is half typed; esc g typed quickly is alt+g, which nothing on a page
+	// binds (doc/design/tui.md, "Keys on the palette").
 	closePalette: newChord("close the palette").on("g"),
 	// esc opens the palette, and a second esc is back: out of a filter, out
 	// of an issue, and from the first page out of the program

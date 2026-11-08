@@ -122,7 +122,7 @@ func editable(repo *cache.RepoCache, issueId, typeKey, fieldKey string, current 
 			return nil, "", err
 		}
 		// the picker opens on the current value: going to it is enter on
-		// the cell, and never a choice here (2026-10-02)
+		// the cell, and never a choice here (doc/design/tui.md, "The finder")
 		return &editor{issueId: issueId, key: fieldKey, kind: kind, picker: finder}, "", nil
 
 	case schema.KindMultiRelation:

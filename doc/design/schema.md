@@ -29,7 +29,7 @@ that reaches them only through `git work schema import`,
 and nothing reads the tree at run time,
 so a checkout can never disagree with the store.
 
-Review still happens on a file:
+Review happens on a file:
 `schema export`, edit, `schema import`.
 
 Not one blob holding the whole document:

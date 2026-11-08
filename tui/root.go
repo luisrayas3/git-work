@@ -99,8 +99,8 @@ func (r *root) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyPressMsg:
 		// ctrl+q is the program's, always: grabbed, in a text field, in a
 		// picker. Anything that can swallow it can strand the user. It is not
-		// ctrl+c, which copies (doc/design/tui.md, "`ctrl+q` quits, `ctrl+c`
-		// copies").
+		// ctrl+c, which copies (doc/design/tui.md, "The quit is read
+		// first").
 		if msg.String() == "ctrl+q" {
 			return r, tea.Quit
 		}

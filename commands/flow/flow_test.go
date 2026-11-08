@@ -314,7 +314,8 @@ func TestFlowListText(t *testing.T) {
 	require.JSONEq(t, `[]`, other.Out.String())
 }
 
-// TestFlowListForms runs both list forms from argv (2026-10-08):
+// TestFlowListForms runs both list forms from argv (doc/design/cli.md, "The bare noun
+// is the human form of list"):
 // `flow list` is the plumbing, JSON by default,
 // and the bare `flow` its human form, text by default.
 func TestFlowListForms(t *testing.T) {

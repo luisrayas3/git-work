@@ -20,8 +20,7 @@ and behind any flow that calls `work.view.*`,
 both reaching it through `host.View`.
 It is not a surface with a command of its own:
 a view is the command.
-It is the one backend;
-there is no GUI, and no `--gui`.
+It is the one backend.
 
 `git work termui`, git-bug's gocui interface,
 is one of the frozen legacy packages and is not this renderer.
@@ -96,49 +95,35 @@ Every other command is on [the palette](#the-palette), under a letter.
 
 ### One keymap
 
-The standard keys and emacs's `ctrl` and `alt` keys are read, and nothing else:
-
-| Action | Keys |
-| --- | --- |
-| up, down | `↑` `↓`, `ctrl+p` `ctrl+n` |
-| left, right (column, tab) | `←` `→`, `ctrl+b` `ctrl+f` |
-| page up, page down | `pgup` `pgdown`, `alt+v` `ctrl+v` |
-| first, last | `home` `end`, `alt+<` `alt+>` |
-| next, previous tab | `ctrl+pgdown` `ctrl+pgup` |
-| filter | `/`, `ctrl+s`, or any character typed |
-| back | `esc`, `ctrl+g` |
-| quit now | `ctrl+q` |
-
-Emacs's keys stay because they never collide with typed text.
-vim's single letters (`hjkl`, `g`, `G`, `y`, `p`, `q`, `gt`) are not read,
-nor its `ctrl+u` and `ctrl+d`,
-because a letter at the top level is worth more as text.
+Every key the renderer reads is in one keymap, `tui/keys.go`,
+and [the help](#the-help-is-the-keymap) is drawn from it.
+The standard keys and emacs's `ctrl` and `alt` keys are read, and nothing else.
+Emacs's keys are read because they never collide with typed text.
+vim's single letters are not,
+because a letter at the top level is worth more as text
+([Typing filters](#typing-filters)).
 Not three families with a tab each in the help:
 three spellings of every key read as noise to all three,
 and vim's letters are the ones typing uses.
 
-### `esc x` is `alt+x`
+### `esc` is the alt prefix
 
-A terminal sends `alt+x` as `ESC x`,
-which is also what `esc` then `x` typed quickly sends.
+A terminal sends `alt` and a letter as `ESC` then the letter,
+which is also what `esc` then that letter typed quickly sends.
 So the two are one key, by definition, on every terminal:
-`alt+s` is search, as `esc s` is,
-and the palette's letters agree with emacs's `alt` keys wherever emacs has one,
-being the same keys.
-In a text the same holds:
-no palette command from a text has a letter the textarea binds under `alt`
-(`alt+f`, `alt+b`, `alt+d`, `alt+c`, `alt+l`, `alt+u`),
-so `alt+e` in the text is `esc e`,
-and the other `alt` letters stay the textarea's word keys
+`esc` then a letter is `alt` and that letter,
+and a palette letter that emacs gives an `alt` key means what emacs means by it,
+being the same key.
+In a text the same holds,
+since no text command's letter is one of the textarea's own `alt` keys
 ([The palette over a text](#the-palette-over-a-text)).
-Bubble Tea v2 already asks every terminal for the kitty protocol's disambiguation,
+Bubble Tea v2 asks every terminal for the kitty protocol's disambiguation,
 which removes the wait after a lone `ESC` and tells `shift+enter` from `enter`;
 no key means something different because of it.
 
 ### Typing filters
 
 A printable key on a list, a board or a gantt starts the filter with that character.
-`/` starts it empty, and `?` is the help; neither starts a filter.
 `enter` keeps the narrowing, `esc` drops it,
 and typing over a kept filter adds to it.
 The filter narrows what is drawn, locally:
@@ -169,15 +154,14 @@ Not `F2` either: a function key is not where a hand is.
 Every action is the direction keys, `enter` and `space`,
 which every terminal has had since the VT100.
 
-### `ctrl+q` quits, `ctrl+c` copies
+### The quit is read first
 
-`ctrl+q` quits at once, from anywhere:
+The quit key quits at once, from anywhere:
 grabbed, in a text box, in a picker, on the palette.
 The stack reads it before any page does,
 because anything that can swallow the quit can strand the user.
-`ctrl+c` copies:
-in a raw-mode terminal it is a keystroke, not a signal,
-and it is the key a standard user copies with.
+It is not the copy key
+([Copy and paste are the terminal's first](#copy-and-paste-are-the-terminals-first)).
 
 ### Back is two presses
 
@@ -191,9 +175,9 @@ and the second leaves the text, its draft kept
 ([The palette over a text](#the-palette-over-a-text)).
 `esc esc` typed quickly arrives as `alt+esc`, and is back too.
 So one stray `esc` cannot end a session,
-and the place it lands instead is the palette,
+and the place it lands is the palette,
 which is a place worth standing on.
-A page holding a draft says *back again drops draft* on the first back.
+A page holding a draft warns on the first back that a second drops it.
 
 While a page is editing a one-line input (a title, a picker's filter,
 a list's filter, the query editor), filtering, grabbed or showing the help,
@@ -203,15 +187,16 @@ a list's filter, the query editor), filtering, grabbed or showing the help,
 
 `?` lists every action,
 one row each: its keys, its `alt` key, its letter on the palette, and what it does,
-under dim column headers that say which is which (*keys*, *alt*, *palette*, *action*).
+under dim column headers that say which is which.
 It is generated from the keymap in `tui/keys.go`,
 so it cannot fall out of date.
-It has the bottom line every page has, reading *esc: close*,
+It has the bottom line every page has, naming the key that closes it,
 and no line of its own explaining the table:
 a sentence there would read as a hint,
 and `esc` closes the help on its first press, so a hint past it would never be read
 ([Key hints are on the bottom line only](#key-hints-are-on-the-bottom-line-only)).
-Where the window is too short for the table, the table is cut and the bottom line stays.
+Where the window is too short for the table, the table is cut and the bottom line is kept,
+being the way out.
 
 ### What has nothing to do rings
 
@@ -227,12 +212,12 @@ does the same, and nothing on screen moves.
 
 The palette is a bordered box in the middle of the page,
 at most 80 columns inside and shrinking to the window,
-with the page still drawn around it
+with the page drawn around it
 and the palette's own status line under both.
 Not a panel at the foot:
-there it read as the page's last lines changing,
+there it would read as the page's last lines changing,
 not as a menu opened over the page,
-and it hid the rows nearest the status line,
+and it would hide the rows nearest the status line,
 where the eye already is.
 The search, the flow picker and the query editor are drawn in the same box.
 
@@ -263,49 +248,22 @@ over a text, the text's alone ([The palette over a text](#the-palette-over-a-tex
 Each command is drawn with its letter,
 and a letter means one thing on every page,
 so the menu teaches the keys it lists.
-
-| Letter | Command | Where |
-| --- | --- | --- |
-| `f` | filter | list, board, gantt, matrix, a show's side table |
-| `z` | fold all, or unfold all | a nested list or gantt |
-| `Z` | open every row, leaves too | a nested list or gantt |
-| `w` | copy the cell | list, matrix, show, new |
-| `c` | copy the id; on a matrix, the command | list, board, gantt, matrix, show |
-| `e` | write the text in `$EDITOR` | show's comment box and description, new's description, on the box or in its text |
-| `x` | change what is expanded | show |
-| `l` `u` | link, unlink | show |
-| `d` | delete the comment under the cursor | show's comments tab |
-| `j` | edit the query | every kind that takes one |
-| `J` | reset the query | once it was edited |
-| `s` | search | everywhere |
-| `n` | new issue | everywhere |
-| `h` | home | everywhere |
-| `r` | run a flow | everywhere |
-| `?` | help | everywhere |
-| `q` | quit | everywhere |
-| `g` | close the palette | everywhere |
-
-The letters emacs gives `alt` keep emacs's meaning
-(`w` copies, `v` pages up, `<` and `>` go to the first and the last);
-the rest take letters emacs leaves free.
-`v`, `<` and `>` are not listed, since page up, home and end are core keys,
-but they work all the same, being `alt` keys.
-A shifted letter is the further step of its own:
-`Z` opens further than `z`, `J` undoes `j`.
-`z` and `Z` have no key on the page, where they are text.
+Which letter a command has is the keymap's, in `tui/keys.go`,
+and the help lists them all;
+a letter's `alt` key is the same command ([`esc` is the alt prefix](#esc-is-the-alt-prefix)).
 On macOS `alt` reaches the program only when the terminal sends Option as Meta;
 the palette works either way.
 
 ### Keys on the palette
 
-A letter on the palette is handed to the page as `alt+letter`,
-so `esc w` typed slowly and typed quickly are one code path.
+A letter on the palette is handed to the page as `alt` and the letter,
+so `esc` then a letter typed slowly and typed quickly are one code path.
 A printable key that is no command rings and leaves the palette open.
 A direction, `enter` or `tab` only closes it;
 any other key closes it and then means what it means on the page.
-`g` closes it and does nothing else, as emacs's `C-g` quits what is half typed;
-`esc g` typed quickly is `alt+g`, which nothing on a page binds.
-On a page's palette, `ctrl+c` copies the top page's call as the shell command that draws it,
+One letter closes it and does nothing else, as emacs's `C-g` quits what is half typed,
+and nothing on a page binds that letter's `alt` key.
+On a page's palette, the copy key copies the top page's call as the shell command that draws it,
 `git work view KIND '{…}'`,
 so the command behind the screen is one keystroke from the shell
 (over a text it rings: [The palette over a text](#the-palette-over-a-text)).
@@ -315,36 +273,34 @@ so the command behind the screen is one keystroke from the shell
 In a text, the three boxes whose keys are text
 (show's comment box, show's description editor, new's description box),
 `esc` opens the palette over the text,
-and the text stays focused underneath, its draft as it was.
+and the text is focused underneath, its draft as it was.
 A second `esc` leaves the text, keeping the draft:
 `space` goes back in,
-and leaving the page with a draft still asks for a second `esc`.
+and leaving the page with a draft asks for a second `esc`.
 So `esc` means the same in the text and outside it,
 one press the palette, two back,
 and `esc esc` typed quickly, `alt+esc`, leaves the text too.
 
 From a text the palette offers only the text's commands,
-in a section of its own, *this text*:
-today `e`, writing the text in `$EDITOR`,
-and `g`, which closes the palette and returns to the text.
+in a section of its own,
+writing the text in [the external editor](views.md#the-external-editor),
+and the letter that closes the palette and returns to the text.
 Any other letter rings, the palette open,
-and so does `ctrl+c`: copying the page's command is a page command.
+and so does the copy key: copying the page's command is a page command.
 Not the full palette:
 a page command from a text would first have to leave the text,
 a second thing for one key to do.
-Its status line reads *esc: leave text*, and names no `ctrl+c`.
+Its bottom line says that the second `esc` leaves the text, and offers no copy.
 
 A text command's letter is never one of the textarea's `alt` keys,
 and a test checks every one against the textarea's key map,
-so `alt+<letter>` and `esc <letter>` are one key in the text as everywhere:
-`alt+e` in the text is the editor,
-and the other `alt` letters are the textarea's word keys.
+so its `alt` key and `esc` then its letter are one key in the text as everywhere,
+and the textarea's own `alt` keys are its word keys.
 
 ### Editing the query
 
-`j` makes the palette's query section a text box, the query formatted in it.
+Editing the query makes the palette's query section a text box, the query formatted in it.
 `enter` draws the page again from its call with that query in place,
-`alt+enter` is a newline,
 and `esc` leaves it as it was.
 An empty query is the default.
 A query that does not parse, or that the page refuses,
@@ -356,22 +312,22 @@ the call is the page,
 so a page with another query is another page,
 and its cursor, folds and filter start over.
 The stack keeps the call the page was opened with, by place,
-so `J` puts it back on every kind without the kind knowing,
-and a flow waiting on the page still gets its answer when it leaves.
-Only the top-level `query` is edited; a layer's is still the call's.
+so resetting the query puts it back on every kind without the kind knowing,
+and a flow waiting on the page gets its answer when it leaves.
+Only the top-level `query` is edited; a layer's is the call's.
 
 ### Linking from the palette
 
 On a show page,
-`l` picks a link relation by typing (`blo` is `blocks`),
+the palette's link picks a link relation by typing (`blo` is `blocks`),
 then its target in [the finder](#the-finder);
-`u` picks one of the issue's links to remove,
+its unlink picks one of the issue's links to remove,
 one choice per link, the issue drawn and its relation dim beside it.
-`l` is the `links` row's picker reached from anywhere on the page,
+Link is the `links` row's picker reached from anywhere on the page,
 not a second link path,
 so it offers the link relations only, stored and inverse,
 and choosing an issue already linked removes it, as on the row;
-every other relation already has its own way in
+every other relation has its own way in
 (see [views](views.md) for the `links` row).
 
 Inverses are offered:
@@ -384,28 +340,27 @@ and the status line names the issue written.
 
 ### Changing what is expanded
 
-`x` on a show page is a picker that toggles
-(`x`, so that `e` is the text's edit in `$EDITOR`, [views](views.md#the-comment-box)):
+On a show page the palette has a picker that toggles
 the type's relations, stored and inverse, then `links`,
-the ones the page's spec expands marked `● expanded`.
+the ones the page's spec expands marked as expanded.
 `enter` toggles the one under the cursor and the page is redrawn at once,
-the picker staying open, so several are toggled in one go.
+the picker open, so several are toggled in one go.
 The spec the page was drawn by becomes the call's `shows[type]`, whole,
 with the relation taken out of `expand` or added at its end,
-so the first line still spells the call that drew the page
-and `ctrl+c` on the palette copies it.
+so the first line spells the call that drew the page
+and copying from the palette copies it.
 Nothing is written, not the store and not the schema:
 the changed `shows` is the page's, carried to the pages it opens,
 and going back is going back to the spec the page under it had.
 
 ### Deleting a comment
 
-On show's comments tab, `esc d` deletes the comment under the cursor.
+On show's comments tab, the palette deletes the comment under the cursor.
 A delete is final and replicated
 ([issue](issue.md)),
 so it is a chord, never one stray key;
 it asks nothing first, there being no confirmation in the renderer.
-The log tab draws the operation as *deleted comment*.
+The log tab draws the operation as a deleted comment.
 
 ## Pickers
 
@@ -425,7 +380,7 @@ the dim text beside it, and the start of the value;
 a person matches on name, login and email, the login not drawn.
 
 A paste that names a choice outright (a value, a label, a person)
-puts the cursor on it with the text left empty, so `esc` still cancels;
+puts the cursor on it with the text left empty, so `esc` cancels;
 any other paste is typed in, and refused if it keeps nothing.
 
 ### The finder
@@ -449,14 +404,14 @@ and ends in *(none)*, which clears.
 
 ### The search
 
-`s` opens the finder over every issue, in the palette's box,
+The palette's search opens the finder over every issue, in the palette's box,
 as tall with one match as with many so it does not move under the text.
 `enter` pushes the issue's show,
 opened by the page's own `shows` as `enter` on one of its rows would;
 its first `esc` clears, its second closes it with nothing pushed.
-`r` is the same box over the stored flows, and runs the one chosen,
+Running a flow is the same box over the stored flows, and runs the one chosen,
 its page over this one.
-`h` goes back down the stack to the home page,
+Home goes back down the stack to the home page,
 or runs the home flow over this page where the stack has none.
 
 ## Cells
@@ -509,14 +464,14 @@ and copy copies the id.
 
 ### Copy and paste are the terminal's first
 
-`cmd+c` and `cmd+v`, `ctrl+shift+c` and `ctrl+shift+v`,
-are the terminal's own copy and paste, and stay its own:
+The terminal's own copy and paste keys are its own:
 the renderer defines none of the keys a terminal already means something by.
-Where a terminal hands one over instead of keeping it,
+Where a terminal hands one over rather than keeping it,
 it means the same thing here.
-`ctrl+c` is the copy key the renderer does define, because no terminal keeps it,
+The copy key the renderer does define is the one a standard user copies with
+that no terminal keeps, a raw-mode terminal sending it as a keystroke, not a signal,
 and it copies the cell under the cursor;
-`esc c` copies the issue's id from any column.
+the palette copies the issue's id from any column.
 The cursor starts on the id, so copying on arrival copies the id.
 
 A copy goes out over OSC 52,
@@ -531,10 +486,10 @@ The message names the short id, since a hash right-aligned is a hash with its he
 A paste arrives as a bracketed paste
 and opens the editor on the field under the cursor with the text in it,
 so `enter` writes it and nothing is written by a paste alone.
-`ctrl+y`, and a paste key the terminal hands over,
-ask the terminal for its clipboard over OSC 52, which it may refuse.
-`ctrl+v` stays emacs's page down:
-a standard user's `ctrl+v` is the terminal's paste and never reaches the program.
+A paste key that reaches the program
+asks the terminal for its clipboard over OSC 52, which it may refuse.
+A standard user's paste key is the terminal's and never reaches the program,
+so emacs's `ctrl` keys keep their meaning.
 
 ### The cursor's row
 
@@ -575,12 +530,12 @@ No box, picker, editor or overlay draws its own keys:
 they are on the bottom line's left, and nowhere else.
 Not a footer under the widget as well:
 two copies of one list drift
-(a footer saying *enter saves* over a line saying *enter: write*),
+(a footer naming a key's action in one word over a line naming it in another),
 and the bottom line is the copy every state already has.
 So an editor draws the field's name and its input or choices,
 and its keys are `editor.hints` on the line;
 the search, flow and query boxes draw theirs the same way (`withBox`, `tui/palette.go`);
-the tab strip draws no `←→`;
+a tab strip draws only its tabs;
 and the help's own keys are its bottom line ([The help is the keymap](#the-help-is-the-keymap)).
 The palette's letters are its content, not hints,
 and a placeholder's words (*type to narrow*) name no key.

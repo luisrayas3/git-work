@@ -288,8 +288,8 @@ func TestConfigPushPull(t *testing.T) {
 	require.NoError(t, cacheA.Pull("origin"))
 
 	// Both sides now hold both values, and both say so from the cache: B's
-	// merge diverged, which is the path where the merge used to leave a stale
-	// excerpt behind (see SubCache.MergeAll).
+	// merge diverged, which is the path where a merge that did not rebuild
+	// the excerpt would leave a stale one behind (see SubCache.MergeAll).
 	for _, c := range []*RepoCache{cacheA, cacheB} {
 		merged, err := c.Schema().Current(config.ShapeField, "task/status")
 		require.NoError(t, err)

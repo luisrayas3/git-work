@@ -40,7 +40,8 @@ func TestUserMeIsTheRowUserPrints(t *testing.T) {
 	require.True(t, strings.HasPrefix(strings.TrimSpace(env.Out.String()), "{"))
 }
 
-// TestUserListForms runs both list forms from argv (2026-10-08):
+// TestUserListForms runs both list forms from argv (doc/design/cli.md, "The bare noun
+// is the human form of list"):
 // `user list` is the plumbing, JSON by default,
 // and the bare `user` its human form, text by default.
 func TestUserListForms(t *testing.T) {

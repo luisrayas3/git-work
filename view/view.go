@@ -13,8 +13,8 @@
 // intermediate is printed out (decided 2026-09-24). A view reads the store
 // itself, draws, and returns what the user answered.
 //
-// What draws it is a Renderer, the terminal one (package `tui`, `84dfbde`), the
-// only surface since the GUI was dropped (2026-10-08, `938434e`).
+// What draws it is a Renderer, the terminal one (package `tui`), the only
+// surface (doc/design/tui.md, "There is no tui command").
 // There are no field roles on the schema: a flow's script names the fields it
 // means when it calls the view (`d56e6f1`, `f4bac00`).
 package view

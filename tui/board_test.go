@@ -487,10 +487,10 @@ func stackIds(p *boardPage, lane, col int) []string {
 }
 
 // TestBoardColumnWidthIsAnArgument: a column is 32 cells by default, wide
-// enough that a title reads as a title, so six statuses no longer fit the
-// 140-wide window that fit them at the old 20-cell minimum and the board
-// scrolls instead; `column_width` is how the narrower column is asked for,
-// and only a width somebody chose reaches the call line (10f676e).
+// enough that a title reads as a title, so six statuses do not fit a
+// 140-wide window and the board scrolls; `column_width` is how a narrower
+// column is asked for, and only a width somebody chose reaches the call line
+// (doc/design/views.md, "Column width").
 func TestBoardColumnWidthIsAnArgument(t *testing.T) {
 	repo := testRepo(t)
 	newIssue(t, repo, map[string]any{"title": "early", "status": "backlog"})

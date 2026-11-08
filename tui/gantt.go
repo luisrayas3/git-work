@@ -505,7 +505,8 @@ func (p *ganttPage) dates(b *bar) (start, stop time.Time) {
 // parent with none of its own, the envelope of everything under it; and
 // whether it has any.
 //
-// **A missing start is today** (2026-10-02, `04248c5`): a row with a stop
+// **A missing start is today** (doc/design/views.md, "A band begins at
+// today"): a row with a stop
 // and no start has not started and could start at any point from now on, so
 // what it covers is today to its stop — or, for a stop already past, the
 // stop to today — and the chart is sized to that rather than to the point

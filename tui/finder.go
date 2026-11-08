@@ -172,7 +172,8 @@ func (s *searchPanel) heading() string {
 }
 
 // withSearch draws the search as the palette is drawn, a box in the middle
-// of the page (2026-10-29). The box is as tall with one match as with many,
+// of the page (doc/design/tui.md, "The search"). The box is as tall with one
+// match as with many,
 // so that it does not move under the text as it is typed.
 func (r *root) withSearch(content string) string {
 	inner, room := r.boxRoom(content)

@@ -13,11 +13,11 @@ import (
 )
 
 // `esc e` writes a box's text in an external editor (doc/design/views.md,
-// "The comment box"): the draft goes to a temporary file, the screen is
+// "The external editor"): the draft goes to a temporary file, the screen is
 // suspended while the editor runs, and what the file holds when it exits
 // comes back into the box as the draft, the cursor in the text. Nothing is
-// sent or written on the way back: enter still does that, so an editor's
-// exit means one thing on every box.
+// sent or written on the way back: enter does that, so an editor's exit
+// means one thing on every box.
 
 // textTarget is the box a text written in the editor goes back to.
 type textTarget int

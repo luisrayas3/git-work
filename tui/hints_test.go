@@ -13,8 +13,8 @@ import (
 // the feature: a key the line promises is a key the page answers.
 
 // TestTheBottomLineHasTwoPlaces: the hints on the left and the last action's
-// message right-aligned, both at once, because the message used to take the
-// whole line and leave the keys to be guessed at.
+// message right-aligned, both at once, because a message taking the whole
+// line would leave the keys to be guessed at.
 func TestTheBottomLineHasTwoPlaces(t *testing.T) {
 	const keys = "enter: open · ? keys"
 
@@ -48,7 +48,7 @@ func TestAMessageLeavesTheHintsWhereTheyAre(t *testing.T) {
 	require.True(t, strings.HasPrefix(line, "enter: open · space: grab · ? keys"), line)
 	require.True(t, strings.HasSuffix(line, "copied "+id[:7]+" · 1 issue"), line)
 
-	// an ordinary key no longer clears it: only the next action does
+	// an ordinary key does not clear it: only the next action does
 	moved := send(copied, "right")
 	require.True(t, strings.HasSuffix(lastLine(plainView(moved)), "copied "+id[:7]+" · 1 issue"))
 	require.True(t, strings.HasPrefix(lastLine(plainView(moved)), "enter: open · space: edit · ? keys"))
@@ -339,9 +339,9 @@ func TestShowHintsNameWhatIsUnderTheCursor(t *testing.T) {
 }
 
 // TestKeyHintsAreOnTheBottomLineOnly: no box, picker, editor or overlay
-// draws its own keys; the bottom line is the one place they are, so two
-// copies that disagree ("saves" over "write") cannot happen again
-// (doc/design/tui.md, "Key hints are on the bottom line only").
+// draws its own keys; the bottom line is the one place they are, so there
+// are never two copies to disagree (doc/design/tui.md, "Key hints are on the
+// bottom line only").
 func TestKeyHintsAreOnTheBottomLineOnly(t *testing.T) {
 	repo := testRepo(t)
 	id := newIssue(t, repo, map[string]any{"title": "one", "status": "to-do"})

@@ -250,7 +250,8 @@ func (p *showPage) tableRows() []tableRow {
 		switch key {
 		case schema.TitleKey, schema.TypeKey, issue.ArchivedKey, schema.RankKey:
 			// rank is not drawn even where the call names it: it is an
-			// order the drags write, not a value anyone reads (2026-10-08)
+			// order the drags write, not a value anyone reads
+			// (doc/design/views.md, "The show page")
 			return nil
 		}
 		if isRelation(known.of(typeKey, key)) && len(p.order) == 0 && p.drawnBeside(key) {
@@ -868,7 +869,8 @@ func (p *showPage) edit(here position) tea.Cmd {
 }
 
 // external is `esc e`: the text of the box under the cursor, or the one the
-// cursor is in, written in $EDITOR (external.go). The description goes as
+// cursor is in, written in git's editor (doc/design/views.md, "The external
+// editor"). The description goes as
 // its editor's draft, or as the body the store has when no editor is open;
 // anywhere else rings.
 func (p *showPage) external(here position) tea.Cmd {

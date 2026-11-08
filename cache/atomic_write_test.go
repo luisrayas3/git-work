@@ -32,7 +32,8 @@ func TestCacheFileWrittenAtomically(t *testing.T) {
 	_, err = repo.LocalStorage().Stat(filepath.Join("cache", bug.Namespace+".new"))
 	require.True(t, os.IsNotExist(err), "temp cache file left behind")
 
-	// what a kill mid-write used to leave: a file that does not decode
+	// what a kill mid-write would leave without the rename: a file that does
+	// not decode
 	f, err := repo.LocalStorage().Create(filepath.Join("cache", bug.Namespace))
 	require.NoError(t, err)
 	_, err = f.Write([]byte("truncated"))

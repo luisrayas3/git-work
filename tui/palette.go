@@ -28,9 +28,8 @@ import (
 // quickly, which arrives as alt+w, are one key and one code path.
 //
 // A second `esc` is back: off the page, and from the first page out of the
-// program, so one stray `esc` still cannot end a session. That was the call
-// line's double press (doc/design/tui.md, "Back is two presses"), and the
-// call line is the palette's first section now.
+// program, so one stray `esc` cannot end a session (doc/design/tui.md, "Back
+// is two presses").
 //
 // In a text — show's comment box and description editor, new's description
 // box — `esc` opens the palette too, over the text, which stays focused
@@ -89,7 +88,7 @@ func (r *root) pageCommands() []paletteEntry {
 // A show page adds change what is expanded (x), link (l) and unlink (u)
 // (doc/design/tui.md, "Changing what is expanded"; doc/design/tui.md,
 // "Linking from the palette"; show_palette.go), and on a text box, show's
-// or new's, the editor (e; external.go).
+// or new's, the editor (e; doc/design/views.md, "The external editor").
 func pageCommands(p page) []paletteEntry {
 	filter := entry(keys.filter, "filter")
 	foldAll := entry(keys.foldAll, "fold all")
@@ -137,7 +136,8 @@ func pageCommands(p page) []paletteEntry {
 }
 
 // textCommands are the palette's commands from a text, before close: write
-// the text in $EDITOR (external.go). None of their letters is one of the
+// the text in git's editor (doc/design/views.md, "The external editor").
+// None of their letters is one of the
 // textarea's alt keys, so that `alt+<letter>` and `esc <letter>` are one key
 // in the text too (doc/design/tui.md, "The palette over a text").
 func textCommands() []paletteEntry {
@@ -231,7 +231,8 @@ func letter(press tea.KeyPressMsg) (string, bool) {
 	return "", false
 }
 
-// altOf is the key a letter is (doc/design/tui.md, "`esc x` is `alt+x`").
+// altOf is the key a letter is (doc/design/tui.md, "`esc` is the alt
+// prefix").
 func altOf(letter string) tea.KeyPressMsg {
 	return tea.KeyPressMsg{Code: []rune(letter)[0], Mod: tea.ModAlt}
 }
@@ -340,7 +341,8 @@ func section(name string, commands []paletteEntry, col, width int) []string {
 // paletteLines is the box's inside: where you are — the stack, whose last
 // step is the top page's kind and lead, then the rest of its call, one
 // argument a line, and its query in a section of its own — then this page's
-// commands and everywhere's, all of it width wide (2026-10-30). Every name,
+// commands and everywhere's, all of it width wide (doc/design/tui.md, "Where
+// you are"). Every name,
 // an argument's or a section's, is in the left column, and what it names
 // starts in the one column after it.
 func (r *root) paletteLines(width, room int) []string {
@@ -373,7 +375,7 @@ func (r *root) paletteLines(width, room int) []string {
 // callHead is the palette's first lines: the breadcrumb, then every argument
 // of the top page's call but its lead and its query, one a line, its name in
 // the left column and its value from col, as the query's is. The breadcrumb
-// ends in the kind and the lead, so they are not said again (2026-10-30). An
+// ends in the kind and the lead, so they are not said twice. An
 // argument too long for the box wraps rather than being cut: here is where
 // it is read in full.
 func (r *root) callHead(col, width int) []string {
@@ -405,7 +407,8 @@ func (r *root) labelWidth() int {
 
 // queryMaxLines is the most of a query the palette draws: enough for the
 // query a person typed, short of a flow's whole program, whose tail is
-// summed up as the lines left out (2026-10-30). The query editor holds all
+// summed up as the lines left out (doc/design/tui.md, "Where you are").
+// The query editor holds all
 // of it.
 const queryMaxLines = 12
 
@@ -452,9 +455,10 @@ const paletteWidth = 80
 var stylePalette = lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).Padding(0, 1)
 
 // withPalette draws the palette as a box in the middle of the page, over a
-// status line of its own (2026-10-29): the page stays in sight around it, so
+// status line of its own (doc/design/tui.md, "The palette is a box over the
+// page"): the page is in sight around it, so
 // the palette reads as a menu over the page, and not as the page's foot
-// changed under it.
+// changing under it.
 func (r *root) withPalette(content string) string {
 	inner, room := r.boxRoom(content)
 	return r.withBox(content, r.paletteLines(inner, room), paletteHints(inText(r.top())))

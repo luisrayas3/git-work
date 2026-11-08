@@ -110,8 +110,8 @@ func grabHints(moves ...hint) string {
 }
 
 // boxHints are the comment box's keys on show, in the status line, the one
-// place they are drawn: the footer under the text that repeated them is gone
-// (2026-10-08).
+// place they are drawn (doc/design/tui.md, "Key hints are on the bottom line
+// only").
 func boxHints(typing bool) []hint {
 	if typing {
 		return []hint{{"enter", "send"}, {"alt+enter", "newline"}, {"esc e", "editor"}, {"esc esc", "leave"}}

@@ -369,7 +369,8 @@ func TestNewFieldsNarrowTheRows(t *testing.T) {
 }
 
 // TestNewDescriptionBoxHasNoFooter: the box's keys are on the bottom line
-// alone, as on show, and rank is no row of the draft (2026-10-08).
+// alone, as on show, and rank is no row of the draft (doc/design/tui.md,
+// "Key hints are on the bottom line only").
 func TestNewDescriptionBoxHasNoFooter(t *testing.T) {
 	repo := testRepo(t)
 
@@ -386,7 +387,8 @@ func TestNewDescriptionBoxHasNoFooter(t *testing.T) {
 
 // TestNewArrowsNeverCrossTheBox: the description box is a stop of Tab and
 // S-Tab alone, as show's comment box is, so Create under it is reached by
-// Tab and every arrow at an edge against the box rings (2026-10-08).
+// Tab and every arrow at an edge against the box rings (doc/design/views.md,
+// "The creator page").
 func TestNewArrowsNeverCrossTheBox(t *testing.T) {
 	repo := testRepo(t)
 

@@ -41,10 +41,9 @@ so a query that forgot the filter would report every row twice.
 An issue named by id is that issue, archived or not:
 `issue get ID` and `issue log ID` take no switch,
 and no writer hides an archived issue.
-This is not a change to what `archive` means:
-it is still an ordinary, replicated field that `get` shows and `log` records.
+`archived` is an ordinary, replicated field that `get` shows and `log` records.
 
-A flow that still carries its own `select(.fields.archived != true)` keeps working:
+A flow may carry its own `select(.fields.archived != true)`:
 a select on a value that is never true is a no-op.
 
 ### The switch is `include_archive`
@@ -292,7 +291,7 @@ because how the view opens is the call's.
 
 A keyed row stands for a share of an issue, or for none,
 so writing the issue's `rank` would reorder every row standing for it.
-It is still grabbed and moved,
+It is grabbed and moved,
 but the drop writes nothing:
 the view instance records the scope's order by key,
 which holds across refreshes until the view is quit,

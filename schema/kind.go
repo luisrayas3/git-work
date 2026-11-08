@@ -79,7 +79,7 @@ func ParseKind(s string) (Kind, error) {
 	}
 	if Kind(s) == KindRank {
 		return "", fmt.Errorf("kind rank is the built-in rank's alone: the order every view draws "+
-			"and every drag writes is internal, so no other field takes it (2026-10-08); valid kinds: %s", KindList())
+			"and every drag writes is internal, so no other field takes it; valid kinds: %s", KindList())
 	}
 	return "", fmt.Errorf("unknown kind %q; valid kinds: %s", s, KindList())
 }

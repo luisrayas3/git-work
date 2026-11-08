@@ -26,7 +26,7 @@ func opensTheEditor(t *testing.T, p page, spelling string) page {
 
 // TestTheEditorIsGitsShellCommand: the editor is a shell command, as git's
 // is, so one with arguments runs, and the file is its one argument, quoted
-// by the shell (doc/design/views.md, "The comment box").
+// by the shell (doc/design/views.md, "The external editor").
 func TestTheEditorIsGitsShellCommand(t *testing.T) {
 	cmd := editorCommand("code --wait", "/tmp/a b.txt")
 	require.Equal(t, []string{"sh", "-c", `code --wait "$1"`, "sh", "/tmp/a b.txt"}, cmd.Args)

@@ -131,7 +131,7 @@ func TestShowHasThreeTabs(t *testing.T) {
 	page = send(page, "left").(*showPage)
 	require.Equal(t, tabLog, page.tab)
 
-	// ctrl+pgdown and ctrl+pgup switch too; vim's gt is gone
+	// ctrl+pgdown and ctrl+pgup switch too, and vim's gt is text
 	// (doc/design/tui.md, "One keymap")
 	page = send(page, "ctrl+pgdown").(*showPage)
 	require.Equal(t, tabDescription, page.tab)
@@ -206,7 +206,8 @@ func TestShowFieldsAreATable(t *testing.T) {
 
 	page = send(page, "down").(*showPage)
 	require.Equal(t, "priority", page.field())
-	// arrows never cross the box, either way: Tab and S-Tab do (2026-10-08)
+	// arrows never cross the box, either way: Tab and S-Tab do
+	// (doc/design/views.md, "The comment box")
 	page = rings(t, page, "down", "down from the last row rings").(*showPage)
 	require.Equal(t, stopFields, page.current().stop, "and stays on the row")
 	require.Equal(t, "priority", page.field())
@@ -326,7 +327,8 @@ func TestArchivedIsAHeaderCellThatFlips(t *testing.T) {
 }
 
 // TestShowOpensOnTheFields: the cursor is on the first row of the fields on
-// arrival, as every other view opens on a cell (2026-10-08); a page whose
+// arrival, as every other view opens on a cell (doc/design/views.md, "Show
+// opens on the fields"); a page whose
 // table has no rows opens on the box.
 func TestShowOpensOnTheFields(t *testing.T) {
 	repo := testRepo(t)

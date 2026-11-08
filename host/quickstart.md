@@ -300,13 +300,13 @@ and an `optional` one is off until it is named.
   at once, with no question, its text kept in the log tab.
 - `esc e` on show's comment box, its description tab, or new's description box,
   on the box or typing in it, writes the text in git's editor
-  (`GIT_EDITOR`, `core.editor`, `VISUAL`, `EDITOR`);
-  on exit the text is the box's draft, and `Enter` still sends or writes it.
+  (`GIT_EDITOR`, `core.editor`, `VISUAL`, `EDITOR`, then a common one on the `PATH`);
+  on exit the text is the box's draft, and `Enter` sends or writes it.
   Typing in one of those boxes, `Esc` opens the palette with only the text's commands
   (`e`, and `g` back to the text), and a second `Esc` leaves the text, keeping the draft.
 - On a list and a gantt a row the query makes may carry a top-level `key`,
   its identity on the screen, so one issue can be drawn twice;
-  its `id` stays the issue it acts on, and may be left out beside a key,
+  its `id` is the issue it acts on, and may be left out beside a key,
   where `fields.type` must name a type;
   and a top-level `children`, the ids or rows nested under it
   in place of what the layer's relation reads.
@@ -318,7 +318,7 @@ and an `optional` one is off until it is named.
   A row that could have children reads `▸ 0` and opens to an empty table;
   `esc z` folds or opens every parent, `esc Z` opens every row, leaves too.
 - `git work view new '{"draft":{…}}'` opens the creator on an `issue new` document,
-  every value still editable, and prints the id it creates;
+  every value editable, and prints the id it creates;
   in a list, a gantt or a board the dim `+ (new)` row at the foot of every group,
   and of every opened parent's child table, opens it prefilled with where it stands:
   the group's values, the type the rows share, and the parent —
@@ -338,7 +338,7 @@ typing (or `/`) filters a list, a board or a gantt, and `C-q` quits.
 `Esc` opens the palette: where you are, the whole call,
 and every command under a letter that is the same on every page
 (`w` copy cell, `c` copy id, `s` search, `n` new, `h` home, `r` run a flow, `q` quit, `g` close;
-`esc x` is `alt+x`);
+`esc` then a letter is `alt` and that letter);
 `esc j` edits the page's query and draws it again, and `esc J` puts back the one it was called with;
 a second `Esc` goes back, and quits from the first page.
 `esc s` finds any issue as `git work issue search` does, and `Enter` opens it.

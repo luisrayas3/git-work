@@ -313,7 +313,7 @@ every value an enum, ordinal enum or `multi-enum` lists, over the types on the b
 `false` and `true` for a bool;
 for a relation, the siblings of the lanes present ([below](#a-relations-empty-lanes-are-siblings));
 nothing for `text`, `number`, `date` and `identity`, which have no set of values to draw.
-`(none)` is still drawn only when a card has no value.
+`(none)` is drawn only when a card has no value.
 A lane carries the value it stands for as stored, the enum id or the issue's full id,
 so a drop into an empty lane, and its ghost, write it with no card to read it from.
 `type` as the `group_by` gets no empty lanes.
@@ -604,8 +604,8 @@ Not on the comment box, which would leave the cursor below what the page is open
 
 The box is **one stop, typed in once entered**.
 On it, `Space` puts the cursor in the text and `Enter` does nothing;
-in the text every key is text, `Enter` sends, `M-Enter` (or `S-Enter` where the terminal tells it) is a newline,
-`Esc` opens the palette over the text, which stays focused underneath,
+in the text every key is text, `Enter` sends, and a modified `Enter` is a newline,
+`Esc` opens the palette over the text, which is focused underneath,
 and a second `Esc` leaves the text keeping the draft.
 This is the page's own rule, one `Esc` the palette and two back, one level in,
 so `Esc` means the same in the text and outside it;
@@ -614,11 +614,11 @@ from a text the palette offers only the text's commands
 Not typing on arrival, because a page whose every letter is text has no keys of its own.
 Not `Enter` as newline, because once typing is entered with `Space`, `Enter` sending is what every chat box does.
 On the box the cursor washes it whole, every line, and marks it `›` as a row is, on its first line only;
-in the text the textarea's cursor is drawn instead, so on and in are two looks.
+in the text the textarea's cursor is drawn, so on and in are two looks.
 Not a `›` on every line: a marker repeated down the margin would read as a list, not as one place.
 The box always has a one-column gutter on its left, where that `›` is drawn,
 so its text is in the same column whether the cursor is elsewhere, on the box, or in its text.
-This holds wherever the box is drawn: show's comment box, the description editor, and the creator page's description box.
+This holds for every box a text is typed in on a page: show's comment box, the description editor, and the creator page's description box.
 Its keys are on the bottom line, as every cell's are.
 It opens two lines tall and grows with the text, its highlighted cursor line turned off.
 No arrow enters or leaves it: it is a stop of `Tab` and `S-Tab` alone,
@@ -626,24 +626,30 @@ because the row drawn beside the box is not where the person came from.
 There is no submit button: it would be a second way to do one thing.
 Going back with a draft asks for a second `Esc`, a draft being the one thing on the page the store does not have.
 
-`esc e` (`M-e`), on the box or in its text, writes the draft in an external editor.
+### The external editor
+
+From the palette, on a box or in its text, a text is written in an external editor:
+show's comment box, show's description, and new's description.
 The editor is git's, in git's order — `GIT_EDITOR`, `core.editor`, `VISUAL`, `EDITOR`, then the first common one on the `PATH` —
 because a tracker kept in git uses the editor git does.
-It is a shell command, as git's is, so one with arguments (`code --wait`) runs.
-The draft goes to a temporary `.md` file and the screen is suspended while the editor runs;
+It is a shell command, as git's is, run through `sh` with the file as its one argument,
+so one with arguments of its own (`code --wait`) runs, and a path with a space in it is one argument.
+The text goes to a temporary `.md` file and the screen is suspended while the editor runs;
 on its exit the file's text, less its trailing whitespace, is the draft, and the cursor is in the text.
-`Enter` still sends: not *saving sends*, because on new `Enter` accepts the draft rather than creating,
+Trailing whitespace is dropped because an editor ends a file with a newline the person never typed.
+Nothing is sent or written on the editor's exit: `Enter` sends or writes, as in the box.
+Not *saving sends*, because on new `Enter` accepts the draft rather than creating,
 so one exit would mean two things.
 The editor failing, or the file left as it was, leaves the draft as it was, a failure said in the status line.
-`M-e` is no textarea key, so it is read before the text gets it,
-and from the text `Esc` then `e` typed slowly is the palette's `e`, the same key.
-Anywhere on show or new but a text box it rings.
+Its letter is a text command, so it works from inside the text
+([the palette over a text](tui.md#the-palette-over-a-text)),
+and anywhere on show or new but a text box it rings.
 
 ### The tabs
 
 The tabs are drawn as tabs under the box.
 `←` and `→` switch them from everywhere but the header and the box's text,
-and `C-PgDn`/`C-PgUp` from everywhere, the box included.
+and the next and previous tab keys from everywhere, the box included.
 
 - **description**, the first and the one the page opens on, is the issue's first comment, wrapped to the window;
 - **comments** is every comment after it, in full, as it reads now;
@@ -659,16 +665,16 @@ They are two tabs, not one timeline, because reading a discussion and reading wh
 the comment box over the body's current text, with the box's keys,
 and `Enter` writes an edit of the first comment.
 An empty body is refused with the bell: the model has no issue without one.
-The editor stands where the text was read and stays, blurred, while it holds an unwritten draft;
+The editor stands where the text was read and is drawn there, blurred, while it holds an unwritten draft;
 `Esc` opens the palette over it, as in the box, and a second `Esc` leaves it;
 leaving the page with a draft asks for a second `Esc`, and an editor left untouched keeps nothing.
 Where the author and time stand over the description,
 a dim line over the editor says what it holds,
-*being rewritten* while the cursor is in it and *a draft, not written* after it is left,
+whether it is being rewritten or is a draft left unwritten,
 so a draft never reads as the description written.
 Its keys are on the bottom line, as the box's are
 ([key hints are on the bottom line only](tui.md#key-hints-are-on-the-bottom-line-only)).
-`esc e` on the tab or in its editor writes the text in the external editor, as on the comment box:
+The text is written in [the external editor](#the-external-editor) as on the comment box:
 the editor's draft, or the body the store has when none is open;
 on exit the editor is open on what came back, and `Enter` writes it.
 
@@ -742,7 +748,7 @@ The first that exists is used **whole**, never merged key by key,
 because a spec reads as one sentence,
 and a call that said `fields` and silently inherited the schema's `expand` would draw something it never said.
 The schema's default exists because search and a direct `git work view show` open pages no flow called.
-A schema spec that no longer reads falls to the built-in.
+A schema spec that does not read falls to the built-in.
 
 ### The type is the stored issue's
 
@@ -770,7 +776,7 @@ The schema's own `show` gets the same check at import.
 ### A defaulted spec is drawn dim
 
 A spec from the schema or the built-in is drawn dim on the first line, `shows.story={…}`,
-as a defaulted argument is, so the first line is still the call that drew the page.
+as a defaulted argument is, so the first line is the call that drew the page.
 
 ### Changing the spec from the page
 
@@ -834,8 +840,8 @@ Not `↑` from the first row to the header:
 under the fields, in the narrow drawing, it would jump over the whole fields table,
 and even side by side the header is not where the person came from.
 Not arrows that depend on the layout: the keys are the same both ways, the width alone deciding the layout.
-`Enter` on the fields' `links` row still moves into the link tables, not being an arrow, and `S-Tab` is the way back.
-`←` and `→` stay the tab keys, so no stop answers them two ways depending on the call.
+`Enter` on the fields' `links` row moves into the link tables, not being an arrow, and `S-Tab` is the way back.
+`←` and `→` switch the tabs from the side tables as from the fields, so no stop answers them two ways depending on the call.
 **A row is one issue, and the cursor is a row**:
 `Enter` opens it by the map, and `Esc` there comes back to the same row;
 `Space` grabs it to move within its table, the drop writing the child's rank, the order it has on every list too;
@@ -884,7 +890,7 @@ The fields table has show's editors and the `links` row over the draft's stored 
 offering no inverse, since the draft has no id to write into another issue.
 The description box is the comment box over the body; `Enter` accepts the text into the draft, and an empty one is allowed.
 `Esc` in it opens the palette over the text and a second leaves it, keeping the text, as in show's box.
-`esc e` writes it in the external editor as on show's box, what comes back being the draft's body; nothing is created on the editor's exit.
+It is written in [the external editor](#the-external-editor) as show's box is, what comes back being the draft's body; nothing is created on the editor's exit.
 Create is the only way to commit, and `Enter` elsewhere opens or does nothing, so nothing creates by accident.
 
 The page opens **on the title, typing**, when the type is set, and on the type cell when it is not:
@@ -1043,10 +1049,10 @@ The matrix draws no ghost.
 and the list it pushes carries the cell in its `draft`:
 each axis field with the cell's value (`(none)` left out, a multi-valued axis as a set of the one value),
 the block's `group_by` value,
-and the type every issue on the matrix shares, so an empty cell's list still knows it —
+and the type every issue on the matrix shares, so an empty cell's list knows it —
 never `value`, since the form invents no number.
 So a cell gets its next allocation through its list's ghost,
-and a blank cell stays the matrix's *nothing here*, one meaning under `Enter`, not two by its contents.
+and a blank cell is the matrix's *nothing here*, one meaning under `Enter`, not two by its contents.
 
 ## Deliberately absent
 
@@ -1056,5 +1062,5 @@ and a blank cell stays the matrix's *nothing here*, one meaning under `Enter`, n
 - **Storing links differently**, as one field of `{type, target}` pairs:
   every query would grow longer, and `blocks` would stop being a field a flow can name.
 - **The external editor on the command line.**
-  `issue comment new` stays plumbing, its body an argument or `-`:
+  `issue comment new` is plumbing, its body an argument or `-`:
   an agent calls it, and an editor prompt would block it.

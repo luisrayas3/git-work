@@ -162,7 +162,7 @@ func TestSideTableTabTraversal(t *testing.T) {
 	require.Equal(t, stopFields, page.current().stop)
 
 	// down past the last field rings: neither the side tables nor the box,
-	// which arrows never cross (2026-10-08)
+	// which arrows never cross (doc/design/views.md, "Side tables are a stop")
 	for range len(page.rows) - 1 {
 		send(page, "down")
 	}

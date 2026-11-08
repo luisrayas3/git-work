@@ -89,8 +89,8 @@ func TestIssueUnequalDivergence(t *testing.T) {
 
 // TestBugUnequalDivergence is the same fork on git-bug's own bug entity,
 // with git-bug's own cache calls, to show the defect is upstream's.
-// Push and Pull no longer carry refs/issues/* (6274f33),
-// so the bug namespace goes over the remote by hand.
+// Push and Pull do not carry refs/issues/* (doc/design/migration.md, "A
+// copy, not a move"), so the bug namespace goes over the remote by hand.
 func TestBugUnequalDivergence(t *testing.T) {
 	push := func(t *testing.T, repo repository.TestedRepo) {
 		_, err := repo.PushRefs("origin", "issues")

@@ -10,11 +10,12 @@ import (
 	"github.com/git-bug/git-bug/repository"
 )
 
-// TestCacheDetectsStaleExcerpts covers d591cb3. A cache file written before
-// someone else moved a ref — another process, or a fetch — used to be
-// indistinguishable from a current one, because nothing recorded what each
-// excerpt was built from. Now the ref hashes travel with the excerpts and the
-// difference decides what to read again.
+// TestCacheDetectsStaleExcerpts: a cache file written before someone else
+// moved a ref — another process, or a fetch — would be indistinguishable from
+// a current one if nothing recorded what each excerpt was built from. The ref
+// hashes travel with the excerpts, and the difference decides what to read
+// again (doc/design/store.md, "The cache records the hash behind each
+// excerpt").
 func TestCacheDetectsStaleExcerpts(t *testing.T) {
 	repo := repository.CreateGoGitTestRepo(t, false)
 

@@ -33,7 +33,8 @@ var milestoneTrail = []string{"▓", "▓", "▒", "▒", "░", "░"}
 // overdueTint is the band between a stop that has gone by and today, which
 // is the one thing on a chart worth a color of its own: red, outranking the
 // group's tint, because a date already missed is what the eye is looking
-// for and the group is readable from the row's neighbours (2026-10-02).
+// for and the group is readable from the row's neighbours
+// (doc/design/views.md, "An overdue stop").
 var overdueTint = lipgloss.Color("1")
 
 // cellStyle says which of a row's four ways to draw one cell is meant.
