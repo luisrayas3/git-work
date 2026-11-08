@@ -152,7 +152,7 @@ Do not extend them;
   conservatively and with its reason,
   but does not do it until a human has confirmed that change directly;
   approval of a story's design is not approval of a new aspect.
-- **The reference documents in `doc/reference/` meet the same standard**
+- **The reference documents in `doc/reference/` meet the same standard as the design documents**
   for an external system (`doc/reference/jira-api.md` for Jira):
   they say what holds now about it,
   each fact confirmed or unconfirmed and with its source,
@@ -168,7 +168,9 @@ Do not extend them;
 ### Writing them
 
 - **Now-only: a sentence reads true to someone who never saw the old behaviour.**
-  No "still", "stays", "no longer", "again", "is gone" or "instead of",
+  No "still", "stays", "no longer", "again", "is gone" or "instead of"
+  that compares with an earlier version of the code
+  (one that describes what the code does at run time is fine),
   and nothing named only to say it is absent.
 - **Code comments meet the same now-only standard.**
   Touching a function turns its dated or id references into citations.
@@ -236,7 +238,7 @@ Do not extend them;
   A design that contradicts its tasks says so on the story
   *and* in a comment on the task,
   since whoever picks the task up may never read the story.
-- **What is built differs from or adds to the approved design**:
+- **When what is built differs from or adds to the approved design**,
   comment on the story before the commit,
   naming each difference and why.
   A decision not on the story is not approved:

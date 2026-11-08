@@ -902,7 +902,7 @@ func (p *showPage) external(here position) tea.Cmd {
 
 // textBack is the editor's exit: what it left goes into the box it was
 // opened from, as the draft, and the cursor into its text. Nothing is sent
-// or written; enter still does that. An editor that failed leaves the draft
+// or written; enter does that. An editor that failed leaves the draft
 // as it was, and says why.
 func (p *showPage) textBack(msg externalTextMsg) tea.Cmd {
 	if msg.err != nil {

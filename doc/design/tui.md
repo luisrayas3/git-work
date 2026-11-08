@@ -123,7 +123,9 @@ no key means something different because of it.
 
 ### Typing filters
 
-A printable key on a list, a board or a gantt starts the filter with that character.
+A printable key on a list, a board or a gantt starts the filter with that character,
+except the help's key, and the filter's own key, which opens it empty:
+the help and an empty filter are each one key from any list.
 `enter` keeps the narrowing, `esc` drops it,
 and typing over a kept filter adds to it.
 The filter narrows what is drawn, locally:
@@ -468,9 +470,9 @@ The terminal's own copy and paste keys are its own:
 the renderer defines none of the keys a terminal already means something by.
 Where a terminal hands one over rather than keeping it,
 it means the same thing here.
-The copy key the renderer does define is the one a standard user copies with
-that no terminal keeps, a raw-mode terminal sending it as a keystroke, not a signal,
-and it copies the cell under the cursor;
+The renderer defines one copy key, the one a standard user copies with:
+no terminal keeps it, since a raw-mode terminal sends it as a keystroke, not a signal.
+It copies the cell under the cursor;
 the palette copies the issue's id from any column.
 The cursor starts on the id, so copying on arrival copies the id.
 
