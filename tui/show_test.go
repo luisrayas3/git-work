@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/stretchr/testify/require"
 
 	"github.com/git-bug/git-bug/cache"
@@ -386,14 +387,42 @@ func TestTheCommentBoxHasNoFooter(t *testing.T) {
 	require.Len(t, on, len(off), "the wash adds no line")
 	for at := range on {
 		require.NotEqual(t, off[at], on[at], "every line of the box is washed")
-		require.True(t, strings.HasPrefix(ansiPattern.ReplaceAllString(on[at], ""), "›"), "and marked, as a row is")
 	}
+	require.Equal(t, 1, strings.Count(strings.Join(plainLines(on), "\n"), "›"), "marked once")
+	require.True(t, strings.HasPrefix(plainLines(on)[0], "›"), "on its first line, as a row is")
 
 	page = send(page, "space").(*showPage)
 	require.True(t, page.inText())
 	typing := page.box.View(page.width, true)
-	require.False(t, strings.HasPrefix(ansiPattern.ReplaceAllString(typing[0], ""), "›"), "in the text, no wash")
+	require.NotContains(t, strings.Join(plainLines(typing), "\n"), "›", "in the text, no mark")
+	require.NotContains(t, textColumns(off), -1, "every line has the prompt")
+	for _, lines := range [][]string{on, typing} {
+		require.Equal(t, textColumns(off), textColumns(lines), "the text keeps its column")
+	}
 	require.Equal(t, 1, strings.Count(plainView(page), "enter: send"), "the typing keys, once")
+}
+
+// plainLines is lines without their styling.
+func plainLines(lines []string) []string {
+	plain := make([]string, len(lines))
+	for at, line := range lines {
+		plain[at] = ansiPattern.ReplaceAllString(line, "")
+	}
+	return plain
+}
+
+// textColumns is the column of the box's prompt, which its text follows, on
+// each of its lines.
+func textColumns(lines []string) []int {
+	columns := make([]int, len(lines))
+	for at, line := range plainLines(lines) {
+		before, _, found := strings.Cut(line, "┃")
+		columns[at] = -1
+		if found {
+			columns[at] = ansi.StringWidth(before)
+		}
+	}
+	return columns
 }
 
 // TestSpaceOnTheBoxTypes: on the box, not typing in it; space puts the

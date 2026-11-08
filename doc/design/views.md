@@ -608,7 +608,12 @@ in the text every key is text, `Enter` sends, `M-Enter` (or `S-Enter` where the 
 and `Esc` leaves the text keeping the draft.
 Not typing on arrival, because a page whose every letter is text has no keys of its own.
 Not `Enter` as newline, because once typing is entered with `Space`, `Enter` sending is what every chat box does.
-On the box the cursor washes it whole; in the text the textarea's cursor is drawn instead, so on and in are two looks.
+On the box the cursor washes it whole, every line, and marks it `›` as a row is, on its first line only;
+in the text the textarea's cursor is drawn instead, so on and in are two looks.
+Not a `›` on every line: a marker repeated down the margin would read as a list, not as one place.
+The box always has a one-column gutter on its left, where that `›` is drawn,
+so its text is in the same column whether the cursor is elsewhere, on the box, or in its text.
+This holds wherever the box is drawn: show's comment box, the description editor, and the creator page's description box.
 Its keys are on the bottom line, as every cell's are.
 It opens two lines tall and grows with the text, its highlighted cursor line turned off.
 No arrow enters or leaves it: it is a stop of `Tab` and `S-Tab` alone,

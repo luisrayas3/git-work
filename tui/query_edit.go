@@ -39,6 +39,7 @@ const queryEditorHeight = 16
 
 func newQueryEditor(query string, width int) *queryEditor {
 	box := newCommentBox(width)
+	box.bare = true
 	box.area.Placeholder = "every issue, last edited first"
 	box.area.MinHeight = 3
 	box.area.MaxHeight = queryEditorHeight
