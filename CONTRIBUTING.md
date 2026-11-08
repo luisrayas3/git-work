@@ -25,6 +25,8 @@ make build/debug         # a debugger-friendly build (no optimisation, no inlini
 make test                # the Go test suite
 ```
 
+To test the Jira sync against a real Jira, see [`doc/jira-sandbox.md`](./doc/jira-sandbox.md).
+
 ## Checks
 
 CI builds, vets and tests on Linux and macOS, with the Go version `AGENTS.md`

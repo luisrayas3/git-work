@@ -182,7 +182,7 @@ func unset(st *issueState, id string) bool {
 }
 
 // checkProperties validates inline properties: a key, and a non-empty
-// JSON value of at most 32768 characters (doc/design/bridges/jira-api.md, "Issue properties").
+// JSON value of at most 32768 characters (doc/reference/jira-api.md, "Issue properties").
 func checkProperties(up *issueUpdate) string {
 	for _, p := range up.Properties {
 		if p.Key == "" || len(p.Key) > 255 {
@@ -204,7 +204,7 @@ func (s *Server) editIssue(c *call) (int, any, error) {
 		return 0, nil, &apiError{status: http.StatusForbidden,
 			messages: []string{"Only Connect and Forge app users with Administer Jira global permission can override screen security."}}
 	}
-	// notifyUsers=false fails the whole edit for a non-admin (doc/design/bridges/jira-api.md, "Editing an issue").
+	// notifyUsers=false fails the whole edit for a non-admin (doc/reference/jira-api.md, "Editing an issue").
 	if c.q.Get("notifyUsers") == "false" && !c.user.ProjectAdmin {
 		return 0, nil, badRequest(msgNotifyUsers)
 	}
@@ -260,7 +260,7 @@ func (s *Server) deleteIssue(c *call) (int, any, error) {
 }
 
 // delete drops the issue; search stops returning it once the index
-// catches up, and nothing records it (doc/design/bridges/jira-api.md, "Deleting an issue").
+// catches up, and nothing records it (doc/reference/jira-api.md, "Deleting an issue").
 func (s *Server) delete(rec *record, subtasks bool, author string) error {
 	kids := s.children(rec.cur.id)
 	var subs []*issueState
@@ -335,7 +335,7 @@ func paging(c *call, def, limit int) (int, int, error) {
 }
 
 // fieldMeta is a FieldMetadata (editmeta, transition screens) or, with
-// fieldId added, a FieldCreateMetadata (doc/design/bridges/jira-api.md, "Create metadata"; doc/design/bridges/jira-api.md, "Edit metadata").
+// fieldId added, a FieldCreateMetadata (doc/reference/jira-api.md, "Create metadata"; doc/reference/jira-api.md, "Edit metadata").
 func (s *Server) fieldMeta(p *project, t *IssueType, id string, required bool) map[string]any {
 	ops := []string{"set"}
 	if f := sysField(id); f != nil {
@@ -396,7 +396,7 @@ func (s *Server) getProperty(c *call) (int, any, error) {
 }
 
 // setProperty is the sync marker's write: 201 created, 200 updated, and
-// neither updated nor the changelog moves (doc/design/bridges/jira-api.md, "Issue properties").
+// neither updated nor the changelog moves (doc/reference/jira-api.md, "Issue properties").
 func (s *Server) setProperty(c *call) (int, any, error) {
 	rec := s.lookup(c.v("issueIdOrKey"))
 	if rec == nil {

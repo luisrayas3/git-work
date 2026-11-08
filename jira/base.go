@@ -76,9 +76,10 @@ func (b *Base) marshal() string {
 }
 
 // equal reports whether recording o over b would say nothing new. Updated
-// alone is not news: Jira bumps it for what the mapping does not cover, and
-// for a link's other end, and a marker for it would be a commit per bump;
-// the cost is a GET while the overlap re-returns the issue
+// alone is not news: it is assumed to move for what the mapping does not
+// cover, and on a link's other end (doc/reference/jira-api.md, "The issue's
+// fields"), and a marker for it would be a commit per move; the cost is a GET
+// while the overlap re-returns the issue
 // (doc/design/jira.md, "The base is a marker on the issue").
 func (b *Base) equal(o *Base) bool {
 	if b == nil || o == nil {

@@ -6,9 +6,10 @@ The tests in the repository need no site:
 they run against the fake Jira, `jira/jiratest`,
 whose two canned sites (`CompanySite` and `TeamSite` in `jira/jiratest/fixtures.go`)
 model a company-managed and a team-managed project.
-A live site is what turns a fact the [API reference](jira-api.md) marks unconfirmed into a confirmed one.
+A fact seen on a live site is the strongest mark [the API reference](reference/jira-api.md) gives,
+and the way to confirm one it marks unconfirmed.
 
-Creating a site needs an Atlassian account, which is a person's, not an agent's.
+Creating a site needs an Atlassian account.
 
 ## The site
 
@@ -29,7 +30,7 @@ that a mapping working for both cannot be an accident.
   cannot show a mistake that reads the name.
 - **Two workflows**, so that issue types of one level differ in workflow,
   ideally two with the same set of statuses,
-  which is the case the [type-change rule](jira-api.md#changing-an-issue-type-by-edit) cannot see.
+  which is the case the [type-change rule](reference/jira-api.md#changing-an-issue-type-by-edit) cannot see.
 - **Transitions that are not global**: a status reachable only from one other status,
   so that a transition unavailable from where the issue sits can be met.
 - **A required field on one type** with no default (such as priority on Bug),
@@ -49,7 +50,7 @@ that a mapping working for both cannot be an accident.
 
 ## Binding and credentials
 
-A clone is bound to the site as [the Jira sync](../jira.md#binding-and-credentials) says:
+A clone is bound to the site as [the Jira sync](design/jira.md#binding-and-credentials) says:
 `git-work.jira.url` (`https://<site>.atlassian.net`,
 or `https://api.atlassian.com/ex/jira/<cloudId>` for a scoped token),
 `git-work.jira.project` and `git-work.jira.email` in git config,
@@ -70,6 +71,6 @@ no `emailAddress`, `displayName`, `avatarUrls` or account ids in any user object
 and nothing that names a company.
 The shape is what matters, not the contents.
 
-What a live site confirms goes into [the API reference](jira-api.md),
-the fact marked confirmed and its source the site,
+What a live site confirms goes into [the API reference](reference/jira-api.md),
+the fact marked as seen on a live site,
 and into the fake where the fake answers otherwise.

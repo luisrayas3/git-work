@@ -5,7 +5,7 @@ import "time"
 // Accounts of the canned sites.
 const (
 	// MiaID is the API user: the one Credentials() authenticates as.
-	// Her profile zone is Europe/Berlin, the site's is America/Los_Angeles (doc/design/bridges/jira-api.md, "Timestamps").
+	// Her profile zone is Europe/Berlin, the site's is America/Los_Angeles (doc/reference/jira-api.md, "Timestamps").
 	MiaID = "5b10a2844c20165700ede21g"
 	// RaviID is the colleague the web-UI helpers act as; his email is hidden.
 	RaviID = "5b10ac8d82e05b22cc7d4ef5"
@@ -154,7 +154,7 @@ func CompanySite() Site {
 // TeamSite is a team-managed (next-gen) site with one project, TEAM:
 // simplified, project-scoped types and statuses, transitions from any
 // status to any, and a project-scoped "Story point estimate" of type float
-// (doc/design/bridges/jira-api.md, "Well-known custom fields": the jsw key is not guaranteed).
+// (doc/reference/jira-api.md, "Well-known custom fields": the jsw key is not guaranteed).
 func TeamSite() Site {
 	const (
 		todo   = "10030"

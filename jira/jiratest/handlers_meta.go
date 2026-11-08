@@ -34,7 +34,7 @@ func (s *Server) getServerInfo(c *call) (int, any, error) {
 }
 
 // getFields is /field: system fields, then custom ones; a caller who can
-// browse no project sees the system fields only (doc/design/bridges/jira-api.md, "Listing fields").
+// browse no project sees the system fields only (doc/reference/jira-api.md, "Listing fields").
 func (s *Server) getFields(c *call) (int, any, error) {
 	out := []map[string]any{}
 	for _, f := range systemFields {
@@ -138,7 +138,7 @@ func (s *Server) getProjectStatuses(c *call) (int, any, error) {
 	return http.StatusOK, out, nil
 }
 
-// createMetaTypes is the paginated createmeta (doc/design/bridges/jira-api.md, "Create metadata"); a caller
+// createMetaTypes is the paginated createmeta (doc/reference/jira-api.md, "Create metadata"); a caller
 // without Create issues gets no types.
 func (s *Server) createMetaTypes(c *call) (int, any, error) {
 	p, err := s.projectOr404(c.v("projectIdOrKey"))
@@ -213,7 +213,7 @@ func (s *Server) priorityFull(p Priority) map[string]any {
 	return m
 }
 
-// pageBean is the offset page bean with isLast (doc/design/bridges/jira-api.md, "Pagination").
+// pageBean is the offset page bean with isLast (doc/reference/jira-api.md, "Pagination").
 func (s *Server) pageBean(path string, all []map[string]any, start, max int) map[string]any {
 	page := window(all, start, max)
 	m := map[string]any{

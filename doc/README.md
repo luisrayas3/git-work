@@ -16,6 +16,12 @@ The design is in [`design`](./design/README.md),
 one document per aspect of the system,
 each saying what holds now and why.
 
+## Reference
+
+- [The Jira Cloud REST API](./reference/jira-api.md), as far as the Jira sync relies on it,
+  each fact confirmed or unconfirmed with its source.
+- [The Jira sandbox](./jira-sandbox.md): how to set up a live Jira site to test the sync against.
+
 ## The engine inherited from git-bug
 
 git-work is a hard fork of [git-bug](https://github.com/git-bug/git-bug)

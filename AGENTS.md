@@ -149,14 +149,14 @@ Do not extend them;
   and future work is an issue.
 - **An external system's behaviour that is inferred, not confirmed,
   is recorded in its reference document as unconfirmed**
-  (`doc/design/bridges/` for Jira).
+  (`doc/reference/jira-api.md` for Jira).
   A fact is confirmed by the spec or another named source;
   one seen on a live site says so, as a stronger mark.
   The aspect states the rule that copes with an unconfirmed fact,
   and may name the assumption,
   but never states it as fact,
   and neither does a code comment.
-- **The reference documents in `doc/design/bridges/` meet the same standard**:
+- **The reference documents in `doc/reference/` meet the same standard**:
   they say what holds now about the external system,
   each fact confirmed or unconfirmed and with its source,
   not how the knowledge was gathered:
@@ -196,19 +196,22 @@ Do not extend them;
   an issue's existing comments are its record,
   and are never rewritten for this.
 - **A decision is a heading, and code cites it by document and heading**:
-  `(doc/design/views.md, "The ghost")`.
+  `(doc/design/views.md, "The ghost")`;
+  a fact about an external system is cited the same way,
+  `(doc/reference/jira-api.md, "Link direction")`.
   A heading names the decision, so keep it short and stable;
   renaming one means updating what cites it.
   A decision with its own reasoning and its own citations gets its own heading;
   a refinement that only qualifies its parent stays a bullet under it.
-- **Citations use the full form**, `doc/design/<aspect>.md`:
+- **Citations use the full form**, `doc/design/<aspect>.md` or `doc/reference/<name>.md`:
   a bare `<name>.md`,
   or an old decision id such as `TC8` or `JS18`,
   is not a citation.
   Old decision ids may stay in issue titles
   and in the approved design record on an issue;
   never in code or in `doc/design`.
-  `TestDesignCitations` fails on a citation, or a link between documents,
+  `TestDesignCitations` fails on a citation into `doc/design` or `doc/reference`,
+  or a link between documents,
   that names a document or heading that does not exist,
   and on a bare `<name>.md` in code that names no file in the repository.
 - **Tests own their fixtures.**

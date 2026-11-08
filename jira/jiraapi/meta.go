@@ -10,7 +10,7 @@ import (
 )
 
 // Myself is the caller. Call it first: a missing Authorization runs calls
-// anonymously and answers 200 with nothing in it (doc/design/bridges/jira-api.md, "Anonymous calls").
+// anonymously and answers 200 with nothing in it (doc/reference/jira-api.md, "Anonymous calls").
 func (c *Client) Myself(ctx context.Context) (*User, error) {
 	var u User
 	if err := c.get(ctx, "/rest/api/3/myself", nil, &u); err != nil {
@@ -27,7 +27,7 @@ func (c *Client) ServerInfo(ctx context.Context) (*ServerInfo, error) {
 	return &s, nil
 }
 
-// User reads one user; without Browse users and groups it is a 403 (doc/design/bridges/jira-api.md, "Reading a user").
+// User reads one user; without Browse users and groups it is a 403 (doc/reference/jira-api.md, "Reading a user").
 func (c *Client) User(ctx context.Context, accountID string) (*User, error) {
 	var u User
 	if err := c.get(ctx, "/rest/api/3/user", url.Values{"accountId": {accountID}}, &u); err != nil {
@@ -50,7 +50,7 @@ func (c *Client) Project(ctx context.Context, idOrKey string) (*Project, error) 
 	return &p, nil
 }
 
-// ProjectStatuses lists the valid statuses per issue type (doc/design/bridges/jira-api.md, "Statuses per issue type").
+// ProjectStatuses lists the valid statuses per issue type (doc/reference/jira-api.md, "Statuses per issue type").
 func (c *Client) ProjectStatuses(ctx context.Context, idOrKey string) ([]IssueTypeStatuses, error) {
 	var out []IssueTypeStatuses
 	err := c.get(ctx, "/rest/api/3/project/"+esc(idOrKey)+"/statuses", nil, &out)
@@ -58,21 +58,21 @@ func (c *Client) ProjectStatuses(ctx context.Context, idOrKey string) ([]IssueTy
 }
 
 // CreateMetaIssueTypes lists the types an issue can be created with in the
-// project, every page (doc/design/bridges/jira-api.md, "Create metadata").
+// project, every page (doc/reference/jira-api.md, "Create metadata").
 func (c *Client) CreateMetaIssueTypes(ctx context.Context, projectIDOrKey string) ([]IssueType, error) {
 	return pages[IssueType](ctx, c, "/rest/api/3/issue/createmeta/"+esc(projectIDOrKey)+"/issuetypes", nil, 200,
 		"issueTypes", "createMetaIssueType")
 }
 
 // CreateMetaFields lists the create-screen fields of one issue type, every
-// page (doc/design/bridges/jira-api.md, "Create metadata").
+// page (doc/reference/jira-api.md, "Create metadata").
 func (c *Client) CreateMetaFields(ctx context.Context, projectIDOrKey, issueTypeID string) ([]FieldMeta, error) {
 	return pages[FieldMeta](ctx, c, "/rest/api/3/issue/createmeta/"+esc(projectIDOrKey)+"/issuetypes/"+esc(issueTypeID), nil, 200,
 		"fields", "results")
 }
 
 // Priorities lists priorities through /priority/search, the non-deprecated
-// endpoint, limited to those valid in projectIDs when any are given (doc/design/bridges/jira-api.md, "Priorities").
+// endpoint, limited to those valid in projectIDs when any are given (doc/reference/jira-api.md, "Priorities").
 func (c *Client) Priorities(ctx context.Context, projectIDs ...string) ([]Priority, error) {
 	q := url.Values{}
 	for _, id := range projectIDs {
@@ -89,12 +89,12 @@ func (c *Client) IssueLinkTypes(ctx context.Context) ([]IssueLinkType, error) {
 	return out.IssueLinkTypes, err
 }
 
-// Comments reads every comment of an issue, oldest first (doc/design/bridges/jira-api.md, "Listing comments").
+// Comments reads every comment of an issue, oldest first (doc/reference/jira-api.md, "Listing comments").
 func (c *Client) Comments(ctx context.Context, idOrKey string) ([]Comment, error) {
 	return pages[Comment](ctx, c, "/rest/api/3/issue/"+esc(idOrKey)+"/comment", url.Values{"orderBy": {"created"}, "expand": {"properties"}}, 100, "comments")
 }
 
-// AddComment posts an ADF body, with properties set inline (doc/design/bridges/jira-api.md, "Adding, editing and deleting comments"), and
+// AddComment posts an ADF body, with properties set inline (doc/reference/jira-api.md, "Adding, editing and deleting comments"), and
 // returns the comment.
 func (c *Client) AddComment(ctx context.Context, idOrKey string, body json.RawMessage, properties ...Property) (*Comment, error) {
 	var cm Comment
@@ -111,7 +111,7 @@ func (c *Client) AddComment(ctx context.Context, idOrKey string, body json.RawMe
 }
 
 // UpdateComment replaces a comment's ADF body. Lacking permission is a 400,
-// not a 403 (doc/design/bridges/jira-api.md, "Adding, editing and deleting comments").
+// not a 403 (doc/reference/jira-api.md, "Adding, editing and deleting comments").
 func (c *Client) UpdateComment(ctx context.Context, idOrKey, commentID string, body json.RawMessage) (*Comment, error) {
 	var cm Comment
 	_, err := c.do(ctx, request{method: http.MethodPut, path: "/rest/api/3/issue/" + esc(idOrKey) + "/comment/" + esc(commentID),
@@ -131,7 +131,7 @@ func (c *Client) DeleteComment(ctx context.Context, idOrKey, commentID string) e
 // isLast nor total would otherwise page forever.
 const maxPaged = 10000
 
-// pages collects an offset-paged resource. Both shapes are handled (doc/design/bridges/jira-api.md, "Pagination"):
+// pages collects an offset-paged resource. Both shapes are handled (doc/reference/jira-api.md, "Pagination"):
 // the page bean with isLast, and the legacy one with only total and a named
 // array, whose name is the first of keys present. Paging stops on isLast,
 // on reaching total, or on an empty page; never on a short page.

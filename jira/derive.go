@@ -159,7 +159,7 @@ func (d *deriver) types() {
 // order (doc/design/jira.md, "Retype targets follow Jira's levels and workflows"):
 // one level and one status-id set is taken as Jira's condition for changing
 // an issue type by edit, the status set standing in for the workflow
-// (doc/design/bridges/jira-api.md, "Changing an issue type by edit"); a
+// (doc/reference/jira-api.md, "Changing an issue type by edit"); a
 // refusal it misses is settled on the write. Jira is canonical for it, as
 // for a type's name, so a list written by hand is rewritten, with a note. A
 // local-only type, unaliased or aliased "", is left alone and never listed:

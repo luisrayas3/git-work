@@ -200,7 +200,7 @@ func TestConversionRoundTrip(t *testing.T) {
 	} {
 		require.Equal(t, string(want), string(after.Fields[key]), key)
 	}
-	// The link is stored on its source only (doc/design/bridges/jira-api.md, "Link direction").
+	// The link is stored on its source only (doc/reference/jira-api.md, "Link direction").
 	require.Equal(t, "[]", string(cv.get(epicKey).Fields["blocks"]))
 
 	// converting Jira's value back and forth is a fixpoint
@@ -220,7 +220,7 @@ func TestConversionRoundTrip(t *testing.T) {
 	require.Equal(t, "[]", string(cv.get(storyKey).Fields["blocks"]))
 }
 
-// Jira's link direction from the other side (doc/design/bridges/jira-api.md, "Link direction"):
+// Jira's link direction from the other side (doc/reference/jira-api.md, "Link direction"):
 // a link made in Jira's UI reads on its source.
 func TestLinkDirection(t *testing.T) {
 	cv := newConv(t)
@@ -293,7 +293,7 @@ func TestToJiraSkips(t *testing.T) {
 }
 
 // A user field is sent in the spec's form, {"id": accountId}
-// (doc/design/bridges/jira-api.md, "Creating an issue").
+// (doc/reference/jira-api.md, "Creating an issue").
 func TestToJiraUserField(t *testing.T) {
 	cv := newConv(t)
 	ws, skips := cv.m.toWrites("task", []change{{Key: "assignee", Set: sv(eid('2').String())}}, nil, cv.ix)

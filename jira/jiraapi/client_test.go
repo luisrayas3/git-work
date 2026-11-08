@@ -282,7 +282,7 @@ func TestSearchJQLStops(t *testing.T) {
 	}
 }
 
-// The realistic shape (doc/design/bridges/jira-api.md, "Reading an issue"), not the spec's unrealistic example.
+// The realistic shape (doc/reference/jira-api.md, "Reading an issue"), not the spec's unrealistic example.
 const issue12 = `{
   "expand": "renderedFields,names,schema,operations,editmeta,changelog,versionedRepresentations",
   "id": "10042", "key": "PROJ-12", "self": "https://your-domain.atlassian.net/rest/api/3/issue/10042",

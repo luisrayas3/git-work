@@ -12,7 +12,7 @@ import (
 	"unicode/utf8"
 )
 
-// The text model of descriptions and comments (doc/design/bridges/jira-api.md, "ADF") is a strict subset of
+// The text model of descriptions and comments (doc/reference/jira-api.md, "ADF") is a strict subset of
 // Markdown, chosen so that text survives a trip through ADF unchanged:
 //
 //	blocks      separated by one blank line

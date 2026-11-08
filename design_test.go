@@ -11,16 +11,18 @@ import (
 	"testing"
 )
 
-// The design documents are cited by document and heading
-// (AGENTS.md, Working conventions), so a renamed heading or a removed
-// document must fail here rather than leave a citation pointing at nothing.
+// The design documents and the reference documents are cited by document
+// and heading (AGENTS.md, Working conventions), so a renamed heading or a
+// removed document must fail here rather than leave a citation pointing at
+// nothing.
 
-const designDir = "doc/design"
+// citedDirs are the directories whose documents are cited by heading.
+var citedDirs = []string{"doc/design", "doc/reference"}
 
 var (
 	// A citation, possibly wrapped over several comment lines: the document,
 	// then optionally a comma and the heading in double quotes.
-	citationRe = regexp.MustCompile(`doc/design/([a-z0-9_/-]+\.md)(?:,\s*"([^"]+)")?`)
+	citationRe = regexp.MustCompile(`(doc/(?:design|reference)/[a-z0-9_/-]+\.md)(?:,\s*"([^"]+)")?`)
 	// A Markdown link to a .md file, with an optional anchor.
 	linkRe = regexp.MustCompile(`\]\(([^)\s#]*\.md)(?:#([^)\s]+))?\)`)
 	// A bare Markdown file name, not preceded by a directory,
@@ -35,22 +37,24 @@ var (
 func TestDesignCitations(t *testing.T) {
 	headings := map[string]map[string]bool{} // document → heading → true
 	anchors := map[string]map[string]bool{}  // document → anchor → true
-	err := filepath.WalkDir(designDir, func(path string, d fs.DirEntry, err error) error {
-		if err != nil || d.IsDir() || filepath.Ext(path) != ".md" {
+	for _, dir := range citedDirs {
+		err := filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
+			if err != nil || d.IsDir() || filepath.Ext(path) != ".md" {
+				return err
+			}
+			h, a, err := readHeadings(path)
+			headings[filepath.ToSlash(path)], anchors[filepath.ToSlash(path)] = h, a
 			return err
+		})
+		if err != nil {
+			t.Fatal(err)
 		}
-		h, a, err := readHeadings(path)
-		headings[filepath.ToSlash(path)], anchors[filepath.ToSlash(path)] = h, a
-		return err
-	})
-	if err != nil {
-		t.Fatal(err)
 	}
 
 	// Every Markdown file's name, so a bare name in code can be checked:
 	// one naming a file that exists is a plain reference, not a citation.
 	mdNames := map[string]bool{}
-	err = filepath.WalkDir(".", func(path string, d fs.DirEntry, err error) error {
+	err := filepath.WalkDir(".", func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
@@ -92,7 +96,7 @@ func TestDesignCitations(t *testing.T) {
 		text := flatten(string(raw))
 
 		for _, m := range citationRe.FindAllStringSubmatch(text, -1) {
-			doc := designDir + "/" + m[1]
+			doc := m[1]
 			hs, ok := headings[doc]
 			if !ok {
 				t.Errorf("%s: cites %s, which does not exist", path, doc)
@@ -108,7 +112,7 @@ func TestDesignCitations(t *testing.T) {
 			// repository is a dead one, such as "(type-change.md, TC8)".
 			for _, m := range bareRe.FindAllStringSubmatch(text, -1) {
 				if !mdNames[m[1]] {
-					t.Errorf("%s: names %s, which is no file in the repository; cite doc/design/<aspect>.md, \"<heading>\"", path, m[1])
+					t.Errorf("%s: names %s, which is no file in the repository; cite doc/design/<aspect>.md, \"<heading>\" or doc/reference/<name>.md, \"<heading>\"", path, m[1])
 				}
 			}
 			return nil
@@ -118,7 +122,10 @@ func TestDesignCitations(t *testing.T) {
 				continue
 			}
 			doc := filepath.ToSlash(filepath.Join(filepath.Dir(path), m[1]))
-			if !strings.HasPrefix(doc, designDir+"/") {
+			if !cited(doc) {
+				if _, err := os.Stat(doc); err != nil {
+					t.Errorf("%s: links to %s, which does not exist", path, doc)
+				}
 				continue
 			}
 			as, ok := anchors[doc]
@@ -135,6 +142,16 @@ func TestDesignCitations(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+}
+
+// cited reports whether doc is in one of citedDirs.
+func cited(doc string) bool {
+	for _, dir := range citedDirs {
+		if strings.HasPrefix(doc, dir+"/") {
+			return true
+		}
+	}
+	return false
 }
 
 // readHeadings returns a document's headings, normalized, and their anchors

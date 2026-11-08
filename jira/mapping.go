@@ -313,7 +313,7 @@ func (m *Mapping) fromJira(ri *jiraapi.Issue, fm *fieldMap, ix *Index) (v issue.
 		}
 		var items []issue.Value
 		for _, l := range links {
-			// the relation is stored on the source: viewing A, {outwardIssue: B} is A → B (doc/design/bridges/jira-api.md, "Link direction")
+			// the relation is stored on the source: viewing A, {outwardIssue: B} is A → B (doc/reference/jira-api.md, "Link direction")
 			if l.Type.ID != fm.link || l.OutwardIssue == nil || !m.syncable(*l.OutwardIssue, ix) {
 				continue
 			}
@@ -528,7 +528,7 @@ func (m *Mapping) toJira(tm *typeMap, c change, remote *jiraapi.Issue, ix *Index
 			return no("identity %s has no Jira account", entity.Id(id).Human())
 		}
 		// The spec's form for a user field
-		// (doc/design/bridges/jira-api.md, "Creating an issue").
+		// (doc/reference/jira-api.md, "Creating an issue").
 		return edit(fm.ref, map[string]string{"id": account})
 	case schema.KindRelation:
 		id, _ := issue.String(c.Set)
@@ -584,7 +584,7 @@ func (m *Mapping) toJiraItems(fm *fieldMap, c change, remote *jiraapi.Issue, ix 
 				missing = append(missing, entity.Id(id).Human())
 				continue
 			}
-			// POST /issueLink's inwardIssue is the source (doc/design/bridges/jira-api.md, "Link direction")
+			// POST /issueLink's inwardIssue is the source (doc/reference/jira-api.md, "Link direction")
 			w.Add = append(w.Add, newLink{LinkType: fm.link, Source: remote.ID, Destination: jid})
 		}
 		for _, item := range c.Remove {

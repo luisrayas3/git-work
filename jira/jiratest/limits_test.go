@@ -43,7 +43,7 @@ func TestRateLimitWindow(t *testing.T) {
 }
 
 // TestPerIssueWriteLimit is Jira's 20 writes per 2 s on one issue
-// (doc/design/bridges/jira-api.md, "Rate limits"), on a frozen clock.
+// (doc/reference/jira-api.md, "Rate limits"), on a frozen clock.
 func TestPerIssueWriteLimit(t *testing.T) {
 	s := newServer(t, jiratest.WithAutoAdvance(0))
 	a := s.CreateIssue(jiratest.IssueSpec{Project: "PROJ", Type: "Task", Summary: "a"})

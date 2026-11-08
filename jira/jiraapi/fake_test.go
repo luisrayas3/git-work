@@ -1,7 +1,7 @@
 package jiraapi_test
 
 // The cross-check of the client against the fake Jira of package jiratest.
-// The two were written independently from doc/design/bridges/jira-api.md;
+// The two were written independently from doc/reference/jira-api.md;
 // a test failing here means one of them misread the reference.
 
 import (
@@ -139,7 +139,7 @@ func TestFakeAuth(t *testing.T) {
 	wantStatus(t, err, 401)
 
 	// A missing header runs anonymously: /myself refuses, search is an
-	// empty 200, which is why Myself comes first (doc/design/bridges/jira-api.md, "Anonymous calls").
+	// empty 200, which is why Myself comes first (doc/reference/jira-api.md, "Anonymous calls").
 	srv.CreateIssue(jiratest.IssueSpec{Project: "PROJ", Type: "Task", Summary: "hidden"})
 	anon := jiraapi.New(jiraapi.Config{BaseURL: srv.URL(), HTTPClient: &http.Client{Transport: stripAuth{}}})
 	_, err = anon.Myself(ctx)
@@ -232,7 +232,7 @@ func TestFakeIndexLag(t *testing.T) {
 	if len(keys) != 41 || keys[0] != ref.Key || pages != 2 {
 		t.Fatalf("reconciled search: %d keys over %d pages, first %v", len(keys), pages, keys[0])
 	}
-	// The fake refuses a reconcile list that changes between pages (doc/design/bridges/jira-api.md, "Enhanced search"), so
+	// The fake refuses a reconcile list that changes between pages (doc/reference/jira-api.md, "Enhanced search"), so
 	// the second page above proves the client resent the same list.
 	for _, r := range srv.Requests() {
 		if r.Op == "searchAndReconsileIssuesUsingJqlPost" && r.Status != 200 {
@@ -334,7 +334,7 @@ func TestFakeGetIssue(t *testing.T) {
 	}
 	eq(t, "names", is.Names[jiratest.FieldStoryPoints], "Story point estimate")
 
-	// The changelog: status moved on create, then the link; sort it ourselves (doc/design/bridges/jira-api.md, "What the changelog holds").
+	// The changelog: status moved on create, then the link; sort it ourselves (doc/reference/jira-api.md, "What the changelog holds").
 	if is.Changelog == nil || is.Changelog.Total != len(want.Changelog) || len(is.Changelog.Histories) != is.Changelog.Total {
 		t.Fatalf("changelog %+v, want %d", is.Changelog, len(want.Changelog))
 	}
@@ -440,7 +440,7 @@ func TestFakeCreateEditDelete(t *testing.T) {
 		t.Errorf("string description: %v", e)
 	}
 
-	// Deleting a parent with sub-tasks needs deleteSubtasks (doc/design/bridges/jira-api.md, "Deleting an issue").
+	// Deleting a parent with sub-tasks needs deleteSubtasks (doc/reference/jira-api.md, "Deleting an issue").
 	sub := must(c.CreateIssue(ctx, map[string]any{
 		"project": map[string]string{"key": "PROJ"}, "issuetype": map[string]string{"id": "10003"},
 		"summary": "sub", "parent": map[string]string{"key": ref.Key},
@@ -497,7 +497,7 @@ func TestFakeTransitions(t *testing.T) {
 	eq(t, "resolution read", sys.Resolution.Name, "Done")
 	eq(t, "resolutiondate read", sys.ResolutionDate.IsZero(), false)
 
-	// A 409 is a concurrent transition: returned, not retried (doc/design/bridges/jira-api.md, "Making a transition").
+	// A 409 is a concurrent transition: returned, not retried (doc/reference/jira-api.md, "Making a transition").
 	srv.ConflictNextTransitions(1)
 	srv.ResetRequests()
 	wantStatus(t, c.DoTransition(ctx, key, "41", nil), 409)
@@ -604,7 +604,7 @@ func TestFakeComments(t *testing.T) {
 	wantStatus(t, err, 400)
 	srv.Deny("updateComment")
 	_, err = c.UpdateComment(ctx, key, ui, jiraapi.TextToADF("x"))
-	wantStatus(t, err, 400) // lacking permission is a 400 here (doc/design/bridges/jira-api.md, "Adding, editing and deleting comments")
+	wantStatus(t, err, 400) // lacking permission is a 400 here (doc/reference/jira-api.md, "Adding, editing and deleting comments")
 }
 
 func TestFakeProperties(t *testing.T) {
@@ -859,7 +859,7 @@ func TestFakePerIssueWriteLimit(t *testing.T) {
 
 // TestFakeJQLTime: a JQL literal is read in the searching user's zone
 // (Mia, Europe/Berlin), not the site's (America/Los_Angeles) the
-// timestamps come in (doc/design/bridges/jira-api.md, "Timestamps"). At the boundary minute, formatting in Mia's
+// timestamps come in (doc/reference/jira-api.md, "Timestamps"). At the boundary minute, formatting in Mia's
 // zone selects exactly the issue; formatting in the site zone does not.
 func TestFakeJQLTime(t *testing.T) {
 	srv := jiratest.New(t, jiratest.WithIndexLag(0, 0),

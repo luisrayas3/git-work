@@ -281,10 +281,11 @@ func (e *engine) hitOf(ri *jiraapi.Issue) hit {
 }
 
 // refetch appends to hits the failed hits of earlier runs the search did
-// not return, each read by GET: the database
+// not return, each read by GET
 // (doc/design/jira.md, "The database decides; the index only finds"), and never
-// named in the JQL, because Jira refuses a whole query naming an id it
-// cannot see, and a failed hit is most often an issue since deleted or
+// named in the JQL, because Jira is assumed to refuse a whole query naming an
+// id it cannot see (doc/reference/jira-api.md, "JQL for incremental sync"),
+// and a failed hit is most often an issue since deleted or
 // hidden (doc/design/jira.md, "Candidates and the cursor"). An id
 // that is gone or moved out is dropped; Gone decides about its issue. One
 // that fails again is a failed line. At most maxFailed are read, round

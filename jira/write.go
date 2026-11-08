@@ -188,7 +188,7 @@ func (e *engine) write(ri *jiraapi.Issue, remote Doc, plan mergePlan, b2 *Base, 
 // transition moves the issue to statusId: the transition whose target it is, a
 // required resolution filled with its first allowed value, and one retry on 409
 // after re-reading, at step 5 (doc/design/jira.md, "One issue at a time";
-// doc/design/bridges/jira-api.md, "Making a transition"). A reason is pending.
+// doc/reference/jira-api.md, "Making a transition"). A reason is pending.
 func (e *engine) transition(ri *jiraapi.Issue, statusId string) (string, error) {
 	for try := 0; ; try++ {
 		ts, err := e.c.Transitions(e.ctx, ri.ID)

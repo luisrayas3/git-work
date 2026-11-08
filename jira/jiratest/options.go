@@ -11,7 +11,7 @@ type MissingAuth int
 
 const (
 	// AnonymousOnMissingAuth runs the request as anonymous: search answers
-	// 200 with no issues, issue reads 404, writes and /myself 401 (doc/design/bridges/jira-api.md, "Anonymous calls").
+	// 200 with no issues, issue reads 404, writes and /myself 401 (doc/reference/jira-api.md, "Anonymous calls").
 	AnonymousOnMissingAuth MissingAuth = iota
 	// RejectMissingAuth answers 401, as for bad credentials.
 	RejectMissingAuth
@@ -65,7 +65,7 @@ func defaultConfig() config {
 		adfLocalIDs:        true,
 		commentProperties:  true,
 		retryAfter:         1,
-		// 20 writes per 2 s and 100 per 30 s on one issue (doc/design/bridges/jira-api.md, "Rate limits").
+		// 20 writes per 2 s and 100 per 30 s on one issue (doc/reference/jira-api.md, "Rate limits").
 		perIssue: []WriteLimit{{N: 20, Window: 2 * time.Second}, {N: 100, Window: 30 * time.Second}},
 		seed:     1,
 	}
@@ -73,7 +73,7 @@ func defaultConfig() config {
 
 // WithCommentProperties sets whether GET …/comment?expand=properties returns
 // the properties a comment was created with. Jira documents the field on
-// Comment but not the expand on the list (doc/design/bridges/jira-api.md, "Listing comments")
+// Comment but not the expand on the list (doc/reference/jira-api.md, "Listing comments")
 // (doc/design/jira.md, "One fake over HTTP"); default true.
 func WithCommentProperties(b bool) Option { return func(c *config) { c.commentProperties = b } }
 
@@ -95,7 +95,7 @@ func WithSiteTimeZone(name string) Option { return func(c *config) { c.siteZone 
 
 // WithIndexLag makes a write invisible to search for the next `searches`
 // search requests and until d has passed on the server clock, unless the
-// issue is named in reconcileIssues (doc/design/bridges/jira-api.md, "Search index lag"). Default 1 search, 0.
+// issue is named in reconcileIssues (doc/reference/jira-api.md, "Search index lag"). Default 1 search, 0.
 func WithIndexLag(searches int, d time.Duration) Option {
 	return func(c *config) { c.lagSearches, c.lagDuration = searches, d }
 }
@@ -106,7 +106,7 @@ func WithIndexLag(searches int, d time.Duration) Option {
 func WithStaleReads() Option { return func(c *config) { c.staleReads = true } }
 
 // WithSearchPageCap caps a search page below the requested maxResults
-// (default 37: maxResults is advisory, doc/design/bridges/jira-api.md, "Enhanced search").
+// (default 37: maxResults is advisory, doc/reference/jira-api.md, "Enhanced search").
 func WithSearchPageCap(n int) Option { return func(c *config) { c.pageCap = n } }
 
 // WithMissingAuth sets what a request without credentials gets.
@@ -119,16 +119,16 @@ func WithCommentBumps(edit, del bool) Option {
 }
 
 // WithOrderedChangelog returns expand=changelog histories newest first,
-// as the spec says, instead of shuffled (doc/design/bridges/jira-api.md, "What the changelog holds").
+// as the spec says, instead of shuffled (doc/reference/jira-api.md, "What the changelog holds").
 func WithOrderedChangelog() Option { return func(c *config) { c.shuffleChangelog = false } }
 
 // WithCustomFieldIDs keeps fieldId on every custom-field changelog item,
-// instead of omitting it on some (doc/design/bridges/jira-api.md, "What the changelog holds"). IssueParentAssociation, Link and
+// instead of omitting it on some (doc/reference/jira-api.md, "What the changelog holds"). IssueParentAssociation, Link and
 // Key items never carry one.
 func WithCustomFieldIDs() Option { return func(c *config) { c.omitCustomFieldIDs = false } }
 
 // WithVerbatimADF stores ADF as sent, instead of normalising it the way
-// Jira does (added localId attrs, merged text nodes; doc/design/bridges/jira-api.md, "Jira normalises ADF").
+// Jira does (added localId attrs, merged text nodes; doc/reference/jira-api.md, "Jira normalises ADF").
 func WithVerbatimADF() Option { return func(c *config) { c.adfLocalIDs = false } }
 
 // WithRetryAfter sets the Retry-After seconds of RateLimitNext's 429s (default 1).
@@ -152,9 +152,9 @@ func WithDenied(ops ...string) Option {
 
 // WithLooseHierarchy accepts any parent in the same project, whatever the
 // types' declared hierarchy levels: a site whose data disagrees with its
-// hierarchy, as one site's Tasks with an Epic parent under a Task declared a
-// sub-task type
-// (doc/design/jira.md, "A pull is checked for shape, not policy"). Off by
+// declared hierarchy, which the reference assumes possible
+// (doc/reference/jira-api.md, "Issue types and hierarchy levels";
+// doc/design/jira.md, "A pull is checked for shape, not policy"). Off by
 // default.
 func WithLooseHierarchy() Option { return func(c *config) { c.looseHierarchy = true } }
 

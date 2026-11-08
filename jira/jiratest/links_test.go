@@ -21,7 +21,7 @@ func issueLinks(t *testing.T, s *jiratest.Server, key string) []any {
 	return path(m, "fields", "issuelinks").([]any)
 }
 
-// TestLinkOrientation is Jira's link direction (doc/design/bridges/jira-api.md, "Link direction"):
+// TestLinkOrientation is Jira's link direction (doc/reference/jira-api.md, "Link direction"):
 // {inwardIssue: A, outwardIssue: B, Blocks}
 // means A blocks B; A shows outwardIssue B, B shows inwardIssue A.
 func TestLinkOrientation(t *testing.T) {
@@ -77,7 +77,7 @@ func TestLinkErrorsAndComment(t *testing.T) {
 		"inwardIssue": map[string]any{"key": a}, "outwardIssue": map[string]any{"key": "PROJ-99"}})
 	require.Equal(t, http.StatusNotFound, r.status)
 
-	// A link comment goes on the outwardIssue, as the spec says (doc/design/bridges/jira-api.md, "Creating a link").
+	// A link comment goes on the outwardIssue, as the spec says (doc/reference/jira-api.md, "Creating a link").
 	r = do(t, s, http.MethodPost, "/rest/api/3/issueLink", map[string]any{"type": map[string]any{"id": "10003"},
 		"inwardIssue": map[string]any{"id": s.Issue(a).ID}, "outwardIssue": map[string]any{"key": b},
 		"comment": map[string]any{"body": adf("linked")}})

@@ -19,9 +19,9 @@ What a decision used to be is in git's history and on the tracker's issues.
 | [`jira.md`](jira.md) | the Jira sync |
 | [`migration.md`](migration.md) | moving from git-bug: the store migration and importing a git-bug repository |
 
-[`bridges/`](bridges) holds the Jira Cloud API reference the sync relies on,
-each fact marked confirmed or unconfirmed with its source,
-and how to set up a Jira sandbox to test it.
+The Jira Cloud API the sync relies on is not a design aspect but a reference about Jira,
+[`doc/reference/jira-api.md`](../reference/jira-api.md),
+each fact marked confirmed or unconfirmed with its source.
 
 ## How these documents change
 
@@ -39,6 +39,6 @@ old decision ids stay out of code and of these documents.
 A rejected alternative is argued in the conditional,
 and what a document deliberately does not do is listed
 under "Deliberately absent", each entry stating its standing reason.
-What Jira is inferred, not confirmed, to do is recorded as unconfirmed in `bridges/`,
+What Jira is inferred, not confirmed, to do is recorded as unconfirmed in the reference,
 and the aspect states the rule that copes with it.
 The full rules are in [`AGENTS.md`](../../AGENTS.md), Working conventions.

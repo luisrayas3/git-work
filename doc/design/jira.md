@@ -16,9 +16,9 @@ what a local type change or a comment delete does to the issue
 is the [issue](issue.md)'s;
 how link fields are drawn is the [views](views.md)'.
 The Jira behaviour everything here relies on is in
-[the API reference](bridges/jira-api.md),
+[the API reference](../reference/jira-api.md),
 each fact there confirmed or marked unconfirmed;
-[the sandbox](bridges/jira-sandbox.md) says what a test site needs.
+[the sandbox](../jira-sandbox.md) says what a test site needs.
 
 ## What the design rests on
 
@@ -38,14 +38,20 @@ each fact there confirmed or marked unconfirmed;
 - **Jira has no compare-and-swap, no tombstones and a lagging index.**
   `PUT /issue` is last-writer-wins;
   deleted issues and comments vanish;
-  `/search/jql` lags the database by seconds to minutes,
-  while `GET /issue/{id}` reads the database.
-  The changelog is capped, unordered, and omits comments.
-- **Jira ids are stable; names, keys and custom field ids are not.**
-  Issue type, status, priority, option and link type ids never change;
-  names are editable;
+  `/search/jql` lags the database by seconds to minutes.
+  `GET /issue/{id}` is assumed to read the database,
+  which is unconfirmed,
+  so a read that may not have seen a write is settled by Jira's clock
+  ([the base](#the-base-is-what-jira-was-seen-to-hold)).
+  The changelog is unordered and often names no field,
+  and is assumed capped and without comments.
+- **Jira names, keys and custom field ids change; the sync maps by id.**
+  Names are editable;
   `customfield_NNNNN` differs per site;
   a key changes on a move.
+  Issue type, status, priority, option and link type ids are assumed never to change
+  ([the reference, "Base URL and formats"](../reference/jira-api.md#base-url-and-formats)),
+  since nothing else is stable to map by.
 
 ### Fixpoint
 
@@ -92,8 +98,10 @@ imports Jira's normal form silently,
 because the only other explanation is a Jira edit in the milliseconds between,
 and a note per trimmed summary would be a note per normalisation.
 The window is `Settle`, the bound already trusted for an unanswered create,
-because Jira normalising our value back to its old one leaves `updated` alone
-and cannot be told from a stale read until then.
+because Jira normalising our value back to its old one
+is assumed to leave `updated` alone
+([the reference, "Editing an issue"](../reference/jira-api.md#editing-an-issue)),
+and so cannot be told from a stale read until then.
 `Wrote` has second resolution,
 so a Jira edit in the same second before our write passes as fresh:
 it costs a note and one flap, never a silent loss.
@@ -125,7 +133,8 @@ because a request with no `Authorization` header is 200-with-nothing.
 
 `fromIssue(jira(toWrites(fromIssue(x)))) == fromIssue(x)`,
 where `jira()` is the fake's model of Jira's normalisation
-(sorted labels, trimmed summary, float rounding, ADF re-serialised with `localId`s).
+(ADF re-serialised with `localId`s, which is documented;
+sorted labels, a trimmed summary and numbers as doubles, which are assumed).
 With [the base rule](#the-base-is-what-jira-was-seen-to-hold)
 a converter that is not idempotent is not a ping-pong but import churn,
 one operation per run per issue Jira touched.
@@ -142,9 +151,9 @@ and the **remote** issue from `GET /issue/{id}` —
 and decides per key.
 It does not replay Jira's changelog.
 
-The changelog omits comments, their edits and deletes,
-and is capped at 100 unordered entries with `fieldId` often absent,
-so a replay needs a state diff anyway, and the state diff alone covers everything.
+The changelog is unordered with `fieldId` often absent,
+and is assumed to omit comments, their edits and deletes, and to be capped at 100 entries,
+so a replay would need a state diff anyway, and the state diff alone covers everything.
 An echo is not detected but equal to the base.
 Comparing twice finds nothing the second time,
 which every crash argument rests on.
@@ -198,8 +207,10 @@ the base describing the newest Jira state best predicts Jira.
 An undecodable marker is skipped and reported.
 A marker is written only when the new base differs from the current one
 in anything but `Updated`, so a quiet run commits nothing:
-Jira bumps `updated` for what the mapping does not cover
-and for both ends of a link, and a marker per bump would be a commit per bump.
+`updated` is assumed to move for what the mapping does not cover
+and on both ends of a link
+([the reference, "The issue's fields"](../reference/jira-api.md#the-issues-fields)),
+and a marker per move would be a commit per move.
 The cost is a `GET` while the overlap re-returns such an issue.
 
 Not a local file: a new clone would have no base,
@@ -367,7 +378,7 @@ the import keeps the rendering in git.
 a `DELETE` answering 404 is the "gone from Jira" row,
 so a crash between the `DELETE` and the commit is settled by the next run.
 A deleted comment is based at once, since no `GET` can show it back.
-Any other failure, a 403 for a token without delete permission among them,
+Any other failure, a 400 for a token without delete permission among them,
 is a failed request like every other.
 The report counts it under `comments.deleted`.
 
@@ -454,8 +465,11 @@ or a required field unset on this issue.
 Not `editmeta` to predict it:
 a request per type change to repeat a check Jira makes anyway on the write,
 whose refusal the sync already settles.
-Not Jira's Move API:
-a change across levels or workflows is made in Jira and imported.
+Not Jira's bulk move
+([the reference, "Moving an issue"](../reference/jira-api.md#moving-an-issue)):
+it would need the *Bulk change* global permission a sync token need not have,
+and status and field mappings for the target that are a person's to choose,
+so a change across levels or workflows is made in Jira and imported.
 
 ## The mapping
 
@@ -503,7 +517,7 @@ Which site and project a clone talks to is git config,
 read through `gitcli` so `[include]` works:
 `git-work.jira.url`
 (`https://<site>.atlassian.net`, or `https://api.atlassian.com/ex/jira/<cloudId>` for scoped tokens;
-anything else is refused as Data Center, which is REST v2 and users by name),
+anything else is refused as not Cloud),
 `git-work.jira.project` (the key),
 and `git-work.jira.email`.
 Without all three every `jira` verb fails naming them.
@@ -710,7 +724,7 @@ The condition is an assumption:
 that Jira's edit keeps an issue type within one level and one workflow is unconfirmed,
 and the status set stands in for the workflow,
 which a non-admin cannot read and which two workflows may share
-([API reference](bridges/jira-api.md#changing-an-issue-type-by-edit)).
+([API reference](../reference/jira-api.md#changing-an-issue-type-by-edit)).
 A refusal the assumption misses,
 like one for a required field unset on the issue,
 whose being set depends on the issue and not the type,
@@ -817,9 +831,11 @@ it converges, and the next run is quiet.
 
 Jira is the authority on what Jira holds,
 and the derived schema only approximates it:
-a real site declares Task a sub-task type and still gives Tasks an Epic parent,
-which the derived `task.parent` does not allow,
-and refusing those parents would leave the local copy silently disagreeing with Jira on every run.
+a site's data is assumed able to disagree with its declared hierarchy
+([the reference, "Issue types and hierarchy levels"](../reference/jira-api.md#issue-types-and-hierarchy-levels)),
+such as a Task holding an Epic parent while Task is declared a sub-task type,
+which the derived `task.parent` would not allow,
+and refusing such parents would leave the local copy silently disagreeing with Jira on every run.
 Operations replay whatever was written, and readers tolerate off-schema values,
 since every schema change creates some.
 Local writes keep both checks,
@@ -980,7 +996,7 @@ at Jira's `updated` for imports and at Jira's now for the rest.
 Relations resolve through the `Index`,
 built once per run from the excerpts' `jira-id` and the identities' `jira-account-id`,
 and extended as the run imports and creates.
-Links follow [Jira's link direction](bridges/jira-api.md#link-direction):
+Links follow [Jira's link direction](../reference/jira-api.md#link-direction):
 in `POST /issueLink`, `inwardIssue` is the source,
 so `{inwardIssue: A, outwardIssue: B, type: Blocks}` means A blocks B,
 and viewing A, `issuelinks` holds `{outwardIssue: B}`.
@@ -1002,7 +1018,7 @@ which keeps the issue a candidate every run until it converts.
 At the end of a run that imported or created an issue,
 the issues left with `Retry` keys are run once more,
 which resolves a child imported before its parent.
-A local value Jira cannot hold —
+A local value Jira cannot hold, or is assumed to refuse —
 a local-only status or target, a target not in Jira yet, a dead alias,
 a label with a space, a summary over 255 runes, an identity without an account —
 is a `Skip` without `Retry`: pending, and a candidate anyway because `local ≠ base`.
@@ -1065,7 +1081,8 @@ A hit that failed is kept in the state's `Failed` and re-read by `GET` on the ne
 until it syncs or is dropped on a 404 or a move,
 so one issue failing forever costs one `GET`, not a window that only grows.
 It is never named in the JQL:
-Jira refuses a whole query naming an id it cannot see,
+Jira is assumed to refuse a whole query naming an id it cannot see
+([the reference, "JQL for incremental sync"](../reference/jira-api.md#jql-for-incremental-sync)),
 and a failed hit is most often an issue since deleted or hidden.
 
 ### Time zones
@@ -1296,7 +1313,9 @@ printing `plan₁` with `"dry_run": true`.
 It cannot predict a transition that fails or a normalisation Jira applies,
 and keys whose values need the schema changes or identities it did not write
 show as pending.
-`--format text` is one line per issue.
+`--format text` is one line per issue,
+each conflict, pending key and off-schema key followed by its reason in parentheses
+when it has one.
 The exit status is 0 when every issue synced or is only pending,
 and 1 when any failed, the run stopped early, deletes were held,
 or another run holds the lock.
@@ -1343,24 +1362,28 @@ for the client tests, discovery and the engine scenarios,
 instead of an in-memory client, a file-serving getter and recorded fixtures.
 It imports nothing from `jiraapi`, so a wrong struct tag fails a test
 instead of agreeing with itself.
-Every documented behaviour is its default and every unconfirmed one is a `With…` switch,
+It answers as the reference says Jira does.
+Where the reference leaves a behaviour unconfirmed and the sync must work either way,
+a `With…` switch gives one side and the default the other,
 and the design chooses what works either way:
 the crash matrix runs under both ADF modes,
 and one scenario runs under each switch.
-Always on: `PUT` all-or-nothing with per-field errors;
-Jira's normalisation (sorted labels, trimmed summary, float rounding, ADF with `localId`s);
-summaries over 255 and labels with spaces refused;
+Always on, documented: `PUT` all-or-nothing with per-field errors;
 links stored `{source: inward, dest: outward}`;
-properties inline on create, and indexed with the search's lag;
-deleted issues dropped from search, and a JQL `id` or `key` naming one refused;
+properties inline on create;
+deleted issues dropped from search;
 410 on `/search`; the token omitted on the last page; 429 with `Retry-After`;
 no `Authorization` header is 200-with-nothing on search and 401 on `/myself`.
+Always on, assumed: sorted labels, a trimmed summary and numbers as doubles;
+summaries over 255 and labels with spaces refused;
+properties indexed with the search's lag;
+a JQL `id` or `key` naming a deleted issue refusing the whole query.
+Each is the case the reference assumes, the harder one, and has no switch.
 
-The behaviours no live site has confirmed
-are marked unconfirmed in [the API reference](bridges/jira-api.md#how-to-read-this),
-each with what is assumed and the fake's answer;
-where the fake has a switch for one, a scenario runs under each side,
-and the sync is built to work either way.
+A behaviour is confirmed by the spec or another named source,
+and one seen on a live site says so;
+the rest are marked unconfirmed in [the API reference](../reference/jira-api.md#how-to-read-this),
+each with what is assumed and the fake's answer.
 
 ### Where it lives
 
@@ -1393,11 +1416,13 @@ Identity tagging uses `Identity.SetMetadata`, which appends a version.
   the link is the Jira id, and Jira resolves old keys itself.
 - **Per-field attribution.** Field imports are the runner's:
   the sync compares states and does not replay Jira's changelog,
-  which is capped, unordered and often names no field,
+  which is unordered, often names no field, and is assumed capped,
   so it does not know which Jira user set a field;
   Jira's own history stays the authority for who changed what there
   ([three documents per issue](#three-documents-per-issue)).
 - **Data Center.** Refused at binding:
   the model is one team, one repository and one Jira Cloud project,
-  and Data Center is not Cloud
-  (REST v2, and users by name rather than by account id).
+  and the client speaks only what Cloud documents,
+  REST v3 with users by account id;
+  what Data Center speaks instead is unconfirmed
+  ([the reference, "Data Center"](../reference/jira-api.md#data-center)).

@@ -251,7 +251,7 @@ func TestEditParent(t *testing.T) {
 		map[string]any{"update": map[string]any{"parent": []any{map[string]any{"set": map[string]any{"none": true}}}}}).status)
 	require.Empty(t, s.Issue(story).Parent)
 
-	// IssueParentAssociation, parent ids in from/to, keys in the strings, no fieldId (doc/design/bridges/jira-api.md, "What the changelog holds").
+	// IssueParentAssociation, parent ids in from/to, keys in the strings, no fieldId (doc/reference/jira-api.md, "What the changelog holds").
 	cl := get(t, s, "/rest/api/3/issue/"+story+"?fields=summary&expand=changelog").obj(t)
 	values := path(cl, "changelog", "histories").([]any)
 	require.Len(t, values, 2)
@@ -329,7 +329,7 @@ func TestIssueProperties(t *testing.T) {
 	require.Equal(t, http.StatusBadRequest, do(t, s, http.MethodPut, "/rest/api/3/issue/"+key+"/properties/empty", nil).status)
 }
 
-// TestDescriptionRoundTrip: Jira stores ADF with attrs added (doc/design/bridges/jira-api.md, "Jira normalises ADF"), and
+// TestDescriptionRoundTrip: Jira stores ADF with attrs added (doc/reference/jira-api.md, "Jira normalises ADF"), and
 // sending the same document again changes nothing.
 func TestDescriptionRoundTrip(t *testing.T) {
 	s := newServer(t)
@@ -358,7 +358,7 @@ func TestDescriptionRoundTrip(t *testing.T) {
 
 // TestTypeChange: an edit changes the type, named by id, within one workflow
 // and level, with its changelog item; anything else is assumed to be a move
-// (doc/design/bridges/jira-api.md, "Changing an issue type by edit").
+// (doc/reference/jira-api.md, "Changing an issue type by edit").
 func TestTypeChange(t *testing.T) {
 	s := newServer(t)
 	key := s.CreateIssue(jiratest.IssueSpec{Project: "PROJ", Type: "Story", Summary: "t"})

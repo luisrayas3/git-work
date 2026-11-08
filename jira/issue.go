@@ -19,7 +19,7 @@ import (
 
 // ---- one issue (doc/design/jira.md, "One issue at a time") ----
 
-// read is step 2: the database copy, its git-work property and its
+// read is step 2: the issue by GET, its git-work property and its
 // comments, with identities ensured.
 func (e *engine) read(idOrKey string) (*jiraapi.Issue, []jiraapi.Comment, error) {
 	ri, err := e.c.GetIssue(e.ctx, idOrKey, e.m.requestFields(), nil, PropertyKey)

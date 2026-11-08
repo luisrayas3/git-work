@@ -238,7 +238,7 @@ func TestJQLIdOfDeletedIssue(t *testing.T) {
 
 // TestJQLTimeZones: literals are minutes in the caller's profile zone
 // (Europe/Berlin) while responses render in the site zone (Los Angeles),
-// so a client mixing the two up fails (doc/design/bridges/jira-api.md, "Timestamps").
+// so a client mixing the two up fails (doc/reference/jira-api.md, "Timestamps").
 func TestJQLTimeZones(t *testing.T) {
 	// The clock starts at 16:00:00Z: 18:00 in Berlin, 09:00 in Los Angeles.
 	s := newServer(t, jiratest.WithAutoAdvance(0))

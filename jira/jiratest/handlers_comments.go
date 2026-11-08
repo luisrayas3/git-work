@@ -62,7 +62,7 @@ func (s *Server) getComments(c *call) (int, any, error) {
 		}
 		page = append(page, m)
 	}
-	// The legacy offset shape: no isLast (doc/design/bridges/jira-api.md, "Pagination").
+	// The legacy offset shape: no isLast (doc/reference/jira-api.md, "Pagination").
 	return http.StatusOK, map[string]any{"startAt": start, "maxResults": max, "total": len(cs), "comments": page}, nil
 }
 
@@ -101,7 +101,7 @@ func (s *Server) addComment(c *call) (int, any, error) {
 	next := rec.cur.clone()
 	cm := s.newComment(next, body, c.user.AccountID, vis)
 	cm.properties = props
-	s.commit(rec, next, c.user.AccountID, true) // an add bumps updated (doc/design/bridges/jira-api.md, "Listing comments")
+	s.commit(rec, next, c.user.AccountID, true) // an add bumps updated (doc/reference/jira-api.md, "Listing comments")
 	return http.StatusCreated, s.commentJSON(next, cm), nil
 }
 

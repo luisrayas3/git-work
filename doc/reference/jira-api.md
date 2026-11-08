@@ -1,10 +1,10 @@
 # Jira Cloud REST API reference
 
 What Jira Cloud's REST API does,
-as far as the Jira sync relies on it:
-**REST v3** (the platform) and **Jira Software REST 1.0** (agile).
+as far as the Jira sync and its fake Jira rely on it:
+**REST v3** (the platform) and, for sprints, **Jira Software REST 1.0** (agile).
 It is a reference about Jira, not about git-work;
-where it names what the sync does about a fact, it links [the Jira sync](../jira.md).
+where it names what the sync does about a fact, it links [the Jira sync](../design/jira.md).
 
 ## How to read this
 
@@ -12,16 +12,17 @@ where it names what the sync does about a fact, it links [the Jira sync](../jira
   by the OpenAPI spec of the operation its section names,
   unless the line names another source
   (an Atlassian page, a capture from a real site in an open-source client's fixtures,
-  or Atlassian's own client).
+  Atlassian's own client, or a named community report).
+- A fact **seen on a live site** says so, a stronger mark than a document;
+  [the sandbox](../jira-sandbox.md) is how a site is set up to see one.
 - A fact marked **Unconfirmed** is inferred:
   from community reports, from general Jira behaviour, or from the spec's examples alone.
-  It says what is **assumed**, which is the case the sync is built to survive
-  (the harder one where the truth could go either way),
-  and, where the fake Jira (`jira/jiratest`) has an answer for it, what the fake answers.
+  It says what is **assumed**: the harder case where the truth could go either way,
+  which the sync is built to survive,
+  or, where the easier case is assumed, why, and what happens if it is wrong.
+  Where the fake Jira (`jira/jiratest`) has an answer for it, it says what the fake answers.
 - **The spec's example is unrealistic** marks an official example
   that must not be taken as the wire shape.
-- No fact here has been confirmed on a live site yet:
-  [the sandbox](jira-sandbox.md) is what that needs.
 
 ## Sources
 
@@ -38,7 +39,7 @@ where it names what the sync does about a fact, it links [the Jira sync](../jira
   the ADF pages (`…/cloud/jira/platform/apis/document/`),
   the Jira Software REST intro (`…/cloud/jira/software/rest/intro/`),
   the JQL fields reference (`https://support.atlassian.com/jira-software-cloud/docs/jql-fields/`),
-  and the deprecation notices named in place.
+  and the notices named in place.
 - Open-source clients, for captures of real responses and for Atlassian's own reading of the API:
   andygrunwald/go-jira (its `testing/mock-data` fixtures),
   ctreminiom/go-atlassian, pycontribs/jira, MrRefactoring/jira.js,
@@ -56,6 +57,11 @@ where it names what the sync does about a fact, it links [the Jira sync](../jira
   Assumed: so; the header is always sent.
 - Ids are **strings** in the platform API (`"id":"10002"`),
   except `statusCategory.id` (an int) and the agile ids of sprints and boards (ints).
+- **Unconfirmed**: the id of an issue type, a status, a priority, a custom field option
+  or an issue link type never changes, while its name is the site's to edit.
+  Assumed: so, since the alternative leaves nothing stable to map by;
+  if one changes, the old id is one Jira no longer lists
+  and the new one is a Jira entity nothing is mapped to yet.
 - A multi-valued query parameter is either comma-separated (`fields=summary,status`)
   or repeated (`fields=a&fields=b`); the spec states both for `fields`, `properties` and others.
 - Errors are an [`ErrorCollection`](#the-error-body).
@@ -67,17 +73,14 @@ There are three paging models:
 
 1. **Offset page bean**: `startAt`, `maxResults`, `total`, `isLast`, `values[]`,
    with optional `self` and `nextPage`.
-   Used by `/changelog`, `/priority/search`, `/user/bulk`, `/statuses/search`, `/workflows/search`,
-   `/comment/list`, and the agile `/board` and `/board/{id}/sprint`.
+   Used by `/changelog`, `/priority/search`, `/workflows/search` and `/comment/list`.
 2. **Offset, legacy shape**: `startAt`, `maxResults`, `total` and a named array
    (`comments`, `issueTypes`, `fields`, `histories`), with **no `isLast`**.
    Used by comments, the paginated createmeta, and the embedded changelog.
 3. **Token**: `nextPageToken` and `isLast`, with **no total**.
    Used by `/search/jql` and `/changelog/bulkfetch`.
 
-Unpaged plain arrays: `/field`, `/status`, `/statuscategory`, `/priority`, `/resolution`,
-`/project/{k}/statuses`, `/issuetype/project`, and `/user/search`
-(offset-paged by its parameters, but its response is a bare array).
+Unpaged plain arrays: `/field`, `/project/{k}/statuses` and `/issuetype/project`.
 
 The server may return fewer than `maxResults` items when more exist,
 which search states explicitly,
@@ -95,11 +98,7 @@ Source: the basic-auth page.
 Authorization: Basic base64("<email>:<api_token>")
 ```
 
-- Only an API token is accepted as the password:
-  "Authentication using passwords has been deprecated."
-- After repeated failures, `X-Seraph-LoginReason: AUTHENTICATION_DENIED` means
-  the password was not even checked (CAPTCHA).
-  **Unconfirmed**: the status that comes with it is 401.
+- Only an API token is accepted as the password.
 - **Unconfirmed**: **scoped API tokens** (granular scopes) are sent to
   `https://api.atlassian.com/ex/jira/{cloudId}/rest/api/3/...`, still with Basic auth,
   and `cloudId` comes from `https://<site>.atlassian.net/_edge/tenant_info`.
@@ -108,18 +107,7 @@ Authorization: Basic base64("<email>:<api_token>")
 - **Unconfirmed**: API tokens expire (one year by default, set at creation).
   Assumed: so; a 401 reads as "token invalid or expired".
 - API-token traffic is governed by the burst limits, not the points quotas
-  (the rate-limiting page: "API token-based traffic is not affected by this change").
-
-### Bearer tokens
-
-- **OAuth 2.0 (3LO)**: `Authorization: Bearer <access_token>`,
-  with the base `https://api.atlassian.com/ex/jira/{cloudId}`.
-  The spec names scopes per operation
-  (`read:jira-work`, `write:jira-work`, `read:jira-user`, `manage:jira-configuration`;
-  agile: `read:sprint:jira-software`, `write:sprint:jira-software`, `write:issue:jira-software`,
-  `write:board-scope:jira-software`).
-- **Unconfirmed**: personal access tokens (`Authorization: Bearer <PAT>`) are Data Center's;
-  Cloud has none.
+  (the rate-limiting page).
 
 ### Anonymous calls
 
@@ -135,53 +123,9 @@ The fake answers the same: 200 with nothing on search, 404 on issue reads, 401 o
 
 `GET /rest/api/3/myself` (`getCurrentUser`), scope `read:jira-user`.
 
-- Query: `expand` = `groups`, `applicationRoles`.
-- 200: a `User`. 401 for bad credentials.
-
-```json
-{
-  "self": "https://your-domain.atlassian.net/rest/api/3/user?accountId=5b10a2844c20165700ede21g",
-  "accountId": "5b10a2844c20165700ede21g",
-  "accountType": "atlassian",
-  "emailAddress": "mia@example.com",
-  "avatarUrls": {"16x16": "…", "24x24": "…", "32x32": "…", "48x48": "…"},
-  "displayName": "Mia Krystof",
-  "active": true,
-  "timeZone": "Australia/Sydney",
-  "locale": "en_US",
-  "groups": {"size": 3, "items": []},
-  "applicationRoles": {"size": 1, "items": []}
-}
-```
-
+- 200: a `User` (`accountId`, `accountType`, `displayName`, `active`, `timeZone`, `locale`,
+  `emailAddress` subject to [privacy](#privacy-and-account-types)). 401 for bad credentials.
 - `timeZone` is the zone [JQL date literals](#jql-for-incremental-sync) are read in.
-- `key` and `name` are present but empty in the examples: removed for GDPR.
-
-### Server info
-
-`GET /rest/api/3/serverInfo` (`getServerInfo`); anonymous is allowed.
-
-```json
-{
-  "baseUrl": "https://your-domain.atlassian.net",
-  "version": "1001.0.0-SNAPSHOT",
-  "versionNumbers": [5, 0, 0],
-  "deploymentType": "Cloud",
-  "buildNumber": 582,
-  "buildDate": "2020-03-26T22:20:59.000+0000",
-  "serverTime": "2020-03-31T16:43:50.000+0000",
-  "scmInfo": "1f51473f5c7b75c1a69a0090f4832cdc5053702a",
-  "serverTitle": "My Jira instance",
-  "serverTimeZone": "Australia/Sydney",
-  "defaultLocale": {"locale": "en_AU"}
-}
-```
-
-- `deploymentType` is "always returned as *Cloud*" in Cloud.
-  **Unconfirmed**: on Data Center it is `"Server"` or `"DataCenter"`.
-  Assumed: anything other than `"Cloud"` is not Cloud.
-- `serverTime` is in the issue timestamps' format ([the server clock](#the-server-clock)).
-- `healthChecks` is "Deprecated and no longer returned".
 
 ## Searching
 
@@ -236,8 +180,7 @@ Page 2 and later send the same body with `"nextPageToken": "<the previous page's
   "nextPageToken": "CAEaAggD",
   "isLast": false,
   "names": {"summary": "Summary"},
-  "schema": {"summary": {"type": "string", "system": "summary"}},
-  "warnings": [ {"type": "CLAUSE_LIMIT_EXCEEDED", "message": "…", "details": {}} ]
+  "schema": {"summary": {"type": "string", "system": "summary"}}
 }
 ```
 
@@ -246,10 +189,8 @@ Page 2 and later send the same body with `"nextPageToken": "<the previous page's
 - On the last page the token is absent or null, and `isLast` is true:
   the parameter's text says "not included", the schema "will be null".
   The fake omits it and sets `isLast`.
-- **There is no `total`, `startAt` or `maxResults` in the response**;
-  a count is [approximate](#approximate-count).
+- **There is no `total`, `startAt` or `maxResults` in the response.**
 - `names` and `schema` are present only when expanded.
-- `warnings` is "Experimental … rolling out behind a feature flag and may be absent, empty".
 - 400 for an invalid search (a JQL parse error, an unbounded query), an `ErrorCollection` such as
   `{"errorMessages":["Error in the JQL Query: …"],"errors":{},"warningMessages":[]}`;
   **Unconfirmed**: the message text, and that a clause naming a project the caller cannot see is a
@@ -259,25 +200,11 @@ Page 2 and later send the same body with `"nextPageToken": "<the previous page's
 ### The old search is removed
 
 `GET/POST /rest/api/3/search` (`searchForIssuesUsingJql`, `searchForIssuesUsingJqlPost`),
-and the same under `/rest/api/2`, are `deprecated: true`:
-"Endpoint is currently being removed" (CHANGE-2046).
-They now answer **410 Gone** with `{"errorMessages":["The requested API has been removed. …"]}`
-(atlassian-mcp-server issue 70, February 2026);
-the removal rolled out per site through about October 2025
-(Adaptavist's breaking-changes note, the CHANGE-2046 community thread).
-The old parameters were `startAt`, `maxResults`, `validateQuery`, `fields` (default `*navigable`),
-`expand` (an array in the POST body), `properties` and `fieldsByKeys`,
-and the response carried `startAt`, `maxResults`, `total` and `warningMessages`.
-It is still the search API on Data Center.
+and the same under `/rest/api/2`, are `deprecated: true` in the spec (CHANGE-2046),
+and answer **410 Gone** with `{"errorMessages":["The requested API has been removed. …"]}`
+(atlassian-mcp-server issue 70).
+[Enhanced search](#enhanced-search) is the search API.
 The fake answers 410 with that body.
-
-### Approximate count
-
-`POST /rest/api/3/search/approximate-count` (`countIssues`).
-
-- Body `{"jql":"project = HSP"}`; the JQL must be bounded.
-- 200: `{"count":153}`, "an estimated count … Recent updates might not be immediately visible".
-  400 if the JQL cannot be parsed.
 
 ### Search index lag
 
@@ -293,7 +220,7 @@ From the search-and-reconcile page:
   and is read-after-write consistent.
   The docs single out only search.
   Assumed: not trusted; a write is settled against a later read by Jira's clock
-  ([the Jira sync](../jira.md#the-base-is-what-jira-was-seen-to-hold)).
+  ([the Jira sync](../design/jira.md#the-base-is-what-jira-was-seen-to-hold)).
   The fake is consistent by default, and lags with `WithStaleReads`.
 - **Unconfirmed**: an issue property reaches the search index with the same lag as fields.
   The fake indexes properties with the search's lag.
@@ -310,18 +237,16 @@ project = PROJ AND updated >= "2026/09/27 10:03" ORDER BY updated ASC, key ASC
 
 - **Minute granularity**: a literal has no seconds.
 - **Zone**: a literal is read in the **caller's profile zone** (`/myself` `timeZone`),
-  falling back to the site's (`/serverInfo` `serverTimeZone`);
+  falling back to the site's;
   integrators report the same.
   [Timestamps](#timestamps) come back in the site's default user zone,
   which can differ.
 - Relative values (`updated >= "-15m"`) avoid zones but use the server's clock.
-- `parent = PROJ-12` works for all project types:
-  "As of February 2024, Epic link function has been retired in favor of Parent."
-- `sprint = 999`, `sprint in openSprints()`, `sprint in closedSprints()`.
+- `parent = PROJ-12` works for all project types (the JQL fields reference).
 - **Unconfirmed**: `key` and `issuekey` accept an old key after a move and match the moved issue.
   The fake resolves them so.
 - **Unconfirmed**: how JQL answers an `id` or `key` naming a deleted issue.
-  Assumed: a 400, the worse case; the fake answers 400.
+  Assumed: a 400 for the whole query, the worse case; the fake answers 400.
 
 ## Reading issues
 
@@ -448,9 +373,12 @@ checked against the go-jira and go-atlassian models and fixtures.
 - **summary**: a string.
   **Unconfirmed**: at most 255 characters.
   Assumed: so; the fake refuses a longer one with `errors.summary`.
+  **Unconfirmed**: Jira trims surrounding white space from a summary it stores.
+  Assumed: it may; the fake trims, and a value read back that differs from the one written
+  is [Jira's normal form](#editing-an-issue).
 - **description**: ADF ([ADF](#adf)) or `null`.
   `environment` and every `textarea` custom field are ADF too;
-  single-line `textfield` custom fields are plain strings (spec, createIssue).
+  single-line `textfield` custom fields are plain strings (spec, createIssue and editIssue).
   With `expand=renderedFields`, `renderedFields.description` is HTML.
 - **issuetype**: `IssueTypeDetails`:
   `id, name, description, iconUrl, subtask, avatarId, hierarchyLevel, entityId (a uuid, team-managed), scope`;
@@ -464,15 +392,20 @@ checked against the go-jira and go-atlassian models and fixtures.
 - **assignee, reporter, creator**: `UserDetails`
   `{self, accountId, accountType, emailAddress?, avatarUrls, displayName, active, timeZone?}`;
   `assignee` is `null` when unassigned.
-  `emailAddress` "may be returned as null"; it is also seen absent, and is blank for a deleted user
+  `emailAddress` "may be returned as null", and is blank for a deleted user
   ([privacy](#privacy-and-account-types)).
   A deleted user's `displayName` is "Former user" or alike;
   a corrupted record's `accountId` is `unknown` (spec, `UserDetails`).
 - **labels**: an array of strings.
   **Unconfirmed**: a label cannot contain a space.
   Assumed: so; the fake refuses one with `errors.labels`.
+  **Unconfirmed**: the order labels are read back in.
+  Assumed: not the order written; the fake sorts them.
 - **duedate**: `"YYYY-MM-DD"` or null.
 - **created, updated, resolutiondate**: [timestamps](#timestamps).
+  **Unconfirmed**: `updated` moves for any change to the issue,
+  including fields a client does not read and, on both issues, a link added or removed.
+  Assumed: so; an `updated` that moved says only that something may have changed.
 - **parent**: the unified parent field,
   for sub-tasks (the parent is the level-0 issue) and for issues under an epic,
   in company-managed and team-managed projects alike
@@ -501,21 +434,20 @@ checked against the go-jira and go-atlassian models and fixtures.
   It is written as a number ([editing an issue](#editing-an-issue)).
 - **Story points**: a number or null, in a field whose id and type key vary per site
   ([well-known custom fields](#well-known-custom-fields)).
+  **Unconfirmed**: a number custom field is stored as a double,
+  so a number reads back as the nearest double to what was written.
+  Assumed: so; the fake stores a `float64`.
 - **Rank** (`schema.custom = "com.pyxis.greenhopper.jira:gh-lexo-rank"`; pycontribs/jira finds it by this key):
   a LexoRank string, `<bucket>|<base-36 value>:<suffix>`,
   such as `"0|i0003r:"` or the real `"0|0zzzzd:vi"` (a go-jira fixture),
   ordered as plain byte strings.
   The software intro calls Rank an internal field that "shouldn't be read or updated using the REST API";
-  it is written only by [ranking](#ranking-issues).
-  A board's rank field id is `board/{id}/configuration` → `ranking.rankCustomFieldId`.
+  it is written by the agile `PUT /rest/agile/1.0/issue/rank`.
 - **Epic Link** (`com.pyxis.greenhopper.jira:gh-epic-link`, e.g. `customfield_10014`, a key string
   such as `"AR-37"` in the go-jira and go-atlassian fixtures):
-  **deprecated** in favour of `parent`, with Parent Link (`customfield_10018`),
-  the agile `epic` field, Epic Name and Epic Color,
-  in REST and webhooks since 30 November 2022;
-  "There will be no changes to the Jira UI. There will be no changes to JQL."
-  (the deprecation announcement).
-  **Unconfirmed**: many sites still return Epic Link.
+  **deprecated** in REST in favour of `parent`, as are Parent Link (`customfield_10018`),
+  Epic Name and Epic Color (the deprecation announcement).
+  **Unconfirmed**: a site may still return Epic Link.
   Assumed: `parent` is the one parent field; the fake emits no Epic Link.
 
 ### Keys, ids and moves
@@ -592,7 +524,6 @@ The shape is the spec's; the item values are illustrative
 `Changelog` is `id, author (UserDetails), created (date-time), items[ChangeDetails], historyMetadata`;
 `ChangeDetails` is `field` (the field's **name**), `fieldId`, `fieldtype`, `from`, `fromString`, `to`, `toString`,
 all strings and all nullable.
-The spec adds: "Changelogs related to workflow associations are currently being deprecated."
 
 ### What the changelog holds
 
@@ -614,8 +545,7 @@ The spec adds: "Changelogs related to workflow associations are currently being 
 - A Sprint item: `{"field":"Sprint","fieldtype":"custom","fieldId":"customfield_10020","from":"76, 79","fromString":"Sprint 12, Sprint 13","to":"76, 80","toString":"Sprint 12, Sprint 14"}`;
   the ids are **comma-space** separated, and a sprint name may contain a comma,
   so `from` and `to` are what parse (blog.mikebowler.ca, 2026-01-29).
-- **The parent**: the `field` values "Epic Link" and "Parent" are consolidated into **`IssueParentAssociation`**
-  (the issue-reparenting changelog notice; the old values came alongside until 10 December 2021):
+- **The parent** is the `field` value **`IssueParentAssociation`** (the issue-reparenting changelog notice):
   `{"field":"IssueParentAssociation","fieldtype":"jira","from":"1234","fromString":"ABC-1","to":"4567","toString":"ABC-2"}`,
   `from`/`to` the **parent issue ids** and the strings their **keys**, with **no `fieldId`**:
   "Consumers should not use `fieldId` for the IssueParentAssociation changelog items"
@@ -627,7 +557,7 @@ The spec adds: "Changelogs related to workflow associations are currently being 
   out are **comment creates, edits and deletes**, watchers, votes, issue properties and remote links.
   Assumed: comments are never looked for in the changelog,
   and a `Link` or `Rank` item says only that the field changed.
-  The fake emits Link and Rank items without `fieldId`.
+  The fake emits Link and Rank items without `fieldId`, and no comment items.
 - **Unconfirmed**: for `description`, the strings hold wiki or plain text, not ADF.
 - **Unconfirmed**: changelog ids are numeric strings that grow site-wide.
   Assumed: undocumented, so never a watermark.
@@ -729,20 +659,6 @@ Errors:
   `"Field 'customfield_10016' cannot be set. It is not on the appropriate screen, or unknown."`.
 - 401. 403 without permission. 422 when "a configuration problem prevents the creation".
 
-### Bulk create
-
-`POST /rest/api/3/issue/bulk` (`createIssues`): "Creates upto **50** issues".
-
-- Body: `{"issueUpdates": [IssueUpdateDetails, …]}`.
-- 201 when any succeed: `{"issues":[{"id","key","self"}…],"errors":[BulkOperationErrorResult]}`.
-- 400 when all fail:
-
-```json
-{"issues":[],"errors":[{"elementErrors":{"errorMessages":[],"errors":{"issuetype":"The issue type selected is invalid.","project":"Sub-tasks must be created in the same project as the parent."}},"failedElementNumber":0,"status":400}]}
-```
-
-`failedElementNumber` is the 0-based index into `issueUpdates`.
-
 ### Editing an issue
 
 `PUT /rest/api/3/issue/{issueIdOrKey}` (`editIssue`).
@@ -786,7 +702,7 @@ Body: `IssueUpdateDetails`, in two forms that may not name the same field:
   the parent may be removed by setting `update.parent.set.none` to *true*."
   By key: `"fields":{"parent":{"key":"PROJ-3"}}`.
 - "**Note:** This endpoint doesn't check screen configurations to determine if a field is editable."
-  Create and transitions still do.
+  Create and transitions do.
 - `description`, `environment` and textarea custom fields take ADF;
   a **string** sent to one is a 400
   `{"errors":{"description":"Operation value must be an Atlassian Document (see the Atlassian Document Format)"}}`
@@ -794,10 +710,19 @@ Body: `IssueUpdateDetails`, in two forms that may not name the same field:
   Single-line text fields take a string.
 - Sprint is written as **one number**, `"customfield_10020": 37`, which moves the issue into sprint 37;
   an array is refused with an error asking for a number (community qaq-p/1570350, the software intro).
-  An issue is in at most one active or future sprint.
+  An issue is in at most one active or future sprint ([moving issues to a sprint](#moving-issues-to-a-sprint)).
 - **Unconfirmed**: `null` clears a field (`duedate`, `assignee`, a number custom field),
   and `null` on Sprint takes the issue out of its active or future sprint, closed ones staying.
-  Assumed: so; the fake accepts `null` for all.
+  Assumed: so, since nothing else in `fields` clears a scalar;
+  the fake accepts `null` for all.
+  If a clear is refused, it is a 400 under the field's id
+  and the sync retries the edit without it, leaving the clear pending.
+- **Unconfirmed**: a value Jira stores in a normal form (a trimmed summary, re-serialised ADF)
+  reads back in that form, and an edit whose value Jira normalises back to the one it held
+  leaves `updated` where it was.
+  Assumed: so, the harder case: such a read cannot be told from one that has not seen the write
+  until the sync's settle window passes
+  ([the Jira sync](../design/jira.md#the-base-is-what-jira-was-seen-to-hold)).
 - One PUT is one per-issue write ([rate limits](#rate-limits)).
 
 Responses:
@@ -815,12 +740,14 @@ and the last writer wins per field.
 ### Changing an issue type by edit
 
 - `PUT /issue/{id}` with `{"fields":{"issuetype":{"id":"…"}}}` changes an issue's type in place;
-  a refused change is a 400 with the reason under `errors.issuetype`
-  (spec: 400 on a field not settable for the issue).
+  a refused change is a 400 (spec: 400 on a field not settable for the issue).
+  **Unconfirmed**: the reason is under `errors.issuetype`.
+  Assumed: it may be anywhere in the body;
+  the sync reports `errors.issuetype` when present and the whole error otherwise,
+  and takes the change back either way.
 - **Unconfirmed**: the edit is accepted only between issue types of one hierarchy level
-  that share one workflow, and any other change needs a move, which the REST API does not offer.
-  Source: inferred from Atlassian's help on changing an issue's type in the issue view;
-  no live site has confirmed it for `PUT`.
+  that share one workflow, and any other change needs a [move](#moving-an-issue).
+  Source: inferred from Atlassian's help on changing an issue's type in the issue view.
   The fake refuses on exactly that condition.
 - **Unconfirmed**: the set of status ids [`/project/{key}/statuses`](#statuses-per-issue-type)
   lists for an issue type identifies its workflow.
@@ -831,7 +758,18 @@ and the last writer wins per field.
 - A required field the new type has and the issue does not set may also refuse the change
   (spec: 400 on missing required fields); whether it does depends on the issue, not the type.
 - What the sync does about these:
-  [the Jira sync, "Retype targets follow Jira's levels and workflows"](../jira.md#retype-targets-follow-jiras-levels-and-workflows).
+  [the Jira sync, "Retype targets follow Jira's levels and workflows"](../design/jira.md#retype-targets-follow-jiras-levels-and-workflows).
+
+### Moving an issue
+
+`POST /rest/api/3/bulk/issues/move` (`submitBulkMove`) moves issues to one project, issue type and parent,
+which is how a type changes across levels or workflows through REST.
+
+- Its body maps each source to its target, with the statuses and fields the target needs
+  (`IssueBulkMovePayload.targetToSourcesMapping`).
+- 201 answers a `taskId`: the move runs as a task, not within the request.
+- It needs the *Bulk change* global permission,
+  *Move issues* in the source projects and *Create issues* in the destination.
 
 ### Deleting an issue
 
@@ -843,7 +781,6 @@ and the last writer wins per field.
 - **A deleted issue vanishes**: a read is a 404, search leaves it out,
   and neither search nor the changelog records the delete.
   The fake drops a deleted issue from search.
-- Webhooks have `jira:issue_deleted`.
 
 ### Issue properties
 
@@ -870,9 +807,7 @@ Query parameters:
 
 - `expand=transitions.fields`: each transition's screen fields; "Fields hidden from the screen are not returned".
 - `transitionId`.
-- `skipRemoteOnlyCondition` (admin apps).
 - `includeUnavailableTransitions` (default false): "Whether details of transitions that fail a condition are included".
-- `sortByOpsBarAndStatus` (default false).
 
 "if a request is made for a transition that does not exist or cannot be performed on the issue,
 given its status, the response will return any empty transitions list."
@@ -932,10 +867,9 @@ Body: `IssueUpdateDetails`, with `transition.id` required.
   (several community reports, e.g. qaq-p/2158194);
   a required screen field left unset is a 400 with `errors` under its id,
   such as `{"resolution":"…"}`.
-- **409** for **simultaneous transitions** on one issue:
-  "The Jira Cloud API does not support simultaneous issue transitions on an issue …
-  we will soon be replacing the 400 (Bad Request) status code with 409 (Conflict)"
-  (the change notice on simultaneous transitions, effective from May 2020).
+- **409** "if the issue could not be updated due to a conflicting update",
+  which is what **simultaneous transitions** on one issue answer
+  (the change notice on simultaneous transitions).
   The status may already have moved.
 - 401. 404. 413 (a per-issue limit on comments, worklogs, attachments or links). 422 (configuration).
 
@@ -974,11 +908,10 @@ and only one whose `to` is the target and that is available from the current sta
 - `visibility` is optional: `type` is `group` or `role`, `value` the name,
   `identifier` the group id or role name
   ("the name of a group is mutable, to reliably identify a group use `identifier`").
-- `jsdPublic` "Defaults to true when comments are created in the Jira Cloud Platform";
-  `jsdAuthorCanSeeRequest` is JSM's.
 - `renderedBody` is present only with `expand=renderedBody`.
 - A comment's `updated` differs from its `created` once it is edited.
-  Comments are not in the changelog.
+- Whether comments are in the changelog is [unconfirmed](#what-the-changelog-holds),
+  and assumed not.
 - **Unconfirmed**: which comment writes bump the issue's `updated`.
   Jira's `CommentManager.create(…, modifyIssueUpdateDate)` exists, so an add very likely does;
   edits and deletes are unknown.
@@ -996,7 +929,7 @@ and only one whose `to` is the target and that is available from the current sta
 | add | `POST /rest/api/3/issue/{key}/comment` | `addComment` | `{"body": ADF, "visibility"?: {...}, "properties"?: [...]}` | **201** with the Comment. 400, 401, 404, **413** (per-issue comment limit) |
 | get | `GET /rest/api/3/issue/{key}/comment/{id}` | `getComment` | — | 200 Comment. 404 |
 | update | `PUT /rest/api/3/issue/{key}/comment/{id}` | `updateComment` | as add; query `notifyUsers` (default true), `overrideEditableFlag`, `expand` | **200** with the Comment. 400 (no permission, or invalid, such as changing a child comment's visibility), 401, 404 |
-| delete | `DELETE /rest/api/3/issue/{key}/comment/{id}` | `deleteComment` | — | **204**. 400 (no permission), 401, 404, 405 (anonymous) |
+| delete | `DELETE /rest/api/3/issue/{key}/comment/{id}` | `deleteComment` | — | **204**. 400 (no permission), 401, 404 (the issue or comment not found or not visible), 405 (anonymous) |
 
 No permission to delete or update is a **400**, not a 403.
 
@@ -1006,8 +939,11 @@ the body `{"ids":[int64…]}`, **at most 1000**, and an optional `expand` query;
 
 ### Deleted comments leave nothing
 
-A deleted comment vanishes from the list,
-and nothing, in the changelog or elsewhere, records the delete.
+A deleted comment is no longer in [the list](#listing-comments),
+and a read of it is a 404 (spec, deleteComment and getComment).
+**Unconfirmed**: nothing else, the changelog included, records the delete
+([what the changelog holds](#what-the-changelog-holds)).
+Assumed: so; a delete is seen only as a comment gone from the list.
 
 ### ADF
 
@@ -1110,9 +1046,6 @@ and others only if they are used in a project the caller can browse.
   one name can exist several times, told apart by scope.
 - Custom field ids (`customfield_NNNNN`) differ per site;
   a field's name is localised and editable, its `schema.custom` is not.
-- `GET /rest/api/3/field/search` (`getFieldsPaginated`) is the paged, filterable variant
-  (`startAt`, `maxResults` default 50, `type=custom|system`, `id[]`, `query`, `orderBy`, `expand`, `projectIds[]`).
-  **Unconfirmed**: it is admin-only.
 
 ### Well-known custom fields
 
@@ -1121,13 +1054,12 @@ and others only if they are used in a project the caller can browse.
 | Sprint | `com.pyxis.greenhopper.jira:gh-sprint` | array | the software intro |
 | Rank | `com.pyxis.greenhopper.jira:gh-lexo-rank` | string | pycontribs/jira |
 | Epic Link | `com.pyxis.greenhopper.jira:gh-epic-link` | string, deprecated | the go-jira and go-atlassian fixtures |
-| Story point estimate | `com.pyxis.greenhopper.jira:jsw-story-points` **or** `com.atlassian.jira.plugin.system.customfieldtypes:float` | number | both seen (see below) |
+| Story point estimate | `com.pyxis.greenhopper.jira:jsw-story-points` **or** `com.atlassian.jira.plugin.system.customfieldtypes:float` | number | JSWCLOUD-26668 (see below) |
 | Story Points (classic) | `com.atlassian.jira.plugin.system.customfieldtypes:float`, named "Story Points" | number | by name only |
-| Start date | `com.atlassian.jira.plugin.system.customfieldtypes:datepicker`, named "Start date" | date | **Unconfirmed** |
 
 The story-points field has no reliable identity on Cloud
 (JSWCLOUD-26668: no reliable way exists to identify the Story Points field;
-both type keys are seen with the name "Story point estimate" or "Story Points").
+both type keys occur with the name "Story point estimate" or "Story Points").
 The one a board uses is its configuration's `estimation.field.fieldId`
 (`GET /rest/agile/1.0/board/{id}/configuration`; the spec's example is `"customfield_10002"`, "Story Points");
 the software intro: "the field is just a regular numeric field.
@@ -1142,40 +1074,29 @@ The fake's sites give their story-points field the `float` key.
 
 - `expand`: `description`, `issueTypes`, `lead`, `projectKeys`, `issueTypeHierarchy`;
   "description, issue types, and project lead are included in all responses by default."
-- `properties`: project property keys.
 - 200 `Project`. 401. 404 (not found or no permission). The key is case-sensitive.
 
 ```json
 {
   "self": "https://your-domain.atlassian.net/rest/api/3/project/EX",
   "id": "10000", "key": "EX", "name": "Example",
-  "description": "…", "lead": {"accountId": "…", "displayName": "…"},
-  "assigneeType": "PROJECT_LEAD",
   "projectTypeKey": "software",
   "simplified": false,
   "style": "classic",
-  "isPrivate": false,
-  "archived": false,
   "issueTypes": [
     {"id": "3", "name": "Task", "subtask": false, "hierarchyLevel": 0, "avatarId": 1, "iconUrl": "…", "self": "…"},
     {"id": "10000", "name": "Epic", "subtask": false, "hierarchyLevel": 1},
     {"id": "10003", "name": "Sub-task", "subtask": true, "hierarchyLevel": -1}
-  ],
-  "versions": [], "components": [], "roles": {"Developers": "…/project/EX/role/10000"},
-  "insight": {"lastIssueUpdateTime": "2021-04-22T05:37:05.000+0000", "totalIssueCount": 100},
-  "uuid": "…"
+  ]
 }
 ```
 
 - `style` is `classic` (company-managed) or `next-gen` (team-managed).
   A team-managed project has project-scoped issue types (`scope.type=PROJECT`), custom fields and statuses.
-- `projectTypeKey` is `software`, `service_desk`, `business` or `product_discovery`.
-- **Unconfirmed**: `simplified` is true for a team-managed project; the spec says only "Whether the project is simplified".
 - **Unconfirmed**: with `expand=projectKeys`, a `projectKeys` array lists every key the project has had.
   The expand option exists ("All project keys associated with the project"),
   but the `Project` schema has no such property.
   Assumed: optional, and nothing depends on it.
-- **Unconfirmed**: how fresh `insight.lastIssueUpdateTime` is.
 
 ### Statuses per issue type
 
@@ -1198,15 +1119,6 @@ Whether a status set identifies a workflow is
 
 - `projectId` is required and numeric; `level` filters: "`-1` for Subtask. `0` for Base. `1` for Epic."
 - 200: an array of `IssueTypeDetails`. 400. 404 (no such project, or no permission).
-- `GET /rest/api/3/project/{projectId}/hierarchy` (`getHierarchy`, "for a next-gen project"),
-  with ints for ids:
-
-```json
-{"projectId": 10030, "hierarchy": [
-  {"level": 0, "name": "Base", "issueTypes": [ {"id": 10008, "entityId": "…", "name": "Story", "avatarId": 10324} ]},
-  {"level": 1, "name": "Epic", "issueTypes": [ {"id": 10007, "name": "Epic"} ]},
-  {"level": -1, "name": "Subtask", "issueTypes": [ {"id": 10009, "name": "Subtask"} ]}]}
-```
 
 `hierarchyLevel`:
 
@@ -1216,25 +1128,25 @@ Whether a status set identifies a workflow is
 - **Unconfirmed**: `≥2` are levels above Epic (such as Initiative),
   configurable only with Premium or Enterprise (Plans), which enforce them;
   the spec documents only -1, 0 and 1.
-- An issue's parent is one level up;
-  sub-task under level 0 is the rule every plan enforces.
+- **Unconfirmed**: every parent an issue holds fits these levels.
+  Assumed: not, the harder case: a site's data may disagree with its declared hierarchy,
+  such as a parent one level up from a type declared a sub-task type.
+  The fake enforces the levels, and accepts any parent in the project with `WithLooseHierarchy`.
 
 ### Priorities
 
-- `GET /rest/api/3/priority` (`getPriorities`) is **deprecated** ("Use Search priorities instead"):
-  an unpaged array of `{self, statusColor, description, iconUrl, name, id}`.
 - `GET /rest/api/3/priority/search` (`searchPriorities`):
-  `startAt` and `maxResults` are **strings** (defaults "0" and "50"), with `id[]`, `projectId[]`, `priorityName`,
-  `onlyDefault` (deprecated) and `expand=schemes`;
-  a page bean of `Priority` `{id, name, description, iconUrl, statusColor, isDefault (deprecated), avatarId, self, schemes?}`.
+  `startAt` and `maxResults` are **strings** (defaults "0" and "50"), with `id[]`, `projectId[]`, `priorityName`
+  and `expand=schemes`;
+  a page bean of `Priority` `{id, name, description, iconUrl, statusColor, avatarId, self, schemes?}`.
   Its OAuth scope is `manage:jira-configuration`.
   **Unconfirmed**: Basic auth works for an ordinary user.
+- `GET /rest/api/3/priority` (`getPriorities`) is **deprecated** ("Use Search priorities instead").
 - Priorities can be per project (priority schemes); `projectId=` gives the project's.
 
 ### Status categories
 
-`GET /rest/api/3/statuscategory` (`getStatusCategories`): an array of `{id: int, key, name, colorName, self}`;
-`GET /rest/api/3/statuscategory/{idOrKey}` reads one.
+`GET /rest/api/3/statuscategory` (`getStatusCategories`): an array of `{id: int, key, name, colorName, self}`.
 
 | id | key | name | colorName |
 |---|---|---|---|
@@ -1246,20 +1158,6 @@ Whether a status set identifies a workflow is
 Source: a capture from a real site in go-jira's fixtures (`all_statuscategories.json`),
 and the `StatusCategory` javadoc.
 The spec's examples, with keys `in-flight` and `completed`, are unrealistic.
-
-A category is an object `{id, key, …}` on issues, transitions and `/status`,
-and an enum string `TODO`, `IN_PROGRESS` or `DONE` on `/statuses*` and `/workflows/search`.
-**Unconfirmed**: `new` is `TODO`, `indeterminate` `IN_PROGRESS`, and `done` `DONE`.
-
-### Statuses
-
-- `GET /rest/api/3/status` (`getStatuses`): "all statuses associated with active workflows",
-  an array of `StatusDetails` with the category object; needs *Browse projects*.
-- `GET /rest/api/3/statuses?id=…&id=…` (`getStatusesById`): a `JiraStatus` array, the category an enum string.
-- `GET /rest/api/3/statuses/search` (`search`):
-  `projectId`, `startAt`, `maxResults` (default 200), `searchString`, `statusCategory`, `includeGlobalStatuses`;
-  a page bean of `JiraStatus` `{id, name, description, scope{type:"PROJECT"|"GLOBAL", project{id}}, statusCategory}`.
-  **Needs Administer projects or Administer Jira**; scope `manage:jira-configuration`.
 
 ### Create metadata
 
@@ -1286,10 +1184,6 @@ The paginated endpoints, which list "the same fields that appear on the issue's 
 - Needs *Create issues* in the project.
 - A field off the create screen is refused at create.
 
-`GET /rest/api/3/issue/createmeta?projectKeys=&issuetypeIds=&expand=projects.issuetypes.fields`
-(`getCreateIssueMeta`) is `deprecated: true` (CHANGE-1304).
-**Unconfirmed**: deprecated around December 2023 with no removal date announced.
-
 ### Edit metadata
 
 `GET /rest/api/3/issue/{issueIdOrKey}/editmeta` (`getEditIssueMeta`).
@@ -1301,7 +1195,7 @@ The paginated endpoints, which list "the same fields that appear on the issue's 
   on a screen; visible in the field configuration; shown on the issue; a valid custom field context;
   project, type and status present; a valid workflow step; the step editable (`jira.issue.editable`);
   *Edit issues*; and the workflow's `jira.permission.*` properties.
-- Since [an edit](#editing-an-issue) no longer checks screens,
+- Since [an edit](#editing-an-issue) does not check screens,
   edit metadata is narrower than what an edit accepts.
 
 ### Link types
@@ -1319,13 +1213,6 @@ The paginated endpoints, which list "the same fields that appear on the issue's 
   the spec's example has `"inward":"Blocked by","outward":"Blocks"`.
   **Unconfirmed**: a default site has `"is blocked by"` and `"blocks"`.
   A link type is identified by `id` or `name`.
-
-### Resolutions
-
-- `GET /rest/api/3/resolution` (`getResolutions`) is **deprecated**: an array of `{self,id,description,name}`.
-- `GET /rest/api/3/resolution/search` (`searchResolutions`): `startAt` and `maxResults` are strings
-  (defaults "0" and "50"), with `id[]` and `onlyDefault`; it returns `PageBeanResolutionJsonBean`.
-- A resolution is set by a transition, on its screen; `fields.resolution` is null while unresolved.
 
 ### Workflows
 
@@ -1357,9 +1244,6 @@ The paginated endpoints, which list "the same fields that appear on the issue's 
 - **Unconfirmed**: which issue type uses which workflow is in workflow schemes
   (`/rest/api/3/workflowscheme/project?projectId=`, admin);
   `projectId=` on the search does not say.
-- `GET /rest/api/3/workflow/search` (`getWorkflowsPaginated`) was **deprecated**,
-  "This will be removed on June 1, 2026 (CHANGE-2569)", classic workflows and admin only.
-  **Unconfirmed**: it is removed, answering 404 or 410.
 - Without admin, a workflow shows only through
   [the transitions](#listing-transitions) available on a real issue from its current status.
 
@@ -1405,8 +1289,8 @@ In the POST, **`inwardIssue` is the source and `outwardIssue` the destination**:
 Sources:
 
 - Atlassian's Java client JRJC, `LinkIssuesInputGenerator`, sends `inwardIssue = fromIssueKey`
-  and `outwardIssue = toIssueKey` (pre-5.0 servers took `fromIssueKey`/`toIssueKey`).
-- The Jira REST docs, 4.4.1 to 7.x: the request "will create a link from the first issue to the second issue
+  and `outwardIssue = toIssueKey`.
+- The Jira Server REST docs, 4.4.1 to 7.x: the request "will create a link from the first issue to the second issue
   using the outward description. It also create a link from the second issue to the first issue using the inward description";
   the first issue is the from, inward one.
 - A report against Jira Cloud: `outwardIssue: IQS-2, inwardIssue: IQS-4, Blocks`
@@ -1435,8 +1319,8 @@ An entry of `fields.issuelinks` is the `IssueLink` without the side viewed:
 
 - One link appears on both issues, with opposite sides.
 - **Epic, parent and sub-task relations are not issue links**: they are `parent`.
-- A deleted link vanishes from both issues, and the changelog's `Link` item is all that records it
-  ([what the changelog holds](#what-the-changelog-holds)).
+- A deleted link vanishes from both issues;
+  the changelog's `Link` item is [unconfirmed](#what-the-changelog-holds).
 
 ## Users
 
@@ -1444,39 +1328,18 @@ An entry of `fields.issuelinks` is the `IssueLink` without the side viewed:
 
 `GET /rest/api/3/user?accountId=…` (`getUser`).
 
-- `accountId` is required (at most 128 characters); `username` and `key` are "no longer available".
+- `accountId` is required (at most 128 characters); the spec marks `username` and `key` as not available.
   `expand` takes `groups` and `applicationRoles`.
 - 200 `User`. 401. **403 without the *Browse users and groups* global permission.** 404.
-
-### Searching users
-
-`GET /rest/api/3/user/search?query=…` (`findUsers`).
-
-- `query` matches `displayName` and `emailAddress` by prefix;
-  the alternatives are `accountId` (exact) and `property`, and one of the three is required.
-  `startAt` and `maxResults` (default 50), "up to the thousandth user".
-- 200 is a **bare array** of `User`. 400 (missing parameters, or both `query` and `accountId`). 401.
-- **429**: "User search endpoints share a collective rate limit for the tenant … Please respect the Retry-After header."
-- Without *Browse users and groups* the result is **empty, not an error**.
-- A hidden email is found only by an exact match:
-  "If a user has hidden their email address … partial matches of the email address will not find the user.
-  An exact match is required." (the older search documentation).
-
-### Bulk users
-
-`GET /rest/api/3/user/bulk?accountId=a&accountId=b` (`bulkGetUsers`).
-
-- `accountId[]` is required and repeated; `startAt`, and `maxResults` (default 10).
-- 200: a page bean `{isLast, maxResults, startAt, total, values[User]}`. 400 without an accountId.
-- **Unconfirmed**: at most 200 ids a call.
 
 ### Privacy and account types
 
 - `accountType` is `atlassian` (a person), `app` (a Connect, Forge or OAuth integration,
   with `appType` `service`, `agent` or `unknown`), `customer` (a JSM portal user) or `unknown`.
 - `emailAddress` "may be returned as null" by the user's profile visibility,
-  is blank for a deleted user (spec, `User`), and is seen absent;
-  absent, `null` and `""` all mean unknown.
+  and is blank for a deleted user (spec, `User`).
+  **Unconfirmed**: it may also be absent.
+  Assumed: absent, `null` and `""` all mean unknown.
   **Unconfirmed**: only `/myself` reliably shows the caller's own email, and even that by privacy settings.
   The fake omits a hidden email.
 - `timeZone` and `locale` may be hidden; for `timeZone`, "the instance's default time zone will be returned" instead.
@@ -1486,124 +1349,15 @@ An entry of `fields.issuelinks` is the `IssueLink` without the side viewed:
 
 ## Agile
 
-### Agile ids, paging and dates
-
-Base path `/rest/agile/1.0`; documentation at `https://developer.atlassian.com/cloud/jira/software/rest/`.
-
-- Board, sprint and epic ids are **integers** in JSON.
-- Paging is `{startAt, maxResults, total, isLast, values}`.
-- 403 often means "does not have a valid license" (no Jira Software access).
-- Sprint dates are UTC `Z` on real sites; the spec's examples show a colon offset ([timestamps](#timestamps)).
-
-### Boards
-
-`GET /rest/agile/1.0/board` (`getAllBoards`).
-
-- `startAt` (0), `maxResults` (50), `type` (`scrum|kanban|simple`), `name`, `projectKeyOrId`,
-  `accountIdLocation`, `projectLocation`, `includePrivate`, `negateLocationFiltering`, `orderBy=name`,
-  `expand=admins,permissions`, `projectTypeLocation`, `filterId`.
-- `projectKeyOrId` matches boards "relevant to a project … the jql filter defined in board contains a reference to a project";
-  a project has any number of boards.
-
-```json
-{"isLast":false,"maxResults":2,"startAt":1,"total":5,"values":[
-  {"id":84,"name":"scrum board","self":"…/rest/agile/1.0/board/84","type":"scrum"},
-  {"id":92,"name":"kanban board","self":"…","type":"kanban"}]}
-```
-
-- **Unconfirmed**: an entry also carries `location {projectId, projectKey, projectName, displayName, projectTypeKey, avatarURI}`.
-- Errors: 400, 401, 403 (license).
-- `GET /rest/agile/1.0/board/{boardId}/configuration` (`getConfiguration`):
-  the columns and their status ids, `estimation.field.fieldId` (the story-points field),
-  `ranking.rankCustomFieldId`, `filter.id` and `location`.
-
-### Sprints
-
-`GET /rest/agile/1.0/board/{boardId}/sprint` (`getAllSprints`).
-
-- `startAt`, `maxResults`, `state` (a comma list of `future,active,closed`).
-- "Sprints will be ordered first by state (i.e. closed, active, future) then by their position in the backlog."
-
-```json
-{"isLast":false,"maxResults":2,"startAt":1,"total":5,"values":[
-  {"id":37,"self":"…/rest/agile/1.0/sprint/23","state":"closed","name":"sprint 1",
-   "startDate":"2015-04-11T15:22:00.000+10:00","endDate":"2015-04-20T01:22:00.000+10:00",
-   "completeDate":"2015-04-20T11:04:00.000+10:00","originBoardId":5,"goal":"sprint 1 goal"},
-  {"id":72,"self":"…","state":"future","name":"sprint 2","goal":"sprint 2 goal"}]}
-```
-
-- A future sprint may lack `startDate` and `endDate`; `completeDate` exists once it is closed;
-  there is also a `createdDate` (in the update body's schema).
-- Errors: 400, 401, 403, 404 (no such board, or not visible).
-  **Unconfirmed**: a kanban board answers 400 `{"errorMessages":["The board does not support sprints"]}`.
-- `GET /rest/agile/1.0/sprint/{sprintId}` (`getSprint`) reads one.
-- `POST /rest/agile/1.0/sprint/{sprintId}` (`partiallyUpdateSprint`):
-  a closed sprint allows only its name and goal;
-  `future → active` needs `startDate` and `endDate`;
-  `active → closed` sets `completeDate`; no other state change is allowed.
-- **Unconfirmed**: `POST /rest/agile/1.0/sprint` creates one from `{name, originBoardId, startDate?, endDate?, goal?}`;
-  the path exists.
-
 ### Moving issues to a sprint
 
 `POST /rest/agile/1.0/sprint/{sprintId}/issue` (`moveIssuesToSprintAndRank`).
 
 - "Issues can only be moved to open or active sprints. The maximum number of issues that can be moved in one operation is 50."
-- Body: `{"issues":["PR-1","10001","PR-3"], "rankBeforeIssue":"PR-4", "rankAfterIssue"?:…, "rankCustomFieldId":10521}`;
-  the rank parts are optional.
-- 204. 400. 401. 403 (license, or no permission to assign). 404 (sprint).
+- 204. 400. 401. 403 (no Jira Software license, or no permission to assign). 404 (sprint).
 - "an issue can only be in one active or future sprint at a time, and only the active/future sprint can edited"
   (agile spec, verbatim).
 - [An edit](#editing-an-issue) of the Sprint field does the same for one issue.
-
-### Moving issues to the backlog
-
-`POST /rest/agile/1.0/backlog/issue` (`moveIssuesToBacklog`).
-
-- Body: `{"issues":["10001","PR-1"]}`, at most 50:
-  "equivalent to remove future and active sprints from a given set of issues."
-- 204. 400. 401. 403. 404.
-- **Unconfirmed**: the board-scoped `POST /rest/agile/1.0/backlog/{boardId}/issue` takes rank parameters too.
-
-### Ranking issues
-
-`PUT /rest/agile/1.0/issue/rank` (`rankIssues`).
-
-- "Moves (ranks) issues before or after a given issue. At most 50 issues may be ranked at once."
-- "If rankCustomFieldId is not defined, the default rank field will be used."
-
-```json
-{"issues":["PR-1","10001","PR-3"],"rankBeforeIssue":"PR-4","rankCustomFieldId":10521}
-```
-
-- **Unconfirmed**: `rankBeforeIssue` and `rankAfterIssue` together are refused.
-  Assumed: exactly one is sent.
-- **204** when all succeed, **207** when some fail:
-
-```json
-{"entries":[{"issueId":10000,"issueKey":"PR-1","status":200},
-            {"issueId":10002,"issueKey":"PR-3","status":503,
-             "errors":["JIRA Agile cannot execute the rank operation at this time. Please try again later."]}]}
-```
-
-- 400. 401. 403 (license, or no *Schedule issues*: "To rank issues user has to have schedule issue permission").
-- There is no absolute position: a rank is always relative to another issue.
-
-### Epics
-
-The agile epic API is deprecated in favour of `parent`:
-
-- `GET` and `POST` (a partial update) `/rest/agile/1.0/epic/{epicIdOrKey}`
-  "does not work for epics in next-gen projects".
-- `GET /rest/agile/1.0/epic/{epicIdOrKey}/issue` (`getIssuesForEpic`) is `deprecated: true`;
-  its text points to JQL (`parent = EPIC-1`).
-- `POST /rest/agile/1.0/epic/{epicIdOrKey}/issue` (`moveIssuesToEpic`, at most 50) and `/epic/none/issue`
-  still exist, for classic projects.
-- The agile `GET /rest/agile/1.0/issue/{key}` adds `sprint` (the current one), `closedSprints[]`, `flagged`
-  and the deprecated `epic`
-  (`"epic":{"id":37,"name":"epic 1","summary":"…","color":{"key":"color_4"},"done":true}`).
-- **Unconfirmed**: `GET` and `PUT /rest/agile/1.0/issue/{key}/estimation?boardId=` read and write
-  the board's estimation value as `{"value":"8.0"}`.
 
 ## Errors and limits
 
@@ -1621,9 +1375,7 @@ Source: the rate-limiting page.
 | `X-RateLimit-Reset` | ISO-8601 timestamp | when the window resets (only on 429) |
 | `X-RateLimit-NearLimit` | `true`/`false` | true when under 20% of capacity remains |
 | `RateLimit-Reason` | enum | `jira-quota-global-based`, `jira-quota-tenant-based`, `jira-burst-based`, `jira-per-issue-on-write` |
-| `Beta-RateLimit-Policy`, `Beta-RateLimit` | `"<policy>";q=…;w=…;r=…;t=…` | informational |
 
-Legacy informational `X-Beta-RateLimit-*` headers also exist.
 The page's burst example:
 
 ```
@@ -1637,7 +1389,7 @@ Content-Type: application/json
 ```
 
 - Points quotas are hourly and apply to OAuth and Forge apps;
-  "API token-based traffic is not affected … governed by existing burst rate limits".
+  API-token traffic is governed by the burst limits.
 - Burst limits: GET 100 a second, POST 100, PUT 50, DELETE 50.
 - **Per-issue write limits: 20 writes per 2 s and 100 per 30 s** (`jira-per-issue-on-write`).
 - The recommended backoff: `Retry-After` when given,
@@ -1659,8 +1411,7 @@ Content-Type: application/json
 - `errorMessages` is the global errors; `errors` maps a field id or parameter to its message.
 - `status` is in the schema.
   **Unconfirmed**: it is often absent.
-- A createmeta 400 also carries `"httpStatusCode":{…}` (spec example);
-  the removed search added `warningMessages`.
+- A createmeta 400 also carries `"httpStatusCode":{…}` (spec example).
 - **Unconfirmed**: the wording of the 404 message above.
 
 ### Status codes
@@ -1670,7 +1421,6 @@ From the operations' descriptions:
 - **200, 201, 204**: success.
   Creates are 201, an edit 204 (200 with `returnIssue`), a transition 204, deletes 204,
   a comment update 200, and a link create 201 with an empty body.
-- **207**: partial success (agile rank).
 - **400**: invalid input, and on many writes a missing *permission* too:
   comment delete and update, a field's edit permission, a transition not allowed.
 - **401**: missing or bad credentials.
@@ -1685,15 +1435,6 @@ From the operations' descriptions:
 - **413**: a per-issue limit breached (comments, worklogs, attachments, issue links, remote links).
 - **422**: a configuration problem prevents the create or update.
 - **429**: rate limited. **5xx**, 503 among them, are transient.
-
-### Special headers
-
-From the v3 intro, "Special headers":
-
-- `X-Atlassian-Token: no-check` is required on a multipart attachment upload (the XSRF check).
-- `X-Force-Accept-Language: true`, with `Accept-Language`, localises names.
-- The response header `X-AAccountId` is the caller's accountId.
-- **Unconfirmed**: responses carry an `X-AREQUESTID` for support; it is not documented.
 
 ## Time
 
@@ -1719,46 +1460,23 @@ From the v3 intro, "Special headers":
   The fake's site zone is `America/Los_Angeles`, its API user's `Europe/Berlin`.
 - A real Sprint date: `"startDate":"2025-03-12T01:36:46.600Z"` (blog.mikebowler.ca, 2026-01-29).
 - **Unconfirmed**: a datetime custom field accepts ISO-8601 on write
-  (the createIssue example shows the legacy `"06/Jul/19 3:25 PM"`),
+  (the createIssue example shows `"06/Jul/19 3:25 PM"`),
   and a date picker an ISO date (the example's `"09/Jun/19"` is a locale format).
 
 ### The server clock
 
-The server's clock is `serverInfo.serverTime`, or the HTTP `Date` header (RFC 1123) of any response.
-
-## Webhooks
-
-**Unconfirmed**, the whole section (the `/webhook` paths are in the spec; the rest was not re-read):
-Jira Cloud pushes `jira:issue_created`, `jira:issue_updated`, `jira:issue_deleted`, `comment_created`,
-`comment_updated`, `comment_deleted`, `issuelink_created`, `issuelink_deleted`, `sprint_*` and `board_*` events,
-registered by an admin (system webhooks) or by a Connect, Forge or OAuth app through `POST /rest/api/3/webhook`
-(dynamic, JQL-filtered, **expiring after 30 days** unless refreshed with `PUT /rest/api/3/webhook/refresh`).
-A payload carries the issue and, for an update, a `changelog`.
-Delivery is at least once, with retries and **no ordering guarantee**, and an event can be missed.
-A receiver needs a public endpoint.
+The server's clock is `GET /rest/api/3/serverInfo`'s `serverTime` (`getServerInfo`),
+or the HTTP `Date` header (RFC 1123) of any response.
 
 ## Data Center
 
-**Unconfirmed**, the whole section (no Data Center documentation was read):
+**Unconfirmed**, the whole section (general Jira behaviour):
 
 - **Base and version**: `https://jira.example.com[/context]/rest/api/2/...`; no v3.
-  The agile API is `/rest/agile/1.0`, with the same shapes.
-- **Auth**: personal access tokens, `Authorization: Bearer <PAT>` (8.14 and later);
-  Basic with username and password, which an admin may disable; OAuth 1.0a application links.
-  No API tokens, no email login.
+- **Auth**: personal access tokens or Basic with username and password; no API tokens, no email login.
 - **Bodies**: `description`, `environment`, a comment's `body` and textarea fields are **wiki-markup strings**,
-  not ADF. Cloud's `/rest/api/2` also reads and writes wiki strings.
+  not ADF.
 - **Users**: identified by `name` (the username) and `key`; there is no `accountId`.
-  A user is set with `{"name":"jdoe"}`; `/rest/api/2/user?username=`.
-  Emails are generally visible.
-- **Search**: the classic `/rest/api/2/search`, with `startAt`, `maxResults`, `total` and `validateQuery`;
-  no `/search/jql`, no token.
-  The index is near-synchronous on one node, asynchronous across a cluster.
-- **Parent**: Epic Link and Epic Name are the norm; `parent` is for sub-tasks;
-  Advanced Roadmaps uses "Parent Link" above epics.
-- **Create metadata**: the old `createmeta?expand=projects.issuetypes.fields` was removed in 9.0
-  for the paginated pair, as on Cloud.
-- **Timestamps** and JQL literals: as on Cloud.
-- **Rate limiting**: optional and admin-configured (8.6 and later), 429 with `Retry-After` and `X-RateLimit-*`.
-- `serverInfo.deploymentType` is `"Server"` or `"DataCenter"`;
-  `/myself` has `name`, `key` and `emailAddress`.
+- **Search**: the classic `/rest/api/2/search`, with `startAt`, `maxResults` and `total`; no `/search/jql`.
+- `GET /rest/api/2/serverInfo`'s `deploymentType` is `"Server"` or `"DataCenter"`;
+  on Cloud it is "always returned as *Cloud*" (spec, getServerInfo).

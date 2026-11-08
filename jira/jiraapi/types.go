@@ -11,10 +11,10 @@ import (
 
 // Time is a Jira timestamp. It parses the platform form
 // "2015-12-02T07:39:15.000-0800", with or without milliseconds, and the
-// RFC 3339 forms ("Z", "+10:00") sprint dates use (doc/design/bridges/jira-api.md, "Timestamps"). The offset of the response is kept: it is the site's zone, not the
-// caller's (doc/design/bridges/jira-api.md, "Timestamps"). JSON null and "" decode to the zero Time, which encodes as
+// RFC 3339 forms ("Z", "+10:00") sprint dates use (doc/reference/jira-api.md, "Timestamps"). The offset of the response is kept: it is the site's zone, not the
+// caller's (doc/reference/jira-api.md, "Timestamps"). JSON null and "" decode to the zero Time, which encodes as
 // null. A JSON number is epoch seconds, or milliseconds above 1e11, the form
-// of the bulk-changelog example (doc/design/bridges/jira-api.md, "Bulk changelog").
+// of the bulk-changelog example (doc/reference/jira-api.md, "Bulk changelog").
 type Time struct{ time.Time }
 
 // TimeLayout is the form Jira emits and the form Time encodes to.
@@ -96,7 +96,7 @@ func (d *Date) UnmarshalJSON(b []byte) error {
 	return err
 }
 
-// Issue is an IssueBean (doc/design/bridges/jira-api.md, "Reading an issue"). Fields stays raw: field ids are
+// Issue is an IssueBean (doc/reference/jira-api.md, "Reading an issue"). Fields stays raw: field ids are
 // site-specific, and interpreting them is the mapping layer's business.
 // System decodes the system fields; Decode any one field.
 type Issue struct {
@@ -111,7 +111,7 @@ type Issue struct {
 }
 
 // Decode unmarshals field id into v. It reports false, and leaves v alone,
-// when the field is absent or null (parent, for one, comes both ways, doc/design/bridges/jira-api.md, "The issue's fields").
+// when the field is absent or null (parent, for one, comes both ways, doc/reference/jira-api.md, "The issue's fields").
 func (i *Issue) Decode(id string, v any) (bool, error) {
 	raw, ok := i.Fields[id]
 	if !ok || string(bytes.TrimSpace(raw)) == "null" {
@@ -124,7 +124,7 @@ func (i *Issue) Decode(id string, v any) (bool, error) {
 }
 
 // SystemFields are the system fields the mapping layer reads, by their
-// fixed ids (doc/design/bridges/jira-api.md, "The issue's fields"). A pointer is nil when the field is absent or null.
+// fixed ids (doc/reference/jira-api.md, "The issue's fields"). A pointer is nil when the field is absent or null.
 type SystemFields struct {
 	Summary        string          `json:"summary"`
 	Description    json.RawMessage `json:"description"` // ADF, or null
@@ -175,7 +175,7 @@ type IssueRef struct {
 
 // IssueLink carries exactly one of InwardIssue and OutwardIssue inside
 // fields.issuelinks, relative to the issue viewed, and both on
-// GET /issueLink/{id} (doc/design/bridges/jira-api.md, "Reading and deleting a link"; doc/design/bridges/jira-api.md, "Links on an issue"). Viewed from A, OutwardIssue B reads
+// GET /issueLink/{id} (doc/reference/jira-api.md, "Reading and deleting a link"; doc/reference/jira-api.md, "Links on an issue"). Viewed from A, OutwardIssue B reads
 // "A <Type.Outward> B".
 type IssueLink struct {
 	ID           string        `json:"id"`
@@ -199,7 +199,7 @@ type IssueType struct {
 	Description    string `json:"description,omitempty"`
 	Self           string `json:"self,omitempty"`
 	Subtask        bool   `json:"subtask"`
-	HierarchyLevel int    `json:"hierarchyLevel"` // -1 sub-task, 0 base, 1 epic, ≥2 above (doc/design/bridges/jira-api.md, "Issue types and hierarchy levels")
+	HierarchyLevel int    `json:"hierarchyLevel"` // -1 sub-task, 0 base, 1 epic, ≥2 above (doc/reference/jira-api.md, "Issue types and hierarchy levels")
 	EntityID       string `json:"entityId,omitempty"`
 	Scope          *Scope `json:"scope,omitempty"`
 }
@@ -220,7 +220,7 @@ type Status struct {
 	StatusCategory StatusCategory `json:"statusCategory"`
 }
 
-// StatusCategory keys are new, indeterminate, done and undefined (doc/design/bridges/jira-api.md, "Status categories");
+// StatusCategory keys are new, indeterminate, done and undefined (doc/reference/jira-api.md, "Status categories");
 // map workflow meaning on Key, never on a status name.
 type StatusCategory struct {
 	ID        int    `json:"id"`
@@ -247,7 +247,7 @@ type Resolution struct {
 }
 
 // User keys on AccountID. EmailAddress is empty whether Jira omitted it,
-// sent null or sent "" (doc/design/bridges/jira-api.md, "Privacy and account types").
+// sent null or sent "" (doc/reference/jira-api.md, "Privacy and account types").
 type User struct {
 	AccountID    string `json:"accountId"`
 	AccountType  string `json:"accountType,omitempty"` // atlassian, app, customer, unknown
@@ -260,7 +260,7 @@ type User struct {
 }
 
 // Location is the user's profile zone, the zone JQL date literals are read
-// in when the user is the caller (doc/design/bridges/jira-api.md, "JQL for incremental sync"; doc/design/bridges/jira-api.md, "Timestamps").
+// in when the user is the caller (doc/reference/jira-api.md, "JQL for incremental sync"; doc/reference/jira-api.md, "Timestamps").
 func (u *User) Location() (*time.Location, error) {
 	if u.TimeZone == "" {
 		return nil, fmt.Errorf("jira: user %s has no time zone", u.AccountID)
@@ -282,7 +282,7 @@ type Project struct {
 	IssueTypes     []IssueType `json:"issueTypes,omitempty"`
 }
 
-// IssueTypeStatuses is one entry of GET /project/{key}/statuses (doc/design/bridges/jira-api.md, "Statuses per issue type").
+// IssueTypeStatuses is one entry of GET /project/{key}/statuses (doc/reference/jira-api.md, "Statuses per issue type").
 type IssueTypeStatuses struct {
 	ID       string   `json:"id"`
 	Name     string   `json:"name"`
@@ -291,7 +291,7 @@ type IssueTypeStatuses struct {
 	Statuses []Status `json:"statuses"`
 }
 
-// Field is a FieldDetails of GET /field (doc/design/bridges/jira-api.md, "Listing fields"). Discover well-known custom
+// Field is a FieldDetails of GET /field (doc/reference/jira-api.md, "Listing fields"). Discover well-known custom
 // fields on Schema.Custom, never on Name.
 type Field struct {
 	ID               string       `json:"id"`
@@ -307,7 +307,7 @@ type Field struct {
 	Scope            *Scope       `json:"scope,omitempty"`
 }
 
-// FieldSchema is a JsonTypeBean (doc/design/bridges/jira-api.md, "Field names and schemas").
+// FieldSchema is a JsonTypeBean (doc/reference/jira-api.md, "Field names and schemas").
 type FieldSchema struct {
 	Type     string `json:"type"`
 	Items    string `json:"items,omitempty"`
@@ -316,8 +316,8 @@ type FieldSchema struct {
 	CustomID int64  `json:"customId,omitempty"`
 }
 
-// FieldMeta is a field as createmeta (FieldCreateMetadata, doc/design/bridges/jira-api.md, "Create metadata"), editmeta
-// and transition screens (FieldMetadata, doc/design/bridges/jira-api.md, "Listing transitions") describe it. FieldID is set
+// FieldMeta is a field as createmeta (FieldCreateMetadata, doc/reference/jira-api.md, "Create metadata"), editmeta
+// and transition screens (FieldMetadata, doc/reference/jira-api.md, "Listing transitions") describe it. FieldID is set
 // by createmeta only.
 type FieldMeta struct {
 	FieldID         string            `json:"fieldId,omitempty"`
@@ -332,7 +332,7 @@ type FieldMeta struct {
 	AutoCompleteURL string            `json:"autoCompleteUrl,omitempty"`
 }
 
-// Transition is an IssueTransition (doc/design/bridges/jira-api.md, "Listing transitions"). Fields is filled because
+// Transition is an IssueTransition (doc/reference/jira-api.md, "Listing transitions"). Fields is filled because
 // Transitions always expands transitions.fields.
 type Transition struct {
 	ID            string               `json:"id"`
@@ -346,7 +346,7 @@ type Transition struct {
 	Fields        map[string]FieldMeta `json:"fields,omitempty"`
 }
 
-// Comment bodies are ADF (doc/design/bridges/jira-api.md, "Listing comments").
+// Comment bodies are ADF (doc/reference/jira-api.md, "Listing comments").
 type Comment struct {
 	ID           string          `json:"id"`
 	Self         string          `json:"self,omitempty"`
@@ -357,7 +357,7 @@ type Comment struct {
 	Updated      Time            `json:"updated"`
 	Visibility   *Visibility     `json:"visibility,omitempty"`
 	// Properties are set with expand=properties, which Comments sends; that
-	// the list endpoint honours it is unverified (doc/design/bridges/jira-api.md, "Listing comments").
+	// the list endpoint honours it is unverified (doc/reference/jira-api.md, "Listing comments").
 	Properties []CommentProperty `json:"properties,omitempty"`
 }
 
@@ -383,7 +383,7 @@ type Visibility struct {
 	Identifier string `json:"identifier,omitempty"`
 }
 
-// Changelog is the embedded page of expand=changelog (doc/design/bridges/jira-api.md, "The changelog on an issue"), newest first,
+// Changelog is the embedded page of expand=changelog (doc/reference/jira-api.md, "The changelog on an issue"), newest first,
 // truncated: use it as a hint only.
 type Changelog struct {
 	StartAt    int       `json:"startAt"`
@@ -392,7 +392,7 @@ type Changelog struct {
 	Histories  []History `json:"histories"`
 }
 
-// History comes in no guaranteed order; sort on (Created, numeric ID) (doc/design/bridges/jira-api.md, "What the changelog holds").
+// History comes in no guaranteed order; sort on (Created, numeric ID) (doc/reference/jira-api.md, "What the changelog holds").
 type History struct {
 	ID      string       `json:"id"`
 	Author  *User        `json:"author,omitempty"`
@@ -400,7 +400,7 @@ type History struct {
 	Items   []ChangeItem `json:"items"`
 }
 
-// ChangeItem values are strings, null decoding to "" (doc/design/bridges/jira-api.md, "Reading the changelog").
+// ChangeItem values are strings, null decoding to "" (doc/reference/jira-api.md, "Reading the changelog").
 type ChangeItem struct {
 	Field      string `json:"field"`
 	FieldType  string `json:"fieldtype"`
@@ -412,7 +412,7 @@ type ChangeItem struct {
 }
 
 // FieldKey is what to match an item on: FieldID when present, else Field
-// lower-cased, since fieldId is often absent and field's case varies (doc/design/bridges/jira-api.md, "What the changelog holds").
+// lower-cased, since fieldId is often absent and field's case varies (doc/reference/jira-api.md, "What the changelog holds").
 func (it ChangeItem) FieldKey() string {
 	if it.FieldID != "" {
 		return it.FieldID
@@ -430,13 +430,13 @@ type ServerInfo struct {
 	ServerTitle    string `json:"serverTitle,omitempty"`
 }
 
-// Property is an entity property set inline on create (doc/design/bridges/jira-api.md, "Issue properties").
+// Property is an entity property set inline on create (doc/reference/jira-api.md, "Issue properties").
 type Property struct {
 	Key   string `json:"key"`
 	Value any    `json:"value"`
 }
 
-// Op is one FieldUpdateOperation of an edit's update map (doc/design/bridges/jira-api.md, "Editing an issue").
+// Op is one FieldUpdateOperation of an edit's update map (doc/reference/jira-api.md, "Editing an issue").
 type Op struct {
 	Verb  string // set, add, remove, edit or copy
 	Value any

@@ -10,7 +10,7 @@ import (
 	"strings"
 )
 
-// Search is the body of POST /rest/api/3/search/jql (doc/design/bridges/jira-api.md, "Enhanced search"), minus the page
+// Search is the body of POST /rest/api/3/search/jql (doc/reference/jira-api.md, "Enhanced search"), minus the page
 // token, which SearchJQL manages.
 type Search struct {
 	JQL string
@@ -20,7 +20,7 @@ type Search struct {
 	Properties []string // at most 5
 	MaxResults int      // advisory; pages can be shorter
 	// ReconcileIssues are numeric issue ids (at most 50) read with strong
-	// consistency; the same list goes with every page (doc/design/bridges/jira-api.md, "Search index lag"; doc/design/bridges/jira-api.md, "Enhanced search").
+	// consistency; the same list goes with every page (doc/reference/jira-api.md, "Search index lag"; doc/reference/jira-api.md, "Enhanced search").
 	ReconcileIssues []int64
 }
 
@@ -35,7 +35,7 @@ type SearchPage struct {
 // SearchJQL runs s and calls fn with each page, in order, until the last
 // page or until fn returns an error, which SearchJQL returns. The last page
 // is the one with isLast true or with nextPageToken missing, null or empty
-// (doc/design/bridges/jira-api.md, "Enhanced search"); a page may be empty without being the last.
+// (doc/reference/jira-api.md, "Enhanced search"); a page may be empty without being the last.
 func (c *Client) SearchJQL(ctx context.Context, s Search, fn func(SearchPage) error) error {
 	body := struct {
 		JQL             string   `json:"jql"`
@@ -73,7 +73,7 @@ func (c *Client) SearchJQL(ctx context.Context, s Search, fn func(SearchPage) er
 }
 
 // GetIssue reads one issue. An old key finds the moved issue, whose Key is
-// then the new one (doc/design/bridges/jira-api.md, "Keys, ids and moves"). nil fields means all of them.
+// then the new one (doc/reference/jira-api.md, "Keys, ids and moves"). nil fields means all of them.
 func (c *Client) GetIssue(ctx context.Context, idOrKey string, fields, expand []string, properties ...string) (*Issue, error) {
 	q := url.Values{}
 	if len(fields) > 0 {
@@ -92,7 +92,7 @@ func (c *Client) GetIssue(ctx context.Context, idOrKey string, fields, expand []
 	return &is, nil
 }
 
-// CreateIssue creates an issue (doc/design/bridges/jira-api.md, "Creating an issue") and returns its id and key. User
+// CreateIssue creates an issue (doc/reference/jira-api.md, "Creating an issue") and returns its id and key. User
 // fields take {"id": accountId}, issuetype {"id": …}.
 func (c *Client) CreateIssue(ctx context.Context, fields map[string]any, properties []Property) (IssueRef, error) {
 	body := map[string]any{"fields": fields}
@@ -105,9 +105,9 @@ func (c *Client) CreateIssue(ctx context.Context, fields map[string]any, propert
 }
 
 // EditIssue sets fields and applies update operations in one PUT, one
-// per-issue write (doc/design/bridges/jira-api.md, "Editing an issue"). A field may not appear in both. Status is
+// per-issue write (doc/reference/jira-api.md, "Editing an issue"). A field may not appear in both. Status is
 // not editable here; see DoTransition. notifyUsers is never sent: false
-// fails the whole edit without admin rights (doc/design/bridges/jira-api.md, "Editing an issue").
+// fails the whole edit without admin rights (doc/reference/jira-api.md, "Editing an issue").
 func (c *Client) EditIssue(ctx context.Context, idOrKey string, fields map[string]any, update map[string][]Op) error {
 	body := map[string]any{}
 	if fields != nil {
@@ -121,7 +121,7 @@ func (c *Client) EditIssue(ctx context.Context, idOrKey string, fields map[strin
 }
 
 // DeleteIssue deletes an issue; with sub-tasks it fails unless
-// deleteSubtasks (doc/design/bridges/jira-api.md, "Deleting an issue").
+// deleteSubtasks (doc/reference/jira-api.md, "Deleting an issue").
 func (c *Client) DeleteIssue(ctx context.Context, idOrKey string, deleteSubtasks bool) error {
 	q := url.Values{}
 	if deleteSubtasks {
@@ -132,7 +132,7 @@ func (c *Client) DeleteIssue(ctx context.Context, idOrKey string, deleteSubtasks
 }
 
 // Transitions lists the transitions available from the issue's current
-// status, with their screen fields (doc/design/bridges/jira-api.md, "Listing transitions").
+// status, with their screen fields (doc/reference/jira-api.md, "Listing transitions").
 func (c *Client) Transitions(ctx context.Context, idOrKey string) ([]Transition, error) {
 	var out struct {
 		Transitions []Transition `json:"transitions"`
@@ -144,7 +144,7 @@ func (c *Client) Transitions(ctx context.Context, idOrKey string) ([]Transition,
 
 // DoTransition performs a transition, with the screen fields it requires
 // (e.g. resolution). A 409 means a concurrent transition: re-read
-// Transitions before retrying (doc/design/bridges/jira-api.md, "Making a transition").
+// Transitions before retrying (doc/reference/jira-api.md, "Making a transition").
 func (c *Client) DoTransition(ctx context.Context, idOrKey, transitionID string, fields map[string]any) error {
 	body := map[string]any{"transition": map[string]string{"id": transitionID}}
 	if fields != nil {
@@ -156,22 +156,22 @@ func (c *Client) DoTransition(ctx context.Context, idOrKey, transitionID string,
 
 // CreateIssueLink links source to destination so that it reads
 // "source <outward> destination": ("Blocks", A, B) means A blocks B.
-// Jira calls the source inwardIssue and the destination outwardIssue (doc/design/bridges/jira-api.md, "Link direction").
+// Jira calls the source inwardIssue and the destination outwardIssue (doc/reference/jira-api.md, "Link direction").
 // linkType and the issues are ids when all digits, else a name and keys.
-// No comment is ever sent (doc/design/bridges/jira-api.md, "Creating a link"), and the response has no link id: re-read
-// fields.issuelinks for it (doc/design/bridges/jira-api.md, "Creating a link").
+// No comment is ever sent (doc/reference/jira-api.md, "Creating a link"), and the response has no link id: re-read
+// fields.issuelinks for it (doc/reference/jira-api.md, "Creating a link").
 func (c *Client) CreateIssueLink(ctx context.Context, linkType, source, destination string) error {
 	body := map[string]any{
 		"type":         ref(linkType, "name"),
 		"inwardIssue":  ref(source, "key"),
 		"outwardIssue": ref(destination, "key"),
 	}
-	// A duplicate request creates no second link (doc/design/bridges/jira-api.md, "Creating a link"), so a 503 may be retried.
+	// A duplicate request creates no second link (doc/reference/jira-api.md, "Creating a link"), so a 503 may be retried.
 	_, err := c.do(ctx, request{method: http.MethodPost, path: "/rest/api/3/issueLink", body: body, safe: true})
 	return err
 }
 
-// DeleteIssueLink removes a link by id; both 200 and 204 are success (doc/design/bridges/jira-api.md, "Reading and deleting a link").
+// DeleteIssueLink removes a link by id; both 200 and 204 are success (doc/reference/jira-api.md, "Reading and deleting a link").
 func (c *Client) DeleteIssueLink(ctx context.Context, linkID string) error {
 	_, err := c.do(ctx, request{method: http.MethodDelete, path: "/rest/api/3/issueLink/" + esc(linkID)})
 	return err
@@ -189,7 +189,7 @@ func (c *Client) GetProperty(ctx context.Context, idOrKey, key string) (json.Raw
 
 // SetProperty writes an issue property, value being any non-empty JSON of at
 // most 32768 characters, and reports whether it was created rather than
-// replaced (doc/design/bridges/jira-api.md, "Issue properties"). It neither bumps updated nor enters the
+// replaced (doc/reference/jira-api.md, "Issue properties"). It neither bumps updated nor enters the
 // changelog.
 func (c *Client) SetProperty(ctx context.Context, idOrKey, key string, value any) (created bool, err error) {
 	status, err := c.do(ctx, request{method: http.MethodPut, path: "/rest/api/3/issue/" + esc(idOrKey) + "/properties/" + esc(key), body: value})
