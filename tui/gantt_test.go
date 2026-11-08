@@ -721,3 +721,11 @@ func TestGroupedGanttKeepsTheGroupHeaderOnTop(t *testing.T) {
 	require.Equal(t, header, lines[4], "the group's header is the first body line")
 	require.Contains(t, lines[5], firstRow, "the cursor's row is right under it")
 }
+
+// TestGanttGroupColorsOrder pins the fallback palette: the six normal
+// colors, then the six bright ones.
+func TestGanttGroupColorsOrder(t *testing.T) {
+	require.Equal(t,
+		[]string{"4", "2", "5", "6", "1", "3", "12", "10", "13", "14", "9", "11"},
+		groupColors)
+}

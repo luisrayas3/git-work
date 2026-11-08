@@ -55,8 +55,9 @@ const (
 )
 
 // groupColors are the bars' colors, one per group in the order the groups
-// first appear, cycled, for a group whose head has no color of its own.
-var groupColors = []string{"4", "2", "5", "6", "1", "12", "10", "13", "14", "9"}
+// first appear, cycled, for a group whose head has no color of its own:
+// the six normal colors, then the six bright ones.
+var groupColors = []string{"4", "2", "5", "6", "1", "3", "12", "10", "13", "14", "9", "11"}
 
 func (p *ganttPage) View() string {
 	if p.help != nil {
