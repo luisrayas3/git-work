@@ -330,21 +330,16 @@ func (e *editor) Value() (issue.Value, error) {
 	return issue.StringValue(text), nil
 }
 
-// View draws the widget over the bottom of the page.
+// View draws the widget over the bottom of the page: the field's name and
+// the input or the choices, and no keys, which are on the page's bottom line
+// (e.hints) and nowhere else
+// (doc/design/tui.md, "Key hints are on the bottom line only").
 func (e *editor) View(width int) []string {
 	title := styleHeader.Render(e.key)
 	if e.picker == nil {
-		return []string{title, fit(e.input.View(), width), styleDim.Render("enter saves · esc cancels")}
+		return []string{title, fit(e.input.View(), width)}
 	}
-	lines := append([]string{title}, e.picker.lines(width)...)
-	if e.expand {
-		// nothing is saved: a toggle redraws the page at once
-		return append(lines, styleDim.Render("enter toggles · esc done"))
-	}
-	if e.picker.text() != "" {
-		return append(lines, styleDim.Render("enter saves · esc clears"))
-	}
-	return append(lines, styleDim.Render("enter saves · esc cancels"))
+	return append([]string{title}, e.picker.lines(width)...)
 }
 
 // pickerRows is as many choices as a picker draws at once.

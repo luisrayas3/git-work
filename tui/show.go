@@ -1038,7 +1038,7 @@ func (p *showPage) write(fieldKey string, value issue.Value, said string) {
 
 func (p *showPage) View() string {
 	if p.help != nil {
-		return p.help.View(p.width)
+		return p.help.View(p.width, p.height)
 	}
 
 	here := p.current()
@@ -1233,17 +1233,6 @@ func (p *showPage) blockLines(here position) ([]string, int) {
 	return append(lines, ""), cursor
 }
 
-// descFooter is under the description's editor, the keys that work it: the
-// editor's keys while the cursor is in it, and the key that gets back in
-// while it is not.
-func (p *showPage) descFooter() string {
-	pairs, marker := descHints(), "›"
-	if !p.editingDesc {
-		pairs, marker = []hint{{"space", "edit"}}, " "
-	}
-	return fit(marker+" "+styleDim.Render(hintText(pairs...)), p.width)
-}
-
 // fieldLines is the fields table (tableLines), the row under the cursor
 // marked while the cursor is in it.
 func (p *showPage) fieldLines(here position) ([]string, int) {
@@ -1314,11 +1303,9 @@ func tabStrip(active tab, focused bool, width int) []string {
 	if width > used {
 		bottom.WriteString(strings.Repeat("─", width-used))
 	}
-	hint := ""
-	if focused {
-		hint = "  " + styleDim.Render("←→")
-	}
-	return []string{fit(top.String(), width), fit(middle.String()+hint, width), fit(bottom.String(), width)}
+	// no ←→ beside the strip: the bottom line says it
+	// (doc/design/tui.md, "Key hints are on the bottom line only")
+	return []string{fit(top.String(), width), fit(middle.String(), width), fit(bottom.String(), width)}
 }
 
 // commentLines is what was said about the issue, after its body: each
@@ -1397,9 +1384,19 @@ func (p *showPage) deleteComment() tea.Cmd {
 // While the editor is open — and after an esc, while it holds a draft — the
 // box stands in the tab's place, so that the text being rewritten is where
 // the text being read was, and an unwritten draft is never out of sight.
+//
+// Over the box, where the author and the time are over the description, a
+// dim line says what the box holds, so that a draft left with esc does not
+// read as the description written: the keys that work it are on the bottom
+// line, and only there
+// (doc/design/tui.md, "Key hints are on the bottom line only").
 func (p *showPage) descriptionLines() []string {
 	if p.desc != nil {
-		return append(p.desc.View(p.width, false), p.descFooter())
+		said := " being rewritten"
+		if !p.editingDesc {
+			said = " a draft, not written"
+		}
+		return append([]string{styleDim.Render(fit(said, p.width))}, p.desc.View(p.width, false)...)
 	}
 	if len(p.snapshot.Comments) == 0 {
 		return []string{styleDim.Render(" (no description)")}

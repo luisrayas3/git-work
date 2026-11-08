@@ -638,6 +638,12 @@ and `Enter` writes an edit of the first comment.
 An empty body is refused with the bell: the model has no issue without one.
 The editor stands where the text was read and stays, blurred, while it holds an unwritten draft;
 leaving with one asks for a second `Esc`, and an editor left untouched keeps nothing.
+Where the author and time stand over the description,
+a dim line over the editor says what it holds,
+*being rewritten* while the cursor is in it and *a draft, not written* after an `Esc`,
+so a draft never reads as the description written.
+Its keys are on the bottom line, as the box's are
+([key hints are on the bottom line only](tui.md#key-hints-are-on-the-bottom-line-only)).
 
 ### The fields table
 

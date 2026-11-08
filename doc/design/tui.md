@@ -191,9 +191,16 @@ While a page is editing, filtering, grabbed or showing the help,
 ### The help is the keymap
 
 `?` lists every action,
-one row each: its keys, its `alt` key, its letter on the palette, and what it does.
+one row each: its keys, its `alt` key, its letter on the palette, and what it does,
+under dim column headers that say which is which (*keys*, *alt*, *palette*, *action*).
 It is generated from the keymap in `tui/keys.go`,
 so it cannot fall out of date.
+It has the bottom line every page has, reading *esc: close*,
+and no line of its own explaining the table:
+a sentence there would read as a hint,
+and `esc` closes the help on its first press, so a hint past it would never be read
+([Key hints are on the bottom line only](#key-hints-are-on-the-bottom-line-only)).
+Where the window is too short for the table, the table is cut and the bottom line stays.
 
 ### What has nothing to do rings
 
@@ -516,6 +523,22 @@ Where the window cannot hold both, the hints win whole
 and the right side is cut from its left,
 because a count and the end of a refusal are what is read at that edge.
 One helper builds the line for every kind (`bottomLine`, `tui/hints.go`).
+
+### Key hints are on the bottom line only
+
+No box, picker, editor or overlay draws its own keys:
+they are on the bottom line's left, and nowhere else.
+Not a footer under the widget as well:
+two copies of one list drift
+(a footer saying *enter saves* over a line saying *enter: write*),
+and the bottom line is the copy every state already has.
+So an editor draws the field's name and its input or choices,
+and its keys are `editor.hints` on the line;
+the search, flow and query boxes draw theirs the same way (`withBox`, `tui/palette.go`);
+the tab strip draws no `←→`;
+and the help's own keys are its bottom line ([The help is the keymap](#the-help-is-the-keymap)).
+The palette's letters are its content, not hints,
+and a placeholder's words (*type to narrow*) name no key.
 
 ### The hints name the keys that act under the cursor
 

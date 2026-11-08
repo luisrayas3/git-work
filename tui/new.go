@@ -711,7 +711,7 @@ func (p *newPage) pointAt(problem string) {
 
 func (p *newPage) View() string {
 	if p.help != nil {
-		return p.help.View(p.width)
+		return p.help.View(p.width, p.height)
 	}
 
 	here := p.current()

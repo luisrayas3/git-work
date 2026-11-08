@@ -58,7 +58,7 @@ var groupColors = []string{"4", "2", "5", "6", "1", "12", "10", "13", "14", "9"}
 
 func (p *ganttPage) View() string {
 	if p.help != nil {
-		return p.help.View(p.width)
+		return p.help.View(p.width, p.height)
 	}
 
 	bottom := p.bottom()

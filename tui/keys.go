@@ -261,11 +261,17 @@ func (h *help) Update(press tea.KeyPressMsg) (closed bool) {
 }
 
 // View is one row per action: its keys, each alternative in a column of its
-// own, its alt key, its letter on the palette, and what it does.
-func (h *help) View(width int) string {
+// own, its alt key, its letter on the palette, and what it does, under dim
+// column headers that say which is which; the page's bottom line is under it.
+//
+// The bottom line is the one place a key is hinted
+// (doc/design/tui.md, "Key hints are on the bottom line only"),
+// and esc is the key it names: the first esc closes the help, so nothing
+// drawn past it is ever read.
+func (h *help) View(width, height int) string {
 	rows := helpRows()
 	var widths []int
-	altWidth := 0
+	altWidth := ansi.StringWidth("alt")
 	for _, row := range rows {
 		for i, k := range row.spellings() {
 			if i == len(widths) {
@@ -278,30 +284,45 @@ func (h *help) View(width int) string {
 		}
 	}
 	const gap = 2
-	lines := []string{styleHeader.Render("keys"), ""}
+	keysWidth := 0
+	for _, w := range widths {
+		keysWidth += w + gap
+	}
+	keysWidth = max(keysWidth, ansi.StringWidth("keys")+gap)
+	letterWidth := max(ansi.StringWidth("esc x"), ansi.StringWidth("palette"))
+
+	headers := "  " + pad("keys", keysWidth) + pad("alt", altWidth+gap) +
+		pad("palette", letterWidth+gap) + "action"
+	lines := []string{styleHeader.Render("help"), "", styleDim.Render(fit(headers, width))}
 	for _, row := range rows {
-		var line strings.Builder
-		line.WriteString("  ")
+		var keysCell strings.Builder
 		spelled := row.spellings()
 		for i, w := range widths {
 			k := ""
 			if i < len(spelled) {
 				k = spelled[i]
 			}
-			line.WriteString(pad(k, w+gap))
+			keysCell.WriteString(pad(k, w+gap))
 		}
 		alt, letter := "", ""
 		if row.letter != "" {
 			alt, letter = "alt+"+row.letter, "esc "+row.letter
 		}
-		line.WriteString(pad(alt, altWidth+gap))
-		line.WriteString(pad(letter, len("esc x")+gap))
-		line.WriteString(row.what)
-		lines = append(lines, fit(line.String(), width))
+		line := "  " + pad(keysCell.String(), keysWidth) +
+			pad(alt, altWidth+gap) + pad(letter, letterWidth+gap) + row.what
+		lines = append(lines, fit(line, width))
 	}
-	lines = append(lines, "",
-		styleDim.Render(fit("  esc x is alt+x · esc ?: close", width)))
-	return strings.Join(lines, "\n")
+
+	// the table is cut before the bottom line is: the line is the way out,
+	// and a window too short for the table can be made taller
+	if height > 1 && len(lines) > height-1 {
+		lines = lines[:height-1]
+	}
+	for len(lines) < height-1 {
+		lines = append(lines, "")
+	}
+	bottom := styleStatus.Render(bottomLine(hintText(hint{"esc", "close"}), "", width))
+	return strings.Join(append(lines, bottom), "\n")
 }
 
 // bell is the terminal's own blink: what a key that has nothing to do here

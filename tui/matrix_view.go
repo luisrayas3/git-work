@@ -17,7 +17,7 @@ const matrixGap = 1
 
 func (p *matrixPage) View() string {
 	if p.help != nil {
-		return p.help.View(p.width)
+		return p.help.View(p.width, p.height)
 	}
 
 	bottom := p.bottom()

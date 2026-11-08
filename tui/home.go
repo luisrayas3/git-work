@@ -363,7 +363,7 @@ func (p *homePage) bottom() []string {
 
 func (p *homePage) View() string {
 	if p.help != nil {
-		return p.help.View(p.width)
+		return p.help.View(p.width, p.height)
 	}
 
 	items := p.picker.items
@@ -479,7 +479,7 @@ func (p *outputPage) room() int {
 
 func (p *outputPage) View() string {
 	if p.help != nil {
-		return p.help.View(p.width)
+		return p.help.View(p.width, p.height)
 	}
 	body := p.lines()
 	room := p.room()

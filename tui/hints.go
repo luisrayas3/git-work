@@ -32,8 +32,8 @@ type hint struct {
 // is where the rest is.
 const helpHint = "? keys"
 
-// hintText is the pairs, joined, with no help key: what a hint reads as
-// where it is drawn somewhere other than the status line.
+// hintText is the pairs, joined, with no help key: the bottom line where `?`
+// is not the way to the rest, as on the help itself.
 func hintText(pairs ...hint) string {
 	parts := make([]string, 0, len(pairs))
 	for _, pair := range pairs {
@@ -119,8 +119,9 @@ func boxHints(typing bool) []hint {
 	return []hint{{"space", "type"}, {"tab", "skip"}}
 }
 
-// descHints are the description editor's keys on show, in the status line
-// and in the footer under it, which is one list so the two never disagree.
+// descHints are the description editor's keys on show, in the status line,
+// the one place they are drawn
+// (doc/design/tui.md, "Key hints are on the bottom line only").
 //
 // They are the box's keys, except that what enter does is write and not
 // send: the description is one text being rewritten, not one more comment.

@@ -337,3 +337,60 @@ func TestShowHintsNameWhatIsUnderTheCursor(t *testing.T) {
 		{what: "an empty table over a stored relation: its ghost", at: toSide, line: "enter: new issue · ? keys"},
 	})
 }
+
+// TestKeyHintsAreOnTheBottomLineOnly: no box, picker, editor or overlay
+// draws its own keys; the bottom line is the one place they are, so two
+// copies that disagree ("saves" over "write") cannot happen again
+// (doc/design/tui.md, "Key hints are on the bottom line only").
+func TestKeyHintsAreOnTheBottomLineOnly(t *testing.T) {
+	repo := testRepo(t)
+	id := newIssue(t, repo, map[string]any{"title": "one", "status": "to-do"})
+
+	noKeys := func(what string, lines []string) {
+		t.Helper()
+		drawn := ansiPattern.ReplaceAllString(strings.Join(lines, "\n"), "")
+		for _, key := range []string{"esc", "enter", "space", "←→", " · "} {
+			require.NotContains(t, drawn, key, what)
+		}
+	}
+
+	// the editor, a line and a picker, untouched and typed into
+	edited := send(list(t, repo, `{"fields":["title","status"]}`), "right", "space").(*listPage)
+	require.NotNil(t, edited.editor)
+	noKeys("the text editor", edited.editor.View(80))
+	picked := send(list(t, repo, `{"fields":["title","status"]}`), "right", "right", "space").(*listPage)
+	require.NotNil(t, picked.editor)
+	require.NotNil(t, picked.editor.picker)
+	noKeys("the picker", picked.editor.View(80))
+	picked = send(picked, "d").(*listPage)
+	noKeys("the picker typed into", picked.editor.View(80))
+
+	// the comment box, at rest, under the cursor and typed into
+	box := newCommentBox(80)
+	noKeys("the box", box.View(80, false))
+	noKeys("the box under the cursor", box.View(80, true))
+	box.focus(true)
+	noKeys("the box typed into", box.View(80, true))
+
+	// the description's editor, open and then left with a draft: what it
+	// holds is said, and its keys are not
+	shown := send(show(t, repo, id, nil), "tab", "tab", "space").(*showPage)
+	require.True(t, shown.editingDesc)
+	noKeys("the description's editor", shown.descriptionLines())
+	shown = send(shown, "x", "esc").(*showPage)
+	require.NotNil(t, shown.desc, "a draft kept")
+	noKeys("the description's draft", shown.descriptionLines())
+	drawn := ansiPattern.ReplaceAllString(strings.Join(shown.descriptionLines(), "\n"), "")
+	require.Contains(t, drawn, "a draft, not written")
+
+	// the help: column headers over the table, and the one key out on the
+	// bottom line, where every page has it
+	helped := send(list(t, repo, `{"fields":["title"]}`), "?").(*listPage)
+	lines := strings.Split(plainView(helped), "\n")
+	require.Len(t, lines, helped.height)
+	require.Equal(t, "esc: close", strings.TrimSpace(lines[len(lines)-1]))
+	body := strings.Join(lines[:len(lines)-1], "\n")
+	require.NotContains(t, body, "close")
+	require.NotContains(t, body, " · ")
+	require.Regexp(t, `(?m)^  keys +alt +palette +action$`, body)
+}
