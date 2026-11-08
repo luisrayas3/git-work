@@ -4,8 +4,11 @@ Show the schema
 
 ### Synopsis
 
-Print the live schema: every type and field entity, compiled, in the document
-a human edits. This is an alias of export.
+Print the live schema: every unarchived type and field entity, compiled, in
+the document a human edits. This is an alias of export.
+
+--include-archive puts back the archived types, fields and values, each marked
+archived: true.
 
 The three built-in fields — title, type and archived — exist in code on every
 type and are not printed unless an entity overrides one of them.
@@ -19,13 +22,15 @@ git-work schema [flags]
 ```
 git work schema
 git work schema --format json | jq '.types.task.fields | keys'
+git work schema --include-archive
 ```
 
 ### Options
 
 ```
-  -f, --format string   Select the output formatting style. Valid values are [yaml,json] (default "yaml")
-  -h, --help            help for schema
+  -f, --format string     Select the output formatting style. Valid values are [yaml,json] (default "yaml")
+  -h, --help              help for schema
+      --include-archive   include the archived types, fields and values, marked archived: true
 ```
 
 ### SEE ALSO

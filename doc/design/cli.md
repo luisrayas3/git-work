@@ -214,8 +214,8 @@ git work issue comment new ISSUE_ID BODY|-       # prints the comment id
 git work issue comment edit COMMENT_ID BODY|- [--base HASH]   # HASH: a message_hash from get
 git work issue comment delete COMMENT_ID         # replicated, final
 
-git work schema [--format yaml|json]             # = schema export
-git work schema export [--format yaml|json]
+git work schema [--include-archive] [--format yaml|json]   # = schema export
+git work schema export [--include-archive] [--format yaml|json]
 git work schema import FILE|- [--prune] [--dry-run]
 git work schema init [PRESET] [--dry-run]
 git work schema log [KEY | --id ID] [--format json|text]

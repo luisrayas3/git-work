@@ -655,6 +655,9 @@ An import owns only the attributes it writes:
 one a newer binary added is left alone,
 and an alias is written when stated and never removed,
 so an alias-free file unmaps nothing.
+A field's live values are the ones its entry lists, in that order;
+an archived value the entry leaves out is kept as it stands
+([export hides what is archived](#export-hides-what-is-archived)).
 
 Writing only differences is what keeps every import, and every Jira sync,
 which imports through the same function,
@@ -665,7 +668,8 @@ from filling the log with operations that change nothing.
 `archived` on a type, a field or a value is stated, as an alias is:
 `true` archives it, `false` unarchives it,
 and absent leaves it as it stands.
-Export writes `archived: true` on what is archived and nothing on what is not,
+Export, asked for the archived, writes `archived: true` on what is archived
+and nothing on what is not,
 so `export | import` writes nothing,
 and a file written before an archive, or one that never heard of it,
 revives nothing.
@@ -673,6 +677,36 @@ Not absent as unarchived:
 the authoring copy in a working tree is older than an archive a sync made,
 and importing it would hand back the value Jira cannot hold.
 An archive stated with other changes to one entity lands in its one commit.
+
+### Export hides what is archived
+
+`git work schema` and `schema export` leave out the archived types, fields and values;
+`--include-archive`, and `include_archive=True` on `work.schema.export`,
+put them back in their places, each marked `archived: true`
+([an archive is stated, never implied](#an-archive-is-stated-never-implied)).
+It is the switch the issue listing takes, under the same name
+([query, "The switch is `include_archive`"](query.md#the-switch-is-include_archive)).
+
+Leaving them out loses nothing,
+because an import leaves what a file omits as it stands:
+an omitted type or field by the [upsert](#import-is-an-upsert),
+which `--prune` extends only to what is live,
+and an omitted archived value because `Reconcile` keeps it on its field as it is.
+So `export | import` writes nothing either way,
+and the validation of an import knows the store's archived types,
+so a live field may still name one as a target.
+Not shown by default:
+a schema that has followed Jira for a while can carry more archived than live,
+and a person reading the file reads what can be chosen.
+
+A reader inside git-work that turns the export into a document to import,
+or reads what an issue holds, takes everything:
+`Derive` starts from the whole export,
+or it could not unarchive what Jira has again
+([Jira sync, "What Jira drops is archived"](jira.md#what-jira-drops-is-archived)),
+and `$schema` is the export with the archived,
+so an issue on an archived value still sorts by it
+([query](query.md#schema-is-bound-on-every-run)).
 
 ### One commit per entity
 

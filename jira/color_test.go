@@ -17,7 +17,7 @@ import (
 // pending and no off-schema item for it, and writes nothing on either side.
 func TestColorIsLocalOnly(t *testing.T) {
 	w := newWorld(t)
-	doc, _, err := host.SchemaExport(w.c)
+	doc, _, err := host.SchemaExport(w.c, false)
 	require.NoError(t, err)
 	task, ok := doc.Types.Get("task")
 	require.True(t, ok)

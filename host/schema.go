@@ -75,7 +75,12 @@ func (r SchemaRef) resolveOne(repo *cache.RepoCache) (*cache.ConfigCache, error)
 // so a dangling target type is said out loud and nothing more.
 // They come back rather than reaching stderr here,
 // because a script's diagnostics and a command's go to different places.
-func SchemaExport(repo *cache.RepoCache) (*schema.Document, []string, error) {
+//
+// The archived types, fields and values are left out unless includeArchive
+// says otherwise (doc/design/schema.md, "Export hides what is archived");
+// a caller that derives a document to import from this one, as the Jira sync
+// does, includes them, or it could not unarchive what it finds again.
+func SchemaExport(repo *cache.RepoCache, includeArchive bool) (*schema.Document, []string, error) {
 	warnings := SchemaDuplicates(repo)
 
 	s, err := repo.LoadSchema()
@@ -84,13 +89,18 @@ func SchemaExport(repo *cache.RepoCache) (*schema.Document, []string, error) {
 	}
 	warnings = append(warnings, s.Problems...)
 
-	return schema.Export(s), warnings, nil
+	doc := schema.Export(s)
+	if !includeArchive {
+		doc = doc.Unarchived()
+	}
+	return doc, warnings, nil
 }
 
 // SchemaValue is the live schema as a jq program reads it, `$schema`
 // (doc/design/query.md, "`$schema` is bound on every run"): the document
-// SchemaExport returns, in
-// the shape `git work schema export --format json` prints.
+// SchemaExport returns with the archived included, in
+// the shape `git work schema export --include-archive --format json` prints,
+// since an issue may hold an archived value and a program still sorts by it.
 //
 // It is the schema now, under `--at` too: the schema has no history to replay.
 // Each call loads the schema afresh, as every other read of it does, so a
@@ -135,7 +145,14 @@ func SchemaImport(repo *cache.RepoCache, doc *schema.Document, prune bool, dryRu
 // schemaImport is SchemaImport, and also returns the schema the import
 // leaves, compiled in memory whether or not it was written.
 func schemaImport(repo *cache.RepoCache, doc *schema.Document, prune bool, dryRun bool) ([]schema.Change, []entity.Id, *schema.Schema, error) {
-	if err := doc.Validate(repo.Schema().Keys(config.ShapeType)); err != nil {
+	// the store's types, archived included: a document that leaves an archived
+	// type out may still name it as a target, as the compiled schema does
+	// (doc/design/schema.md, "Export hides what is archived")
+	var known []string
+	for _, excerpt := range repo.Schema().Query(cache.ConfigQuery{Shape: config.ShapeType, IncludeArchived: true}) {
+		known = append(known, excerpt.Key)
+	}
+	if err := doc.Validate(known); err != nil {
 		return nil, nil, nil, err
 	}
 

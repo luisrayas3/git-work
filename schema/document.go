@@ -312,6 +312,46 @@ func Export(s *Schema) *Document {
 	return doc
 }
 
+// Unarchived is the document without its archived types, fields and values:
+// what `git work schema` prints unless asked for the archived too
+// (doc/design/schema.md, "Export hides what is archived").
+// A type or a field left out takes what it holds with it.
+// The document is a copy; the receiver is not changed.
+func (d *Document) Unarchived() *Document {
+	out := &Document{Preset: d.Preset, Shared: d.Shared, Types: newOrderedMap[TypeDoc]()}
+	for _, typeKey := range d.Types.Keys() {
+		t, _ := d.Types.Get(typeKey)
+		if isArchived(t.Archived) {
+			continue
+		}
+		fields := newOrderedMap[FieldDoc]()
+		for _, fieldKey := range t.Fields.Keys() {
+			field, _ := t.Fields.Get(fieldKey)
+			if isArchived(field.Archived) {
+				continue
+			}
+			var values []ValueDoc
+			for _, value := range field.Values {
+				if !isArchived(value.Archived) {
+					values = append(values, value)
+				}
+			}
+			field.Values = values
+			fields.Set(fieldKey, field)
+		}
+		t.Fields = nil
+		if fields.Len() > 0 {
+			t.Fields = fields
+		}
+		out.Types.Set(typeKey, t)
+	}
+	return out
+}
+
+func isArchived(archived *bool) bool {
+	return archived != nil && *archived
+}
+
 func exportField(field *Field) FieldDoc {
 	out := FieldDoc{
 		Kind:        string(field.Kind),

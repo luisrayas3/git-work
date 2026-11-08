@@ -577,12 +577,12 @@ Compile(after, p)                  -> *Mapping            (pure)
 `after` is the schema the import leaves.
 
 `Derive` returns **current ⊕ Jira**:
-the exported current schema with Jira's types, fields and values adopted or added,
+the exported current schema, archived included, with Jira's types, fields and values adopted or added,
 Jira's names applied to what is aliased,
 what Jira no longer has archived and what it has again unarchived
 ([what Jira drops is archived](#what-jira-drops-is-archived)),
 and nothing removed or re-kinded.
-Reconcile owns every value and target type of a field it is given,
+Reconcile owns every live value and every target type of a field it is given,
 so a document that restates everything current
 is what keeps local-only things alive.
 Its output is a fixpoint, so a second run against an unchanged Jira writes nothing,

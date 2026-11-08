@@ -46,7 +46,7 @@ func TestDeriveThroughImport(t *testing.T) {
 	require.NoError(t, err)
 
 	derive := func() *schema.Document {
-		current, _, err := host.SchemaExport(repo)
+		current, _, err := host.SchemaExport(repo, true)
 		require.NoError(t, err)
 		doc, _, err := jira.Derive(current, p)
 		require.NoError(t, err)
@@ -71,7 +71,7 @@ func TestDeriveThroughImport(t *testing.T) {
 	require.Equal(t, "customfield_10016", s.Types["task"].Fields["estimate"].Aliases["jira"])
 	done, _ := s.Types["task"].Fields["status"].Value("done")
 	require.Equal(t, "10002", done.Aliases["jira"])
-	exported, _, err := host.SchemaExport(repo)
+	exported, _, err := host.SchemaExport(repo, false)
 	require.NoError(t, err)
 	changes, _, err = host.SchemaImport(repo, exported, false, true)
 	require.NoError(t, err)

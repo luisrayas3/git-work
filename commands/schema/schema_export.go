@@ -10,17 +10,20 @@ import (
 )
 
 func newSchemaExportCommand(env *execenv.Env) *cobra.Command {
-	options := formatOptions{}
+	options := exportOptions{}
 
 	cmd := &cobra.Command{
 		Use:   "export",
 		Short: "Print the live schema as a document",
-		Long: `Print every type and field entity as the document a human edits, YAML by
-default and JSON for an agent.
+		Long: `Print every unarchived type and field entity as the document a human edits,
+YAML by default and JSON for an agent. --include-archive puts back the archived
+types, fields and values, each marked archived: true.
 
 The output is deterministic — types in order, then their fields, then each
 field's values — and carries no ordinals, because list position is the order.
-Importing what export printed emits no operation, which is the round trip.`,
+Importing what export printed emits no operation, with or without the
+archived, which is the round trip: an import leaves what a file omits as it
+stands.`,
 		Example: `git work schema export > schema.yaml
 $EDITOR schema.yaml
 git work schema import schema.yaml`,
@@ -31,13 +34,13 @@ git work schema import schema.yaml`,
 		}),
 	}
 
-	execenv.AddFormatFlag(cmd, &options.format, "yaml", "json")
+	addExportFlags(cmd, &options)
 
 	return cmd
 }
 
-func runSchemaExport(env *execenv.Env, opts formatOptions) error {
-	doc, warnings, err := host.SchemaExport(env.Backend)
+func runSchemaExport(env *execenv.Env, opts exportOptions) error {
+	doc, warnings, err := host.SchemaExport(env.Backend, opts.includeArchive)
 	env.Warn(warnings)
 	if err != nil {
 		return err

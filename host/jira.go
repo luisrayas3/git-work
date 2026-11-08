@@ -115,7 +115,7 @@ func jiraConnect(ctx context.Context, repo *cache.RepoCache) (JiraBinding, *jira
 // jiraDerive is the live schema with Jira's types, fields and values
 // adopted or added (doc/design/jira.md, "Derive, then the schema import").
 func jiraDerive(repo *cache.RepoCache, p *jira.Project) (*schema.Document, []jira.Note, error) {
-	current, _, err := SchemaExport(repo)
+	current, _, err := SchemaExport(repo, true)
 	if err != nil {
 		return nil, nil, err
 	}

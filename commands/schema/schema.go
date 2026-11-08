@@ -18,18 +18,22 @@ import (
 )
 
 func NewSchemaCommand(env *execenv.Env) *cobra.Command {
-	options := formatOptions{}
+	options := exportOptions{}
 
 	cmd := &cobra.Command{
 		Use:   "schema",
 		Short: "Show the schema",
-		Long: `Print the live schema: every type and field entity, compiled, in the document
-a human edits. This is an alias of export.
+		Long: `Print the live schema: every unarchived type and field entity, compiled, in
+the document a human edits. This is an alias of export.
+
+--include-archive puts back the archived types, fields and values, each marked
+archived: true.
 
 The three built-in fields — title, type and archived — exist in code on every
 type and are not printed unless an entity overrides one of them.`,
 		Example: `git work schema
-git work schema --format json | jq '.types.task.fields | keys'`,
+git work schema --format json | jq '.types.task.fields | keys'
+git work schema --include-archive`,
 		Args:    cobra.NoArgs,
 		PreRunE: execenv.LoadBackend(env),
 		RunE: execenv.CloseBackend(env, func(cmd *cobra.Command, args []string) error {
@@ -37,7 +41,7 @@ git work schema --format json | jq '.types.task.fields | keys'`,
 		}),
 	}
 
-	execenv.AddFormatFlag(cmd, &options.format, "yaml", "json")
+	addExportFlags(cmd, &options)
 
 	cmd.AddCommand(newSchemaArchiveCommand(env))
 	cmd.AddCommand(newSchemaExportCommand(env))
@@ -49,7 +53,17 @@ git work schema --format json | jq '.types.task.fields | keys'`,
 	return cmd
 }
 
-// formatOptions is the one output flag the readers share.
-type formatOptions struct {
+// exportOptions are the flags both spellings of export take.
+type exportOptions struct {
 	format string
+	// includeArchive puts back the archived types, fields and values, which
+	// are left out by default (doc/design/schema.md, "Export hides what is archived").
+	includeArchive bool
+}
+
+// addExportFlags gives both spellings of export the same flags.
+func addExportFlags(cmd *cobra.Command, options *exportOptions) {
+	cmd.Flags().BoolVar(&options.includeArchive, "include-archive", false,
+		"include the archived types, fields and values, marked archived: true")
+	execenv.AddFormatFlag(cmd, &options.format, "yaml", "json")
 }

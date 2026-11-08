@@ -19,7 +19,7 @@ func TestDryRunPlansAgainstDerivedSchema(t *testing.T) {
 	key := w.srv.CreateIssue(jiratest.IssueSpec{Project: "PROJ", Type: "Task", Summary: "Waiting"})
 	w.srv.Transition(key, "Blocked")
 
-	before, _, err := host.SchemaExport(w.c)
+	before, _, err := host.SchemaExport(w.c, true)
 	require.NoError(t, err)
 	refs := w.refs()
 
@@ -43,7 +43,7 @@ func TestDryRunPlansAgainstDerivedSchema(t *testing.T) {
 	planned := lines[0].Imported["status"]
 	require.NotEmpty(t, planned)
 
-	after, _, err := host.SchemaExport(w.c)
+	after, _, err := host.SchemaExport(w.c, true)
 	require.NoError(t, err)
 	require.Equal(t, before, after, "the dry run writes no schema")
 	require.Equal(t, refs, w.refs(), "the dry run writes nothing")

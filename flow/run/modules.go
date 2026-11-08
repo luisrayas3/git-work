@@ -394,17 +394,19 @@ func (r *runtime) issueCommentDelete(thread *starlark.Thread, b *starlark.Builti
 	return starlark.None, nil
 }
 
-// work.schema.export() — `git work schema export`.
+// work.schema.export(include_archive=False) —
+// `git work schema export [--include-archive]`.
 //
 // The document comes back as the dict `--format json` prints, which is the
 // dict `work.schema.import_` takes,
 // so a script edits a schema the way it reads one.
 func (r *runtime) schemaExport(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
-	if err := starlark.UnpackArgs(b.Name(), args, kwargs); err != nil {
+	var includeArchive bool
+	if err := starlark.UnpackArgs(b.Name(), args, kwargs, "include_archive?", &includeArchive); err != nil {
 		return nil, err
 	}
 
-	doc, warnings, err := host.SchemaExport(r.repo)
+	doc, warnings, err := host.SchemaExport(r.repo, includeArchive)
 	r.warn(warnings)
 	if err != nil {
 		return nil, err

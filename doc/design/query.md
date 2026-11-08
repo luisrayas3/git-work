@@ -59,6 +59,8 @@ One name, in each place the one-to-one rule puts it:
 | `work.issue.log(id, from_=None, to=None, include_archive=False)` | the keyword |
 | `work.issue.search(text, include_archive=False)` | the keyword |
 | every view kind that takes `query` | `"include_archive": true`, a defaulted argument, false |
+| `git work schema [export]` | `--include-archive`, for the archived types, fields and values |
+| `work.schema.export(include_archive=False)` | the keyword |
 
 A boolean, false by default, that says what it does:
 *include* the archived in the input.
@@ -108,7 +110,10 @@ The picker takes no switch: nobody assigns an archived issue on purpose.
 ### `$schema` is bound on every run
 
 Every program runs with `$schema` bound
-to the document `git work schema export --format json` prints.
+to the document `git work schema export --include-archive --format json` prints:
+the archived types, fields and values too, marked,
+since an issue may hold one, and a value keeps its ordinal and category in its archive
+([schema, "Export hides what is archived"](schema.md#export-hides-what-is-archived)).
 
 ```jq
 $schema.types[.fields.type].fields.priority.values | map(.id)

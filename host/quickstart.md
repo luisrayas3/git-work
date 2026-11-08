@@ -117,7 +117,7 @@ and `work.issue.list`, `work.issue.log` and `work.issue.search` as `include_arch
 
 Every program, the listing's and every view's and layer's `query`,
 runs with the schema bound as `$schema`,
-the document `git work schema export --format json` prints,
+the document `git work schema export --include-archive --format json` prints,
 and three functions over it,
 so a program orders and filters by what a value means
 and stays right when the schema's values change:
@@ -194,11 +194,14 @@ in Starlark, the same reason `work.schema.import_` does.
 Types and fields are entities under `refs/work-schema`,
 so they merge like issues do.
 
-- `git work schema` prints the schema as YAML, `--format json` as JSON.
+- `git work schema` prints the schema as YAML, `--format json` as JSON,
+  without what is archived; `--include-archive` puts the archived types,
+  fields and values back, marked `archived: true`
+  (`work.schema.export(include_archive=True)` in Starlark).
 - `git work schema init [jira|linear]` creates a preset's types and fields,
   and refuses once any field exists.
 - `git work schema export > FILE` and `git work schema import FILE`
-  round-trip it. Import is an upsert that writes only what differs,
+  round-trip it, with or without the archived. Import is an upsert that writes only what differs,
   `--prune` archives what the file leaves out,
   and `--dry-run` prints what it would do.
 - A field's key is `TYPE/FIELD`: every field belongs to one type,

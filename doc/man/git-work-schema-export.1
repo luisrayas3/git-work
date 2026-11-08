@@ -10,13 +10,16 @@ git-work-schema-export - Print the live schema as a document
 
 
 .SH DESCRIPTION
-Print every type and field entity as the document a human edits, YAML by
-default and JSON for an agent.
+Print every unarchived type and field entity as the document a human edits,
+YAML by default and JSON for an agent. --include-archive puts back the archived
+types, fields and values, each marked archived: true.
 
 .PP
 The output is deterministic — types in order, then their fields, then each
 field's values — and carries no ordinals, because list position is the order.
-Importing what export printed emits no operation, which is the round trip.
+Importing what export printed emits no operation, with or without the
+archived, which is the round trip: an import leaves what a file omits as it
+stands.
 
 
 .SH OPTIONS
@@ -26,6 +29,10 @@ Importing what export printed emits no operation, which is the round trip.
 .PP
 \fB-h\fP, \fB--help\fP[=false]
 	help for export
+
+.PP
+\fB--include-archive\fP[=false]
+	include the archived types, fields and values, marked archived: true
 
 
 .SH EXAMPLE

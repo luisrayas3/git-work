@@ -10,8 +10,12 @@ git-work-schema - Show the schema
 
 
 .SH DESCRIPTION
-Print the live schema: every type and field entity, compiled, in the document
-a human edits. This is an alias of export.
+Print the live schema: every unarchived type and field entity, compiled, in
+the document a human edits. This is an alias of export.
+
+.PP
+--include-archive puts back the archived types, fields and values, each marked
+archived: true.
 
 .PP
 The three built-in fields — title, type and archived — exist in code on every
@@ -26,11 +30,16 @@ type and are not printed unless an entity overrides one of them.
 \fB-h\fP, \fB--help\fP[=false]
 	help for schema
 
+.PP
+\fB--include-archive\fP[=false]
+	include the archived types, fields and values, marked archived: true
+
 
 .SH EXAMPLE
 .EX
 git work schema
 git work schema --format json | jq '.types.task.fields | keys'
+git work schema --include-archive
 .EE
 
 

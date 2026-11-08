@@ -948,6 +948,32 @@ func TestSchemaExportRoundTripsThroughImport(t *testing.T) {
 	require.Equal(t, []any{}, after)
 }
 
+// TestSchemaExportIncludeArchive: work.schema.export takes include_archive as
+// the command takes --include-archive
+// (doc/design/schema.md, "Export hides what is archived").
+func TestSchemaExportIncludeArchive(t *testing.T) {
+	repo := testRepo(t)
+
+	value, _, err := run(t, repo, `def hidden():
+    """The archived type is left out unless asked for."""
+    work.schema.init()
+    work.schema.archive(key="bug")
+    return ["bug" in work.schema.export()["types"],
+            work.schema.export(include_archive=True)["types"]["bug"]["archived"],
+            work.schema.import_(work.schema.export())]
+`, nil)
+	require.NoError(t, err)
+
+	got := value.([]any)
+	require.Equal(t, false, got[0])
+	require.Equal(t, true, got[1])
+	require.Equal(t, []any{}, got[2], "importing the default export changes nothing")
+
+	s, err := repo.LoadSchema()
+	require.NoError(t, err)
+	require.True(t, s.Types["bug"].Archived)
+}
+
 func TestSchemaLogReturnsOperations(t *testing.T) {
 	repo := testRepo(t)
 

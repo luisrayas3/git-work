@@ -16,7 +16,7 @@ import (
 // everything else the type says.
 func switchColorOn(t *testing.T, repo *cache.RepoCache, typeKey string) {
 	t.Helper()
-	doc, _, err := host.SchemaExport(repo)
+	doc, _, err := host.SchemaExport(repo, false)
 	require.NoError(t, err)
 	typ, ok := doc.Types.Get(typeKey)
 	require.True(t, ok)

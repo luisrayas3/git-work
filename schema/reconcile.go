@@ -273,6 +273,23 @@ func fieldAttributes(fieldKey string, field FieldDoc, ordinal int, entry Entry, 
 	}
 	valueOrdinal := assignOrdinals(ids, currentValueOrdinals)
 
+	// an archived value the document leaves out is kept as it stands,
+	// as an entity a document leaves out is, so that importing what the
+	// default export printed writes nothing
+	// (doc/design/schema.md, "Export hides what is archived")
+	if exists {
+		listed := make(map[string]bool, len(ids))
+		for _, id := range ids {
+			listed[id] = true
+		}
+		for name, raw := range entry.Attributes {
+			prefix, id, folded := config.SplitName(name)
+			if folded && prefix == ValuesPrefix && !listed[id] && currentArchived[id] {
+				attributes[name] = raw
+			}
+		}
+	}
+
 	for _, value := range field.Values {
 		// an unstated archive leaves the value as it stands
 		// (doc/design/schema.md, "An archive is stated, never implied")

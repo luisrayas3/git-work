@@ -498,7 +498,7 @@ func TestGanttGroupsByRelationTitleAndTint(t *testing.T) {
 func TestGanttGroupTakesItsHeadsColor(t *testing.T) {
 	repo := testRepo(t)
 	withDates(t, repo)
-	doc, _, err := host.SchemaExport(repo)
+	doc, _, err := host.SchemaExport(repo, false)
 	require.NoError(t, err)
 	story, _ := doc.Types.Get("story")
 	story.Color = true

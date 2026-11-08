@@ -128,7 +128,7 @@ func TestSchemaExportRoundTrip(t *testing.T) {
 	env := newTestEnv(t)
 	initJira(t, env)
 
-	require.NoError(t, runSchemaExport(env, formatOptions{format: "yaml"}))
+	require.NoError(t, runSchemaExport(env, exportOptions{format: "yaml"}))
 	exported := env.Out.String()
 	env.Out.Reset()
 
@@ -155,7 +155,7 @@ func TestSchemaExportRoundTrip(t *testing.T) {
 	require.Equal(t, before, commitCount(t, env), "export | import emits zero operations")
 
 	// and so does JSON, which is the same document
-	require.NoError(t, runSchemaExport(env, formatOptions{format: "json"}))
+	require.NoError(t, runSchemaExport(env, exportOptions{format: "json"}))
 	asJSON := env.Out.String()
 	env.Out.Reset()
 	var any map[string]interface{}
@@ -166,11 +166,107 @@ func TestSchemaExportRoundTrip(t *testing.T) {
 	require.Equal(t, before, commitCount(t, env))
 }
 
+// TestSchemaExportHidesTheArchived: export leaves out an archived type, field
+// and value unless --include-archive puts them back, marked, and importing the
+// default export writes nothing and unarchives nothing
+// (doc/design/schema.md, "Export hides what is archived").
+func TestSchemaExportHidesTheArchived(t *testing.T) {
+	env := newTestEnv(t)
+	initJira(t, env)
+
+	// epic's parent names initiative, so the default export names a type
+	// it leaves out
+	require.NoError(t, runSchemaArchive(env, archiveOptions{}, []string{"initiative"}))
+	require.NoError(t, runSchemaArchive(env, archiveOptions{}, []string{"task/estimate"}))
+	env.Err.Reset()
+
+	// a value is archived by the document, here the middle one
+	require.NoError(t, runSchemaExport(env, exportOptions{format: "json"}))
+	doc, err := schema.ParseDocument(env.Out.Bytes())
+	require.NoError(t, err)
+	env.Out.Reset()
+	iteration, _ := doc.Types.Get("iteration")
+	status, _ := iteration.Fields.Get("status")
+	require.Equal(t, "active", status.Values[1].Id)
+	archived := true
+	status.Values[1].Archived = &archived
+	iteration.SetField("status", status)
+	doc.SetType("iteration", iteration)
+	raw, err := doc.Marshal("json")
+	require.NoError(t, err)
+	_, err = env.In.(*execenv.TestIn).WriteString(string(raw))
+	require.NoError(t, err)
+	require.NoError(t, runSchemaImport(env, importOptions{}, []string{"-"}))
+	env.Out.Reset()
+
+	values := func(doc *schema.Document) []string {
+		iteration, _ := doc.Types.Get("iteration")
+		status, _ := iteration.Fields.Get("status")
+		var ids []string
+		for _, value := range status.Values {
+			ids = append(ids, value.Id)
+		}
+		return ids
+	}
+
+	// the default leaves all three out, and states no archive
+	require.NoError(t, runSchemaExport(env, exportOptions{format: "yaml"}))
+	hidden := env.Out.String()
+	env.Out.Reset()
+	require.NotContains(t, hidden, "archived")
+	doc, err = schema.ParseDocument([]byte(hidden))
+	require.NoError(t, err)
+	_, ok := doc.Types.Get("initiative")
+	require.False(t, ok)
+	task, _ := doc.Types.Get("task")
+	_, ok = task.Fields.Get("estimate")
+	require.False(t, ok)
+	require.Equal(t, []string{"future", "closed"}, values(doc))
+
+	// --include-archive puts them back, in their places, marked
+	require.NoError(t, runSchemaExport(env, exportOptions{format: "yaml", includeArchive: true}))
+	doc, err = schema.ParseDocument(env.Out.Bytes())
+	require.NoError(t, err)
+	env.Out.Reset()
+	initiative, ok := doc.Types.Get("initiative")
+	require.True(t, ok)
+	require.True(t, *initiative.Archived)
+	task, _ = doc.Types.Get("task")
+	estimate, ok := task.Fields.Get("estimate")
+	require.True(t, ok)
+	require.True(t, *estimate.Archived)
+	require.Equal(t, []string{"future", "active", "closed"}, values(doc))
+
+	// importing the default export writes nothing and unarchives nothing
+	before := commitCount(t, env)
+	_, err = env.In.(*execenv.TestIn).WriteString(hidden)
+	require.NoError(t, err)
+	require.NoError(t, runSchemaImport(env, importOptions{dryRun: true}, []string{"-"}))
+	var changes []schema.Change
+	require.NoError(t, json.Unmarshal(env.Out.Bytes(), &changes))
+	require.Empty(t, changes)
+	env.Out.Reset()
+	_, err = env.In.(*execenv.TestIn).WriteString(hidden)
+	require.NoError(t, err)
+	require.NoError(t, runSchemaImport(env, importOptions{}, []string{"-"}))
+	require.Equal(t, "", env.Out.String())
+	require.Equal(t, before, commitCount(t, env), "export | import emits zero operations")
+
+	s, err := env.Backend.LoadSchema()
+	require.NoError(t, err)
+	require.True(t, s.Types["initiative"].Archived)
+	f, _ := s.Field("task", "estimate")
+	require.True(t, f.Archived)
+	active, ok := s.Types["iteration"].Fields["status"].Value("active")
+	require.True(t, ok)
+	require.True(t, active.Archived)
+}
+
 func TestSchemaImportChangesOneValue(t *testing.T) {
 	env := newTestEnv(t)
 	initJira(t, env)
 
-	require.NoError(t, runSchemaExport(env, formatOptions{format: "yaml"}))
+	require.NoError(t, runSchemaExport(env, exportOptions{format: "yaml"}))
 	exported := env.Out.String()
 	env.Out.Reset()
 

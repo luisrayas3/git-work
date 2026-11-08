@@ -196,7 +196,7 @@ work.issue.comment.new(id, body)
 work.issue.comment.edit(id, body, base=None)   # the comment's id; base a message_hash
 work.issue.comment.delete(id)            # the comment's id
 
-work.schema.export()
+work.schema.export(include_archive=False)
 work.schema.import_(doc, prune=False, dry_run=False)
 work.schema.init(preset="jira", dry_run=False)
 work.schema.log(key=None, id=None)       # at most one of the two, by keyword
