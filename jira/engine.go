@@ -30,6 +30,10 @@ type Options struct {
 	// may stay unarrived before the issue is imported anyway;
 	// nil never adopts, and 0 adopts whatever the run meets.
 	Adopt *time.Duration
+	// Schema is the schema the run checks against; nil is the store's.
+	// A dry run passes the one its schema import would leave
+	// (doc/design/jira.md, "A dry run plans against the derived schema").
+	Schema *schema.Schema
 }
 
 // ErrDeletesHeld stops a --full run that found more missing issues than
@@ -171,8 +175,10 @@ func (e *engine) setup() error {
 		return err
 	}
 	e.ix.absent = e.st.Orphans
-	if e.schema, err = e.repo.LoadSchema(); err != nil {
-		return err
+	if e.schema = e.opts.Schema; e.schema == nil {
+		if e.schema, err = e.repo.LoadSchema(); err != nil {
+			return err
+		}
 	}
 	// the token's account is the runner's, unless an identity has it
 	// (doc/design/jira.md, "Identities")
@@ -185,8 +191,8 @@ func (e *engine) setup() error {
 			e.ix.addUser(acc, me.Id())
 		}
 	}
-	e.checker, err = e.repo.Checker()
-	return err
+	e.checker = e.repo.CheckerFor(e.schema)
+	return nil
 }
 
 // ---- the report ----

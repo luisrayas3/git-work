@@ -128,39 +128,46 @@ func SchemaValue(repo *cache.RepoCache) (any, error) {
 // A failure part of the way through returns the ids already created with the
 // error, so that nothing that was written goes unreported.
 func SchemaImport(repo *cache.RepoCache, doc *schema.Document, prune bool, dryRun bool) ([]schema.Change, []entity.Id, error) {
+	changes, created, _, err := schemaImport(repo, doc, prune, dryRun)
+	return changes, created, err
+}
+
+// schemaImport is SchemaImport, and also returns the schema the import
+// leaves, compiled in memory whether or not it was written.
+func schemaImport(repo *cache.RepoCache, doc *schema.Document, prune bool, dryRun bool) ([]schema.Change, []entity.Id, *schema.Schema, error) {
 	if err := doc.Validate(repo.Schema().Keys(config.ShapeType)); err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	current, err := repo.Schema().SchemaEntries()
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	changes, err := schema.Reconcile(doc, current, prune)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	after, err := schema.Compile(schema.Apply(current, changes))
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	if err := checkTypeShows(doc, after); err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	// a synced type's retype targets sync too, checked on what the import
 	// leaves, so a partial file meets the types in the store
 	// (doc/design/schema.md, "A synced type's targets sync to the same system")
 	if err := after.CheckRetypeSystems(); err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	if dryRun {
-		return changes, nil, nil
+		return changes, nil, after, nil
 	}
 
 	created, err := applySchemaChanges(repo, changes)
-	return changes, created, err
+	return changes, created, after, err
 }
 
 // checkTypeShows checks every type's `show` the document states as a view's

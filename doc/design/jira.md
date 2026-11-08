@@ -571,8 +571,10 @@ There is no Jira-specific schema writer:
 Discover(client, key)              -> *Project            (network)
 Derive(schema.Export(current), p)  -> *schema.Document    (pure)
 host.SchemaImport(repo, doc, prune=false, dryRun)         (the ordinary path)
-Compile(repo.LoadSchema(), p)      -> *Mapping            (pure)
+Compile(after, p)                  -> *Mapping            (pure)
 ```
+
+`after` is the schema the import leaves.
 
 `Derive` returns **current ⊕ Jira**:
 the exported current schema with Jira's types, fields and values adopted or added,
@@ -598,6 +600,19 @@ that project's types into the tracker.
 is this the project the tracker was mapped against?".
 `Compile` checks it again,
 and [refuses duplicate aliases](#duplicate-aliases-are-refused).
+
+### A dry run plans against the derived schema
+
+`jira sync --dry-run` imports the derived document with the import's own dry run,
+which compiles the schema it would leave in memory and writes nothing:
+every change the import would write, whatever it adds, renames or archives.
+The mapping is compiled from that schema,
+and every issue is checked against it,
+as the real run checks against the schema it has just written,
+so the dry run's plan is the real run's plan.
+Not the stored schema:
+it would report every issue holding a value Jira added as pending,
+when the real run imports it.
 
 ### The first mapping is reviewed
 
@@ -1308,10 +1323,12 @@ A pending key of `*` is the whole issue.
 (`{"key","reason"}`).
 
 `--dry-run` reads both sides and writes neither —
-no schema import, no issue or identity write, no Jira write, no state file —
+no schema write, no issue or identity write, no Jira write, no state file —
 printing `plan₁` with `"dry_run": true`.
+It plans [against the derived schema](#a-dry-run-plans-against-the-derived-schema),
+so a schema change it did not write leaves nothing pending.
 It cannot predict a transition that fails or a normalisation Jira applies,
-and keys whose values need the schema changes or identities it did not write
+and keys whose values need identities it did not write
 show as pending.
 `--format text` is one line per issue,
 each conflict, pending key and off-schema key followed by its reason in parentheses

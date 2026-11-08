@@ -20,6 +20,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -201,6 +202,28 @@ func (s *Server) Deny(ops ...string) {
 	for _, op := range ops {
 		s.denied[op] = true
 	}
+}
+
+// AddStatus is an administrator adding a status to an issue type's
+// workflow: st joins the project's statuses when it is new, and the type
+// gets a global transition to it, named after it.
+func (s *Server) AddStatus(projectKey, typeName string, st Status) {
+	s.t.Helper()
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	p := s.projectByKey(projectKey)
+	if p == nil {
+		s.t.Fatalf("jiratest: no project %s", projectKey)
+	}
+	t := p.issueType(typeName)
+	if t == nil {
+		s.t.Fatalf("jiratest: project %s has no type %s", projectKey, typeName)
+	}
+	if p.status(st.ID) == nil {
+		p.def.Statuses = append(p.def.Statuses, st)
+	}
+	t.Workflow.Transitions = append(slices.Clone(t.Workflow.Transitions),
+		Transition{ID: "9" + st.ID, Name: st.Name, To: st.ID})
 }
 
 // Allow undoes Deny.

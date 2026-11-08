@@ -82,7 +82,14 @@ func (c *RepoCache) Checker() (*schema.Checker, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &schema.Checker{Schema: s, Resolver: schemaResolver{repo: c}}, nil
+	return c.CheckerFor(s), nil
+}
+
+// CheckerFor validates against s, a schema not yet written, with the
+// store's identities and issues: a dry run checks against the schema its
+// import would leave (doc/design/jira.md, "A dry run plans against the derived schema").
+func (c *RepoCache) CheckerFor(s *schema.Schema) *schema.Checker {
+	return &schema.Checker{Schema: s, Resolver: schemaResolver{repo: c}}
 }
 
 // schemaResolver answers the two questions a value check can not answer

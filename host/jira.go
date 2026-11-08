@@ -163,16 +163,18 @@ func JiraSync(ctx context.Context, repo *cache.RepoCache, opts jira.Options, emi
 	if err != nil {
 		return jira.Summary{}, notes, err
 	}
-	changes, _, err := SchemaImport(repo, doc, false, opts.DryRun)
+	changes, _, s, err := schemaImport(repo, doc, false, opts.DryRun)
 	if len(changes) > 0 {
 		emit(jira.Line{Schema: changes, DryRun: opts.DryRun})
 	}
 	if err != nil {
 		return jira.Summary{}, notes, err
 	}
-
-	s, err := repo.LoadSchema()
-	if err != nil {
+	// a dry run writes no schema, and plans against the one it would write
+	// (doc/design/jira.md, "A dry run plans against the derived schema")
+	if opts.DryRun {
+		opts.Schema = s
+	} else if s, err = repo.LoadSchema(); err != nil {
 		return jira.Summary{}, notes, err
 	}
 	m, more, err := jira.Compile(s, p)
