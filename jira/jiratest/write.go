@@ -293,16 +293,17 @@ func (s *Server) setField(st *issueState, id string, raw json.RawMessage) string
 	return ""
 }
 
-// setType is an edit's type change, which Jira allows between types of the
-// project that share the workflow and the hierarchy level; any other change
-// is a move, which the REST API does not offer (Server.Move is the web UI's).
+// setType is an edit's type change. The type is named by {"id"} only, as on
+// create (doc/design/bridges/jira-api.md, "Creating an issue"). Which changes
+// Jira accepts is unconfirmed (doc/design/bridges/jira-api.md, "Changing an
+// issue type by edit"): the fake models the assumption that an edit is
+// accepted only between types of one hierarchy level sharing one workflow,
+// and that any other change is a move, which the REST API is assumed not to
+// offer (Server.Move stands in for the web UI's).
 func setType(st *issueState, raw json.RawMessage) string {
-	r, ok := parseRef(raw)
 	var t *IssueType
-	if ok {
-		if t = st.project.issueType(r.id()); t == nil && r.Name != "" {
-			t = st.project.issueType(r.Name)
-		}
+	if r, ok := parseRef(raw); ok {
+		t = st.project.issueTypeByID(r.id())
 	}
 	if t == nil || t.HierarchyLevel != st.typ.HierarchyLevel || !reflect.DeepEqual(t.Workflow, st.typ.Workflow) {
 		return "The issue type selected is invalid."

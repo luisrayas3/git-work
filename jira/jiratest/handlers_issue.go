@@ -91,13 +91,8 @@ func (s *Server) create(up *issueUpdate, author string, screen func(*IssueType, 
 		return nil, nil, fieldErrors(errs)
 	}
 	var t *IssueType
-	// Only {"id"} identifies the type; the name form is not relied on (doc/design/bridges/jira-api.md, "Creating an issue").
-	if r, ok := parseRef(up.Fields["issuetype"]); ok && r.id() != "" {
-		for i := range p.def.IssueTypes {
-			if p.def.IssueTypes[i].ID == r.id() {
-				t = &p.def.IssueTypes[i]
-			}
-		}
+	if r, ok := parseRef(up.Fields["issuetype"]); ok {
+		t = p.issueTypeByID(r.id())
 	}
 	if t == nil {
 		errs["issuetype"] = "Specify an issue type"

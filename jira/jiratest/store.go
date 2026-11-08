@@ -26,6 +26,17 @@ func (p *project) status(id string) *Status {
 	return nil
 }
 
+// issueTypeByID is the issue type a write names: only {"id"} identifies one
+// (doc/design/bridges/jira-api.md, "Creating an issue").
+func (p *project) issueTypeByID(id string) *IssueType {
+	for i := range p.def.IssueTypes {
+		if id != "" && p.def.IssueTypes[i].ID == id {
+			return &p.def.IssueTypes[i]
+		}
+	}
+	return nil
+}
+
 func (p *project) issueType(idOrName string) *IssueType {
 	for i := range p.def.IssueTypes {
 		t := &p.def.IssueTypes[i]

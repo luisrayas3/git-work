@@ -356,8 +356,9 @@ func TestDescriptionRoundTrip(t *testing.T) {
 	require.Nil(t, s.Issue(key).Description)
 }
 
-// TestTypeChange: an edit changes the type within one workflow and level,
-// as Jira's does, with its changelog item; anything else is a move.
+// TestTypeChange: an edit changes the type, named by id, within one workflow
+// and level, with its changelog item; anything else is assumed to be a move
+// (doc/design/bridges/jira-api.md, "Changing an issue type by edit").
 func TestTypeChange(t *testing.T) {
 	s := newServer(t)
 	key := s.CreateIssue(jiratest.IssueSpec{Project: "PROJ", Type: "Story", Summary: "t"})
@@ -372,7 +373,7 @@ func TestTypeChange(t *testing.T) {
 	require.Equal(t, "Story", item.FromString)
 	require.Equal(t, "Bug", item.ToString)
 
-	for _, typ := range []map[string]any{{"name": "Epic"}, {"name": "Sub-task"}, {"id": "99"}} {
+	for _, typ := range []map[string]any{{"id": "10000"}, {"id": "10003"}, {"id": "99"}, {"name": "Task"}, {"id": "Task"}} {
 		_, errs := errorBody(t, put(typ))
 		require.Equal(t, "The issue type selected is invalid.", errs["issuetype"])
 	}
