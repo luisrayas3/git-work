@@ -65,7 +65,8 @@ A writer prints an id or nothing at all, and diagnostics go to stderr.
   `fields.title` and `fields.type` are required;
   every other key of `fields` is a field of that type.
 - `git work issue get ID` prints one issue whole:
-  id, fields, author, participants, comments.
+  id, fields, author, participants, comments,
+  each comment with its `id`, `message` and `message_hash`.
 - `git work issue set ID '{"key": value, …}'` replaces fields,
   one operation per key and one commit however many keys there are.
   `null` clears a field.
@@ -78,6 +79,15 @@ A writer prints an id or nothing at all, and diagnostics go to stderr.
   on every clone and in Jira.
   A delete is final; the text stays in `issue log`.
   The description, the first comment, is edited, never deleted.
+- To rewrite a description or any comment, round-trip it through a file:
+  `git work issue get ID | jq -r '.comments[0].message' > file`
+  (and that comment's `id` and `message_hash`),
+  edit the file,
+  then `git work issue comment edit COMMENT_ID - --base HASH < file`.
+  With `--base`, the edit is refused, and nothing written,
+  if the comment changed since it was read:
+  get it again and redo the edit on the new text.
+  Without it, the edit replaces whatever is there.
 - `git work issue log ID` is the issue's history,
   one JSON object per operation: what changed, by whom, when.
 - `git work issue archive ID` is the replicated removal.

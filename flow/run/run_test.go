@@ -568,6 +568,32 @@ func TestCommentsAndTheWholeIssue(t *testing.T) {
 	require.Len(t, comments, 2)
 	require.Equal(t, "the body", comments[0].(map[string]any)["message"])
 	require.Equal(t, "a comment", comments[1].(map[string]any)["message"])
+	require.Equal(t, cache.MessageHash("a comment"), comments[1].(map[string]any)["message_hash"])
+}
+
+// TestCommentEditBase: work.issue.comment.edit takes base= as the command
+// takes --base (doc/design/issue.md, "An edit can name its base").
+func TestCommentEditBase(t *testing.T) {
+	repo := testRepo(t)
+
+	value, _, err := run(t, repo, `def rewrite():
+    """Edit on the hash read, then on a stale one."""
+    id = work.issue.new({"fields": {"title": "a title"}, "body": "the body"})
+    c = work.issue.get(id)["comments"][0]
+    work.issue.comment.edit(c["id"], "rewritten", base=c["message_hash"])
+    work.issue.comment.edit(c["id"], "rewritten again")
+    return work.issue.get(id)["comments"][0]["message"]
+`, nil)
+	require.NoError(t, err)
+	require.Equal(t, "rewritten again", value)
+
+	_, _, err = run(t, repo, `def stale():
+    """Edit on a hash that is not the comment's."""
+    id = work.issue.new({"fields": {"title": "another"}, "body": "the body"})
+    c = work.issue.get(id)["comments"][0]
+    work.issue.comment.edit(c["id"], "rewritten", base="0" * 64)
+`, nil)
+	require.ErrorContains(t, err, "changed since it was read")
 }
 
 func TestAddRemoveAndArchive(t *testing.T) {

@@ -1,6 +1,8 @@
 package cache
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"slices"
@@ -446,6 +448,42 @@ func (c *IssueCache) EditCommentRaw(author identity.Interface, unixTime int64, t
 		panic("EditComment returned unexpected comment id")
 	}
 	return op, c.notifyUpdated()
+}
+
+// ErrCommentChanged refuses an edit whose base is not the comment's current
+// message hash (doc/design/issue.md, "An edit can name its base").
+var ErrCommentChanged = errors.New("the comment changed since it was read; get it again and redo the edit on its current text")
+
+// MessageHash is the version of a comment's text an edit names as its base:
+// the lowercase hex SHA-256 of the message as stored
+// (doc/design/issue.md, "An edit can name its base").
+func MessageHash(message string) string {
+	sum := sha256.Sum256([]byte(message))
+	return hex.EncodeToString(sum[:])
+}
+
+// EditCommentOnBase replaces a comment's message if its current message hash
+// is base, and refuses with ErrCommentChanged, writing nothing, if not
+// (doc/design/issue.md, "An edit can name its base").
+// The check runs under the write lock on the re-read issue,
+// and the edit is committed by this call.
+func (c *IssueCache) EditCommentOnBase(target entity.CombinedId, message string, base string) error {
+	author, err := c.getUserIdentity()
+	if err != nil {
+		return err
+	}
+	unixTime := time.Now().Unix()
+
+	return c.Update(func(snap *issue.Snapshot) ([]issue.Operation, error) {
+		comment, err := snap.SearchComment(target)
+		if err != nil {
+			return nil, err
+		}
+		if MessageHash(comment.Message) != base {
+			return nil, ErrCommentChanged
+		}
+		return []issue.Operation{issue.NewEditCommentOp(author, unixTime, comment.TargetId(), message, nil)}, nil
+	})
 }
 
 // DeleteComment hides one comment

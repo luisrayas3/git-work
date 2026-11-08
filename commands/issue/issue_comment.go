@@ -58,28 +58,37 @@ func runIssueCommentNew(env *execenv.Env, args []string) error {
 }
 
 func newIssueCommentEditCommand(env *execenv.Env) *cobra.Command {
+	var base string
+
 	cmd := &cobra.Command{
 		Use:   "edit COMMENT_ID BODY|-",
 		Short: "Edit an existing comment on an issue",
 		Long: `Replace the body of one comment, given as the argument or on standard input.
-COMMENT_ID is the comment's own id, as get and comment new print it.`,
+COMMENT_ID is the comment's own id, as get and comment new print it.
+
+With --base, the edit is refused, and nothing written, if the comment's
+message_hash, as get prints it, is no longer HASH: the comment changed since
+it was read. Get it again and redo the edit on its current text.`,
 		Args:    cobra.ExactArgs(2),
 		PreRunE: execenv.LoadBackendEnsureUser(env),
 		RunE: execenv.CloseBackend(env, func(cmd *cobra.Command, args []string) error {
-			return runIssueCommentEdit(env, args)
+			return runIssueCommentEdit(env, args, base)
 		}),
 	}
+
+	cmd.Flags().StringVar(&base, "base", "",
+		"Refuse the edit unless the comment's message_hash is still `HASH`")
 
 	return cmd
 }
 
-func runIssueCommentEdit(env *execenv.Env, args []string) error {
+func runIssueCommentEdit(env *execenv.Env, args []string, base string) error {
 	body, err := readBody(env, args[1])
 	if err != nil {
 		return err
 	}
 
-	return host.IssueCommentEdit(env.Backend, args[0], body)
+	return host.IssueCommentEdit(env.Backend, args[0], body, base)
 }
 
 func newIssueCommentDeleteCommand(env *execenv.Env) *cobra.Command {

@@ -357,14 +357,25 @@ func (r *runtime) issueCommentNew(thread *starlark.Thread, b *starlark.Builtin, 
 	return starlark.String(commentId.String()), nil
 }
 
-// work.issue.comment.edit(id, body) — id is the comment's own id.
+// work.issue.comment.edit(id, body, base=None) — id is the comment's own id;
+// base, a message_hash from work.issue.get, refuses the edit if the comment
+// has changed since (doc/design/issue.md, "An edit can name its base").
 func (r *runtime) issueCommentEdit(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 	var id, body string
-	if err := starlark.UnpackArgs(b.Name(), args, kwargs, "id", &id, "body", &body); err != nil {
+	var baseArg starlark.Value = starlark.None
+	if err := starlark.UnpackArgs(b.Name(), args, kwargs, "id", &id, "body", &body, "base?", &baseArg); err != nil {
 		return nil, err
 	}
+	var base string
+	switch v := baseArg.(type) {
+	case starlark.NoneType:
+	case starlark.String:
+		base = string(v)
+	default:
+		return nil, fmt.Errorf("%s: base must be a string or None, not %s", b.Name(), baseArg.Type())
+	}
 
-	if err := host.IssueCommentEdit(r.repo, id, body); err != nil {
+	if err := host.IssueCommentEdit(r.repo, id, body, base); err != nil {
 		return nil, err
 	}
 	return starlark.None, nil

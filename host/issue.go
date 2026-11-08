@@ -302,7 +302,11 @@ func IssueCommentNew(repo *cache.RepoCache, id string, body string) (entity.Comb
 }
 
 // IssueCommentEdit replaces the body of one comment, named by its own id.
-func IssueCommentEdit(repo *cache.RepoCache, commentId string, body string) error {
+// A non-empty base is the message_hash the edit was made on, and the edit is
+// refused, writing nothing, if the comment has changed since
+// (doc/design/issue.md, "An edit can name its base");
+// an empty base replaces whatever is there.
+func IssueCommentEdit(repo *cache.RepoCache, commentId string, body string, base string) error {
 	i, target, err := repo.Issues().ResolveComment(commentId)
 	if err != nil {
 		return err
@@ -311,6 +315,10 @@ func IssueCommentEdit(repo *cache.RepoCache, commentId string, body string) erro
 	body = text.Cleanup(body)
 	if body == "" {
 		return errors.New("a comment body is required")
+	}
+
+	if base != "" {
+		return i.EditCommentOnBase(target, body, base)
 	}
 
 	if _, err := i.EditComment(target, body); err != nil {

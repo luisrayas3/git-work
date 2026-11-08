@@ -1,11 +1,65 @@
 package host
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/git-bug/git-bug/cache"
 )
+
+// TestIssueCommentEditOnBase: get prints each comment's message_hash, an edit
+// naming the current hash is written, one naming a stale hash or a prefix is
+// refused and writes nothing, and one with no base replaces
+// (doc/design/issue.md, "An edit can name its base").
+func TestIssueCommentEditOnBase(t *testing.T) {
+	repo, author := atTestRepo(t)
+	i := newIssueAt(t, repo, author, time.Now(), "a title", nil)
+	id := i.Id().String()
+
+	got, err := IssueGet(repo, id)
+	require.NoError(t, err)
+	description := got.Comments[0]
+	sum := sha256.Sum256([]byte("body"))
+	require.Equal(t, hex.EncodeToString(sum[:]), description.MessageHash)
+
+	// the current hash: written
+	require.NoError(t, IssueCommentEdit(repo, description.Id, "first rewrite", description.MessageHash))
+	got, err = IssueGet(repo, id)
+	require.NoError(t, err)
+	require.Equal(t, "first rewrite", got.Comments[0].Message)
+	read := got.Comments[0].MessageHash
+
+	// another writer edits in between, with no base: it replaces
+	require.NoError(t, IssueCommentEdit(repo, description.Id, "someone else's", ""))
+	got, err = IssueGet(repo, id)
+	require.NoError(t, err)
+	require.Equal(t, "someone else's", got.Comments[0].Message)
+	before, err := IssueLog(repo, id)
+	require.NoError(t, err)
+
+	// a stale hash, or a prefix of the current one: refused, nothing written
+	for _, base := range []string{description.MessageHash, read, got.Comments[0].MessageHash[:12]} {
+		err = IssueCommentEdit(repo, description.Id, "my rewrite", base)
+		require.ErrorIs(t, err, cache.ErrCommentChanged)
+	}
+	after, err := IssueLog(repo, id)
+	require.NoError(t, err)
+	require.Len(t, after, len(before))
+	got, err = IssueGet(repo, id)
+	require.NoError(t, err)
+	require.Equal(t, "someone else's", got.Comments[0].Message)
+
+	// an edit back to the text that was read is no conflict: the hash is the content's
+	require.NoError(t, IssueCommentEdit(repo, description.Id, "first rewrite", ""))
+	require.NoError(t, IssueCommentEdit(repo, description.Id, "my rewrite", read))
+	got, err = IssueGet(repo, id)
+	require.NoError(t, err)
+	require.Equal(t, "my rewrite", got.Comments[0].Message)
+}
 
 // TestIssueCommentDelete: a deleted comment leaves the issue and its excerpt,
 // and its text stays in the log and in a replay from before the delete
@@ -59,7 +113,7 @@ func TestIssueCommentDelete(t *testing.T) {
 
 	// a deleted comment no longer resolves: a second delete and an edit are refused
 	require.ErrorContains(t, IssueCommentDelete(repo, wrong.String()), "doesn't exist")
-	require.ErrorContains(t, IssueCommentEdit(repo, wrong.String(), "too late"), "doesn't exist")
+	require.ErrorContains(t, IssueCommentEdit(repo, wrong.String(), "too late", ""), "doesn't exist")
 }
 
 func TestIssueCommentDeleteRefusesTheDescription(t *testing.T) {

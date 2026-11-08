@@ -193,7 +193,7 @@ work.issue.archive(id)
 work.issue.rm(id)
 work.issue.log(id, from_=None, to=None, include_archive=False)   # id is an id or a program
 work.issue.comment.new(id, body)
-work.issue.comment.edit(id, body)        # the comment's id
+work.issue.comment.edit(id, body, base=None)   # the comment's id; base a message_hash
 work.issue.comment.delete(id)            # the comment's id
 
 work.schema.export()

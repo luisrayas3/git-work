@@ -211,7 +211,7 @@ git work issue archive ID [--dry-run]            # replicated
 git work issue rm ID                             # local
 git work issue log [ID|PROGRAM] [--from TIME] [--to TIME] [--include-archive] [--format json|text]
 git work issue comment new ISSUE_ID BODY|-       # prints the comment id
-git work issue comment edit COMMENT_ID BODY|-
+git work issue comment edit COMMENT_ID BODY|- [--base HASH]   # HASH: a message_hash from get
 git work issue comment delete COMMENT_ID         # replicated, final
 
 git work schema [--format yaml|json]             # = schema export

@@ -222,6 +222,34 @@ A comment is named by its own id,
 the one `issue comment new` prints and `issue get` shows,
 resolved by prefix.
 
+### An edit can name its base
+
+`issue get` prints each comment's `message_hash`,
+the lowercase hex SHA-256 of its message as stored,
+computed on output.
+`issue comment edit --base HASH` (`base=` in Starlark) names the text the edit was made on,
+and is refused, writing nothing,
+when the comment's current hash is not HASH, in full:
+the comment changed since it was read,
+and the writer gets it again and redoes the edit on the new text.
+Without a base, the edit replaces whatever is there.
+
+The check runs under the write lock, on the issue read again inside it
+([store](store.md#re-read-under-the-lock)),
+so nothing committed between the check and the write is decided against blind.
+It is a content hash, not an operation id:
+an edit that writes back the text that was read is no conflict,
+and the text is what the writer's edit depends on.
+It is checked against this clone only:
+an edit made on another clone and not yet pulled is not seen,
+and the two merge by operation order, as any concurrent edit does.
+
+Not a patch verb, taking old and new replacements:
+it would be a second way to do one thing,
+since a writer that gets the message into a file
+makes targeted edits with its own editor,
+and the base gives the conflict check.
+
 ### Delete hides, the history keeps
 
 `DeleteComment{target}` names the add-comment operation of the comment,

@@ -422,7 +422,7 @@ func TestIssueComment(t *testing.T) {
 	require.Equal(t, i.Snapshot().Comments[1].CombinedId().String(), commentId)
 
 	env.Out.Reset()
-	require.NoError(t, runIssueCommentEdit(env, []string{commentId, "edited"}))
+	require.NoError(t, runIssueCommentEdit(env, []string{commentId, "edited"}, ""))
 	require.Equal(t, "", env.Out.String())
 
 	i, err = env.Backend.Issues().Resolve(id)
@@ -631,7 +631,7 @@ func TestIssueSearch(t *testing.T) {
 	i, err := env.Backend.Issues().Resolve(inTitle)
 	require.NoError(t, err)
 	commentId := i.Snapshot().Comments[0].CombinedId().String()
-	require.NoError(t, runIssueCommentEdit(env, []string{commentId, "now about zebras"}))
+	require.NoError(t, runIssueCommentEdit(env, []string{commentId, "now about zebras"}, ""))
 	require.Equal(t, []string{inTitle.String()}, search(issueSearchOptions{}, "ZEBRA"))
 
 	// a later comment is not searched

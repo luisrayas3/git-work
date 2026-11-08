@@ -60,19 +60,23 @@ func NewIssueSnapshot(snap *issue.Snapshot) IssueSnapshot {
 	return out
 }
 
+// IssueComment is one comment of `issue get`. MessageHash is the base an
+// edit names (doc/design/issue.md, "An edit can name its base").
 type IssueComment struct {
-	Id      string   `json:"id"`
-	HumanId string   `json:"human_id"`
-	Author  Identity `json:"author"`
-	Message string   `json:"message"`
+	Id          string   `json:"id"`
+	HumanId     string   `json:"human_id"`
+	Author      Identity `json:"author"`
+	Message     string   `json:"message"`
+	MessageHash string   `json:"message_hash"`
 }
 
 func NewIssueComment(comment issue.Comment) IssueComment {
 	return IssueComment{
-		Id:      comment.CombinedId().String(),
-		HumanId: comment.CombinedId().Human(),
-		Author:  NewIdentity(comment.Author),
-		Message: comment.Message,
+		Id:          comment.CombinedId().String(),
+		HumanId:     comment.CombinedId().Human(),
+		Author:      NewIdentity(comment.Author),
+		Message:     comment.Message,
+		MessageHash: cache.MessageHash(comment.Message),
 	}
 }
 

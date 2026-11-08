@@ -781,7 +781,7 @@ func (p *showPage) submitDescription() tea.Cmd {
 	}
 
 	id := p.snapshot.Comments[0].CombinedId().String()
-	if err := host.IssueCommentEdit(p.repo, id, body); err != nil {
+	if err := host.IssueCommentEdit(p.repo, id, body, ""); err != nil {
 		p.status = err.Error()
 		return bell()
 	}
