@@ -215,7 +215,9 @@ does the same, and nothing on screen moves.
 The palette is a bordered box in the middle of the page,
 at most 80 columns inside and shrinking to the window,
 with the page drawn around it
-and the palette's own status line under both.
+and the palette's own status line under both,
+which has no hints and keeps the page's last message
+([Key hints are on the bottom line only](#key-hints-are-on-the-bottom-line-only)).
 Not a panel at the foot:
 there it would read as the page's last lines changing,
 not as a menu opened over the page,
@@ -228,7 +230,13 @@ The search, the flow picker and the query editor are drawn in the same box.
 The box opens with where you are.
 The stack is a breadcrumb (`home › overview › show 3a2279e`),
 ending in the top page's kind and lead,
-so the call under it starts with the arguments:
+and on a page's palette the line ends in the copy key, dim, `ctrl+c copy page command`,
+beside the call it copies ([Keys on the palette](#keys-on-the-palette)).
+Where the line cannot hold all of it, the breadcrumb is cut from its left,
+because the top page's step is the one that says where you are;
+and where the step and the key cannot both fit whole, the key is dropped,
+never the step: the key is in the help, the step is nowhere else.
+The call under the line starts with the arguments:
 one a line, the name in the left column and the value beside it,
 a default dim,
 and a long value wrapped rather than cut,
@@ -242,7 +250,7 @@ A program that does not parse is cut at its top-level pipes instead.
 The section is at most twelve lines, the twelfth saying how many more there are,
 and it gives up lines first where the window is shorter.
 
-Then this page's commands, and everywhere's;
+Then this page's commands, and everywhere's, the last of them `esc back`;
 over a text, the text's alone ([The palette over a text](#the-palette-over-a-text)).
 
 ### A letter means one thing on every page
@@ -270,6 +278,21 @@ On a page's palette, the copy key copies the top page's call as the shell comman
 so the command behind the screen is one keystroke from the shell
 (over a text it rings: [The palette over a text](#the-palette-over-a-text)).
 
+Everything the palette answers is in the box.
+The letters are its entries;
+its other keys join them:
+`ctrl+c copy page command`, dim at the end of the breadcrumb line, beside the call it copies,
+and `esc back`, the last entry of *everywhere*, after `g close`.
+So the bottom line under the palette has no hints
+([Key hints are on the bottom line only](#key-hints-are-on-the-bottom-line-only)).
+Not the page's line unchanged:
+its keys do not act while the palette is open,
+and its `? keys` repeats the box's `? help`.
+Not the line removed either:
+its right side keeps the page's last message,
+so a refusal or a *copied* stays in sight while the palette is open.
+No `letter: run` hint: a letter running is what a palette is.
+
 ### The palette over a text
 
 In a text, the three boxes whose keys are text
@@ -284,15 +307,16 @@ one press the palette, two back,
 and `esc esc` typed quickly, `alt+esc`, leaves the text too.
 
 From a text the palette offers only the text's commands,
-in a section of its own,
-writing the text in [the external editor](views.md#the-external-editor),
-and the letter that closes the palette and returns to the text.
+in a section of its own, *this text*:
+writing the text in [the external editor](views.md#the-external-editor) (`e editor`),
+the letter that closes the palette and returns to the text (`g close`),
+and `esc leave text`.
 Any other letter rings, the palette open,
 and so does the copy key: copying the page's command is a page command.
 Not the full palette:
 a page command from a text would first have to leave the text,
 a second thing for one key to do.
-Its bottom line says that the second `esc` leaves the text, and offers no copy.
+There is no `ctrl+c` beside the call, since it rings there.
 
 A text command's letter is never one of the textarea's `alt` keys,
 and a test checks every one against the textarea's key map,
@@ -514,7 +538,9 @@ One helper does it for every kind (`window`, `tui/list_view.go`).
 
 ### The bottom line is two places
 
-The hints are on the left, always.
+The hints are on the left, always,
+but under the palette, whose keys are in its box
+([Key hints are on the bottom line only](#key-hints-are-on-the-bottom-line-only)).
 The last action's message is right-aligned,
 with the count beside it where a kind has one (*moved · 12 issues*),
 and stays until the next action replaces it.
@@ -528,7 +554,8 @@ One helper builds the line for every kind (`bottomLine`, `tui/hints.go`).
 
 ### Key hints are on the bottom line only
 
-No box, picker, editor or overlay draws its own keys:
+No box, picker, editor or overlay draws its own keys
+but the palette:
 they are on the bottom line's left, and nowhere else.
 Not a footer under the widget as well:
 two copies of one list drift
@@ -539,8 +566,16 @@ and its keys are `editor.hints` on the line;
 the search, flow and query boxes draw theirs the same way (`withBox`, `tui/palette.go`);
 a tab strip draws only its tabs;
 and the help's own keys are its bottom line ([The help is the keymap](#the-help-is-the-keymap)).
-The palette's letters are its content, not hints,
-and a placeholder's words (*type to narrow*) name no key.
+A placeholder's words (*type to narrow*) name no key.
+
+The palette is the exception, because it is a menu:
+its keys are its content, not hints,
+so the box lists all of them, `esc` and `ctrl+c` with the letters,
+and the bottom line under it has none, keeping only the page's last message
+([Keys on the palette](#keys-on-the-palette)).
+The search, the flow picker and the query editor are inputs:
+what is in their box is what is typed,
+so their keys stay on the bottom line.
 
 ### The hints name the keys that act under the cursor
 

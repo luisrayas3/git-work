@@ -186,5 +186,5 @@ func (r *root) withSearch(content string) string {
 	for at, line := range inside {
 		inside[at] = pad(line, inner)
 	}
-	return r.withBox(content, inside, r.search.hints())
+	return r.withBox(content, inside, r.search.hints(), "")
 }

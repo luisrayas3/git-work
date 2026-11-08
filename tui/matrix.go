@@ -159,6 +159,10 @@ type drawnRow struct {
 	total cellSum
 }
 
+// Status is the page's last message: its bottom line's right side,
+// without the count.
+func (p *matrixPage) Status() string { return p.status }
+
 func (p *matrixPage) Call() (*view.Call, string, string) {
 	return p.call, "", ""
 }

@@ -40,19 +40,32 @@ import (
 // While a page is editing a one-line input, filtering, grabbing or showing
 // the help, `esc` is that state's own and cancels it.
 
-// paletteEntry is one entry on the palette: its letter and what it does here.
+// paletteEntry is one entry on the palette: its key and what it does here.
+// The key is a letter but for the palette's own esc, which the box lists
+// too (doc/design/tui.md, "Keys on the palette").
 type paletteEntry struct {
-	letter string
-	what   string
+	key  string
+	what string
 }
+
+// escBack and escLeave are the palette's second esc as the box lists it: back
+// on a page, out of the text over a text.
+var (
+	escBack  = paletteEntry{key: "esc", what: "back"}
+	escLeave = paletteEntry{key: "esc", what: "leave text"}
+)
+
+// copyPageKey is the copy key as the breadcrumb line names it, dim at its
+// end, on a page's palette only: over a text it rings.
+const copyPageKey = "ctrl+c copy page command"
 
 // entry is a chord as the palette lists it, under a page's own wording
 // where the page gives one.
 func entry(c *chord, what ...string) paletteEntry {
 	if len(what) > 0 {
-		return paletteEntry{letter: c.letter, what: what[0]}
+		return paletteEntry{key: c.letter, what: what[0]}
 	}
-	return paletteEntry{letter: c.letter, what: c.what}
+	return paletteEntry{key: c.letter, what: c.what}
 }
 
 // everywhere is the palette's last section: the commands that mean the same
@@ -147,7 +160,7 @@ func textCommands() []paletteEntry {
 // isTextCommand says a letter is one of textCommands.
 func isTextCommand(letter string) bool {
 	for _, c := range textCommands() {
-		if c.letter == letter {
+		if c.key == letter {
 			return true
 		}
 	}
@@ -280,13 +293,33 @@ func openCreator(p page) tea.Cmd {
 	return openNew(repo, showsOf(p), host.IssueDocument{})
 }
 
-// paletteHints is the status line while the palette is open; over a text,
-// the second esc leaves the text and not the page.
-func paletteHints(text bool) string {
-	if text {
-		return hints(hint{"letter", "run"}, hint{"esc", "leave text"})
+// breadcrumbLine is the palette's first line: the breadcrumb, and on a
+// page's palette the copy key dim at the line's end, beside the call it
+// copies. Where the line cannot hold both, the breadcrumb is cut from its
+// left, the top page's step last to go; the copy key is dropped rather than
+// cut into that step (doc/design/tui.md, "Where you are").
+func breadcrumbLine(pages []page, copyKey bool, width int) string {
+	crumb := breadcrumb(pages)
+	if !copyKey {
+		return fitRight(crumb, width)
 	}
-	return hints(hint{"letter", "run"}, hint{"esc", "back"}, hint{"ctrl+c", "copy command"})
+	call, lead, _ := pages[len(pages)-1].Call()
+	step := call.Kind
+	if lead != "" {
+		step += " " + lead
+	}
+	keyWidth := ansi.StringWidth(copyPageKey)
+	room := width - keyWidth - 2 // two spaces at least before the key
+	need := ansi.StringWidth(step)
+	if ansi.StringWidth(crumb) > room {
+		need++ // the … the cut breadcrumb starts with
+	}
+	if room < need {
+		return fitRight(crumb, width)
+	}
+	crumb = fitRight(crumb, room)
+	gap := width - ansi.StringWidth(crumb) - keyWidth
+	return crumb + strings.Repeat(" ", gap) + styleDim.Render(copyPageKey)
 }
 
 // breadcrumb is the stack, oldest first: each page's kind and what follows
@@ -321,7 +354,7 @@ func section(name string, commands []paletteEntry, col, width int) []string {
 	line := label
 	used := ansi.StringWidth(label)
 	for at, c := range commands {
-		item := styleHeader.Render(c.letter) + " " + c.what
+		item := styleHeader.Render(c.key) + " " + c.what
 		w := ansi.StringWidth(item)
 		if at > 0 {
 			if used+3+w > width {
@@ -341,17 +374,17 @@ func section(name string, commands []paletteEntry, col, width int) []string {
 // paletteLines is the box's inside: where you are — the stack, whose last
 // step is the top page's kind and lead, then the rest of its call, one
 // argument a line, and its query in a section of its own — then this page's
-// commands and everywhere's, all of it width wide (doc/design/tui.md, "Where
-// you are"). Every name,
+// commands and everywhere's, everywhere's ending in esc, all of it width
+// wide (doc/design/tui.md, "Where you are"). Every name,
 // an argument's or a section's, is in the left column, and what it names
 // starts in the one column after it.
 func (r *root) paletteLines(width, room int) []string {
 	top := r.top()
 	col := r.labelWidth()
 	commands := append(section("this page", r.pageCommands(), col, width),
-		section("everywhere", everywhere(), col, width)...)
+		section("everywhere", append(everywhere(), escBack), col, width)...)
 	if inText(top) {
-		commands = section("this text", append(textCommands(), entry(keys.closePalette, "close")), col, width)
+		commands = section("this text", append(textCommands(), entry(keys.closePalette, "close"), escLeave), col, width)
 	}
 	head := r.callHead(col, width)
 	query := paletteQuery(top, col, width)
@@ -372,7 +405,8 @@ func (r *root) paletteLines(width, room int) []string {
 	return append(lines, commands...)
 }
 
-// callHead is the palette's first lines: the breadcrumb, then every argument
+// callHead is the palette's first lines: the breadcrumb (breadcrumbLine),
+// then every argument
 // of the top page's call but its lead and its query, one a line, its name in
 // the left column and its value from col, as the query's is. The breadcrumb
 // ends in the kind and the lead, so they are not said twice. An
@@ -381,7 +415,7 @@ func (r *root) paletteLines(width, room int) []string {
 func (r *root) callHead(col, width int) []string {
 	call, _, leadArg := r.top().Call()
 	args, _, _ := callParts(call, leadArg)
-	lines := []string{fit(breadcrumb(r.pages), width)}
+	lines := []string{breadcrumbLine(r.pages, !inText(r.top()), width)}
 	for _, arg := range args {
 		label := arg.render(arg.name) + strings.Repeat(" ", col-ansi.StringWidth(arg.name))
 		for _, wrapped := range strings.Split(ansi.Hardwrap(arg.value, width-col, false), "\n") {
@@ -458,10 +492,12 @@ var stylePalette = lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).Padding(
 // status line of its own (doc/design/tui.md, "The palette is a box over the
 // page"): the page is in sight around it, so
 // the palette reads as a menu over the page, and not as the page's foot
-// changing under it.
+// changing under it. The line has no hints, the box listing its own keys,
+// and keeps the page's last message on its right (doc/design/tui.md, "Key
+// hints are on the bottom line only").
 func (r *root) withPalette(content string) string {
 	inner, room := r.boxRoom(content)
-	return r.withBox(content, r.paletteLines(inner, room), paletteHints(inText(r.top())))
+	return r.withBox(content, r.paletteLines(inner, room), "", r.top().Status())
 }
 
 // boxRoom is the inside of a box drawn over the page: how wide, and how many
@@ -473,9 +509,10 @@ func (r *root) boxRoom(content string) (width, room int) {
 	return width, room
 }
 
-// withBox draws inside, in a box, in the middle of the page, and hints as
-// the status line under both: the palette and the search are drawn so.
-func (r *root) withBox(content string, inside []string, hints string) string {
+// withBox draws inside, in a box, in the middle of the page, and the status
+// line under both, hints on its left and right on its right: the palette,
+// the search, the flow picker and the query editor are drawn so.
+func (r *root) withBox(content string, inside []string, hints, right string) string {
 	lines := strings.Split(content, "\n")
 	height := max(r.height, len(lines))
 	page := lines[:max(len(lines)-1, 0)] // the page's status line is the box's
@@ -483,7 +520,7 @@ func (r *root) withBox(content string, inside []string, hints string) string {
 		page = append(page, "")
 	}
 	box := strings.Split(stylePalette.Render(strings.Join(inside, "\n")), "\n")
-	return strings.Join(append(overlay(page, box, r.width), bottomLine(hints, "", r.width)), "\n")
+	return strings.Join(append(overlay(page, box, r.width), bottomLine(hints, right, r.width)), "\n")
 }
 
 // overlay draws box over the middle of page, which keeps its lines and its

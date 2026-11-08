@@ -188,6 +188,10 @@ func newShowPage(repo *cache.RepoCache, id string, fields []string) (*showPage, 
 	return p, nil
 }
 
+// Status is the page's last message: its bottom line's right side,
+// without the count.
+func (p *showPage) Status() string { return p.status }
+
 func (p *showPage) Call() (*view.Call, string, string) {
 	return p.call, humanOf(p.repo, p.snapshot.Id().String()), "id"
 }

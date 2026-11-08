@@ -136,6 +136,8 @@ func TestThePalettesSearchOpensAShow(t *testing.T) {
 	drawn := drawnStack(stack)
 	require.Contains(t, drawn, "search")
 	require.Contains(t, drawn, "open story")
+	// an input: its keys stay on the bottom line, unlike the palette's
+	require.Equal(t, "enter: open · esc: back · ? keys", strings.TrimRight(lastLine(drawn), " "))
 	// a box in the middle, which stays where it is as the matches narrow
 	boxAt := func(drawn string) int {
 		return slices.IndexFunc(strings.Split(drawn, "\n"), func(line string) bool { return strings.Contains(line, "╭") })

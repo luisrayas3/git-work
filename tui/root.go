@@ -23,6 +23,9 @@ type page interface {
 	// Call is the call the page is drawing, its first line: the call, and
 	// what follows the kind in place of the argument it names (callLine).
 	Call() (call *view.Call, lead, leadArg string)
+	// Status is the page's last message, which the bottom line keeps on its
+	// right while a box is over the page (palette.go).
+	Status() string
 }
 
 // The messages the pages send each other through the program.

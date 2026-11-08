@@ -228,5 +228,5 @@ func queryHints() string {
 // withQueryEditor draws the query editor as the palette is drawn.
 func (r *root) withQueryEditor(content string) string {
 	width, _ := r.boxRoom(content)
-	return r.withBox(content, r.queryEditorLines(width), queryHints())
+	return r.withBox(content, r.queryEditorLines(width), queryHints(), "")
 }

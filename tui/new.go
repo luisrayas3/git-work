@@ -131,6 +131,10 @@ func copyFields(fields map[string]issue.Value) map[string]issue.Value {
 	return out
 }
 
+// Status is the page's last message: its bottom line's right side,
+// without the count.
+func (p *newPage) Status() string { return p.status }
+
 func (p *newPage) Call() (*view.Call, string, string) {
 	return p.call, "", ""
 }

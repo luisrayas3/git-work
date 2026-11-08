@@ -167,15 +167,68 @@ func TestEscOpensThePalette(t *testing.T) {
 	}
 	require.NotContains(t, drawn, "z fold all", "nothing nests here")
 	require.NotContains(t, drawn, "J reset query", "the query is the call's")
-	require.Contains(t, lines[19], "esc: back")
+	// the box lists its own keys: esc last in everywhere, after g close, and
+	// the copy key at the end of the breadcrumb, beside the call it copies
+	// (doc/design/tui.md, "Keys on the palette")
+	require.Greater(t, strings.Index(drawn, "esc back"), strings.Index(drawn, "g close"), "esc last")
+	require.Greater(t, strings.Index(drawn, "g close"), strings.Index(drawn, "q quit"))
+	crumb := lines[top+1]
+	require.Contains(t, crumb, "│ list ")
+	require.True(t, strings.HasSuffix(strings.TrimRight(crumb, " │"), "ctrl+c copy page command"), crumb)
+	require.Equal(t, 1, strings.Count(drawn, "ctrl+c"), "said once, in the box")
+	// the bottom line has no hints: the box is the palette's keys
+	require.Equal(t, "", strings.TrimSpace(lines[19]))
 
-	// narrow, it still keeps its height, and the box fits the window
+	// it keeps the page's last message on its right
+	stack.say("copied status")
+	lines = strings.Split(drawnStack(stack), "\n")
+	require.True(t, stack.palette)
+	require.Equal(t, "copied status", strings.TrimSpace(lines[19]))
+	require.True(t, strings.HasSuffix(lines[19], "copied status"), "right-aligned")
+
+	// narrow, it still keeps its height, and the box fits the window; the
+	// copy key is dropped before it cuts the top page's step
 	stack.Update(tea.WindowSizeMsg{Width: 30, Height: 20})
-	narrow := strings.Split(drawnStack(stack), "\n")
+	narrowDrawn := drawnStack(stack)
+	narrow := strings.Split(narrowDrawn, "\n")
 	require.Len(t, narrow, 20)
 	for _, line := range narrow {
 		require.LessOrEqual(t, ansi.StringWidth(line), 30, line)
 	}
+	require.NotContains(t, narrowDrawn, "ctrl+c")
+	require.Contains(t, narrowDrawn, "│ list ")
+}
+
+// TestTheBreadcrumbLineFits: the breadcrumb is cut from its left, the top
+// page's step kept, and the copy key is dropped rather than cut into it
+// (doc/design/tui.md, "Where you are").
+func TestTheBreadcrumbLineFits(t *testing.T) {
+	repo := testRepo(t)
+	id := newIssue(t, repo, map[string]any{"title": "one"})
+
+	stack := stackOf(list(t, repo, ""), 100, 20)
+	stack.top().(*listPage).putCursorOn(id)
+	pushInto(t, stack, "enter")
+	step := "show " + id[:7]
+	plain := func(line string) string { return ansiPattern.ReplaceAllString(line, "") }
+
+	wide := plain(breadcrumbLine(stack.pages, true, 60))
+	require.Equal(t, 60, ansi.StringWidth(wide))
+	require.True(t, strings.HasPrefix(wide, "list › "+step), wide)
+	require.True(t, strings.HasSuffix(wide, "ctrl+c copy page command"), wide)
+
+	// room for the step and the key, not the whole breadcrumb: cut on the left
+	tight := plain(breadcrumbLine(stack.pages, true, len(step)+3+len("ctrl+c copy page command")))
+	require.True(t, strings.HasPrefix(tight, "…"), tight)
+	require.Contains(t, tight, step+"  ctrl+c copy page command")
+
+	// no room for both: the key goes, the step stays
+	short := plain(breadcrumbLine(stack.pages, true, len(step)+10))
+	require.NotContains(t, short, "ctrl+c")
+	require.True(t, strings.HasSuffix(short, step), short)
+
+	// over a text, never the key
+	require.NotContains(t, plain(breadcrumbLine(stack.pages, false, 80)), "ctrl+c")
 }
 
 // TestTheSecondEscIsBack: from the first page it quits; from a page over

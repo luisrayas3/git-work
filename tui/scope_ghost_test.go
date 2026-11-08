@@ -383,11 +383,11 @@ func TestOpenEverythingAndFoldAll(t *testing.T) {
 
 	var letters []string
 	for _, entry := range pageCommands(page) {
-		letters = append(letters, entry.letter)
+		letters = append(letters, entry.key)
 	}
 	require.Subset(t, letters, []string{"z", "Z"})
 	flat := list(t, repo, "")
 	for _, entry := range pageCommands(flat) {
-		require.NotEqual(t, "Z", entry.letter, "nothing nests: no open everything")
+		require.NotEqual(t, "Z", entry.key, "nothing nests: no open everything")
 	}
 }

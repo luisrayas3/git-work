@@ -111,6 +111,10 @@ type listRow struct {
 	place *placement
 }
 
+// Status is the page's last message: its bottom line's right side,
+// without the count.
+func (p *listPage) Status() string { return p.status }
+
 func (p *listPage) Call() (*view.Call, string, string) {
 	return p.call, "", ""
 }

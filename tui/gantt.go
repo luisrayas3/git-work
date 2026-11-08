@@ -139,6 +139,10 @@ var today = func() time.Time {
 	return time.Now()
 }
 
+// Status is the page's last message: its bottom line's right side,
+// without the count.
+func (p *ganttPage) Status() string { return p.status }
+
 func (p *ganttPage) Call() (*view.Call, string, string) {
 	return p.call, "", ""
 }

@@ -122,6 +122,10 @@ type lane struct {
 	stacks  [][]int
 }
 
+// Status is the page's last message: its bottom line's right side,
+// without the count.
+func (p *boardPage) Status() string { return p.status }
+
 func (p *boardPage) Call() (*view.Call, string, string) {
 	return p.call, "", ""
 }

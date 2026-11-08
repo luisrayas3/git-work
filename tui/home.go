@@ -278,6 +278,10 @@ func firstLine(text string) string {
 	return ""
 }
 
+// Status is the page's last message: its bottom line's right side,
+// without the count.
+func (p *homePage) Status() string { return p.status }
+
 func (p *homePage) Call() (*view.Call, string, string) {
 	return p.call, "", ""
 }
@@ -419,6 +423,10 @@ func newOutputPage(repo *cache.RepoCache, name, text string) *outputPage {
 
 // Call is the command that printed it, which no view kind is: the first
 // line reads `flow run NAME`.
+// Status is the page's last message: its bottom line's right side,
+// without the count.
+func (p *outputPage) Status() string { return p.status }
+
 func (p *outputPage) Call() (*view.Call, string, string) {
 	return &view.Call{Kind: "flow run"}, p.name, ""
 }

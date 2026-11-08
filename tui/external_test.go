@@ -136,8 +136,9 @@ func TestEscInATextOpensThePalette(t *testing.T) {
 	require.Contains(t, drawn, "this text")
 	require.Contains(t, drawn, "e editor")
 	require.NotContains(t, drawn, "expand", "no page command")
-	require.Contains(t, drawn, "esc: leave text")
-	require.NotContains(t, drawn, "copy command", "no ctrl+c over a text")
+	require.Contains(t, drawn, "e editor   g close   esc leave text", "the box lists its own esc")
+	require.NotContains(t, drawn, "ctrl+c", "no ctrl+c over a text")
+	require.NotContains(t, drawn, "? keys", "no hints under the palette")
 
 	// ctrl+c is no text command: it rings, the palette open, nothing copied
 	_, cmd := stack.Update(press("ctrl+c"))
@@ -238,7 +239,7 @@ func TestTextCommandsAreNoTextareaKey(t *testing.T) {
 	}
 	require.True(t, bound["alt+f"], "the textarea's word keys are read")
 	for _, c := range textCommands() {
-		require.False(t, bound["alt+"+c.letter], "alt+%s is the textarea's", c.letter)
+		require.False(t, bound["alt+"+c.key], "alt+%s is the textarea's", c.key)
 	}
 }
 
