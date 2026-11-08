@@ -266,6 +266,9 @@ Then, trailing, every value the data has that is not listed,
 and `(none)` for the cards with no value,
 because a board that silently drops issues is worse than one with a ragged edge.
 A listed column is drawn when empty; a trailing one only while a card is in it.
+An archived value's column keeps its place in schema order,
+and is drawn only while a card is in it, so nothing offers it as a place to drop work
+([schema, "Archiving refuses only what is new"](schema.md#archiving-refuses-only-what-is-new)).
 The header is each column's name and its count across every lane.
 
 ### A card
@@ -309,7 +312,9 @@ A bool, not a list of values, because the case is "show me the rest";
 `values` is the model if an explicit list is ever wanted.
 
 The values, by the field's kind:
-every value an enum, ordinal enum or `multi-enum` lists, over the types on the board;
+every live value an enum, ordinal enum or `multi-enum` lists, over the types on the board,
+an archived one being nowhere to put work
+([schema, "Archiving refuses only what is new"](schema.md#archiving-refuses-only-what-is-new));
 `false` and `true` for a bool;
 for a relation, the siblings of the lanes present ([below](#a-relations-empty-lanes-are-siblings));
 nothing for `text`, `number`, `date` and `identity`, which have no set of values to draw.
@@ -501,7 +506,8 @@ There is no totals switch: totals are always drawn.
 
 Each axis is ordered as a board's columns are:
 `row_values` / `column_values` when given;
-otherwise an enum's schema order over the types on the matrix;
+otherwise an enum's schema order over the types on the matrix,
+an archived value only where the data has it;
 then every value the data has that was not placed;
 then `(none)`, last.
 The values not placed, and every axis that is not an enum,

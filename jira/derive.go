@@ -31,8 +31,10 @@ const (
 // Derive returns current ⊕ Jira
 // (doc/design/jira.md, "Derive, then the schema import"): the document with
 // Jira's types, fields and values adopted or added, Jira's names applied to
-// what is aliased, and nothing removed, archived or re-kinded. It is pure and a
-// fixpoint: deriving again from its import changes nothing.
+// what is aliased, a type, field or value Jira no longer has archived and one
+// it has again unarchived (doc/design/jira.md, "What Jira drops is
+// archived"), and nothing removed or re-kinded. It is pure and a fixpoint:
+// deriving again from its import changes nothing.
 //
 // The error is a mis-binding: the document maps issue types, none of which
 // the project has.
@@ -112,7 +114,7 @@ func (d *deriver) types() {
 	var cs []candidate
 	for _, key := range d.doc.Types.Keys() {
 		t, _ := d.doc.Types.Get(key)
-		cs = append(cs, candidate{key: key, name: t.Name, aliases: t.Aliases, fits: true})
+		cs = append(cs, candidate{key: key, name: t.Name, aliases: t.Aliases, fits: adoptable(t.Aliases, t.Archived)})
 	}
 	claimed := map[string]bool{}
 	for _, it := range d.p.IssueTypes {
@@ -138,6 +140,7 @@ func (d *deriver) types() {
 				t.Description = it.Description
 			}
 			setAlias(&t.Aliases, it.Id)
+			d.unarchive(&t.Archived, key, "issue type "+it.Name+" ("+it.Id+")")
 			d.doc.SetType(key, t)
 		}
 		claimed[key] = true
@@ -149,9 +152,54 @@ func (d *deriver) types() {
 		case !ok:
 			d.note(LevelInfo, key, "local-only type: never exported")
 		case a != "" && !claimed[key]:
-			d.note(LevelWarn, key, "dead alias: %s has no issue type %s", d.p.Key, a)
+			// issue types are a reliable source: absent is gone
+			// (doc/design/jira.md, "What Jira drops is archived")
+			if d.archive(&t.Archived, key, ValueRef{Type: key}, "%s has no issue type %s", d.p.Key, a) {
+				d.doc.SetType(key, t)
+			}
 		}
 	}
+}
+
+// adoptable is whether an entity may be adopted by name: an archived one
+// with no Jira alias was archived here, and is never adopted out of it
+// (doc/design/jira.md, "What Jira drops is archived").
+func adoptable(aliases map[string]string, archived *bool) bool {
+	_, aliased := aliases[system]
+	return aliased || !stated(archived)
+}
+
+// archive archives an entity or a value Jira no longer has, saying so
+// once with a warning the caller adds the issues still holding it to, and
+// reports whether it changed anything
+// (doc/design/jira.md, "What Jira drops is archived").
+func (d *deriver) archive(archived **bool, key string, ref ValueRef, format string, args ...any) bool {
+	what := fmt.Sprintf(format, args...)
+	if stated(*archived) {
+		d.note(LevelInfo, key, "archived: %s", what)
+		return false
+	}
+	yes := true
+	*archived = &yes
+	d.note(LevelWarn, key, "archived: %s", what)
+	d.notes[len(d.notes)-1].Archived = &ref
+	return true
+}
+
+// unarchive unarchives what Jira has again, Jira being canonical
+// (doc/design/jira.md, "What Jira drops is archived").
+func (d *deriver) unarchive(archived **bool, key, what string) {
+	if !stated(*archived) {
+		return
+	}
+	no := false
+	*archived = &no
+	d.note(LevelInfo, key, "unarchived: Jira has %s again", what)
+}
+
+// stated is whether a document states an archive.
+func stated(archived *bool) bool {
+	return archived != nil && *archived
 }
 
 // retype sets each mapped type's retype_targets to the other mapped types
@@ -365,7 +413,8 @@ func (d *deriver) fields(typeKey string, it IssueType) {
 				continue
 			}
 			f, _ := t.Fields.Get(key)
-			cs = append(cs, candidate{key: key, name: f.Name, aliases: f.Aliases, fits: f.Kind == string(w.kind)})
+			cs = append(cs, candidate{key: key, name: f.Name, aliases: f.Aliases,
+				fits: f.Kind == string(w.kind) && adoptable(f.Aliases, f.Archived)})
 		}
 		key, adopted, excluded := match(cs, w.ref, w.name, w.key, claimed)
 		if excluded {
@@ -388,6 +437,7 @@ func (d *deriver) fields(typeKey string, it IssueType) {
 				d.note(LevelInfo, where, "adopts Jira field %s (%s)", w.name, w.ref)
 			}
 			f.Name = orElse(w.name, f.Name)
+			d.unarchive(&f.Archived, where, "field "+w.name+" ("+w.ref+")")
 		}
 		claimed[key] = true
 		setAlias(&f.Aliases, w.ref)
@@ -405,6 +455,9 @@ func (d *deriver) fields(typeKey string, it IssueType) {
 		}
 		slices.Sort(f.TargetTypes) // the store keeps them as a set
 
+		// a want exists only for a field on the type's create screen, or a
+		// status, so a field off the screen leaves its values as they stand
+		// (doc/design/jira.md, "What Jira drops is archived")
 		if w.kind.IsEnum() && !w.freeform {
 			f.Values = d.values(where, f.Values, w)
 		}
@@ -416,11 +469,32 @@ func (d *deriver) fields(typeKey string, it IssueType) {
 		case schema.IsBuiltin(key):
 		case !ok:
 			d.note(LevelInfo, typeKey+"/"+key, "local-only field: never exported")
-		case a != "" && !claimed[key]:
+		case a != "" && !claimed[key] && d.hasField(a):
+			// off this type's create screen, which hides a field for reasons
+			// of its own (doc/design/jira.md, "What Jira drops is archived")
 			d.note(LevelWarn, typeKey+"/"+key, "dead alias: Jira field %s is not mapped on %s", a, it.Name)
+		case a != "" && !claimed[key]:
+			if d.archive(&f.Archived, typeKey+"/"+key, ValueRef{Type: typeKey, Field: key}, "Jira has no field %s any more", a) {
+				t.SetField(key, f)
+			}
 		}
 	}
 	d.doc.SetType(typeKey, t)
+}
+
+// hasField is whether Jira still has a field at all
+// (doc/design/jira.md, "What Jira drops is archived"): a fixed-table field
+// always, a link type while the site lists it or lists none (linking
+// disabled says nothing of one type), a custom field while /field lists it.
+func (d *deriver) hasField(ref string) bool {
+	if id, ok := strings.CutPrefix(ref, linkPrefix); ok {
+		return d.p.LinkTypes == nil || slices.ContainsFunc(d.p.LinkTypes, func(lt jiraapi.IssueLinkType) bool { return lt.ID == id })
+	}
+	if _, fixed := fixedKinds[ref]; fixed {
+		return true
+	}
+	_, ok := d.p.field(ref)
+	return ok
 }
 
 // fieldTaken is a key a new field or inverse cannot take: a field's or an inverse's.
@@ -473,7 +547,7 @@ func (d *deriver) values(where string, current []schema.ValueDoc, w want) []sche
 	copy(vs, current)
 	var cs []candidate
 	for _, v := range vs {
-		cs = append(cs, candidate{key: v.Id, name: v.Name, aliases: v.Aliases, fits: true})
+		cs = append(cs, candidate{key: v.Id, name: v.Name, aliases: v.Aliases, fits: adoptable(v.Aliases, v.Archived)})
 	}
 	index := func(id string) int { return slices.IndexFunc(vs, func(v schema.ValueDoc) bool { return v.Id == id }) }
 
@@ -493,6 +567,7 @@ func (d *deriver) values(where string, current []schema.ValueDoc, w want) []sche
 			} else if v.Name != jv.name {
 				d.note(LevelInfo, at, "renamed %q after Jira", jv.name)
 			}
+			d.unarchive(&v.Archived, at, "value "+jv.name+" ("+jv.id+") here")
 			v.Name = jv.name
 			setAlias(&v.Aliases, jv.id)
 			if allowed := classOf(jv.class); w.status && !slices.Contains(allowed, schema.Category(v.Category)) {
@@ -521,12 +596,17 @@ func (d *deriver) values(where string, current []schema.ValueDoc, w want) []sche
 		order = append(order, id)
 	}
 
-	for _, v := range vs {
+	for i, v := range vs {
 		switch a, ok := v.Aliases[system]; {
 		case !ok:
 			d.note(LevelInfo, where+":"+v.Id, "local-only value: never exported")
 		case a != "" && !claimed[v.Id]:
-			d.note(LevelWarn, where+":"+v.Id, "dead alias: Jira has no value %s here any more", a)
+			// the want's values are the whole list: a workflow's statuses,
+			// the priority scheme, or an on-screen field's allowedValues
+			// (doc/design/jira.md, "What Jira drops is archived")
+			typeKey, fieldKey, _ := strings.Cut(where, "/")
+			d.archive(&vs[i].Archived, where+":"+v.Id, ValueRef{Type: typeKey, Field: fieldKey, Value: v.Id},
+				"Jira has no value %s here any more", a)
 		}
 	}
 
@@ -596,6 +676,14 @@ func checkBinding(aliases []string, p *Project) error {
 		strings.Join(slices.Compact(aliases), ", "), p.Key)
 }
 
+func cloneBool(b *bool) *bool {
+	if b == nil {
+		return nil
+	}
+	c := *b
+	return &c
+}
+
 func copyDocument(src *schema.Document) *schema.Document {
 	out := schema.NewDocument()
 	if src == nil {
@@ -606,6 +694,7 @@ func copyDocument(src *schema.Document) *schema.Document {
 		// The whole value, so an attribute a type gains is carried too.
 		c := t
 		c.Aliases = maps.Clone(t.Aliases)
+		c.Archived = cloneBool(t.Archived)
 		if t.RetypeTargets != nil {
 			targets := slices.Clone(*t.RetypeTargets)
 			c.RetypeTargets = &targets
@@ -620,9 +709,11 @@ func copyDocument(src *schema.Document) *schema.Document {
 			f, _ := t.Fields.Get(fk)
 			f.Aliases = maps.Clone(f.Aliases)
 			f.TargetTypes = slices.Clone(f.TargetTypes)
+			f.Archived = cloneBool(f.Archived)
 			f.Values = slices.Clone(f.Values)
 			for i := range f.Values {
 				f.Values[i].Aliases = maps.Clone(f.Values[i].Aliases)
+				f.Values[i].Archived = cloneBool(f.Values[i].Archived)
 			}
 			c.SetField(fk, f)
 		}

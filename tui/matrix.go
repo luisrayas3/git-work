@@ -327,7 +327,7 @@ func (p *matrixPage) resolveAxis(key string, listed []string, items []map[string
 
 	// what the schema says about the field, off the types the issues have
 	// (group.go)
-	kind, order, names := fieldValues(p.repo, key, onMatrix)
+	kind, order, names, archived := fieldValues(p.repo, key, onMatrix)
 	a.kind = kind
 	a.multi = isMultiKind(a.kind)
 
@@ -361,6 +361,11 @@ func (p *matrixPage) resolveAxis(key string, listed []string, items []map[string
 		}
 	} else if isEnum(a.kind) {
 		for _, value := range order {
+			// an archived value only where the data has it, in its place
+			// (doc/design/schema.md, "Archiving refuses only what is new")
+			if archived[value] && !data[value] {
+				continue
+			}
 			add(value)
 		}
 	}

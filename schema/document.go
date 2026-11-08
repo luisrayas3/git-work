@@ -70,8 +70,11 @@ type TypeDoc struct {
 	RetypeTargets *[]string `yaml:"retype_targets,omitempty"`
 	// Color switches the built-in `color` on for the type's issues
 	// (doc/design/schema.md, "Color is a built-in a type switches on").
-	Color  bool      `yaml:"color,omitempty"`
-	Fields *fieldMap `yaml:"fields,omitempty"`
+	Color bool `yaml:"color,omitempty"`
+	// Archived is stated as a value's is
+	// (doc/design/schema.md, "An archive is stated, never implied").
+	Archived *bool     `yaml:"archived,omitempty"`
+	Fields   *fieldMap `yaml:"fields,omitempty"`
 }
 
 // ShowDoc is a type's show spec in the document: `fields`, the rows of
@@ -98,8 +101,11 @@ type FieldDoc struct {
 	TargetTypes []string          `yaml:"target_types,omitempty"`
 	// Link marks a relation the views draw as a link
 	// (doc/design/schema.md, "A link is a marked relation").
-	Link   bool       `yaml:"link,omitempty"`
-	Values []ValueDoc `yaml:"values,omitempty"`
+	Link bool `yaml:"link,omitempty"`
+	// Archived is stated as a value's is
+	// (doc/design/schema.md, "An archive is stated, never implied").
+	Archived *bool      `yaml:"archived,omitempty"`
+	Values   []ValueDoc `yaml:"values,omitempty"`
 }
 
 // ValueDoc is one enum value in the document.
@@ -109,6 +115,12 @@ type ValueDoc struct {
 	Category    string `yaml:"category,omitempty"`
 	Description string `yaml:"description,omitempty"`
 	Color       string `yaml:"color,omitempty"`
+	// Archived is stated, as an alias is: true archives the value, false
+	// unarchives it, and absent leaves it as it stands, so a file written
+	// before the archive revives nothing
+	// (doc/design/schema.md, "An archive is stated, never implied"). Export
+	// writes true or nothing.
+	Archived *bool `yaml:"archived,omitempty"`
 	// Aliases are stored on the field entity, `alias_<system>/<id>`.
 	Aliases map[string]string `yaml:"aliases,omitempty"`
 }
@@ -270,9 +282,10 @@ func (d *Document) Marshal(format string) ([]byte, error) {
 func Export(s *Schema) *Document {
 	doc := &Document{Types: newOrderedMap[TypeDoc]()}
 
-	for _, typeKey := range s.TypeKeys() {
+	for _, typeKey := range s.AllTypeKeys() {
 		t := s.Types[typeKey]
 		entry := TypeDoc{
+			Archived:      statedArchive(t.Archived),
 			Name:          t.Name,
 			Description:   t.Description,
 			Aliases:       copyAliases(t.Aliases),
@@ -282,7 +295,7 @@ func Export(s *Schema) *Document {
 			Fields:        newOrderedMap[FieldDoc](),
 		}
 
-		for _, fieldKey := range t.FieldKeys() {
+		for _, fieldKey := range t.AllFieldKeys() {
 			field := t.Fields[fieldKey]
 			if field.Builtin && !field.Configured {
 				continue
@@ -304,6 +317,7 @@ func exportField(field *Field) FieldDoc {
 		Kind:        string(field.Kind),
 		Name:        field.Name,
 		Description: field.Description,
+		Archived:    statedArchive(field.Archived),
 	}
 	if field.Builtin {
 		// a built-in's values and targets are code, not config
@@ -318,17 +332,29 @@ func exportField(field *Field) FieldDoc {
 	out.TargetTypes = append([]string(nil), field.TargetTypes...)
 
 	for _, value := range field.Values {
-		out.Values = append(out.Values, ValueDoc{
+		doc := ValueDoc{
 			Id:          value.Id,
 			Name:        value.Name,
 			Category:    string(value.Category),
 			Description: value.Description,
 			Color:       value.Color,
 			Aliases:     copyAliases(value.Aliases),
-		})
+		}
+		doc.Archived = statedArchive(value.Archived)
+		out.Values = append(out.Values, doc)
 	}
 
 	return out
+}
+
+// statedArchive is what export states of an archive: true, or nothing,
+// since nothing stated leaves an entity or a value as it stands
+// (doc/design/schema.md, "An archive is stated, never implied").
+func statedArchive(archived bool) *bool {
+	if !archived {
+		return nil
+	}
+	return &archived
 }
 
 // exportShow reads a type's stored spec back as the document's, nil where

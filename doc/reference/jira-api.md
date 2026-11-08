@@ -1183,6 +1183,10 @@ The paginated endpoints, which list "the same fields that appear on the issue's 
   an option, priority or issue-type field's `allowedValues` are the objects (`{"id":"3","name":"Medium",…}`).
 - Needs *Create issues* in the project.
 - A field off the create screen is refused at create.
+- **Unconfirmed**: an option absent from an on-screen field's `allowedValues`
+  is one the field's context no longer offers, disabled or deleted;
+  inferred from the spec's `allowedValues`, the values the field accepts on that screen.
+  A field off the screen is not listed, so its options are not either.
 
 ### Edit metadata
 

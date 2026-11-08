@@ -277,10 +277,19 @@ func (p *boardPage) resolveColumns() []column {
 
 	// the first type's order wins and later types only add what it did not
 	// have (group.go)
-	kind, order, names := fieldValues(p.repo, p.columnsKey, onBoard)
+	kind, order, names, archived := fieldValues(p.repo, p.columnsKey, onBoard)
 	person = isPerson(kind)
 	if p.values == nil {
+		held := map[string]bool{}
+		for _, c := range p.cards {
+			held[c.value] = true
+		}
 		for _, value := range order {
+			// an archived value is a column only while a card is in it, and
+			// then in its place (doc/design/schema.md, "Archiving refuses only what is new")
+			if archived[value] && !held[value] {
+				continue
+			}
 			add(value, names[value])
 		}
 	}

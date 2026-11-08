@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"reflect"
 	"slices"
 	"time"
 
@@ -145,7 +146,7 @@ func (c *IssueCache) PlanAddValues(items map[string][]issue.Value) ([]issue.Oper
 		return nil, err
 	}
 	items = fullIdItems(checker, c.typeKey(), items, nil)
-	if err := c.checkItems(items); err != nil {
+	if err := c.checkItems(items, false); err != nil {
 		return nil, err
 	}
 	unixTime := time.Now().Unix()
@@ -175,7 +176,7 @@ func (c *IssueCache) PlanRemoveValues(items map[string][]issue.Value) ([]issue.O
 	}
 	snap := c.Snapshot()
 	items = fullIdItems(checker, issueTypeOf(snap.Fields), items, snap.Items)
-	if err := c.checkItems(items); err != nil {
+	if err := c.checkItems(items, true); err != nil {
 		return nil, err
 	}
 	unixTime := time.Now().Unix()
@@ -204,11 +205,12 @@ func (c *IssueCache) checkFields(fields map[string]issue.Value) error {
 	if err != nil || checker == nil {
 		return err
 	}
-	return checker.CheckFields(c.typeKey(), rawValues(fields))
+	snap := c.Snapshot()
+	return checker.Holding(heldBy(snap)).CheckFields(issueTypeOf(snap.Fields), rawValues(fields))
 }
 
 // checkItems measures an `add` or a `remove` against the live schema.
-func (c *IssueCache) checkItems(items map[string][]issue.Value) error {
+func (c *IssueCache) checkItems(items map[string][]issue.Value, remove bool) error {
 	checker, err := c.liveChecker()
 	if err != nil || checker == nil {
 		return err
@@ -223,7 +225,37 @@ func (c *IssueCache) checkItems(items map[string][]issue.Value) error {
 		raw[key] = out
 	}
 
-	return checker.CheckItems(c.typeKey(), raw)
+	snap := c.Snapshot()
+	held := heldBy(snap)
+	if remove {
+		held = schema.HoldsAnything
+	}
+	return checker.Holding(held).CheckItems(issueTypeOf(snap.Fields), raw)
+}
+
+// heldBy is what an issue holds now, which a write may keep or remove even
+// where the value is archived (doc/design/schema.md, "Archiving refuses only what is new").
+func heldBy(snap *issue.Snapshot) func(key string, value json.RawMessage) bool {
+	return func(key string, value json.RawMessage) bool {
+		v, ok := snap.Fields[key]
+		if !ok {
+			return false
+		}
+		if sameJSON(v, value) {
+			return true
+		}
+		items, _ := issue.Items(v)
+		return slices.ContainsFunc(items, func(item issue.Value) bool { return sameJSON(item, value) })
+	}
+}
+
+// sameJSON reports whether two JSON values mean the same thing.
+func sameJSON(a, b json.RawMessage) bool {
+	var x, y any
+	if json.Unmarshal(a, &x) != nil || json.Unmarshal(b, &y) != nil {
+		return false
+	}
+	return reflect.DeepEqual(x, y)
 }
 
 func (c *IssueCache) liveChecker() (*schema.Checker, error) {
@@ -330,7 +362,7 @@ func (c *IssueCache) update(fn func(snap *issue.Snapshot) ([]issue.Operation, er
 		return err
 	}
 	ops = fullIdOperations(checker, batchType(issueTypeOf(snap.Fields), ops), snap, ops)
-	if err := c.checkOperations(issueTypeOf(snap.Fields), ops, shapeOnly); err != nil {
+	if err := c.checkOperations(snap, ops, shapeOnly); err != nil {
 		return err
 	}
 
@@ -353,7 +385,8 @@ func (c *IssueCache) update(fn func(snap *issue.Snapshot) ([]issue.Operation, er
 // The batch is one change, so every field operation is checked against the
 // type the batch leaves the issue with: a type set anywhere in it is the type
 // its other keys belong to. Comments and metadata have no schema.
-func (c *IssueCache) checkOperations(currentType string, ops []issue.Operation, shapeOnly bool) error {
+func (c *IssueCache) checkOperations(snap *issue.Snapshot, ops []issue.Operation, shapeOnly bool) error {
+	currentType := issueTypeOf(snap.Fields)
 	for _, op := range ops {
 		if err := op.Validate(); err != nil {
 			return err
@@ -367,6 +400,8 @@ func (c *IssueCache) checkOperations(currentType string, ops []issue.Operation, 
 	if shapeOnly {
 		checker = checker.Shape()
 	}
+	held := checker.Holding(heldBy(snap))
+	removing := checker.Holding(schema.HoldsAnything)
 
 	typeKey := batchType(currentType, ops)
 
@@ -393,11 +428,11 @@ func (c *IssueCache) checkOperations(currentType string, ops []issue.Operation, 
 		var err error
 		switch op := op.(type) {
 		case *issue.SetFieldOperation:
-			err = checker.CheckFields(typeKey, map[string]json.RawMessage{op.Key: json.RawMessage(op.Value)})
+			err = held.CheckFields(typeKey, map[string]json.RawMessage{op.Key: json.RawMessage(op.Value)})
 		case *issue.AddValueOperation:
-			err = checker.CheckItems(typeKey, map[string][]json.RawMessage{op.Key: {json.RawMessage(op.Item)}})
+			err = held.CheckItems(typeKey, map[string][]json.RawMessage{op.Key: {json.RawMessage(op.Item)}})
 		case *issue.RemoveValueOperation:
-			err = checker.CheckItems(typeKey, map[string][]json.RawMessage{op.Key: {json.RawMessage(op.Item)}})
+			err = removing.CheckItems(typeKey, map[string][]json.RawMessage{op.Key: {json.RawMessage(op.Item)}})
 		}
 		if err := collect(err); err != nil {
 			return err

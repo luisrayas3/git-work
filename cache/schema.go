@@ -11,10 +11,13 @@ import (
 	"github.com/git-bug/git-bug/schema"
 )
 
-// SchemaEntries returns the unarchived winner of every (shape, key) in this
-// namespace, which is what the schema is compiled from
+// SchemaEntries returns the winner of every (shape, key) in this namespace,
+// which is what the schema is compiled from
 // (doc/design/schema.md, "Duplicate keys"; doc/design/schema.md,
-// "Compiled on demand").
+// "Compiled on demand"): the unarchived winner, else, where every entity of
+// the key is archived, the archived one the same rule picks, marked, so an
+// issue of an archived type or holding an archived field still reads and is
+// edited (doc/design/schema.md, "Archiving refuses only what is new").
 //
 // It reads the excerpts alone: a config excerpt carries its whole document,
 // so compiling the schema never loads an entity.
@@ -22,16 +25,31 @@ func (c *RepoCacheConfig) SchemaEntries() ([]schema.Entry, error) {
 	var entries []schema.Entry
 
 	for _, shape := range c.store.Shapes() {
-		for _, key := range c.Keys(shape) {
-			excerpt, err := c.CurrentExcerpt(shape, key)
-			if err != nil {
-				return nil, err
+		all := c.Query(ConfigQuery{Shape: shape, IncludeArchived: true})
+		byKey := map[string][]*ConfigExcerpt{}
+		var keys []string
+		for _, excerpt := range all {
+			if _, seen := byKey[excerpt.Key]; !seen {
+				keys = append(keys, excerpt.Key)
+			}
+			byKey[excerpt.Key] = append(byKey[excerpt.Key], excerpt)
+		}
+		for _, key := range keys {
+			holders := byKey[key]
+			sort.Sort(ConfigsByCreation(holders))
+			winner := holders[0]
+			for _, excerpt := range holders {
+				if !excerpt.Archived {
+					winner = excerpt
+					break
+				}
 			}
 			entries = append(entries, schema.Entry{
-				Id:         excerpt.Id(),
-				Shape:      excerpt.Shape,
-				Key:        excerpt.Key,
-				Attributes: excerpt.Attributes,
+				Id:         winner.Id(),
+				Shape:      winner.Shape,
+				Key:        winner.Key,
+				Attributes: winner.Attributes,
+				Archived:   winner.Archived,
 			})
 		}
 	}

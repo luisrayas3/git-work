@@ -11,7 +11,7 @@ import (
 // kind:
 //
 //   - an enum: every value the schema lists, over the types on the board as
-//     the columns read them;
+//     the columns read them, less the archived;
 //   - a bool: false and true;
 //   - a relation: the siblings of the lanes the cards are in
 //     (doc/design/views.md, "A relation's empty lanes are siblings");
@@ -34,7 +34,7 @@ func (p *boardPage) emptyLanes(known *kinds) []lane {
 	for _, c := range p.cards[:p.real] {
 		onBoard[c.typeKey] = true
 	}
-	kind, order, _ := fieldValues(p.repo, p.groupBy, onBoard)
+	kind, order, _, archived := fieldValues(p.repo, p.groupBy, onBoard)
 	typeKey, targets := p.laneField(onBoard)
 	if typeKey == "" {
 		return nil
@@ -44,6 +44,10 @@ func (p *boardPage) emptyLanes(known *kinds) []lane {
 	switch {
 	case isEnum(kind):
 		for _, value := range order {
+			if archived[value] {
+				// no lane to put work in (doc/design/schema.md, "Archiving refuses only what is new")
+				continue
+			}
 			if kind == schema.KindMultiEnum {
 				raws = append(raws, []any{value})
 			} else {

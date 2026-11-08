@@ -34,6 +34,10 @@ type Value struct {
 	Category    Category `json:"category,omitempty"`
 	Description string   `json:"description,omitempty"`
 	Color       string   `json:"color,omitempty"`
+	// Archived is a value no write may introduce: an issue holding it reads,
+	// sorts and keeps it, and nothing offers it
+	// (doc/design/schema.md, "Archiving refuses only what is new").
+	Archived bool `json:"archived,omitempty"`
 
 	// Aliases are what the value is in other systems, by system,
 	// held on the field entity as `alias_<system>/<id>`
@@ -85,6 +89,10 @@ type Field struct {
 	// Builtin marks the five fields that exist in code
 	// (doc/design/schema.md, "Built-ins are code").
 	Builtin bool `json:"builtin,omitempty"`
+	// Archived is a field no write may introduce a value of: an issue
+	// holding one reads and keeps it, and nothing offers the field
+	// (doc/design/schema.md, "Archiving refuses only what is new").
+	Archived bool `json:"archived,omitempty"`
 	// Configured marks a field an entity defines,
 	// which for a built-in means an entity overrides its configurable parts.
 	Configured bool `json:"configured,omitempty"`
@@ -102,19 +110,34 @@ func (f *Field) Value(id string) (Value, bool) {
 	return Value{}, false
 }
 
-// ValueIds lists the field's value ids in order, for an error message.
+// LiveValues lists the values a write may introduce, in order: every value
+// but the archived (doc/design/schema.md, "Archiving refuses only what is
+// new"). It is what
+// anything offering a value to choose offers.
+func (f *Field) LiveValues() []Value {
+	var values []Value
+	for _, value := range f.Values {
+		if !value.Archived {
+			values = append(values, value)
+		}
+	}
+	return values
+}
+
+// ValueIds lists the ids of the field's live values in order: what a write
+// may set, for an error message or a reader choosing one.
 func (f *Field) ValueIds() []string {
-	ids := make([]string, len(f.Values))
-	for i, value := range f.Values {
-		ids[i] = value.Id
+	var ids []string
+	for _, value := range f.LiveValues() {
+		ids = append(ids, value.Id)
 	}
 	return ids
 }
 
-// ValuesInCategory lists the field's values of one category, in order.
+// ValuesInCategory lists the field's live values of one category, in order.
 func (f *Field) ValuesInCategory(c Category) []Value {
 	var values []Value
-	for _, value := range f.Values {
+	for _, value := range f.LiveValues() {
 		if value.Category == c {
 			values = append(values, value)
 		}
@@ -153,8 +176,13 @@ type Type struct {
 	// switches on").
 	Color bool `json:"color,omitempty"`
 
-	// Fields are the type's fields by key, built-ins included.
+	// Fields are the type's fields by key, built-ins and archived included.
 	Fields map[string]*Field `json:"fields"`
+
+	// Archived is a type no issue may be created as or retyped into: an
+	// issue of it reads and is edited as before, and nothing offers it
+	// (doc/design/schema.md, "Archiving refuses only what is new").
+	Archived bool `json:"archived,omitempty"`
 
 	// EntityId is the type entity's id.
 	EntityId entity.Id `json:"entity_id,omitempty"`
@@ -220,10 +248,25 @@ func (t *Type) Field(key string) (*Field, bool) {
 	return f, ok
 }
 
-// FieldKeys lists the type's fields in (ordinal, key) order.
+// FieldKeys lists the type's live fields in (ordinal, key) order: the ones a
+// write may set, and what anything offering a field offers
+// (doc/design/schema.md, "Archiving refuses only what is new").
 func (t *Type) FieldKeys() []string {
+	return t.fieldKeys(false)
+}
+
+// AllFieldKeys lists every field of the type, archived included, in
+// (ordinal, key) order.
+func (t *Type) AllFieldKeys() []string {
+	return t.fieldKeys(true)
+}
+
+func (t *Type) fieldKeys(archived bool) []string {
 	fields := make([]*Field, 0, len(t.Fields))
 	for _, field := range t.Fields {
+		if field.Archived && !archived {
+			continue
+		}
 		fields = append(fields, field)
 	}
 	sort.Slice(fields, func(i, j int) bool {
@@ -240,7 +283,9 @@ func (t *Type) FieldKeys() []string {
 	return keys
 }
 
-// Schema is every unarchived type and field entity, compiled, plus the built-ins.
+// Schema is every winning type and field entity, compiled, plus the
+// built-ins; an archived entity is in it, marked, where no unarchived one
+// holds its key (doc/design/schema.md, "Archiving refuses only what is new").
 //
 // An empty schema is the bootstrap state, not an error:
 // a repository with no config entities runs on the built-ins alone
@@ -262,10 +307,24 @@ func (s *Schema) Type(key string) (*Type, bool) {
 	return t, ok
 }
 
-// TypeKeys lists the types in (ordinal, key) order.
+// TypeKeys lists the live types in (ordinal, key) order: the ones an issue
+// may be created as, and what anything offering a type offers
+// (doc/design/schema.md, "Archiving refuses only what is new").
 func (s *Schema) TypeKeys() []string {
+	return s.typeKeys(false)
+}
+
+// AllTypeKeys lists every type, archived included, in (ordinal, key) order.
+func (s *Schema) AllTypeKeys() []string {
+	return s.typeKeys(true)
+}
+
+func (s *Schema) typeKeys(archived bool) []string {
 	types := make([]*Type, 0, len(s.Types))
 	for _, t := range s.Types {
+		if t.Archived && !archived {
+			continue
+		}
 		types = append(types, t)
 	}
 	sort.Slice(types, func(i, j int) bool {

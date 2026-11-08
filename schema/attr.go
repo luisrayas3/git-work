@@ -133,6 +133,11 @@ type ValueAttr struct {
 	Category    Category `json:"category,omitempty"`
 	Description string   `json:"description,omitempty"`
 	Color       string   `json:"color,omitempty"`
+	// Archived refuses the value to every write that would introduce it,
+	// and leaves it readable
+	// (doc/design/schema.md, "Archiving refuses only what is new").
+	// A member of the value, not an entity, because a value is not one.
+	Archived bool `json:"archived,omitempty"`
 }
 
 // valueName is the attribute name one enum value is stored under.

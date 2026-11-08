@@ -142,14 +142,26 @@ func sortGroups[T any](groups []T, sortOf func(T) groupSort) {
 // schema order, and their names. Every type owns its own field (e7e58f2), so
 // the first type's order wins and later types only add what it did not have;
 // with no types drawn at all, every type counts.
-func fieldValues(repo *cache.RepoCache, key string, drawn map[string]bool) (kind schema.Kind, order []string, names map[string]string) {
+//
+// An archived value, or a value of an archived field or type, keeps its
+// place in the order, so a group of the issues holding it sorts where it
+// did, and is named in archived, so that nothing offers it as somewhere to
+// put work (doc/design/schema.md, "Archiving refuses only what is new"): a
+// value archived on one type and live on another is live.
+func fieldValues(repo *cache.RepoCache, key string, drawn map[string]bool) (kind schema.Kind, order []string, names map[string]string, archived map[string]bool) {
 	names = map[string]string{}
+	archived = map[string]bool{}
+	live := map[string]bool{}
 	s, err := repo.LoadSchema()
 	if err != nil {
 		kind, _ = schema.BuiltinKind(key)
-		return kind, nil, names
+		return kind, nil, names, archived
 	}
-	for _, typeKey := range s.TypeKeys() {
+	keys := s.TypeKeys()
+	if len(drawn) > 0 {
+		keys = s.AllTypeKeys()
+	}
+	for _, typeKey := range keys {
 		if len(drawn) > 0 && !drawn[typeKey] {
 			continue
 		}
@@ -165,12 +177,20 @@ func fieldValues(repo *cache.RepoCache, key string, drawn map[string]bool) (kind
 				names[value.Id] = value.Name
 				order = append(order, value.Id)
 			}
+			if value.Archived || field.Archived || s.Types[typeKey].Archived {
+				archived[value.Id] = true
+			} else {
+				live[value.Id] = true
+			}
 		}
+	}
+	for value := range live {
+		delete(archived, value)
 	}
 	if kind == "" {
 		kind, _ = schema.BuiltinKind(key)
 	}
-	return kind, order, names
+	return kind, order, names, archived
 }
 
 // isEnum says whether a kind's values are the ones the schema lists.
@@ -188,12 +208,12 @@ type groupOrder struct {
 }
 
 func newGroupOrder(repo *cache.RepoCache, groupBy string, drawn map[string]bool) *groupOrder {
-	kind, order, _ := fieldValues(repo, groupBy, drawn)
+	kind, order, _, _ := fieldValues(repo, groupBy, drawn)
 	if groupBy == schema.TypeKey {
 		// the built-in type lists no values: the types are, in schema order
 		order = nil
 		if s, err := repo.LoadSchema(); err == nil {
-			order = s.TypeKeys()
+			order = s.AllTypeKeys() // an archived type sorts where it did
 		}
 	}
 	o := &groupOrder{repo: repo, kind: kind, place: map[string]int{}, ranks: map[string]string{}}

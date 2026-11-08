@@ -226,6 +226,47 @@ func (s *Server) AddStatus(projectKey, typeName string, st Status) {
 		Transition{ID: "9" + st.ID, Name: st.Name, To: st.ID})
 }
 
+// RemoveStatus is an administrator taking a status out of an issue type's
+// workflow: every transition into it goes, and it leaves every transition's
+// sources, a transition left with none going too. Issues in it are left
+// there, as no migration was asked for.
+func (s *Server) RemoveStatus(projectKey, typeName, statusName string) {
+	s.t.Helper()
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	p := s.projectByKey(projectKey)
+	if p == nil {
+		s.t.Fatalf("jiratest: no project %s", projectKey)
+	}
+	t := p.issueType(typeName)
+	if t == nil {
+		s.t.Fatalf("jiratest: project %s has no type %s", projectKey, typeName)
+	}
+	id := ""
+	for _, st := range p.def.Statuses {
+		if st.Name == statusName {
+			id = st.ID
+		}
+	}
+	if id == "" || t.Workflow.Initial == id {
+		s.t.Fatalf("jiratest: %s is not a removable status of %s", statusName, typeName)
+	}
+	var kept []Transition
+	for _, tr := range t.Workflow.Transitions {
+		if tr.To == id {
+			continue
+		}
+		if len(tr.From) > 0 {
+			tr.From = slices.DeleteFunc(slices.Clone(tr.From), func(f string) bool { return f == id })
+			if len(tr.From) == 0 {
+				continue
+			}
+		}
+		kept = append(kept, tr)
+	}
+	t.Workflow.Transitions = kept
+}
+
 // Allow undoes Deny.
 func (s *Server) Allow(ops ...string) {
 	s.mu.Lock()

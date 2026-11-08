@@ -107,7 +107,7 @@ shape  key             attributes
 type   <type>          name, description, ordinal, show, retype_targets, color, alias_<system>
 field  <type>/<field>  kind, name, description, ordinal,
                        freeform                                      enum kinds
-                       values/<id> -> {name, ordinal, category, description, color}
+                       values/<id> -> {name, ordinal, category, description, color, archived}
                        alias_<system>/<id>                           a value's alias
                        inverse, link, target_types/<type> -> {}      relation kinds
                        alias_<system>
@@ -510,8 +510,9 @@ Every issue write is checked in `cache`, on the write path,
 against the schema compiled at that moment,
 and `--dry-run` reports what a commit would refuse.
 Reads keep a value the schema no longer knows, and show it as written.
-A field archived in the schema stops being settable;
-it does not vanish from the issues that have it.
+A type, field or value archived in the schema stops being introduced;
+it does not vanish from the issues that have it
+([archiving refuses only what is new](#archiving-refuses-only-what-is-new)).
 The entity package imports nothing of the schema.
 
 A check is two checks:
@@ -519,7 +520,8 @@ the **shape**, a value fitting its field's kind on a field the type has,
 and what it names existing;
 and the **policy**, an enum value among the field's values,
 a relation's target among its target types,
-a type change among the current type's retype targets.
+a type change among the current type's retype targets,
+and nothing archived introduced.
 A local write gets both; a Jira pull gets the shape only ([Jira sync](jira.md)).
 
 ### Errors name the alternatives
@@ -533,10 +535,54 @@ and three round trips to learn three mistakes is three commits.
 A new issue needs a `type`, since nothing else can say which fields it has.
 A key that is not a field of the type is refused, naming the type's fields.
 
+### Archiving refuses only what is new
+
+An archived type, field or enum value stays in the compiled schema, marked,
+and refuses only a local write that introduces it:
+creating an issue of an archived type or retyping one into it,
+setting an archived field,
+setting a field to an archived value or adding one to a list.
+Editing an issue of an archived type, retyping out of it,
+clearing an archived field, moving off an archived value,
+removing an archived item,
+and a write that keeps what the issue already holds
+(a list set that keeps an archived member, the same value set again)
+are all accepted:
+the write path knows what the issue holds
+and accepts an archived thing it holds (`Checker.Held`).
+The refusal names what is live, as every refusal does
+([errors name the alternatives](#errors-name-the-alternatives)).
+An archive is policy, so a Jira pull, checked for shape only, is not refused one
+([Jira sync](jira.md#a-pull-is-checked-for-shape-not-policy)).
+
+What holds an archived thing still reads:
+`issue get`, `--at` replay and `issue log` show it as written.
+An archived value keeps its ordinal and category,
+so a sort by `ordinal` and a `done` over `category` stay right
+for the issues that hold it.
+Nothing offers an archived thing to choose:
+`TypeKeys`, `FieldKeys` and `ValueIds` list the live ones,
+which is what pickers, the quickstart and every refusal read;
+a board draws an archived value's lane or column only while a card is in it,
+and `empty_groups` never adds one ([views](views.md)).
+
+An archive is ordinary and reversible.
+A type or a field is archived by its entity's archived flag,
+the replicated removal of [archive and rm](#archive-and-rm);
+a value is archived by `archived` on its `values/<id>` member,
+since a value is not an entity.
+Not a value removed from the field:
+its ordinal, category and name would go with it,
+and the issues holding it would read an unknown value.
+The archived winner of a key is compiled only where no unarchived entity holds the key
+([duplicate keys](#duplicate-keys)).
+
 ### Compiled on demand
 
-`RepoCache.LoadSchema` compiles the built-ins and every unarchived winning type and field
-into one `*schema.Schema`,
+`RepoCache.LoadSchema` compiles the built-ins and the winning type and field of every key
+into one `*schema.Schema`:
+the unarchived winner, else the archived one, marked
+([archiving refuses only what is new](#archiving-refuses-only-what-is-new)),
 from the excerpts alone, which carry each entity's whole document.
 Nothing is memoised:
 a schema is a few dozen small documents already in memory,
@@ -569,10 +615,10 @@ types:
     name: Epic
 ```
 
-- `types` maps a type key to `{name, description, aliases, show, retype_targets, color, fields}`,
+- `types` maps a type key to `{name, description, aliases, show, retype_targets, color, archived, fields}`,
   and `fields` a field key to
-  `{kind, name, description, aliases, freeform, inverse, target_types, link, values}`.
-  A value is `{id, name, category, description, color, aliases}`.
+  `{kind, name, description, aliases, freeform, inverse, target_types, link, archived, values}`.
+  A value is `{id, name, category, description, color, aliases, archived}`.
 - `shared` is authoring only, for anchors;
   the parser expands every alias, so an anchored field reads as a spelled-out one.
 - `preset` is informational: nothing records it, and export never writes it.
@@ -591,7 +637,8 @@ so `export | import` emits no operation, which is the round-trip test.
 ### Import is an upsert
 
 `git work schema import` validates the whole document first,
-then `Reconcile` matches each entry to the unarchived entity of its shape and key:
+then `Reconcile` matches each entry to the winning entity of its shape and key,
+archived or not:
 
 1. an entry with no match is created;
 2. a match gets a `Set` or a `Remove` for every attribute
@@ -602,7 +649,8 @@ then `Reconcile` matches each entry to the unarchived entity of its shape and ke
 
 An entity the document does not mention is archived only under `--prune`,
 types after their fields,
-so a partial file from anywhere can never archive anyone's work.
+so a partial file from anywhere can never archive anyone's work;
+one archived already is left as it is.
 An import owns only the attributes it writes:
 one a newer binary added is left alone,
 and an alias is written when stated and never removed,
@@ -611,6 +659,20 @@ so an alias-free file unmaps nothing.
 Writing only differences is what keeps every import, and every Jira sync,
 which imports through the same function,
 from filling the log with operations that change nothing.
+
+### An archive is stated, never implied
+
+`archived` on a type, a field or a value is stated, as an alias is:
+`true` archives it, `false` unarchives it,
+and absent leaves it as it stands.
+Export writes `archived: true` on what is archived and nothing on what is not,
+so `export | import` writes nothing,
+and a file written before an archive, or one that never heard of it,
+revives nothing.
+Not absent as unarchived:
+the authoring copy in a working tree is older than an archive a sync made,
+and importing it would hand back the value Jira cannot hold.
+An archive stated with other changes to one entity lands in its one commit.
 
 ### One commit per entity
 
@@ -626,6 +688,12 @@ Types come first, because a field's key names its type.
 `schema archive` is the replicated removal, an operation that reaches every clone;
 it names the fields an archived type leaves attached to no live type,
 and archives nothing else.
+What it archives refuses only what is new
+([archiving refuses only what is new](#archiving-refuses-only-what-is-new)),
+and an import stating `archived: false` unarchives it
+([an archive is stated, never implied](#an-archive-is-stated-never-implied)).
+A value is archived by the document alone:
+`schema archive` names an entity, and a value is a member of one.
 `schema rm` deletes the local ref, and the entity returns on the next pull.
 
 ### Presets are embedded

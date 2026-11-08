@@ -579,7 +579,9 @@ Compile(after, p)                  -> *Mapping            (pure)
 `Derive` returns **current ⊕ Jira**:
 the exported current schema with Jira's types, fields and values adopted or added,
 Jira's names applied to what is aliased,
-and nothing removed, archived or re-kinded.
+what Jira no longer has archived and what it has again unarchived
+([what Jira drops is archived](#what-jira-drops-is-archived)),
+and nothing removed or re-kinded.
 Reconcile owns every value and target type of a field it is given,
 so a document that restates everything current
 is what keeps local-only things alive.
@@ -588,7 +590,8 @@ and review is `schema import --dry-run`, because it is the same call.
 `Derive` never removes a `target_types` entry Jira's hierarchy forbids:
 a forbidden local parent is a 400 on export, so pending.
 What Derive rewrites rather than adds is Jira's to decide:
-a type's name, a field's name, and a mapped type's `retype_targets`.
+a type's name, a field's name, a mapped type's `retype_targets`,
+and whether a mapped type, field or value is archived.
 Schema writes are the runner's, at now, like any import.
 
 **The binding check is in `Derive`, not only in `Compile`**,
@@ -600,6 +603,55 @@ that project's types into the tracker.
 is this the project the tracker was mapped against?".
 `Compile` checks it again,
 and [refuses duplicate aliases](#duplicate-aliases-are-refused).
+
+### What Jira drops is archived
+
+A type, field or value whose Jira alias names nothing Jira has any more
+is archived by `Derive`, every time, whether or not issues hold it
+([schema, "Archiving refuses only what is new"](schema.md#archiving-refuses-only-what-is-new)):
+issues holding it read and keep it,
+and no local write introduces what Jira cannot hold.
+Not a warning alone:
+the value would stay live, and a local write could set what the next export cannot.
+Not removed:
+the issues holding it would read an unknown value, and lose its order and category.
+A mapped one Jira has again is unarchived, Jira being canonical,
+whoever archived it;
+one a person wants kept is made local-only by dropping its alias.
+An archived entity or value with no Jira alias was archived here,
+and is never adopted by name out of its archive;
+one aliased `""`, or with no Jira alias, is never touched.
+
+What "no longer has" means, by source:
+
+- an issue type, when the project's issue types do not list it;
+- a status, when the type's workflow does not list it;
+- a priority, when the project's priority scheme does not;
+- an option, when the field is on the type's create screen
+  and its `allowedValues` there do not list it,
+  which is taken to mean the option was disabled or deleted
+  ([the reference, "Create metadata"](../reference/jira-api.md#create-metadata));
+  a field off the create screen has no `allowedValues` there,
+  and its values are left as they stand;
+- a field, only when Jira has no such field at all:
+  a custom field `/field` does not list, a link type `/issueLinkType` does not.
+  A fixed-table field always exists,
+  and a link type is never archived while linking is disabled,
+  since then no type is listed and none is gone.
+  A field Jira has but one type's create screen lacks keeps the `dead alias` warning:
+  a create screen hides fields for screen and permission reasons of its own
+  ([the reference, "Create metadata"](../reference/jira-api.md#create-metadata)),
+  and statuses and issue types are the reliable sources.
+
+The note is a warning, said once, by the run that archives:
+the next run finds it archived and says so at `info`.
+It names the unarchived issues still of the type, holding the field,
+or holding the value, by their drawn id,
+since someone has to decide what becomes of them.
+A sync names them after its pull,
+so an issue Jira moved off what it removed is not named:
+its pulled value is what Jira holds, and no one's to decide about.
+`jira schema` has no pull, and names them as they stand.
 
 ### A dry run plans against the derived schema
 
@@ -845,7 +897,8 @@ The pre-check before the commit (`admit`) drops a change the shape check refuses
 into `Retry`, the key keeping its old base,
 so the commit's own check never refuses the batch.
 A change only the policy check refuses —
-an enum value, a relation's target type, a type change the schema does not allow —
+an enum value, a relation's target type, a type change the schema does not allow,
+an archived type, field or value —
 is written, and reported under `off_schema` with the reason the local check gives;
 it converges, and the next run is quiet.
 

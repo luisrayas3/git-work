@@ -321,10 +321,14 @@ func TestSchemaArchiveAndRm(t *testing.T) {
 	require.NoError(t, runSchemaArchive(env, archiveOptions{}, []string{"task/estimate"}))
 	require.Equal(t, "", env.Out.String())
 
+	// archived, the field stays in the schema, marked, and nothing offers it
+	// (doc/design/schema.md, "Archiving refuses only what is new")
 	s, err := env.Backend.LoadSchema()
 	require.NoError(t, err)
-	_, ok := s.Field("task", "estimate")
-	require.False(t, ok)
+	f, ok := s.Field("task", "estimate")
+	require.True(t, ok)
+	require.True(t, f.Archived)
+	require.NotContains(t, s.Types["task"].FieldKeys(), "estimate")
 
 	// archiving a type says what it leaves behind
 	env.Err.Reset()

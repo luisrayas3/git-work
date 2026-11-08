@@ -54,7 +54,7 @@ func (s *store) apply(changes []schema.Change) {
 				attrs[k] = v
 			}
 			s.entries = append(s.entries, schema.Entry{Id: entity.Id(fmt.Sprintf("%064d", s.n)),
-				Shape: c.Shape, Key: c.Key, Attributes: attrs})
+				Shape: c.Shape, Key: c.Key, Attributes: attrs, Archived: c.Archive != nil && *c.Archive})
 		case schema.ActionUpdate:
 			i := slices.IndexFunc(s.entries, func(e schema.Entry) bool { return e.Id == c.Id })
 			for k, v := range c.Set {
@@ -63,6 +63,12 @@ func (s *store) apply(changes []schema.Change) {
 			for _, k := range c.Remove {
 				delete(s.entries[i].Attributes, k)
 			}
+			if c.Archive != nil {
+				s.entries[i].Archived = *c.Archive
+			}
+		case schema.ActionArchive:
+			i := slices.IndexFunc(s.entries, func(e schema.Entry) bool { return e.Id == c.Id })
+			s.entries[i].Archived = true
 		}
 	}
 }
@@ -224,8 +230,10 @@ func setStatus(p *Project, id string, fn func(*jiraapi.Status)) {
 }
 
 // a Jira rename sets one values/<id> per field and keeps the id; an added
-// status gets its value and alias; a removed one changes nothing and warns
-// (doc/design/jira.md, "Derive, then the schema import").
+// status gets its value and alias; a removed one is archived, keeping its
+// alias, and warns; one Jira holds again is unarchived
+// (doc/design/jira.md, "Derive, then the schema import";
+// doc/design/jira.md, "What Jira drops is archived").
 func TestDeriveJiraChanges(t *testing.T) {
 	p, _ := discover(t, "company")
 	s, _, _, _ := derived(t, starts(t)["preset"], p)
@@ -253,8 +261,17 @@ func TestDeriveJiraChanges(t *testing.T) {
 	blocked := valueDoc(t, status, "blocked")
 	require.Equal(t, "started", blocked.Category)
 	require.Equal(t, "10009", blocked.Aliases[system])
-	require.Equal(t, "3", valueDoc(t, status, "in-progress").Aliases[system], "a dead alias is kept")
-	require.True(t, hasNote(notes, LevelWarn, "story/status:in-progress", "dead alias"))
+	gone := valueDoc(t, status, "in-progress")
+	require.Equal(t, "3", gone.Aliases[system], "a dead alias is kept")
+	require.True(t, gone.Archived != nil && *gone.Archived, "a value Jira dropped is archived")
+	require.True(t, hasNote(notes, LevelWarn, "story/status:in-progress", "archived"))
+	for _, n := range notes {
+		if n.Key == "story/status:in-progress" {
+			require.Equal(t, &ValueRef{Type: "story", Field: "status", Value: "in-progress"}, n.Archived)
+		}
+	}
+	require.Nil(t, valueDoc(t, fieldDoc(t, doc, "task", "status"), "in-progress").Archived,
+		"another type's value is its own")
 	changes = s.importDoc(t, doc)
 	var fieldChanges []string
 	for _, c := range changes {
@@ -267,6 +284,29 @@ func TestDeriveJiraChanges(t *testing.T) {
 	// (doc/design/jira.md, "Retype targets follow Jira's levels and workflows")
 	require.Empty(t, *typeDoc(t, doc, "story").RetypeTargets)
 	require.NotContains(t, *typeDoc(t, doc, "task").RetypeTargets, "story")
+
+	// archived, it stays in its place, and the next derive writes nothing
+	f, ok := s.schema(t).Field("story", "status")
+	require.True(t, ok)
+	v, ok := f.Value("in-progress")
+	require.True(t, ok)
+	require.True(t, v.Archived)
+	require.NotContains(t, f.ValueIds(), "in-progress")
+	again, notes, err := Derive(s.export(t), p)
+	require.NoError(t, err)
+	require.Empty(t, s.importDoc(t, again), "a fixpoint")
+	require.False(t, hasNote(notes, LevelWarn, "story/status:in-progress", "archived"), "said once")
+
+	// Jira holds it again: unarchived, then a fixpoint
+	p, _ = discover(t, "company")
+	back, _, err := Derive(s.export(t), p)
+	require.NoError(t, err)
+	require.NotEmpty(t, s.importDoc(t, back))
+	v, _ = s.schema(t).Types["story"].Fields["status"].Value("in-progress")
+	require.False(t, v.Archived, "Jira is canonical")
+	back, _, err = Derive(s.export(t), p)
+	require.NoError(t, err)
+	require.Empty(t, s.importDoc(t, back), "a fixpoint")
 }
 
 // an entity aliased "" is never adopted, across runs, and nothing replaces
@@ -416,4 +456,123 @@ func TestSlug(t *testing.T) {
 	require.Equal(t, "3rd-party", keyFor("3rd party", "1", "", none), "a value id may start with a digit")
 	require.Equal(t, "done-3", keyFor("Done", "1", "", taken))
 	require.Equal(t, "title-2", keyFor("Title", "1", "f-", none), "a built-in always collides")
+}
+
+// A type or a field Jira no longer has is archived, saying so once, and
+// unarchived when Jira has it again; a field merely off one type's create
+// screen keeps the warning (doc/design/jira.md, "What Jira drops is archived").
+func TestDeriveArchivesTypesAndFields(t *testing.T) {
+	p, _ := discover(t, "company")
+	s, _, _, _ := derived(t, starts(t)["preset"], p)
+
+	p, _ = discover(t, "company")
+	p.IssueTypes = slices.DeleteFunc(p.IssueTypes, func(it IssueType) bool { return it.Name == "Bug" })
+	p.Fields = slices.DeleteFunc(p.Fields, func(f jiraapi.Field) bool { return f.ID == "customfield_10016" })
+	for i := range p.IssueTypes {
+		p.IssueTypes[i].Screen = slices.DeleteFunc(slices.Clone(p.IssueTypes[i].Screen),
+			func(m jiraapi.FieldMeta) bool { return metaId(m) == "customfield_10016" })
+		if p.IssueTypes[i].Name == "Task" {
+			p.IssueTypes[i].Screen = slices.DeleteFunc(slices.Clone(p.IssueTypes[i].Screen),
+				func(m jiraapi.FieldMeta) bool { return metaId(m) == "customfield_10015" })
+		}
+	}
+	doc, notes, err := Derive(s.export(t), p)
+	require.NoError(t, err)
+
+	bug := typeDoc(t, doc, "bug")
+	require.True(t, bug.Archived != nil && *bug.Archived, "an issue type Jira dropped")
+	require.True(t, hasNote(notes, LevelWarn, "bug", "archived: "))
+	for _, key := range []string{"story", "task"} {
+		f := fieldDoc(t, doc, key, "estimate")
+		require.True(t, f.Archived != nil && *f.Archived, "a field Jira no longer has, on %s", key)
+		require.True(t, hasNote(notes, LevelWarn, key+"/estimate", "archived: "))
+	}
+	require.Nil(t, fieldDoc(t, doc, "task", "start-date").Archived, "off one create screen is not gone")
+	require.True(t, hasNote(notes, LevelWarn, "task/start-date", "dead alias"))
+	for _, n := range notes {
+		if n.Key == "bug" {
+			require.Equal(t, &ValueRef{Type: "bug"}, n.Archived)
+		}
+		if n.Key == "task/estimate" {
+			require.Equal(t, &ValueRef{Type: "task", Field: "estimate"}, n.Archived)
+		}
+	}
+
+	require.NotEmpty(t, s.importDoc(t, doc))
+	sc := s.schema(t)
+	require.True(t, sc.Types["bug"].Archived)
+	require.NotContains(t, sc.TypeKeys(), "bug")
+	require.True(t, sc.Types["task"].Fields["estimate"].Archived)
+	again, notes, err := Derive(s.export(t), p)
+	require.NoError(t, err)
+	require.Empty(t, s.importDoc(t, again), "a fixpoint")
+	require.False(t, hasNote(notes, LevelWarn, "bug", "archived"), "said once")
+
+	// Jira has them again
+	p, _ = discover(t, "company")
+	back, notes, err := Derive(s.export(t), p)
+	require.NoError(t, err)
+	require.True(t, hasNote(notes, LevelInfo, "bug", "unarchived"))
+	require.NotEmpty(t, s.importDoc(t, back))
+	sc = s.schema(t)
+	require.False(t, sc.Types["bug"].Archived)
+	require.False(t, sc.Types["task"].Fields["estimate"].Archived)
+	back, _, err = Derive(s.export(t), p)
+	require.NoError(t, err)
+	require.Empty(t, s.importDoc(t, back), "a fixpoint")
+}
+
+// withColour gives the project an option field, Colour, on the Task and
+// Story create screens with the options listed for each; nil leaves it off
+// that type's create screen.
+func withColour(p *Project, task, story []string) {
+	const id = "customfield_10077"
+	schemaOf := jiraapi.FieldSchema{Type: "option", Custom: "com.atlassian.jira.plugin.system.customfieldtypes:select"}
+	p.Fields = append(p.Fields, jiraapi.Field{ID: id, Key: id, Name: "Colour", Custom: true, Schema: &schemaOf})
+	options := map[string]string{"1": "Red", "2": "Blue"}
+	for i := range p.IssueTypes {
+		var ids []string
+		switch p.IssueTypes[i].Name {
+		case "Task":
+			ids = task
+		case "Story":
+			ids = story
+		}
+		if ids == nil {
+			continue
+		}
+		m := jiraapi.FieldMeta{FieldID: id, Key: id, Name: "Colour", Schema: schemaOf}
+		for _, o := range ids {
+			m.AllowedValues = append(m.AllowedValues, json.RawMessage(fmt.Sprintf(`{"id":%q,"value":%q}`, o, options[o])))
+		}
+		p.IssueTypes[i].Screen = append(slices.Clone(p.IssueTypes[i].Screen), m)
+	}
+}
+
+// An option missing from a create screen's allowedValues is archived; a
+// field off one type's create screen has no allowedValues there, so its
+// values stay live and it keeps the dead-alias warning
+// (doc/design/jira.md, "What Jira drops is archived").
+func TestDeriveOptionsOnlyFromTheScreen(t *testing.T) {
+	p, _ := discover(t, "company")
+	withColour(p, []string{"1", "2"}, []string{"1", "2"})
+	s, _, _, _ := derived(t, starts(t)["preset"], p)
+
+	p, _ = discover(t, "company")
+	withColour(p, nil, []string{"1"})
+	doc, notes, err := Derive(s.export(t), p)
+	require.NoError(t, err)
+
+	task := fieldDoc(t, doc, "task", "colour")
+	require.Nil(t, task.Archived, "in /field, so not gone")
+	require.Len(t, task.Values, 2)
+	for _, v := range task.Values {
+		require.Nil(t, v.Archived, "task/colour:%s: off the screen is not gone", v.Id)
+	}
+	require.True(t, hasNote(notes, LevelWarn, "task/colour", "dead alias"))
+
+	story := fieldDoc(t, doc, "story", "colour")
+	blue := valueDoc(t, story, "blue")
+	require.True(t, blue.Archived != nil && *blue.Archived, "on the screen and missing")
+	require.Nil(t, valueDoc(t, story, "red").Archived)
 }

@@ -214,7 +214,16 @@ so they merge like issues do.
 - A type's `color: true` gives its issues the built-in `color` (see Basic types);
   without it the type has no such field.
 - `git work schema log [KEY]` is a key's history,
-  and `git work schema archive KEY` removes it, replicated.
+  and `git work schema archive KEY` archives a type or a field, replicated.
+- An archived type, field or value stops being introduced
+  — no new issue of the type, no retype into it, no setting the field or the value —
+  and nothing offers it; an issue that holds it reads, sorts and is edited as before,
+  and may clear it or move off it.
+  `archived: true` on a type, a field or a value in the file archives it,
+  `archived: false` unarchives it, and leaving it out changes nothing,
+  so an older file revives nothing.
+  The Jira sync archives what Jira no longer has, naming the issues still holding it,
+  and unarchives what it has again.
 
 Every issue write is checked against the schema, as above;
 with no type defined nothing is checked.

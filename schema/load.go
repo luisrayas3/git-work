@@ -18,9 +18,13 @@ type Entry struct {
 	Shape      config.Shape
 	Key        string
 	Attributes map[string]config.Value
+	// Archived marks an archived entity, which the schema holds only where
+	// no unarchived one holds its key
+	// (doc/design/schema.md, "Archiving refuses only what is new").
+	Archived bool
 }
 
-// Source hands Load the unarchived winners of refs/work-schema.
+// Source hands Load the winners of refs/work-schema.
 //
 // It is an interface rather than *cache.RepoCache
 // because the cache validates issue writes against a schema
@@ -29,9 +33,10 @@ type Entry struct {
 // *cache.RepoCacheConfig implements it, so `schema.Load(backend.Schema())`
 // is what every caller writes.
 type Source interface {
-	// SchemaEntries returns one entry per unarchived type and field entity,
-	// duplicate keys already resolved to their winner
-	// (doc/design/schema.md, "Duplicate keys").
+	// SchemaEntries returns one entry per type and field key, duplicate
+	// keys already resolved to their winner
+	// (doc/design/schema.md, "Duplicate keys"): the unarchived winner, else
+	// the archived one, marked.
 	SchemaEntries() ([]Entry, error)
 }
 
@@ -75,6 +80,7 @@ func Compile(entries []Entry) (*Schema, error) {
 			s.Problems = append(s.Problems, fmt.Sprintf("type %s: %v", e.Key, err))
 			continue
 		}
+		t.Archived = e.Archived
 		s.Types[t.Key] = t
 	}
 
@@ -110,24 +116,33 @@ func Compile(entries []Entry) (*Schema, error) {
 			// the store and means nothing until the type switches it on again
 			continue
 		}
+		if e.Archived && IsBuiltin(fieldKey) {
+			// a built-in is code: an archived override leaves it as built
+			continue
+		}
 		field, err := compileField(typeKey, fieldKey, e)
 		if err != nil {
 			s.Problems = append(s.Problems, fmt.Sprintf("field %s: %v", e.Key, err))
 			continue
 		}
+		field.Archived = e.Archived
 		t.Fields[fieldKey] = field
 	}
 
 	// the type field's values are the types themselves,
 	// which is the one field the engine resolves against the type entities
 	// (doc/design/schema.md, "type is checked against the types")
+	// an archived type is an archived value of it, so a create or a retype
+	// into it is refused and a set that keeps it is not
+	// (doc/design/schema.md, "Archiving refuses only what is new")
 	typeValues := make([]Value, 0, len(s.Types))
-	for ordinal, key := range s.TypeKeys() {
+	for ordinal, key := range s.AllTypeKeys() {
 		t := s.Types[key]
 		typeValues = append(typeValues, Value{
-			Id:      t.Key,
-			Name:    t.Name,
-			Ordinal: ordinal * 10,
+			Id:       t.Key,
+			Name:     t.Name,
+			Ordinal:  ordinal * 10,
+			Archived: t.Archived,
 		})
 	}
 	for _, t := range s.Types {
@@ -138,7 +153,7 @@ func Compile(entries []Entry) (*Schema, error) {
 
 	// dangling relation and retype targets are reported, never an error
 	// (doc/design/schema.md, "Structural rules are frozen")
-	for _, key := range s.TypeKeys() {
+	for _, key := range s.AllTypeKeys() {
 		t := s.Types[key]
 		if t.RetypeTargets != nil {
 			for _, target := range *t.RetypeTargets {
@@ -148,7 +163,7 @@ func Compile(entries []Entry) (*Schema, error) {
 				}
 			}
 		}
-		for _, fieldKey := range t.FieldKeys() {
+		for _, fieldKey := range t.AllFieldKeys() {
 			field := t.Fields[fieldKey]
 			for _, target := range field.TargetTypes {
 				if _, ok := s.Types[target]; !ok {
@@ -322,6 +337,7 @@ func compileValues(attrs map[string]config.Value) ([]Value, error) {
 			Category:    category,
 			Description: attr.Description,
 			Color:       attr.Color,
+			Archived:    attr.Archived,
 		})
 	}
 

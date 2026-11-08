@@ -8,6 +8,8 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"slices"
+	"sort"
 	"strconv"
 	"strings"
 	// JQL literals are in the account's zone, any IANA zone
@@ -17,6 +19,7 @@ import (
 	"github.com/gofrs/flock"
 
 	"github.com/git-bug/git-bug/cache"
+	"github.com/git-bug/git-bug/entities/issue"
 	"github.com/git-bug/git-bug/jira"
 	"github.com/git-bug/git-bug/jira/jiraapi"
 	"github.com/git-bug/git-bug/repository"
@@ -126,7 +129,53 @@ func JiraSchema(ctx context.Context, repo *cache.RepoCache) (*schema.Document, [
 	if err != nil {
 		return nil, nil, err
 	}
-	return jiraDerive(repo, p)
+	doc, notes, err := jiraDerive(repo, p)
+	return doc, jiraHolders(repo, notes), err
+}
+
+// jiraHolders names, on each note that archives something, the unarchived
+// issues still holding it: still of the type, holding the field, or holding
+// the value (doc/design/jira.md, "What Jira drops is archived"), since
+// someone has to decide what becomes of them. A sync calls it after its
+// pull, so an issue Jira moved off what it removed is not named: its pulled
+// value is what Jira holds.
+func jiraHolders(repo *cache.RepoCache, notes []jira.Note) []jira.Note {
+	for i, n := range notes {
+		if n.Archived == nil {
+			continue
+		}
+		var held []string
+		for _, id := range repo.Issues().AllIds() {
+			e, err := repo.Issues().ResolveExcerpt(id)
+			if err != nil {
+				continue
+			}
+			if string(e.Fields[schema.ArchivedKey]) == "true" {
+				continue
+			}
+			if t, _ := e.FieldString(schema.TypeKey); t != n.Archived.Type {
+				continue
+			}
+			v, has := e.Fields[n.Archived.Field]
+			s, single := issue.String(v)
+			items, _ := issue.Strings(v)
+			switch {
+			case n.Archived.Field == "":
+			case !has || issue.IsNull(v):
+				continue
+			case n.Archived.Value == "":
+			case single && s == n.Archived.Value || slices.Contains(items, n.Archived.Value):
+			default:
+				continue
+			}
+			held = append(held, repo.IssueHumanId(id))
+		}
+		if len(held) > 0 {
+			sort.Strings(held)
+			notes[i].Message += "; still held by " + strings.Join(held, ", ")
+		}
+	}
+	return notes
 }
 
 // JiraSync is `git work jira sync`: derive and import the schema, compile
@@ -192,6 +241,7 @@ func JiraSync(ctx context.Context, repo *cache.RepoCache, opts jira.Options, emi
 	}
 	st.Bind(b.URL, b.Project)
 	sum, err := jira.Sync(ctx, repo, c, p, m, st, opts, emit)
+	notes = jiraHolders(repo, notes)
 	if !opts.DryRun {
 		if serr := st.Save(repo.LocalStorage()); serr != nil && err == nil {
 			err = serr

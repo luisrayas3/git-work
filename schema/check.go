@@ -49,6 +49,35 @@ type Checker struct {
 	Resolver Resolver
 	// ShapeOnly skips the policy check.
 	ShapeOnly bool
+	// Held reports whether the issue being written holds a value, or an
+	// item, of a field now. An archived type, field or value is accepted
+	// where the issue holds it: only introducing one is refused, so a write
+	// that keeps or removes it is not
+	// (doc/design/schema.md, "Archiving refuses only what is new"). Nil
+	// holds nothing, which is a new issue.
+	Held func(key string, value json.RawMessage) bool
+}
+
+// Holding returns a copy of c that accepts the archived values held says
+// the issue holds (doc/design/schema.md, "Archiving refuses only what is new").
+func (c *Checker) Holding(held func(key string, value json.RawMessage) bool) *Checker {
+	if c == nil {
+		return nil
+	}
+	out := *c
+	out.Held = held
+	return &out
+}
+
+// HoldsAnything is the Held of a remove, which introduces no value.
+func HoldsAnything(key string, value json.RawMessage) bool { return true }
+
+// holds reports whether a write of value to field keeps what the issue
+// holds, which an archive never refuses; the shape check never refuses one
+// either, an archive being policy
+// (doc/design/schema.md, "Archiving refuses only what is new").
+func (c *Checker) holds(field *Field, value json.RawMessage) bool {
+	return c.ShapeOnly || c.Held != nil && c.Held(field.Key, value)
 }
 
 // Shape returns a copy of c that checks the shape only.
@@ -269,6 +298,13 @@ func (c *Checker) checkFields(problems *Problems, typeKey string, fields map[str
 
 // checkOne validates one value against one kind.
 func (c *Checker) checkOne(field *Field, kind Kind, value json.RawMessage) error {
+	if field.Archived && !c.holds(field, value) {
+		var live []string
+		if t, ok := c.Schema.Type(field.Type); ok {
+			live = t.FieldKeys()
+		}
+		return fmt.Errorf("the field is archived on %s; its fields: %s", field.Type, strings.Join(live, ", "))
+	}
 	switch kind {
 	case KindText, KindRank:
 		if _, ok := stringValue(value); !ok {
@@ -318,7 +354,14 @@ func (c *Checker) checkOne(field *Field, kind Kind, value json.RawMessage) error
 		if !ok {
 			return fmt.Errorf("a value id is expected, as a string; %s is not one", brief(value))
 		}
-		if _, ok := field.Value(s); ok {
+		if v, ok := field.Value(s); ok {
+			// an archived value is policy: a pull mirrors what Jira holds,
+			// and an issue keeps what it holds
+			// (doc/design/schema.md, "Archiving refuses only what is new")
+			if v.Archived && !c.holds(field, value) {
+				return fmt.Errorf("%q is archived; valid values: %s",
+					s, strings.Join(field.ValueIds(), ", "))
+			}
 			return nil
 		}
 		if field.Freeform || c.ShapeOnly {

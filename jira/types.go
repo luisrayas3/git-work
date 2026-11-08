@@ -52,6 +52,18 @@ type Note struct {
 	Level   Level  `json:"level"`
 	Key     string `json:"key"` // "task/status:in-review", "task/estimate", ...
 	Message string `json:"message"`
+	// Archived is what a note archives, for the caller to name the issues
+	// still holding it once the pull has run
+	// (doc/design/jira.md, "What Jira drops is archived").
+	Archived *ValueRef `json:"archived,omitempty"`
+}
+
+// ValueRef names a type, a type's field (Field set), or one enum value of
+// it (Value set too).
+type ValueRef struct {
+	Type  string `json:"type"`
+	Field string `json:"field,omitempty"`
+	Value string `json:"value,omitempty"`
 }
 
 // Doc is one issue in local terms, from either side

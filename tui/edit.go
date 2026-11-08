@@ -202,8 +202,10 @@ func enumChoices(repo *cache.RepoCache, typeKey, fieldKey string) ([]choice, err
 		return nil, fmt.Errorf("no field %s on %s", fieldKey, typeKey)
 	}
 
-	out := make([]choice, 0, len(field.Values)+1)
-	for _, value := range field.Values {
+	// an archived value is never offered (doc/design/schema.md, "Archiving refuses only what is new")
+	live := field.LiveValues()
+	out := make([]choice, 0, len(live)+1)
+	for _, value := range live {
 		label := value.Name
 		if label == "" {
 			label = value.Id

@@ -19,12 +19,14 @@ func newSchemaArchiveCommand(env *execenv.Env) *cobra.Command {
 		Short: "Archive a type or a field",
 		Long: `Archive a type or a field: the replicated removal, the one that reaches every
 clone. A ref cannot be deleted across clones — it comes back on the next pull —
-so removing a config entity is an operation like any other, and setting the
-flag back undoes it.
+so removing a config entity is an operation like any other, and an import
+stating archived: false undoes it.
 
-An archived field stops being settable; it does not vanish from the issues that
-have it, because a schema says what may be written now, never what was written
-before. KEY is a type key or a field key, <type>/<field>.
+An archived type or field stops being introduced: no new issue of the type, no
+retype into it, no setting the field. It does not vanish from the issues that
+have it, which read and are edited as before, because a schema says what may be
+written now, never what was written before. KEY is a type key or a field key,
+<type>/<field>. A value is archived by archived: true on it in the document.
 
 A KEY two entities hold, two clones having defined it before exchanging, is
 refused, naming both ids: name the one to archive with --id ID, a full id or a

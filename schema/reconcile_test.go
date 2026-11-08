@@ -36,6 +36,7 @@ func applyChanges(t *testing.T, current []Entry, changes []Change) []Entry {
 				Shape:      change.Shape,
 				Key:        change.Key,
 				Attributes: attributes,
+				Archived:   change.Archive != nil && *change.Archive,
 			}
 			order = append(order, key)
 		case ActionUpdate:
@@ -46,15 +47,16 @@ func applyChanges(t *testing.T, current []Entry, changes []Change) []Entry {
 			for _, name := range change.Remove {
 				delete(entry.Attributes, name)
 			}
+			if change.Archive != nil {
+				entry.Archived = *change.Archive
+			}
 			index[key] = entry
 		case ActionArchive:
-			delete(index, key)
-			for at, k := range order {
-				if k == key {
-					order = append(order[:at], order[at+1:]...)
-					break
-				}
-			}
+			// an archived entity is still the winner of a key no live one holds
+			// (doc/design/schema.md, "Archiving refuses only what is new")
+			entry := index[key]
+			entry.Archived = true
+			index[key] = entry
 		}
 	}
 

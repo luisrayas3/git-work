@@ -334,6 +334,14 @@ func applySchemaChange(repo *cache.RepoCache, change schema.Change) (entity.Id, 
 		if err != nil {
 			return entity.UnsetId, err
 		}
+		if change.Archive != nil && *change.Archive {
+			// a document stating a new entity archived: a second commit,
+			// since a create is one operation
+			if _, err := cached.SetArchived(true); err != nil {
+				return cached.Id(), err
+			}
+			return cached.Id(), cached.Commit()
+		}
 		return cached.Id(), nil
 
 	case schema.ActionUpdate:
@@ -341,7 +349,17 @@ func applySchemaChange(repo *cache.RepoCache, change schema.Change) (entity.Id, 
 		if err != nil {
 			return entity.UnsetId, err
 		}
-		// one pack, one commit: a renumbered list of values lands together
+		// one pack, one commit: a renumbered list of values lands together,
+		// and an archive stated with it is staged first to land in it too
+		// (doc/design/schema.md, "An archive is stated, never implied")
+		if change.Archive != nil {
+			if _, err := cached.SetArchived(*change.Archive); err != nil {
+				return entity.UnsetId, err
+			}
+			if len(change.Set) == 0 && len(change.Remove) == 0 {
+				return entity.UnsetId, cached.Commit()
+			}
+		}
 		return entity.UnsetId, cached.Update(change.Set, change.Remove)
 
 	case schema.ActionArchive:

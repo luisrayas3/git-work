@@ -987,8 +987,10 @@ func TestSchemaArchiveAndRmFromAScript(t *testing.T) {
 
 	s, err := repo.LoadSchema()
 	require.NoError(t, err)
-	_, ok := s.Field("task", "estimate")
-	require.False(t, ok)
+	f, ok := s.Field("task", "estimate")
+	require.True(t, ok)
+	require.True(t, f.Archived, "archived, it is marked (doc/design/schema.md, \"Archiving refuses only what is new\")")
+	require.True(t, s.Types["bug"].Archived)
 	_, ok = s.Field("task", "due")
 	require.False(t, ok)
 }

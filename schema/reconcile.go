@@ -23,6 +23,9 @@ type Change struct {
 	Set map[string]config.Value `json:"set,omitempty"`
 	// Remove are the attributes to delete.
 	Remove []string `json:"remove,omitempty"`
+	// Archive archives the entity, or unarchives it, with the update
+	// (doc/design/schema.md, "An archive is stated, never implied").
+	Archive *bool `json:"archive,omitempty"`
 }
 
 // Action is what a change does to its entity.
@@ -76,7 +79,7 @@ func Reconcile(desired *Document, current []Entry, prune bool) ([]Change, error)
 		t, _ := desired.Types.Get(typeKey)
 		attributes := typeAttributes(t, typeOrdinals[typeKey])
 		entry, exists := lookup(config.ShapeType, typeKey)
-		if change, ok := diff(config.ShapeType, typeKey, entry, exists, attributes, typeAttributeNames); ok {
+		if change, ok := diff(config.ShapeType, typeKey, entry, exists, attributes, typeAttributeNames, t.Archived); ok {
 			changes = append(changes, change)
 		}
 	}
@@ -100,7 +103,7 @@ func Reconcile(desired *Document, current []Entry, prune bool) ([]Change, error)
 			if err != nil {
 				return nil, err
 			}
-			if change, ok := diff(config.ShapeField, key, entry, exists, attributes, fieldAttributeNames); ok {
+			if change, ok := diff(config.ShapeField, key, entry, exists, attributes, fieldAttributeNames, field.Archived); ok {
 				changes = append(changes, change)
 			}
 		}
@@ -109,7 +112,7 @@ func Reconcile(desired *Document, current []Entry, prune bool) ([]Change, error)
 	if prune {
 		var orphans []Entry
 		for key, e := range index {
-			if _, ok := matched[key]; ok {
+			if _, ok := matched[key]; ok || e.Archived {
 				continue
 			}
 			orphans = append(orphans, e)
@@ -148,9 +151,8 @@ func Apply(current []Entry, changes []Change) []Entry {
 			attributes[name] = value
 		}
 		index[string(e.Shape)+" "+e.Key] = len(out)
-		out = append(out, Entry{Id: e.Id, Shape: e.Shape, Key: e.Key, Attributes: attributes})
+		out = append(out, Entry{Id: e.Id, Shape: e.Shape, Key: e.Key, Attributes: attributes, Archived: e.Archived})
 	}
-	archived := map[int]bool{}
 	for _, change := range changes {
 		key := string(change.Shape) + " " + change.Key
 		at, exists := index[key]
@@ -161,7 +163,8 @@ func Apply(current []Entry, changes []Change) []Entry {
 				attributes[name] = value
 			}
 			index[key] = len(out)
-			out = append(out, Entry{Shape: change.Shape, Key: change.Key, Attributes: attributes})
+			out = append(out, Entry{Shape: change.Shape, Key: change.Key, Attributes: attributes,
+				Archived: change.Archive != nil && *change.Archive})
 		case ActionUpdate:
 			if !exists {
 				continue
@@ -172,19 +175,16 @@ func Apply(current []Entry, changes []Change) []Entry {
 			for _, name := range change.Remove {
 				delete(out[at].Attributes, name)
 			}
+			if change.Archive != nil {
+				out[at].Archived = *change.Archive
+			}
 		case ActionArchive:
 			if exists {
-				archived[at] = true
+				out[at].Archived = true
 			}
 		}
 	}
-	kept := out[:0]
-	for at, e := range out {
-		if !archived[at] {
-			kept = append(kept, e)
-		}
-	}
-	return kept
+	return out
 }
 
 // typeAttributeNames are the attributes an import owns on a type entity.
@@ -266,18 +266,27 @@ func fieldAttributes(fieldKey string, field FieldDoc, ordinal int, entry Entry, 
 		ids[i] = value.Id
 	}
 	var currentValueOrdinals map[string]int
+	var currentArchived map[string]bool
 	if exists {
 		currentValueOrdinals = valueOrdinals(entry.Attributes)
+		currentArchived = valuesArchived(entry.Attributes)
 	}
 	valueOrdinal := assignOrdinals(ids, currentValueOrdinals)
 
 	for _, value := range field.Values {
+		// an unstated archive leaves the value as it stands
+		// (doc/design/schema.md, "An archive is stated, never implied")
+		archived := currentArchived[value.Id]
+		if value.Archived != nil {
+			archived = *value.Archived
+		}
 		attributes[valueName(value.Id)] = mustValue(ValueAttr{
 			Name:        value.Name,
 			Ordinal:     valueOrdinal[value.Id],
 			Category:    Category(value.Category),
 			Description: value.Description,
 			Color:       value.Color,
+			Archived:    archived,
 		})
 		aliasAttributes(attributes, value.Aliases, func(system string) string {
 			return ValueAliasName(system, value.Id)
@@ -290,14 +299,21 @@ func fieldAttributes(fieldKey string, field FieldDoc, ordinal int, entry Entry, 
 // diff turns a desired attribute set into the change that gets there,
 // comparing by canonical JSON so that "normalise before comparing" holds
 // (doc/design/schema.md, "Import is an upsert").
-func diff(shape config.Shape, key string, entry Entry, exists bool, desired map[string]config.Value, owned func(string) bool) (Change, bool) {
+//
+// archived is the document's stated archive: unstated leaves the entity as it
+// stands (doc/design/schema.md, "An archive is stated, never implied").
+func diff(shape config.Shape, key string, entry Entry, exists bool, desired map[string]config.Value, owned func(string) bool, archived *bool) (Change, bool) {
 	if !exists {
-		return Change{
+		change := Change{
 			Action: ActionCreate,
 			Shape:  shape,
 			Key:    key,
 			Set:    desired,
-		}, true
+		}
+		if archived != nil && *archived {
+			change.Archive = archived
+		}
+		return change, true
 	}
 
 	change := Change{
@@ -328,7 +344,11 @@ func diff(shape config.Shape, key string, entry Entry, exists bool, desired map[
 		change.Remove = append(change.Remove, name)
 	}
 
-	if len(change.Set) == 0 && len(change.Remove) == 0 {
+	if archived != nil && *archived != entry.Archived {
+		change.Archive = archived
+	}
+
+	if len(change.Set) == 0 && len(change.Remove) == 0 && change.Archive == nil {
 		return Change{}, false
 	}
 	return change, true
@@ -365,6 +385,22 @@ func valueOrdinals(attrs map[string]config.Value) map[string]int {
 			continue
 		}
 		out[id] = attr.Ordinal
+	}
+	return out
+}
+
+// valuesArchived reads which of an enum's values are archived as they stand.
+func valuesArchived(attrs map[string]config.Value) map[string]bool {
+	out := map[string]bool{}
+	for name, raw := range attrs {
+		prefix, id, folded := config.SplitName(name)
+		if !folded || prefix != ValuesPrefix {
+			continue
+		}
+		var attr ValueAttr
+		if err := unmarshalAttr(raw, &attr); err == nil && attr.Archived {
+			out[id] = true
+		}
 	}
 	return out
 }
