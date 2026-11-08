@@ -694,6 +694,11 @@ Sprint, Rank, `resolution`, `components` and `fixVersions` are not mapped.
 Fields a type has that Jira lacks (`area`, `rank`)
 and types Jira lacks (`decision`) are local-only:
 never exported, never cleared, reported as info.
+The built-in `color` is local-only on every type that has it
+([schema](schema.md#color-is-a-built-in-a-type-switches-on)):
+a built-in takes no alias, and `jira schema` pairs no Jira field with a built-in,
+so a color is never on a pending or an off-schema line,
+and a type's `color: true` is carried through every derive like any type attribute.
 
 ### Status categories
 

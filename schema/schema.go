@@ -82,7 +82,7 @@ type Field struct {
 	// for Jira a field reference, `customfield_10016` or `link:10000`.
 	Aliases map[string]string `json:"aliases,omitempty"`
 
-	// Builtin marks the four fields that exist in code on every type
+	// Builtin marks the five fields that exist in code
 	// (doc/design/schema.md, "Built-ins are code").
 	Builtin bool `json:"builtin,omitempty"`
 	// Configured marks a field an entity defines,
@@ -147,6 +147,11 @@ type Type struct {
 	// is checked against it, a Jira pull is not
 	// (doc/design/issue.md, "A type change is a set").
 	RetypeTargets *[]string `json:"retype_targets,omitempty"`
+
+	// Color switches the built-in `color` on: only a type where it is true
+	// has the field (doc/design/schema.md, "Color is a built-in a type
+	// switches on").
+	Color bool `json:"color,omitempty"`
 
 	// Fields are the type's fields by key, built-ins included.
 	Fields map[string]*Field `json:"fields"`

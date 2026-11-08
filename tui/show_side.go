@@ -91,6 +91,18 @@ type sideItem struct {
 type sideGrab struct {
 	table int
 	id    string
+	// blink is the grab's blink phase (grabStyle)
+	blink bool
+}
+
+// sideBlink is the blink tick on the show page: it flips a grabbed row's
+// phase and keeps ticking while the grab is held, and stops once it is not.
+func (p *showPage) sideBlink() tea.Cmd {
+	if p.grab == nil {
+		return nil
+	}
+	p.grab.blink = !p.grab.blink
+	return blinkTick()
 }
 
 // newShowView is the show page a call describes: the issue drawn by its
@@ -397,9 +409,9 @@ func (p *showPage) startSideGrab() tea.Cmd {
 		p.status = "clear the filter to move a row"
 		return bell()
 	}
-	p.grab = &sideGrab{table: item.table, id: row.id}
+	p.grab = &sideGrab{table: item.table, id: row.id, blink: true}
 	p.status = ""
-	return nil
+	return blinkTick()
 }
 
 // sideGrabKey is a key while a row is grabbed: up and down carry it within
@@ -624,7 +636,7 @@ func (p *showPage) sideLines(width int, here position) []sideLine {
 			drawn := ""
 			switch {
 			case p.grab != nil && p.grab.id == row.id && p.grab.table == t:
-				marker, style = "≡", styleGrab
+				marker, style = "≡", grabStyle(nil, p.grab.blink)
 			case on && item == p.side:
 				marker, style = "›", styleCell
 			case len(row.cells) > 0 && p.repo.DisplayNamespace() != "" && !isAlias(row.id, row.cells[0]):

@@ -68,7 +68,8 @@ func Quickstart(repo *cache.RepoCache) (string, error) {
 }
 
 // writeQuickstartSchema renders the live half: every type, and under it every
-// field that is not one of the four built-ins, which the guide already named.
+// field that is not a built-in, which the guide already named, and whether
+// the type switches the built-in `color` on.
 func writeQuickstartSchema(b *strings.Builder, s *schema.Schema) {
 	b.WriteString("## This repository's types\n\n")
 
@@ -114,6 +115,9 @@ func writeQuickstartSchema(b *strings.Builder, s *schema.Schema) {
 		}
 		if fields == 0 {
 			b.WriteString("No field of its own.\n")
+		}
+		if t.Color {
+			b.WriteString("\nIts issues carry the built-in `color`: `color: true`.\n")
 		}
 		// a set of `type` is refused outside these
 		// (doc/design/issue.md, "A type change is a set")

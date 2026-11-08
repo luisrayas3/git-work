@@ -168,7 +168,7 @@ func editHint(kind schema.Kind, known bool) (hint, bool) {
 		return hint{"space", "flip"}, true
 	case schema.KindRelation:
 		return hint{"space", "change"}, true
-	case schema.KindEnum, schema.KindOrdinalEnum, schema.KindIdentity,
+	case schema.KindEnum, schema.KindOrdinalEnum, schema.KindColor, schema.KindIdentity,
 		schema.KindText, schema.KindNumber, schema.KindDate:
 		return hint{"space", "edit"}, true
 	}

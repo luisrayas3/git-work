@@ -697,7 +697,7 @@ func (p *newPage) retype(value issue.Value) {
 	if s, err := p.repo.LoadSchema(); err == nil {
 		if t, ok := s.Type(typeKey); ok {
 			for key := range p.fields {
-				if _, builtin := schema.BuiltinKind(key); builtin {
+				if schema.OnEveryType(key) {
 					continue
 				}
 				if _, has := t.Field(key); !has {

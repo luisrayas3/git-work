@@ -608,7 +608,7 @@ and the reasoning left to this document.
 
 A terminal has no drag,
 and a modifier-plus-arrow vocabulary collides with every key already claimed.
-So `space` grabs the item under the cursor, which blinks;
+So `space` grabs the item under the cursor, which blinks ([A grab blinks its own colour](#a-grab-blinks-its-own-colour));
 the directions move it;
 `space` or `enter` drops it;
 `esc` puts it back where it was.
@@ -623,6 +623,23 @@ While grabbed:
   (on the bar's first cell only `start` moves, on its last only `stop`,
   between them both),
   up and down change rank.
+
+### A grab blinks its own colour
+
+One rule draws a grab on every view that grabs, a list's row, a card, a bar, a side table's row.
+On a tick that runs while the grab is held,
+an item with a colour of its own keeps it
+and swaps it for that colour's bright or normal pair, ANSI 1–6 against 9–14:
+a normal colour blinks bright, a bright one blinks normal.
+An item with no colour, a list's row, a card, an ungrouped bar,
+blinks between plain and bold.
+The grab marker of a list, a board and a gantt blinks its glyph too.
+
+Not one grab colour on every view:
+an item drawn in another colour while it moves
+would no longer show the colour it has,
+a gantt bar its group's,
+and anything already drawn in that colour would read as grabbed.
 
 ### Every order is the built-in rank
 

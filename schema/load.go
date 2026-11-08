@@ -78,10 +78,15 @@ func Compile(entries []Entry) (*Schema, error) {
 		s.Types[t.Key] = t
 	}
 
-	// the built-ins exist on every type, in code, before any override
-	// (doc/design/schema.md, "Built-ins are code")
+	// the built-ins exist in code, before any override
+	// (doc/design/schema.md, "Built-ins are code"): on every type, but
+	// `color` on a type that switches it on
+	// (doc/design/schema.md, "Color is a built-in a type switches on")
 	for _, t := range s.Types {
 		for _, b := range Builtins {
+			if b.Switched && !t.Color {
+				continue
+			}
 			t.Fields[b.Key] = newBuiltinField(t.Key, b)
 		}
 	}
@@ -98,6 +103,11 @@ func Compile(entries []Entry) (*Schema, error) {
 		t, known := s.Types[typeKey]
 		if !known {
 			s.Problems = append(s.Problems, fmt.Sprintf("field %s: no type %s", e.Key, typeKey))
+			continue
+		}
+		if fieldKey == ColorKey && !t.Color {
+			// an override of a color the type has switched off is kept in
+			// the store and means nothing until the type switches it on again
 			continue
 		}
 		field, err := compileField(typeKey, fieldKey, e)
@@ -187,6 +197,11 @@ func compileType(e Entry) (*Type, error) {
 		retype = &targets
 	}
 
+	color, err := attrBool(e.Attributes, AttrColor)
+	if err != nil {
+		return nil, err
+	}
+
 	return &Type{
 		Key:           e.Key,
 		Name:          name,
@@ -195,6 +210,7 @@ func compileType(e Entry) (*Type, error) {
 		Aliases:       aliases,
 		Show:          show,
 		RetypeTargets: retype,
+		Color:         color,
 		Fields:        map[string]*Field{},
 		EntityId:      e.Id,
 	}, nil

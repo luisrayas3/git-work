@@ -418,6 +418,9 @@ func (p *showPage) Update(msg tea.Msg) (page, tea.Cmd) {
 		p.status = string(msg)
 		return p, nil
 
+	case blinkMsg:
+		return p, p.sideBlink()
+
 	case refreshMsg:
 		if p.grab != nil {
 			// a grab holds a placement the store does not have; the drop
@@ -1349,6 +1352,10 @@ func tableLines(repo *cache.RepoCache, rows []tableRow, cursor int, on bool, wid
 			cursorLine = len(lines)
 			style = styleCell
 			value = pad(value, max(ansi.StringWidth(value), 1))
+		}
+		if tint, ok := issueColor(row.label); ok && row.key == schema.ColorKey {
+			// a color is drawn in itself (doc/design/views.md, "The fields table")
+			style = style.Foreground(tint)
 		}
 		drawn := style.Render(value)
 		if row.link != "" {

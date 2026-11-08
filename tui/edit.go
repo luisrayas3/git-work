@@ -109,6 +109,11 @@ func editable(repo *cache.RepoCache, issueId, typeKey, fieldKey string, current 
 		}
 		return &editor{issueId: issueId, key: fieldKey, kind: kind, picker: newPicker(values, plainValue(current))}, "", nil
 
+	case schema.KindColor:
+		// the enum picker over the fixed set, and a clear
+		// (doc/design/schema.md, "Color is a built-in a type switches on")
+		return &editor{issueId: issueId, key: fieldKey, kind: kind, picker: newPicker(colorChoices(), plainValue(current))}, "", nil
+
 	case schema.KindIdentity:
 		people, err := identityChoices(repo)
 		if err != nil {
@@ -148,8 +153,10 @@ func editable(repo *cache.RepoCache, issueId, typeKey, fieldKey string, current 
 
 // fieldKind reads a field's kind off the live schema.
 //
-// The four built-ins answer even where no type is defined, so a title is
-// editable in a store that has no schema yet, which is the bootstrap state.
+// The built-ins answer even where no type is defined, so a title is
+// editable in a store that has no schema yet, which is the bootstrap state;
+// on a type the schema knows, its fields are the answer, since `color` is
+// a built-in only some types have.
 func fieldKind(repo *cache.RepoCache, typeKey, fieldKey string) (schema.Kind, bool) {
 	s, err := repo.LoadSchema()
 	if err == nil {
@@ -157,9 +164,20 @@ func fieldKind(repo *cache.RepoCache, typeKey, fieldKey string) (schema.Kind, bo
 			if field, ok := t.Field(fieldKey); ok {
 				return field.Kind, true
 			}
+			return "", false
 		}
 	}
 	return schema.BuiltinKind(fieldKey)
+}
+
+// colorChoices are the colors a `color` takes, in their fixed order, then
+// the clear.
+func colorChoices() []choice {
+	out := make([]choice, 0, len(schema.Colors)+1)
+	for _, id := range schema.Colors {
+		out = append(out, choice{label: id, value: id})
+	}
+	return append(out, choice{label: "(none)", dim: "clear", value: ""})
 }
 
 func enumChoices(repo *cache.RepoCache, typeKey, fieldKey string) ([]choice, error) {

@@ -26,6 +26,7 @@ import (
 //	    name: Epic
 //	    aliases: {jira: "10000"}  # what it is in another system
 //	    retype_targets: []        # the types it may become; absent is any
+//	    color: true               # its issues carry the built-in color
 //	    fields:
 //	      status: *status
 //	      parent: {kind: relation, inverse: children, target_types: [initiative]}
@@ -67,7 +68,10 @@ type TypeDoc struct {
 	// what a schema written before it means; empty is none, the type is
 	// fixed once the issue is created.
 	RetypeTargets *[]string `yaml:"retype_targets,omitempty"`
-	Fields        *fieldMap `yaml:"fields,omitempty"`
+	// Color switches the built-in `color` on for the type's issues
+	// (doc/design/schema.md, "Color is a built-in a type switches on").
+	Color  bool      `yaml:"color,omitempty"`
+	Fields *fieldMap `yaml:"fields,omitempty"`
 }
 
 // ShowDoc is a type's show spec in the document: `fields`, the rows of
@@ -274,6 +278,7 @@ func Export(s *Schema) *Document {
 			Aliases:       copyAliases(t.Aliases),
 			Show:          exportShow(t.Show),
 			RetypeTargets: copyTargets(t.RetypeTargets),
+			Color:         t.Color,
 			Fields:        newOrderedMap[FieldDoc](),
 		}
 
@@ -440,6 +445,14 @@ func (d *Document) validateType(problems *Problems, typeKey string, t TypeDoc, k
 		kind, err := parseFieldKind(fieldKey, field.Kind)
 		if err != nil {
 			problems.add("%s: %v", where, err)
+			continue
+		}
+
+		if fieldKey == ColorKey && !t.Color {
+			// the built-in is the type's only where the type switches it on
+			// (doc/design/schema.md, "Color is a built-in a type switches on")
+			problems.add("%s: %s is built in on the types that switch it on; add color: true to type %s",
+				where, fieldKey, typeKey)
 			continue
 		}
 

@@ -8,6 +8,7 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 
+	"github.com/git-bug/git-bug/entity"
 	"github.com/git-bug/git-bug/schema"
 )
 
@@ -54,7 +55,7 @@ const (
 )
 
 // groupColors are the bars' colors, one per group in the order the groups
-// first appear, cycled; yellow is left out, being the grab's.
+// first appear, cycled, for a group whose head has no color of its own.
 var groupColors = []string{"4", "2", "5", "6", "1", "12", "10", "13", "14", "9"}
 
 func (p *ganttPage) View() string {
@@ -269,18 +270,56 @@ func (p *ganttPage) body(labelWidth, visible int) (lines []string, groups []int,
 
 // groupColors gives each group but the ungrouped a color, in the order the
 // groups' roots are stored rather than drawn, so a filter keeps them.
+//
+// Where `group_by` is a relation, a group whose heading issue has a
+// `color` takes it; every other group takes the palette's color at its own
+// place among the groups, so a head's color recolors no other group
+// (doc/design/views.md, "Gantt groups are colors").
 func (p *ganttPage) groupColors() map[string]color.Color {
 	colors := map[string]color.Color{}
 	if p.groupBy == "" {
 		return colors
 	}
-	for _, node := range p.nodes {
+	known := newKinds(p.repo)
+	heads := map[string]color.Color{}
+	for index, node := range p.nodes {
 		if _, seen := colors[node.group]; seen || node.level != 0 || node.group == noGroup {
 			continue
 		}
-		colors[node.group] = lipgloss.Color(groupColors[len(colors)%len(groupColors)])
+		tint, ok := p.headColor(known, index, heads)
+		if !ok {
+			tint = lipgloss.Color(groupColors[len(colors)%len(groupColors)])
+		}
+		colors[node.group] = tint
 	}
 	return colors
+}
+
+// headColor is the color of the issue heading a root's group, where the
+// view groups by a relation and that issue has one; heads keeps what each
+// issue was read as, so each is read once.
+func (p *ganttPage) headColor(known *kinds, index int, heads map[string]color.Color) (color.Color, bool) {
+	b := &p.bars[index]
+	if !isRelation(known.of(b.typeKey, p.groupBy)) {
+		return nil, false
+	}
+	ids := linkIds(b.fields[p.groupBy])
+	if len(ids) == 0 {
+		return nil, false
+	}
+	// a multi-relation's group is the first issue it names (group.go)
+	head := ids[0]
+	if tint, read := heads[head]; read {
+		return tint, tint != nil
+	}
+	var tint color.Color
+	if excerpt, err := p.repo.Issues().ResolveExcerpt(entity.Id(head)); err == nil {
+		if value, ok := excerpt.FieldString(schema.ColorKey); ok {
+			tint, _ = issueColor(value)
+		}
+	}
+	heads[head] = tint
+	return tint, tint != nil
 }
 
 // rowLine draws one row: the marker, the tree's indent, the short id and
@@ -289,10 +328,10 @@ func (p *ganttPage) groupColors() map[string]color.Color {
 // The row under the cursor has the light wash over its width, as a list's
 // row has, the cell under the cursor a stronger shade (styleMark), and the cursor's
 // period has the wash down every row, a crosshair; the grabbed bar
-// is drawn in the grab colour with the blinking marker. Every piece is
+// has the blinking marker. Every piece is
 // styled on its own, because a style ends in a reset and a reset inside
 // the line would end the wash. A bar is drawn in its group's tint, when it
-// has one.
+// has one, and the grabbed bar blinks it.
 func (p *ganttPage) rowLine(index, labelWidth, visible int, under, grabbed bool, tint color.Color) string {
 	b, node := &p.bars[index], &p.nodes[index]
 	w := periodWidth(p.scale)
@@ -307,9 +346,9 @@ func (p *ganttPage) rowLine(index, labelWidth, visible int, under, grabbed bool,
 	marker := " "
 	switch {
 	case grabbed && p.blink:
-		marker = styleGrab.Render("[")
+		marker = grabStyle(tint, p.blink).Render("[")
 	case grabbed:
-		marker = styleGrab.Render("⟨")
+		marker = grabStyle(tint, p.blink).Render("⟨")
 	case under:
 		marker = wash.Render("›")
 	}
@@ -361,11 +400,13 @@ func (p *ganttPage) rowLine(index, labelWidth, visible int, under, grabbed bool,
 		done = int(min(max(b.progress, 0), 1)*float64(cells) + 0.5)
 	}
 	barStyle := wash
-	switch {
-	case grabbed:
-		barStyle = wash.Foreground(lipgloss.Color("3")).Bold(true)
-	case tint != nil:
+	if tint != nil {
 		barStyle = wash.Foreground(tint)
+	}
+	if grabbed {
+		// the grabbed bar blinks its own colour, as every grab does
+		// (doc/design/tui.md, "A grab blinks its own colour")
+		barStyle = grabStyle(tint, p.blink).Inherit(wash)
 	}
 	// the band of a row with no dates, and of a milestone's open side
 	bandStyle := barStyle.Faint(true)

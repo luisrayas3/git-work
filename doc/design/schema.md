@@ -104,7 +104,7 @@ Export folds them back into lists.
 
 ```
 shape  key             attributes
-type   <type>          name, description, ordinal, show, retype_targets, alias_<system>
+type   <type>          name, description, ordinal, show, retype_targets, color, alias_<system>
 field  <type>/<field>  kind, name, description, ordinal,
                        freeform                                      enum kinds
                        values/<id> -> {name, ordinal, category, description, color}
@@ -245,6 +245,7 @@ and `--prune` never archives a loser whose key the document keeps.
 | `multi-enum` | labels, components | list of value ids |
 | `multi-identity` | reviewers, watchers | list of identity ids |
 | `rank` | the built-in `rank` alone | a fractional-index string |
+| `color` | the built-in `color` alone | one of twelve color ids |
 | `relation` | parent, iteration | an issue's full id |
 | `multi-relation` | blocks, relates-to | list of issue ids |
 
@@ -382,7 +383,7 @@ and the mark then merges, archives and travels with the field it describes.
 
 ### No field roles
 
-Go names no field but the four built-ins.
+Go names no field but the five built-ins.
 What a field is *for* is its consumer's business:
 a flow passes the keys it needs to the host functions,
 `work.view.gantt(start="start_date", stop="due_date")`.
@@ -403,6 +404,9 @@ exist on every type, defined in code in `schema.Builtins`:
 `title` to show anything, `type` to find the rest of the schema,
 `archived` to know what the default listing hides,
 `rank` to hold the manual order.
+The fifth, `color` (`color`), is defined there too,
+and exists only on a type that switches it on
+([Color is a built-in a type switches on](#color-is-a-built-in-a-type-switches-on)).
 A field entity whose key is a built-in overrides its name and description;
 its kind is code, and a document that changes it, or gives it values,
 targets, an inverse, a link or aliases, is refused.
@@ -439,6 +443,41 @@ Jira's Rank, where mapped, maps onto the built-in.
 Not `text` for the built-in:
 an override would then say `kind: text` of a fractional-index string,
 and a kind is what a bridge reads to know how to carry a value.
+
+### Color is a built-in a type switches on
+
+An issue may carry a color that every surface draws it in.
+`color` is the fifth built-in, of a kind `color` that is its alone, as `rank`'s is:
+`schema import` refuses `kind: color` on any other field.
+Unlike the other four it exists only on a type whose `color` attribute is true,
+`types: {story: {color: true}}` in the document,
+written only when true and exported only when true.
+On any other type it is no field,
+and a write of it is refused as an unknown key is;
+an override of it is refused on a type that does not switch it on.
+
+Its values are a set fixed in code,
+the twelve ANSI colors that read on any theme:
+`red`, `green`, `yellow`, `blue`, `magenta`, `cyan`,
+and `bright-` before each of the six.
+Black, white and their bright forms are left out,
+because each clashes with the background or the foreground on some theme.
+A write of anything else is refused, naming the set;
+being shape, not policy, that holds for a pull as for a local write.
+`null` clears it, and the field holds no `values`,
+so `ordinal()` and `category()` are null on it ([query](query.md)).
+The surfaces draw it with the terminal's own palette,
+indices 1–6 and 9–14,
+never a 256-color or a truecolor one,
+so that a color follows the user's theme ([views](views.md)).
+It is stored like any field's value, and is never synced ([Jira sync](jira.md)).
+
+Not a configured kind any field may take:
+a view would then need an argument naming the field,
+and the color belongs to the issue, so every surface finds it by one key.
+Not on every type:
+a color is wanted on the issues that head others, not on every issue,
+and a field every type had would be one most types never use.
 
 ### Iterations are a type
 
@@ -530,7 +569,7 @@ types:
     name: Epic
 ```
 
-- `types` maps a type key to `{name, description, aliases, show, retype_targets, fields}`,
+- `types` maps a type key to `{name, description, aliases, show, retype_targets, color, fields}`,
   and `fields` a field key to
   `{kind, name, description, aliases, freeform, inverse, target_types, link, values}`.
   A value is `{id, name, category, description, color, aliases}`.

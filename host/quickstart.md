@@ -201,6 +201,8 @@ so they merge like issues do.
   A type synced to a system (a non-empty alias) may list only types synced to it.
   A Jira pull imports a type changed there whatever it says,
   and the Jira sync derives it for a mapped type from Jira's hierarchy levels and workflows.
+- A type's `color: true` gives its issues the built-in `color` (see Basic types);
+  without it the type has no such field.
 - `git work schema log [KEY]` is a key's history,
   and `git work schema archive KEY` removes it, replicated.
 
@@ -414,6 +416,15 @@ are built in fields on every type and cannot be removed.
 `rank` is internal: a fractional index for manual order,
 of a kind no other field takes, null until a view's drag writes one;
 every view orders by it and no view argument names it.
+
+`color` is built in too, but only on a type whose schema entry says `color: true`.
+Its value is one of `red`, `green`, `yellow`, `blue`, `magenta`, `cyan`,
+`bright-red`, `bright-green`, `bright-yellow`, `bright-blue`, `bright-magenta`, `bright-cyan`,
+drawn in the terminal's own colors:
+`git work issue set ID '{"color":"blue"}'` sets it and `null` clears it.
+Show draws it in itself, and a gantt grouped by a relation
+draws a group in the color of the issue heading it.
+It is never synced to Jira.
 
 ## Examples
 

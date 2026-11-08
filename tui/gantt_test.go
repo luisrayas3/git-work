@@ -9,6 +9,7 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/stretchr/testify/require"
 
 	"github.com/git-bug/git-bug/cache"
@@ -488,6 +489,54 @@ func TestGanttGroupsByRelationTitleAndTint(t *testing.T) {
 	colors := page.groupColors()
 	require.Len(t, colors, 2)
 	require.NotEqual(t, colors[north[:idWidth]+" north"], colors[south[:idWidth]+" south"])
+}
+
+// TestGanttGroupTakesItsHeadsColor: a group whose heading issue has a color
+// is drawn in it, and the groups without one take the palette in turn, as
+// they would with no color anywhere (doc/design/views.md, "Gantt groups are
+// colors").
+func TestGanttGroupTakesItsHeadsColor(t *testing.T) {
+	repo := testRepo(t)
+	withDates(t, repo)
+	doc, _, err := host.SchemaExport(repo)
+	require.NoError(t, err)
+	story, _ := doc.Types.Get("story")
+	story.Color = true
+	doc.SetType("story", story)
+	_, _, err = host.SchemaImport(repo, doc, false, false)
+	require.NoError(t, err)
+
+	north := newTyped(t, repo, "story", map[string]any{"title": "north"})
+	south := newTyped(t, repo, "story", map[string]any{"title": "south"})
+	west := newTyped(t, repo, "story", map[string]any{"title": "west"})
+	newTyped(t, repo, "task", map[string]any{"title": "one", "start": "2026-09-07", "stop": "2026-09-13", "parent": north})
+	newTyped(t, repo, "task", map[string]any{"title": "two", "start": "2026-09-14", "stop": "2026-09-20", "parent": south})
+	newTyped(t, repo, "task", map[string]any{"title": "three", "start": "2026-09-14", "stop": "2026-09-20", "parent": west})
+
+	kwargs := `{"start":"start","stop":"stop","from":"2026-09-07","group_by":"parent","query":"map(select(.fields.type == \"task\"))"}`
+	before := gantt(t, repo, kwargs).groupColors()
+	require.Len(t, before, 3)
+	palette := map[color.Color]bool{}
+	for _, c := range groupColors[:3] {
+		palette[lipgloss.Color(c)] = true
+	}
+	for _, tint := range before {
+		require.True(t, palette[tint], "with no color, the palette from its start")
+	}
+
+	_, err = host.IssueSet(repo, north, map[string]issue.Value{"color": issue.StringValue("bright-red")}, false)
+	require.NoError(t, err)
+	colors := gantt(t, repo, kwargs).groupColors()
+	require.Equal(t, lipgloss.Color("9"), colors[north[:idWidth]+" north"], "the head's own, by its ANSI index")
+	for _, group := range []string{south[:idWidth] + " south", west[:idWidth] + " west"} {
+		require.Equal(t, before[group], colors[group], "a head's color recolors no other group")
+	}
+
+	// grouped by a field that is not a relation, the color changes nothing
+	page := gantt(t, repo, `{"start":"start","stop":"stop","from":"2026-09-07","group_by":"title","query":"map(select(.fields.type == \"task\"))"}`)
+	for _, tint := range page.groupColors() {
+		require.NotEqual(t, lipgloss.Color("9"), tint)
+	}
 }
 
 // TestGanttRefreshKeepsTheCursorOnTheIssue: another writer moves the bar,

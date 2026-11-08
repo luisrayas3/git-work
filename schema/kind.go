@@ -40,6 +40,13 @@ const (
 	// takes it, and ParseKind refuses it
 	// (doc/design/schema.md, "Rank's kind is the built-in's alone").
 	KindRank Kind = "rank"
+	// KindColor is one id out of Colors, drawn in the terminal's own palette.
+	//
+	// It is the built-in `color`'s kind and no other field's, as rank's is
+	// the built-in `rank`'s: a color belongs to the issue, so every surface
+	// finds it by one key, and ParseKind refuses it
+	// (doc/design/schema.md, "Color is a built-in a type switches on").
+	KindColor Kind = "color"
 	// KindRelation is the entity id of one other issue: parent, iteration.
 	KindRelation Kind = "relation"
 	// KindMultiRelation is a set of issue ids: blocks, relates-to.
@@ -47,9 +54,10 @@ const (
 )
 
 // Kinds is every kind a configured field takes, in the order the table of
-// doc/design/schema.md, "Kinds are a fixed list" lists them. KindRank is not
-// one: it is the built-in `rank`'s alone
-// (doc/design/schema.md, "Rank's kind is the built-in's alone").
+// doc/design/schema.md, "Kinds are a fixed list" lists them. KindRank and
+// KindColor are not among them: each is its built-in's alone
+// (doc/design/schema.md, "Rank's kind is the built-in's alone";
+// doc/design/schema.md, "Color is a built-in a type switches on").
 var Kinds = []Kind{
 	KindText,
 	KindEnum,
@@ -80,6 +88,10 @@ func ParseKind(s string) (Kind, error) {
 	if Kind(s) == KindRank {
 		return "", fmt.Errorf("kind rank is the built-in rank's alone: the order every view draws "+
 			"and every drag writes is internal, so no other field takes it; valid kinds: %s", KindList())
+	}
+	if Kind(s) == KindColor {
+		return "", fmt.Errorf("kind color is the built-in color's alone: a type switches it on "+
+			"with color: true, so no other field takes it; valid kinds: %s", KindList())
 	}
 	return "", fmt.Errorf("unknown kind %q; valid kinds: %s", s, KindList())
 }

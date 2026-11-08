@@ -20,8 +20,25 @@ var (
 	styleCursor = lipgloss.NewStyle().Bold(true)
 	styleCell   = lipgloss.NewStyle().Reverse(true)
 	styleStatus = lipgloss.NewStyle().Faint(true)
-	styleGrab   = lipgloss.NewStyle().Foreground(lipgloss.Color("3")).Bold(true)
 )
+
+// grabStyle is a grabbed item at one phase of the grab's blink, on every
+// view that grabs: an item with a colour of its own keeps it and, off the
+// phase, swaps it for its bright or normal pair (brightPair); one with none
+// is plain, and bold off the phase (doc/design/tui.md, "A grab blinks its
+// own colour").
+func grabStyle(tint color.Color, blink bool) lipgloss.Style {
+	style := lipgloss.NewStyle()
+	switch {
+	case tint != nil && blink:
+		return style.Foreground(tint)
+	case tint != nil:
+		return style.Foreground(brightPair(tint))
+	case blink:
+		return style
+	}
+	return style.Bold(true)
+}
 
 // darkBackground is whether the terminal is dark, as it answered when asked;
 // dark until it answers, because most are.

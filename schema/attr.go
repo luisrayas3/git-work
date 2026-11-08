@@ -38,6 +38,10 @@ const (
 	// is any type, `[]` none. One attribute, not one per member as target
 	// types are, because absent and empty differ.
 	AttrRetypeTargets = "retype_targets"
+	// AttrColor switches a type's built-in `color` on, a bool written only
+	// when true (doc/design/schema.md, "Color is a built-in a type switches
+	// on").
+	AttrColor = "color"
 
 	// ValuesPrefix folds an enum's values one attribute per member,
 	// `values/<id>`, so two people adding two statuses both keep theirs

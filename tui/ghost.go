@@ -309,7 +309,7 @@ func dropForeign(s *schema.Schema, typeKey string, fields map[string]issue.Value
 		return
 	}
 	for key := range fields {
-		if _, builtin := schema.BuiltinKind(key); builtin {
+		if schema.OnEveryType(key) {
 			continue
 		}
 		if _, has := t.Field(key); !has {

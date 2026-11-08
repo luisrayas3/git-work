@@ -84,13 +84,16 @@ because tooling cannot work without them:
 - **`rank`**, a string, the manual order a drag writes
   ([Rank starts null](#rank-starts-null)).
 
+A fifth built-in, **`color`**, a string, is on the issues of a type that switches it on
+([schema](schema.md#color-is-a-built-in-a-type-switches-on)).
+
 Status is not one of them.
 It is a field of kind `enum` that a type may have,
 and whatever keys off "is this done" reads its value's category
 where the type has one, and treats the issue as never done where it does not
 ([schema](schema.md)).
 
-The entity knows `title` and `archived` by name and nothing else about the four;
+The entity knows `title` and `archived` by name and nothing else about the built-ins;
 that they are built in, and their kinds, is the [schema](schema.md)'s.
 
 ## Operations

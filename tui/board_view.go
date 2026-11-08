@@ -175,9 +175,9 @@ func (p *boardPage) cardLines(c *card, width int, under, grabbed bool) []string 
 	marker := " "
 	switch {
 	case grabbed && p.blink:
-		marker = styleGrab.Render("[")
+		marker = grabStyle(nil, p.blink).Render("[")
 	case grabbed:
-		marker = styleGrab.Render("⟨")
+		marker = grabStyle(nil, p.blink).Render("⟨")
 	case under:
 		marker = wash.Render("›")
 	}

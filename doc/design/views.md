@@ -442,8 +442,19 @@ over them, dim, the coarse ones where they change.
 ### Gantt groups are colors
 
 `group_by` makes a section per value of the root rows, headed by the value as a cell draws it.
-Each group's bars and header take a colour of their own in the groups' order,
-yellow left to the grab and the ungrouped plain.
+Where `group_by` is a relation, a group whose heading issue has a `color`
+([schema](schema.md#color-is-a-built-in-a-type-switches-on))
+draws its bars and header in it.
+Every other group takes the palette's colour at its place in the groups' order,
+the place a head's color takes counting too.
+The ungrouped are plain.
+A grabbed bar blinks its group's colour ([tui](tui.md#a-grab-blinks-its-own-colour)).
+
+Not an argument naming the color field:
+the color belongs to the issue and every surface finds it by one key.
+Not a palette counted over the uncoloured groups alone, or one that skips the colours heads have taken:
+setting one head's color would then recolour the groups that have none.
+Two groups may share a colour, and their headers tell them apart.
 
 ## Matrix
 
@@ -691,6 +702,7 @@ A relation is a link the cursor stands on, and `Enter` follows it;
 a `multi-relation` is a line per issue it names.
 A stored relation drawn as a side table is left out of the table, unless the spec's `fields` names it:
 one issue's `blocks` drawn twice is noise.
+A `color` is drawn as its id in that color ([schema](schema.md#color-is-a-built-in-a-type-switches-on)).
 `Space` edits the value under the cursor, by the field's kind
 ([edit picks its widget from the schema](tui.md#edit-picks-its-widget-from-the-schema)).
 

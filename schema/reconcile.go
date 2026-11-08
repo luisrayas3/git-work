@@ -194,7 +194,7 @@ func Apply(current []Entry, changes []Change) []Entry {
 // (doc/design/jira.md, "The mapping is aliases on the schema").
 func typeAttributeNames(name string) bool {
 	switch name {
-	case AttrName, AttrDescription, AttrOrdinal, AttrShow, AttrRetypeTargets:
+	case AttrName, AttrDescription, AttrOrdinal, AttrShow, AttrRetypeTargets, AttrColor:
 		return true
 	}
 	return false
@@ -226,6 +226,11 @@ func typeAttributes(t TypeDoc, ordinal int) map[string]config.Value {
 	if t.RetypeTargets != nil {
 		// never null: `[]` is a type that is fixed, absent one that is not
 		attributes[AttrRetypeTargets] = mustValue(append([]string{}, (*t.RetypeTargets)...))
+	}
+	if t.Color {
+		// written only when true, so a type that never had a color carries
+		// no attribute for it
+		attributes[AttrColor] = mustValue(true)
 	}
 	aliasAttributes(attributes, t.Aliases, AliasName)
 	return attributes

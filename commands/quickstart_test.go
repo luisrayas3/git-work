@@ -59,6 +59,7 @@ types:
   story:
     name: Story
     description: A body of work.
+    color: true
   task:
     name: Task
     fields:
@@ -89,6 +90,7 @@ types:
 	// the three built-ins are named once, in the guide, not on every type
 	require.NotContains(t, out, "- `title` (text)")
 	require.Contains(t, out, "No field of its own.")
+	require.Equal(t, 1, strings.Count(out, "Its issues carry the built-in `color`"), "on the story alone")
 }
 
 // TestQuickstartNoFlows: with no flow the second live section says so and

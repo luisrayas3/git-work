@@ -255,9 +255,9 @@ func (p *listPage) rowLine(row *listRow, node *treeRow, widths [][]int, ids []in
 	margin := indent(node.level)
 	switch {
 	case grabbed && p.blink:
-		parts = append(parts, margin, styleGrab.Render("["))
+		parts = append(parts, margin, grabStyle(nil, p.blink).Render("["))
 	case grabbed:
-		parts = append(parts, margin, styleGrab.Render("⟨"))
+		parts = append(parts, margin, grabStyle(nil, p.blink).Render("⟨"))
 	case under:
 		parts = append(parts, wash.Render(margin+"›"))
 	default:
@@ -311,7 +311,7 @@ func (p *listPage) rowLine(row *listRow, node *treeRow, widths [][]int, ids []in
 	}
 	switch {
 	case grabbed:
-		parts = append(parts, styleGrab.Render(map[bool]string{true: "]", false: "⟩"}[p.blink]))
+		parts = append(parts, grabStyle(nil, p.blink).Render(map[bool]string{true: "]", false: "⟩"}[p.blink]))
 	case under && p.width > used:
 		parts = append(parts, wash.Render(strings.Repeat(" ", p.width-used)))
 	}

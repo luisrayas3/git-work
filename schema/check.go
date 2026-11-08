@@ -303,6 +303,16 @@ func (c *Checker) checkOne(field *Field, kind Kind, value json.RawMessage) error
 		}
 		return fmt.Errorf("%q is not a date; write 2026-09-23 or an RFC 3339 time", s)
 
+	case KindColor:
+		// the set is code, not policy: a pull is refused it as a local
+		// write is (doc/design/schema.md, "Color is a built-in a type
+		// switches on")
+		s, ok := stringValue(value)
+		if !ok {
+			return fmt.Errorf("a color is expected, as a string; %s is not one", brief(value))
+		}
+		return checkColor(s)
+
 	case KindEnum, KindOrdinalEnum:
 		s, ok := stringValue(value)
 		if !ok {
