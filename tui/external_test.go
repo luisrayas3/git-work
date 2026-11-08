@@ -137,6 +137,13 @@ func TestEscInATextOpensThePalette(t *testing.T) {
 	require.Contains(t, drawn, "e editor")
 	require.NotContains(t, drawn, "expand", "no page command")
 	require.Contains(t, drawn, "esc: leave text")
+	require.NotContains(t, drawn, "copy command", "no ctrl+c over a text")
+
+	// ctrl+c is no text command: it rings, the palette open, nothing copied
+	_, cmd := stack.Update(press("ctrl+c"))
+	require.Equal(t, bell()(), cmd())
+	require.True(t, stack.palette)
+	inBox()
 
 	// a letter that is no text command rings, the palette open
 	for _, letter := range []string{"x", "k"} {
@@ -153,7 +160,7 @@ func TestEscInATextOpensThePalette(t *testing.T) {
 
 	// e opens the editor, from the text
 	run(stack, "esc")
-	_, cmd := stack.Update(press("e"))
+	_, cmd = stack.Update(press("e"))
 	require.NotNil(t, cmd, "the editor's command")
 	require.NotEqual(t, bell()(), cmd(), "not the bell")
 	require.False(t, stack.palette)

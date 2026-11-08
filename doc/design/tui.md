@@ -305,9 +305,10 @@ A direction, `enter` or `tab` only closes it;
 any other key closes it and then means what it means on the page.
 `g` closes it and does nothing else, as emacs's `C-g` quits what is half typed;
 `esc g` typed quickly is `alt+g`, which nothing on a page binds.
-`ctrl+c` copies the top page's call as the shell command that draws it,
+On a page's palette, `ctrl+c` copies the top page's call as the shell command that draws it,
 `git work view KIND '{…}'`,
-so the command behind the screen is one keystroke from the shell.
+so the command behind the screen is one keystroke from the shell
+(over a text it rings: [The palette over a text](#the-palette-over-a-text)).
 
 ### The palette over a text
 
@@ -326,11 +327,12 @@ From a text the palette offers only the text's commands,
 in a section of its own, *this text*:
 today `e`, writing the text in `$EDITOR`,
 and `g`, which closes the palette and returns to the text.
-Any other letter rings, the palette open.
+Any other letter rings, the palette open,
+and so does `ctrl+c`: copying the page's command is a page command.
 Not the full palette:
 a page command from a text would first have to leave the text,
 a second thing for one key to do.
-Its status line reads *esc: leave text*.
+Its status line reads *esc: leave text*, and names no `ctrl+c`.
 
 A text command's letter is never one of the textarea's `alt` keys,
 and a test checks every one against the textarea's key map,

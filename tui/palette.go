@@ -283,7 +283,7 @@ func openCreator(p page) tea.Cmd {
 // the second esc leaves the text and not the page.
 func paletteHints(text bool) string {
 	if text {
-		return hints(hint{"letter", "run"}, hint{"esc", "leave text"}, hint{"ctrl+c", "copy command"})
+		return hints(hint{"letter", "run"}, hint{"esc", "leave text"})
 	}
 	return hints(hint{"letter", "run"}, hint{"esc", "back"}, hint{"ctrl+c", "copy command"})
 }
@@ -509,13 +509,17 @@ func overlay(page, box []string, width int) []string {
 // the page, and anything else closes the palette — a direction, enter or tab
 // does only that, and every other key then means what it means on the page.
 // Over a text, the second esc goes back out of the text, and the letters are
-// the text's and `g`, every other one ringing.
+// the text's and `g`, every other one, ctrl+c too, ringing.
 func (r *root) paletteKey(press tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch {
 	case keys.back.matches(press):
 		r.palette = false
 		return r, r.back()
 	case keys.copy.matches(press) && press.Mod&tea.ModAlt == 0:
+		if inText(r.top()) {
+			// over a text the palette offers only the text's commands
+			return r, bell()
+		}
 		r.palette = false
 		return r, tea.Batch(tea.SetClipboard(commandOf(r.top())), r.say("copied the command"))
 	}
