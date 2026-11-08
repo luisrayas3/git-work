@@ -805,8 +805,14 @@ so a story with forty tasks does not push the box a screen away.
 ### Side tables are a stop
 
 The side tables are one stop between the fields and the box,
-reached by `Tab` and `S-Tab` only.
-`↑` and `↓` walk every row of every table, ghosts included;
+reached and left by `Tab` and `S-Tab` only, as the box is.
+`↑` and `↓` walk every row of every table, ghosts included,
+and ring at either end: `↑` from the first row and `↓` from the last.
+Not `↑` from the first row to the header:
+under the fields, in the narrow drawing, it would jump over the whole fields table,
+and even side by side the header is not where the person came from.
+Not arrows that depend on the layout: the keys are the same both ways, the width alone deciding the layout.
+`Enter` on the fields' `links` row still moves into the link tables, not being an arrow, and `S-Tab` is the way back.
 `←` and `→` stay the tab keys, so no stop answers them two ways depending on the call.
 **A row is one issue, and the cursor is a row**:
 `Enter` opens it by the map, and `Esc` there comes back to the same row;

@@ -574,9 +574,11 @@ func (p *showPage) key(press tea.KeyPressMsg) (page, tea.Cmd) {
 }
 
 // down is within a stop first, and to the next stop at its edge, except
-// that the box is a stop of Tab and S-Tab alone: no arrow enters it or leaves
-// it, so the edge drawn against it rings, and so does the box itself
-// (2026-10-08). In the box's text it is the text's own key (textKey).
+// that the box and the side tables are stops of Tab and S-Tab alone: no
+// arrow enters either or leaves it, so the edge drawn against the box rings,
+// and so do both edges of the side tables and the box itself
+// (doc/design/views.md, "The comment box"; doc/design/views.md, "Side tables
+// are a stop"). In the box's text it is the text's own key (textKey).
 func (p *showPage) down(here position) tea.Cmd {
 	switch here.stop {
 	case stopHeader:
@@ -627,7 +629,10 @@ func (p *showPage) up(here position) tea.Cmd {
 			p.side--
 			return nil
 		}
-		p.focusStop(stopHeader)
+		// a region of Tab and S-Tab alone, as the box is: the header is not
+		// where the person came from, and under the fields it is the whole
+		// fields table away
+		return bell()
 	case stopBox:
 		// the row drawn above the box is not where the person came from
 		return bell()

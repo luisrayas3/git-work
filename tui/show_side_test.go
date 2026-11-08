@@ -135,11 +135,19 @@ func TestSideTableUnderWhenNarrow(t *testing.T) {
 	send(page, "tab")
 	require.Equal(t, stopSide, page.current().stop)
 	require.Contains(t, lineWith(page, "›"), one[:idWidth])
+
+	// under the fields too, up from the first side row rings and stays: the
+	// header is the whole fields table away
+	rings(t, page, "up", "up from the first side row rings, under the fields")
+	require.Equal(t, stopSide, page.current().stop)
+	require.Equal(t, 0, page.side)
+	require.Contains(t, lineWith(page, "›"), one[:idWidth])
 }
 
 // TestSideTableTabTraversal: tab and shift-tab are the only way between the
-// fields and the side tables; up and down leave either for the header above
-// and the box below (doc/design/views.md, "Side tables are a stop").
+// fields and the side tables; up from the fields is the header, and every
+// other edge of the two rings, the side tables being left by Tab and S-Tab
+// alone, as the box is (doc/design/views.md, "Side tables are a stop").
 func TestSideTableTabTraversal(t *testing.T) {
 	repo := testRepo(t)
 	story, one, _, _ := storyWithTasks(t, repo)
@@ -170,12 +178,11 @@ func TestSideTableTabTraversal(t *testing.T) {
 	send(page, "shift+tab")
 	require.Equal(t, stopFields, page.current().stop)
 
-	// on the side: up from the first is the header, down past the last rings
+	// on the side: up from the first rings and stays, down past the last rings
 	send(page, "tab")
-	send(page, "up")
-	require.Equal(t, stopHeader, page.current().stop)
-	send(page, "tab", "tab")
+	rings(t, page, "up", "up from the first side row rings")
 	require.Equal(t, stopSide, page.current().stop)
+	require.Equal(t, 0, page.side, "and stays on the first side row")
 	for range len(page.sideItems()) - 1 {
 		send(page, "down")
 	}
