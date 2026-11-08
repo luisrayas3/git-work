@@ -292,6 +292,17 @@ func TestToJiraSkips(t *testing.T) {
 	require.Len(t, skips, 1)
 }
 
+// A user field is sent in the spec's form, {"id": accountId}
+// (doc/design/bridges/jira-api.md, "Creating an issue").
+func TestToJiraUserField(t *testing.T) {
+	cv := newConv(t)
+	ws, skips := cv.m.toWrites("task", []change{{Key: "assignee", Set: sv(eid('2').String())}}, nil, cv.ix)
+	require.Empty(t, skips)
+	require.Len(t, ws, 1)
+	require.Equal(t, "assignee", ws[0].Field)
+	require.JSONEq(t, `{"id":"`+jiratest.RaviID+`"}`, string(ws[0].Set))
+}
+
 // datetime custom fields are RFC 3339 in UTC locally, whatever offset Jira
 // renders (doc/design/jira.md, "What maps").
 func TestDatetime(t *testing.T) {

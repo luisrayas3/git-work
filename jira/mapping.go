@@ -527,7 +527,9 @@ func (m *Mapping) toJira(tm *typeMap, c change, remote *jiraapi.Issue, ix *Index
 		if !ok {
 			return no("identity %s has no Jira account", entity.Id(id).Human())
 		}
-		return edit(fm.ref, map[string]string{"accountId": account})
+		// The spec's form for a user field
+		// (doc/design/bridges/jira-api.md, "Creating an issue").
+		return edit(fm.ref, map[string]string{"id": account})
 	case schema.KindRelation:
 		id, _ := issue.String(c.Set)
 		jid, ok := ix.jiraIssue(entity.Id(id))

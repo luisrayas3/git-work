@@ -93,7 +93,7 @@ func (c *Client) GetIssue(ctx context.Context, idOrKey string, fields, expand []
 }
 
 // CreateIssue creates an issue (doc/design/bridges/jira-api.md, "Creating an issue") and returns its id and key. User
-// fields take {"accountId": …}, issuetype {"id": …}.
+// fields take {"id": accountId}, issuetype {"id": …}.
 func (c *Client) CreateIssue(ctx context.Context, fields map[string]any, properties []Property) (IssueRef, error) {
 	body := map[string]any{"fields": fields}
 	if len(properties) > 0 {

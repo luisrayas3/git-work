@@ -382,7 +382,7 @@ func TestFakeCreateEditDelete(t *testing.T) {
 		"issuetype":               map[string]string{"id": "10001"},
 		"summary":                 "Guest checkout",
 		"description":             jiraapi.TextToADF(desc),
-		"assignee":                map[string]string{"accountId": jiratest.MiaID},
+		"assignee":                map[string]string{"id": jiratest.MiaID},
 		"labels":                  []string{"web"},
 		"duedate":                 jiraapi.Date{Time: time.Date(2026, 8, 1, 0, 0, 0, 0, time.UTC)},
 		jiratest.FieldStoryPoints: 5,

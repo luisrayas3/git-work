@@ -695,9 +695,13 @@ starting from the oldest changelog and smallest issue ID … up to 1000 issues a
 }
 ```
 
-- A user field takes `{"id": "<accountId>"}`, as the spec's examples do.
+- A user field (`assignee`, `reporter`, a user custom field) takes `{"id": "<accountId>"}`:
+  the spec's create and edit examples set `assignee` and `reporter` so,
+  and the user-privacy migration guide
+  (`https://developer.atlassian.com/cloud/jira/platform/deprecation-notice-user-privacy-api-migration-guide/`)
+  says "`id` (for account ID) used instead of `name` for user fields, such as `reporter` and `assignee`".
   **Unconfirmed**: `{"accountId": "…"}` is accepted too.
-  Assumed: both work; `{"accountId"}` is the form sent, and the fake accepts both.
+  Assumed: it may not be; the fake accepts both.
 - The project is `{"id"}` or `{"key"}`; the issue type is `{"id"}`.
   **Unconfirmed**: the issue type as `{"name"}`.
   Assumed: not accepted; the fake takes `{"id"}` only.
