@@ -605,7 +605,12 @@ Not on the comment box, which would leave the cursor below what the page is open
 The box is **one stop, typed in once entered**.
 On it, `Space` puts the cursor in the text and `Enter` does nothing;
 in the text every key is text, `Enter` sends, `M-Enter` (or `S-Enter` where the terminal tells it) is a newline,
-and `Esc` leaves the text keeping the draft.
+`Esc` opens the palette over the text, which stays focused underneath,
+and a second `Esc` leaves the text keeping the draft.
+This is the page's own rule, one `Esc` the palette and two back, one level in,
+so `Esc` means the same in the text and outside it;
+from a text the palette offers only the text's commands
+([the palette over a text](tui.md#the-palette-over-a-text)).
 Not typing on arrival, because a page whose every letter is text has no keys of its own.
 Not `Enter` as newline, because once typing is entered with `Space`, `Enter` sending is what every chat box does.
 On the box the cursor washes it whole, every line, and marks it `›` as a row is, on its first line only;
@@ -630,8 +635,8 @@ on its exit the file's text, less its trailing whitespace, is the draft, and the
 `Enter` still sends: not *saving sends*, because on new `Enter` accepts the draft rather than creating,
 so one exit would mean two things.
 The editor failing, or the file left as it was, leaves the draft as it was, a failure said in the status line.
-`M-e` is no textarea key, so it is read before the text gets it;
-`Esc` then `e` typed slowly from the text is `Esc` leaving it, then `e` read as `esc e`.
+`M-e` is no textarea key, so it is read before the text gets it,
+and from the text `Esc` then `e` typed slowly is the palette's `e`, the same key.
 Anywhere on show or new but a text box it rings.
 
 ### The tabs
@@ -655,10 +660,11 @@ the comment box over the body's current text, with the box's keys,
 and `Enter` writes an edit of the first comment.
 An empty body is refused with the bell: the model has no issue without one.
 The editor stands where the text was read and stays, blurred, while it holds an unwritten draft;
-leaving with one asks for a second `Esc`, and an editor left untouched keeps nothing.
+`Esc` opens the palette over it, as in the box, and a second `Esc` leaves it;
+leaving the page with a draft asks for a second `Esc`, and an editor left untouched keeps nothing.
 Where the author and time stand over the description,
 a dim line over the editor says what it holds,
-*being rewritten* while the cursor is in it and *a draft, not written* after an `Esc`,
+*being rewritten* while the cursor is in it and *a draft, not written* after it is left,
 so a draft never reads as the description written.
 Its keys are on the bottom line, as the box's are
 ([key hints are on the bottom line only](tui.md#key-hints-are-on-the-bottom-line-only)).
@@ -877,6 +883,7 @@ The type picker is the schema's types; with no type the table is empty, the fiel
 The fields table has show's editors and the `links` row over the draft's stored link fields,
 offering no inverse, since the draft has no id to write into another issue.
 The description box is the comment box over the body; `Enter` accepts the text into the draft, and an empty one is allowed.
+`Esc` in it opens the palette over the text and a second leaves it, keeping the text, as in show's box.
 `esc e` writes it in the external editor as on show's box, what comes back being the draft's body; nothing is created on the editor's exit.
 Create is the only way to commit, and `Enter` elsewhere opens or does nothing, so nothing creates by accident.
 

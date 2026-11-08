@@ -113,6 +113,11 @@ func (r *root) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if r.search != nil {
 			return r.searchKey(msg)
 		}
+		if inText(r.top()) {
+			if cmd, done := r.textKey(msg); done {
+				return r, cmd
+			}
+		}
 		if atRest(r.top()) {
 			if cmd, done := r.restKey(msg); done {
 				return r, cmd

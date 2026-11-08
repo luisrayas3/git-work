@@ -68,9 +68,6 @@ type newPage struct {
 	cell   int
 	row    int
 	warned bool
-	// escaped says the last key was the esc that left the description's
-	// text: an `e` after it is `esc e` typed slowly (external.go).
-	escaped bool
 
 	editor *editor
 	help   *help
@@ -355,13 +352,11 @@ func (p *newPage) key(press tea.KeyPressMsg) (page, tea.Cmd) {
 	}
 
 	here := p.current()
-	escaped := p.escaped
-	p.escaped = false
 	switch {
 	case keys.back.matches(press):
 		return p.leave()
 
-	case keys.external.matches(press), escaped && press.String() == keys.external.letter:
+	case keys.external.matches(press):
 		return p, p.external(here)
 
 	case keys.next.matches(press):
@@ -455,12 +450,12 @@ func (p *newPage) sideways(here position, by int) {
 // textKey is a key typed in the description's text: enter accepts the text
 // into the draft and leaves it, esc leaves it too, keeping it, and the
 // newline is alt+enter, which the box binds (doc/design/views.md, "The
-// creator page").
+// creator page"). The esc that comes here is the palette's second: the
+// first opened the palette over the text (palette.go).
 func (p *newPage) textKey(press tea.KeyPressMsg) (page, tea.Cmd) {
 	switch {
 	case keys.act.matches(press), keys.cancel.matches(press):
 		p.setTyping(false)
-		p.escaped = keys.cancel.matches(press)
 		return p, nil
 	case keys.external.matches(press):
 		return p, p.external(p.current())
@@ -916,7 +911,7 @@ func (p *newPage) hintLine() string {
 // anywhere, because nothing is written until Create.
 func draftBoxHints(typing bool) []hint {
 	if typing {
-		return []hint{{"enter", "done"}, {"alt+enter", "newline"}, {"esc e", "editor"}, {"esc", "leave"}}
+		return []hint{{"enter", "done"}, {"alt+enter", "newline"}, {"esc e", "editor"}, {"esc esc", "leave"}}
 	}
 	return []hint{{"space", "type"}, {"tab", "skip"}, {"esc e", "editor"}}
 }

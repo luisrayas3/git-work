@@ -125,6 +125,12 @@ So the two are one key, by definition, on every terminal:
 `alt+s` is search, as `esc s` is,
 and the palette's letters agree with emacs's `alt` keys wherever emacs has one,
 being the same keys.
+In a text the same holds:
+no palette command from a text has a letter the textarea binds under `alt`
+(`alt+f`, `alt+b`, `alt+d`, `alt+c`, `alt+l`, `alt+u`),
+so `alt+e` in the text is `esc e`,
+and the other `alt` letters stay the textarea's word keys
+([The palette over a text](#the-palette-over-a-text)).
 Bubble Tea v2 already asks every terminal for the kitty protocol's disambiguation,
 which removes the wait after a lone `ESC` and tells `shift+enter` from `enter`;
 no key means something different because of it.
@@ -179,14 +185,19 @@ and it is the key a standard user copies with.
 and a second `esc` is back:
 out of a kept filter, out of an issue,
 and from the first page out of the program.
+In a text the rule is the same, one level in:
+the first `esc` opens the palette over the text,
+and the second leaves the text, its draft kept
+([The palette over a text](#the-palette-over-a-text)).
 `esc esc` typed quickly arrives as `alt+esc`, and is back too.
 So one stray `esc` cannot end a session,
 and the place it lands instead is the palette,
 which is a place worth standing on.
 A page holding a draft says *back again drops draft* on the first back.
 
-While a page is editing, filtering, grabbed or showing the help,
-`esc` is that state's own and cancels it, and nothing else.
+While a page is editing a one-line input (a title, a picker's filter,
+a list's filter, the query editor), filtering, grabbed or showing the help,
+`esc` is that state's own and clears or cancels it, and nothing else.
 
 ### The help is the keymap
 
@@ -244,7 +255,8 @@ A program that does not parse is cut at its top-level pipes instead.
 The section is at most twelve lines, the twelfth saying how many more there are,
 and it gives up lines first where the window is shorter.
 
-Then this page's commands, and everywhere's.
+Then this page's commands, and everywhere's;
+over a text, the text's alone ([The palette over a text](#the-palette-over-a-text)).
 
 ### A letter means one thing on every page
 
@@ -296,6 +308,35 @@ any other key closes it and then means what it means on the page.
 `ctrl+c` copies the top page's call as the shell command that draws it,
 `git work view KIND '{…}'`,
 so the command behind the screen is one keystroke from the shell.
+
+### The palette over a text
+
+In a text, the three boxes whose keys are text
+(show's comment box, show's description editor, new's description box),
+`esc` opens the palette over the text,
+and the text stays focused underneath, its draft as it was.
+A second `esc` leaves the text, keeping the draft:
+`space` goes back in,
+and leaving the page with a draft still asks for a second `esc`.
+So `esc` means the same in the text and outside it,
+one press the palette, two back,
+and `esc esc` typed quickly, `alt+esc`, leaves the text too.
+
+From a text the palette offers only the text's commands,
+in a section of its own, *this text*:
+today `e`, writing the text in `$EDITOR`,
+and `g`, which closes the palette and returns to the text.
+Any other letter rings, the palette open.
+Not the full palette:
+a page command from a text would first have to leave the text,
+a second thing for one key to do.
+Its status line reads *esc: leave text*.
+
+A text command's letter is never one of the textarea's `alt` keys,
+and a test checks every one against the textarea's key map,
+so `alt+<letter>` and `esc <letter>` are one key in the text as everywhere:
+`alt+e` in the text is the editor,
+and the other `alt` letters are the textarea's word keys.
 
 ### Editing the query
 

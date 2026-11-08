@@ -302,6 +302,8 @@ and an `optional` one is off until it is named.
   on the box or typing in it, writes the text in git's editor
   (`GIT_EDITOR`, `core.editor`, `VISUAL`, `EDITOR`);
   on exit the text is the box's draft, and `Enter` still sends or writes it.
+  Typing in one of those boxes, `Esc` opens the palette with only the text's commands
+  (`e`, and `g` back to the text), and a second `Esc` leaves the text, keeping the draft.
 - On a list and a gantt a row the query makes may carry a top-level `key`,
   its identity on the screen, so one issue can be drawn twice;
   its `id` stays the issue it acts on, and may be left out beside a key,

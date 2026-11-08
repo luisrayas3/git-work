@@ -83,10 +83,6 @@ type showPage struct {
 	// typing says the cursor is in the box's text, where keys are text;
 	// space on the box starts it, and enter (sent) or esc ends it.
 	typing bool
-	// escaped says the last key was the esc that left a text, the box's or
-	// the description's: an `e` after it is `esc e` typed slowly, and writes
-	// the text in $EDITOR as alt+e does (external.go).
-	escaped bool
 	// cell is the header cell under the cursor, kept while the cursor is
 	// elsewhere, like row; it starts on the title.
 	cell int
@@ -505,13 +501,11 @@ func (p *showPage) key(press tea.KeyPressMsg) (page, tea.Cmd) {
 	}
 
 	here := p.current()
-	escaped := p.escaped
-	p.escaped = false
 	switch {
 	case keys.back.matches(press):
 		return p.leave()
 
-	case keys.external.matches(press), escaped && press.String() == keys.external.letter:
+	case keys.external.matches(press):
 		return p, p.external(here)
 
 	case keys.next.matches(press):
@@ -675,6 +669,8 @@ func (p *showPage) sideways(here position, by int) {
 // textKey is a key typed with the cursor in the comment box's text, where
 // every letter is text, space included: enter sends, esc leaves the text with
 // the draft kept, and only the keys no one types prose with do anything else.
+// The esc that comes here is the palette's second: the first opened the
+// palette over the text (palette.go).
 // A newline is alt+enter, or shift+enter where the terminal tells it from
 // enter (keys.newline, which the box binds).
 func (p *showPage) textKey(press tea.KeyPressMsg) (page, tea.Cmd) {
@@ -685,7 +681,6 @@ func (p *showPage) textKey(press tea.KeyPressMsg) (page, tea.Cmd) {
 		return p, p.external(p.current())
 	case keys.cancel.matches(press):
 		p.setTyping(false)
-		p.escaped = true
 		if p.box.draft() != "" {
 			p.status = "draft kept"
 		}
@@ -709,8 +704,9 @@ func (p *showPage) textKey(press tea.KeyPressMsg) (page, tea.Cmd) {
 // descKey is a key typed in the description's editor, where every key is
 // text as it is in the comment box: enter writes, a newline is alt+enter
 // (keys.newline, which the box binds), and esc leaves the editor with the
-// draft kept. Esc is the only way out, because the editor is drawn over the
-// tab it edits and a stray tab key would leave it behind.
+// draft kept, the palette's second esc as in the comment box. Esc is the
+// only way out, because the editor is drawn over the tab it edits and a stray
+// tab key would leave it behind.
 func (p *showPage) descKey(press tea.KeyPressMsg) (page, tea.Cmd) {
 	switch {
 	case keys.act.matches(press):
@@ -720,7 +716,6 @@ func (p *showPage) descKey(press tea.KeyPressMsg) (page, tea.Cmd) {
 	case keys.cancel.matches(press):
 		p.editingDesc = false
 		p.desc.focus(false)
-		p.escaped = true
 		// an editor opened and left untouched leaves nothing behind: the tab
 		// reads the store again, and there is no draft to say was kept
 		if !p.descDirty() {

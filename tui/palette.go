@@ -32,8 +32,14 @@ import (
 // line's double press (doc/design/tui.md, "Back is two presses"), and the
 // call line is the palette's first section now.
 //
-// While a page is editing, filtering, grabbing or showing the help, `esc` is
-// that state's own and cancels it; the palette opens only on a page at rest.
+// In a text — show's comment box and description editor, new's description
+// box — `esc` opens the palette too, over the text, which stays focused
+// underneath, and a second `esc` leaves the text, its draft kept. From a
+// text the palette offers only the text's commands, and `g` back to it
+// (doc/design/tui.md, "The palette over a text").
+//
+// While a page is editing a one-line input, filtering, grabbing or showing
+// the help, `esc` is that state's own and cancels it.
 
 // paletteEntry is one entry on the palette: its letter and what it does here.
 type paletteEntry struct {
@@ -128,6 +134,38 @@ func pageCommands(p page) []paletteEntry {
 		return []paletteEntry{entry(keys.copy, "copy output")}
 	}
 	return nil
+}
+
+// textCommands are the palette's commands from a text, before close: write
+// the text in $EDITOR (external.go). None of their letters is one of the
+// textarea's alt keys, so that `alt+<letter>` and `esc <letter>` are one key
+// in the text too (doc/design/tui.md, "The palette over a text").
+func textCommands() []paletteEntry {
+	return []paletteEntry{entry(keys.external, "editor")}
+}
+
+// isTextCommand says a letter is one of textCommands.
+func isTextCommand(letter string) bool {
+	for _, c := range textCommands() {
+		if c.letter == letter {
+			return true
+		}
+	}
+	return false
+}
+
+// inText says the cursor is in a text, a box whose keys are text: show's
+// comment box or description editor, new's description box. Its esc opens
+// the palette, as a page at rest does.
+func inText(p page) bool {
+	switch p := p.(type) {
+	case *showPage:
+		return p.help == nil && p.editor == nil && p.filtering == nil && p.grab == nil &&
+			p.typingIn() != nil
+	case *newPage:
+		return p.help == nil && p.editor == nil && p.inText()
+	}
+	return false
 }
 
 // atRest says the page reads its own keys: nothing is being edited,
@@ -241,8 +279,12 @@ func openCreator(p page) tea.Cmd {
 	return openNew(repo, showsOf(p), host.IssueDocument{})
 }
 
-// paletteHints is the status line while the palette is open.
-func paletteHints() string {
+// paletteHints is the status line while the palette is open; over a text,
+// the second esc leaves the text and not the page.
+func paletteHints(text bool) string {
+	if text {
+		return hints(hint{"letter", "run"}, hint{"esc", "leave text"}, hint{"ctrl+c", "copy command"})
+	}
 	return hints(hint{"letter", "run"}, hint{"esc", "back"}, hint{"ctrl+c", "copy command"})
 }
 
@@ -306,6 +348,9 @@ func (r *root) paletteLines(width, room int) []string {
 	col := r.labelWidth()
 	commands := append(section("this page", r.pageCommands(), col, width),
 		section("everywhere", everywhere(), col, width)...)
+	if inText(top) {
+		commands = section("this text", append(textCommands(), entry(keys.closePalette, "close")), col, width)
+	}
 	head := r.callHead(col, width)
 	query := paletteQuery(top, col, width)
 
@@ -412,7 +457,7 @@ var stylePalette = lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).Padding(
 // changed under it.
 func (r *root) withPalette(content string) string {
 	inner, room := r.boxRoom(content)
-	return r.withBox(content, r.paletteLines(inner, room), paletteHints())
+	return r.withBox(content, r.paletteLines(inner, room), paletteHints(inText(r.top())))
 }
 
 // boxRoom is the inside of a box drawn over the page: how wide, and how many
@@ -463,6 +508,8 @@ func overlay(page, box []string, width int) []string {
 // its command, the copy key copies the call as the shell command that draws
 // the page, and anything else closes the palette — a direction, enter or tab
 // does only that, and every other key then means what it means on the page.
+// Over a text, the second esc goes back out of the text, and the letters are
+// the text's and `g`, every other one ringing.
 func (r *root) paletteKey(press tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch {
 	case keys.back.matches(press):
@@ -473,6 +520,13 @@ func (r *root) paletteKey(press tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return r, tea.Batch(tea.SetClipboard(commandOf(r.top())), r.say("copied the command"))
 	}
 	if l, ok := letter(press); ok {
+		if inText(r.top()) && !isTextCommand(l) {
+			if l != keys.closePalette.letter {
+				return r, bell()
+			}
+			r.palette = false
+			return r, nil
+		}
 		r.palette = false
 		return r.Update(altOf(l))
 	}
@@ -489,13 +543,27 @@ func (r *root) paletteKey(press tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	return r.Update(press)
 }
 
-// back is the page's own back, which the second esc is: out of a filter,
-// out of an issue — a draft warned about first — and from the first page
-// out of the program.
+// back is the page's own back, which the second esc is: out of a text, its
+// draft kept, out of a filter, out of an issue — a draft warned about first —
+// and from the first page out of the program.
 func (r *root) back() tea.Cmd {
 	top, cmd := r.top().Update(tea.KeyPressMsg{Code: tea.KeyEscape})
 	r.pages[len(r.pages)-1] = top
 	return cmd
+}
+
+// textKey is a key in a text before the page sees it: esc opens the palette
+// over the text, and esc esc typed quickly, one key, leaves the text. It
+// answers false for every other key, which is the text's.
+func (r *root) textKey(press tea.KeyPressMsg) (tea.Cmd, bool) {
+	switch {
+	case keys.back.matches(press):
+		r.palette = true
+		return nil, true
+	case press.String() == "alt+esc":
+		return r.back(), true
+	}
+	return nil, false
 }
 
 // restKey is a key on a page at rest, before the page sees it: esc opens

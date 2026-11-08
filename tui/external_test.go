@@ -4,8 +4,10 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 
+	"charm.land/bubbles/v2/key"
 	"github.com/stretchr/testify/require"
 
 	"github.com/git-bug/git-bug/host"
@@ -102,28 +104,135 @@ func TestEscEWritesTheCommentInTheEditor(t *testing.T) {
 	require.Equal(t, "from the\neditor", after.Comments[len(after.Comments)-1].Message)
 }
 
-// TestEscETypedSlowlyFromTheText: esc leaves the text, and an e after it is
-// esc e all the same; an e with no esc before it is nothing.
-func TestEscETypedSlowlyFromTheText(t *testing.T) {
+// TestEscInATextOpensThePalette: in a text, esc opens the palette over it,
+// the text focused underneath and the draft as it was; from there e is the
+// editor, g goes back to the text, any other letter rings, and a second esc
+// leaves the text, the draft kept (doc/design/tui.md, "The palette over a
+// text").
+func TestEscInATextOpensThePalette(t *testing.T) {
 	t.Setenv("GIT_EDITOR", "true")
 	repo := testRepo(t)
 	id := newIssue(t, repo, map[string]any{"title": "one"})
 
 	page := show(t, repo, id, nil)
 	page.focusStop(stopBox)
-	page = send(page, "space", "a", "esc").(*showPage)
-	require.False(t, page.inText())
-	opensTheEditor(t, page, "e")
+	stack := stackOf(page, 100, 30)
+	for _, key := range []string{"space", "a", "b"} {
+		run(stack, key)
+	}
+	inBox := func() {
+		t.Helper()
+		shown := stack.top().(*showPage)
+		require.True(t, shown.inText(), "the text focused")
+		require.Equal(t, "ab", shown.box.draft(), "the draft as it was")
+	}
+	inBox()
 
-	updated, cmd := page.Update(press("e"))
-	require.Nil(t, cmd, "an e alone is no command")
-	page = updated.(*showPage)
-	require.Equal(t, "a", page.box.draft())
+	// esc opens the palette over the text, which lists the text's commands
+	run(stack, "esc")
+	require.True(t, stack.palette)
+	inBox()
+	drawn := drawnStack(stack)
+	require.Contains(t, drawn, "this text")
+	require.Contains(t, drawn, "e editor")
+	require.NotContains(t, drawn, "expand", "no page command")
+	require.Contains(t, drawn, "esc: leave text")
 
-	// the description's editor too
-	page = send(page, "tab", "space", "esc").(*showPage)
-	require.Equal(t, tabDescription, page.tab)
-	opensTheEditor(t, page, "e")
+	// a letter that is no text command rings, the palette open
+	for _, letter := range []string{"x", "k"} {
+		_, cmd := stack.Update(press(letter))
+		require.Equal(t, bell()(), cmd(), letter)
+		require.True(t, stack.palette)
+		inBox()
+	}
+
+	// g goes back to the text
+	require.Nil(t, run(stack, "g"))
+	require.False(t, stack.palette)
+	inBox()
+
+	// e opens the editor, from the text
+	run(stack, "esc")
+	_, cmd := stack.Update(press("e"))
+	require.NotNil(t, cmd, "the editor's command")
+	require.NotEqual(t, bell()(), cmd(), "not the bell")
+	require.False(t, stack.palette)
+	inBox()
+
+	// alt+e, which esc e typed quickly is, is the editor too
+	_, cmd = stack.Update(press("alt+e"))
+	require.NotNil(t, cmd)
+	require.NotEqual(t, bell()(), cmd())
+	inBox()
+
+	// esc esc leaves the text, the draft kept, the page still there
+	run(stack, "esc")
+	run(stack, "esc")
+	require.False(t, stack.palette)
+	require.Len(t, stack.pages, 1)
+	shown := stack.top().(*showPage)
+	require.False(t, shown.inText())
+	require.Equal(t, "ab", shown.box.draft())
+	require.Equal(t, "draft kept", shown.status)
+
+	// esc esc typed quickly, one key, too
+	run(stack, "space")
+	inBox()
+	run(stack, "alt+esc")
+	require.False(t, stack.top().(*showPage).inText())
+	require.Len(t, stack.pages, 1)
+
+	// the description's editor: esc esc leaves it, an untouched one gone
+	run(stack, "tab")
+	run(stack, "space")
+	require.True(t, stack.top().(*showPage).editingDesc)
+	run(stack, "esc")
+	require.True(t, stack.palette)
+	require.True(t, stack.top().(*showPage).editingDesc, "the text focused")
+	_, cmd = stack.Update(press("e"))
+	require.NotEqual(t, bell()(), cmd(), "the editor")
+	run(stack, "esc")
+	run(stack, "esc")
+	require.False(t, stack.top().(*showPage).editingDesc)
+	require.Nil(t, stack.top().(*showPage).desc, "nothing kept")
+	require.Len(t, stack.pages, 1)
+
+	// new's description box
+	draft := newView(t, repo, `{"draft":{"fields":{"type":"task","title":"one"}}}`)
+	draft.editor = nil
+	draft.focusStop(stopBox)
+	stack = stackOf(draft, 100, 30)
+	run(stack, "space")
+	run(stack, "x")
+	run(stack, "esc")
+	require.True(t, stack.palette)
+	require.True(t, stack.top().(*newPage).inText())
+	_, cmd = stack.Update(press("e"))
+	require.NotEqual(t, bell()(), cmd(), "the editor")
+	run(stack, "esc")
+	run(stack, "esc")
+	require.False(t, stack.top().(*newPage).inText())
+	require.Equal(t, "x", stack.top().(*newPage).body.draft())
+	require.Len(t, stack.pages, 1)
+}
+
+// TestTextCommandsAreNoTextareaKey: no text command's letter is one of the
+// textarea's alt keys, so alt+<letter> and esc <letter> are one key in the
+// text too (doc/design/tui.md, "The palette over a text").
+func TestTextCommandsAreNoTextareaKey(t *testing.T) {
+	bound := map[string]bool{}
+	keyMap := reflect.ValueOf(newCommentBox(80).area.KeyMap)
+	for i := range keyMap.NumField() {
+		if b, ok := keyMap.Field(i).Interface().(key.Binding); ok {
+			for _, k := range b.Keys() {
+				bound[k] = true
+			}
+		}
+	}
+	require.True(t, bound["alt+f"], "the textarea's word keys are read")
+	for _, c := range textCommands() {
+		require.False(t, bound["alt+"+c.letter], "alt+%s is the textarea's", c.letter)
+	}
 }
 
 // TestEscEWritesTheDescriptionInTheEditor: on the description tab, or in its
@@ -203,8 +312,4 @@ func TestEscEWritesNewsDescription(t *testing.T) {
 	page = send(page, "enter").(*newPage)
 	require.False(t, page.inText())
 	require.Equal(t, "the body", page.body.draft())
-
-	// slowly from the text, too
-	page = send(page, "space", "esc").(*newPage)
-	opensTheEditor(t, page, "e")
 }
