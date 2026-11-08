@@ -124,3 +124,57 @@ func TestDisplayNamespaceThroughGit(t *testing.T) {
 	t.Setenv("GIT_CONFIG_PARAMETERS", "'"+DisplayIdKey+"'='linear'")
 	require.Equal(t, "linear", open(t, raw).DisplayNamespace())
 }
+
+// TestIssueHumanIdBuildsOnce: drawing every issue builds the alias index once.
+// Building it loads the copies of a shared alias, and loading an issue
+// changes no excerpt, so the generation the index was built at stays current
+// (doc/design/cli.md, "An alias is drawn only where it names that issue").
+func TestIssueHumanIdBuildsOnce(t *testing.T) {
+	c := newDisplayTestCache(t, "jira")
+	c.Issues().SetReach("jira", testReach)
+
+	var all []*IssueCache
+	for i := int64(0); i < 4; i++ {
+		all = append(all, newCopy(t, c, "PROJ-1", "10001", 100+i))
+		all = append(all, newCopy(t, c, "PROJ-2", "10002", 200+i))
+	}
+	for i := 0; i < 3; i++ {
+		plain, err := newTask(t, c, nil)
+		require.NoError(t, err)
+		all = append(all, plain)
+	}
+	// a cache smaller than the copies of one alias, so building the index
+	// reads them from disk and evicts as it goes
+	c.Issues().SetCacheSize(1)
+
+	require.Equal(t, "PROJ-1", c.IssueHumanId(all[0].Id()))
+	gen := c.Issues().Generation()
+	for _, i := range all {
+		c.IssueHumanId(i.Id())
+	}
+	require.Equal(t, gen, c.Issues().Generation())
+	require.Equal(t, gen, c.display.gen)
+	require.Equal(t, "PROJ-2", c.IssueHumanId(all[1].Id()))
+	require.Equal(t, all[2].Id().Human(), c.IssueHumanId(all[2].Id()))
+	require.Equal(t, all[8].Id().Human(), c.IssueHumanId(all[8].Id()))
+}
+
+// TestResolveLeavesGeneration: loading an entity into memory, and evicting
+// one, changes no excerpt, so the generation does not move.
+func TestResolveLeavesGeneration(t *testing.T) {
+	c := newDisplayTestCache(t, "")
+	a, err := newTask(t, c, nil)
+	require.NoError(t, err)
+	b, err := newTask(t, c, nil)
+	require.NoError(t, err)
+	c.Issues().SetCacheSize(0)
+	_, loaded := c.Issues().cached[a.Id()]
+	require.False(t, loaded)
+
+	gen := c.Issues().Generation()
+	_, err = c.Issues().Resolve(a.Id())
+	require.NoError(t, err)
+	_, err = c.Issues().Resolve(b.Id())
+	require.NoError(t, err)
+	require.Equal(t, gen, c.Issues().Generation())
+}

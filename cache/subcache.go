@@ -488,8 +488,9 @@ func (sc *SubCache[EntityT, ExcerptT, CacheT]) Resolve(id entity.Id) (CacheT, er
 
 	cached = sc.makeCached(e, sc.entityUpdated)
 
+	// loading an entity changes no excerpt, so the generation stays: an index
+	// built from the excerpts loads entities, and must not invalidate itself
 	sc.mu.Lock()
-	sc.generation++
 	sc.cached[id] = cached
 	sc.lru.Add(id)
 	sc.mu.Unlock()
@@ -499,16 +500,17 @@ func (sc *SubCache[EntityT, ExcerptT, CacheT]) Resolve(id entity.Id) (CacheT, er
 	return cached, nil
 }
 
-// ResolvePrefix retrieve an entity matching an id prefix. It fails if multiple
-// entities match.
-// Generation is a number that changes whenever the excerpts may have, so that
-// an index derived from every excerpt is rebuilt only when it has to be.
+// Generation is a number that changes whenever the excerpts may have, and only
+// then, so that an index derived from every excerpt is rebuilt only when it
+// has to be. Loading or evicting an entity leaves it alone.
 func (sc *SubCache[EntityT, ExcerptT, CacheT]) Generation() uint64 {
 	sc.mu.RLock()
 	defer sc.mu.RUnlock()
 	return sc.generation
 }
 
+// ResolvePrefix retrieve an entity matching an id prefix. It fails if multiple
+// entities match.
 func (sc *SubCache[EntityT, ExcerptT, CacheT]) ResolvePrefix(prefix string) (CacheT, error) {
 	return sc.ResolveMatcher(func(excerpt ExcerptT) bool {
 		return excerpt.Id().HasPrefix(prefix)
@@ -821,7 +823,6 @@ func (sc *SubCache[EntityT, ExcerptT, CacheT]) updateExcerpt(id entity.Id) error
 // evictIfNeeded will evict an entity from the cache if needed
 func (sc *SubCache[EntityT, ExcerptT, CacheT]) evictIfNeeded() {
 	sc.mu.Lock()
-	sc.generation++
 	defer sc.mu.Unlock()
 	if sc.lru.Len() <= sc.maxLoaded {
 		return
