@@ -16,7 +16,7 @@ Its static half is `host/quickstart.md`.
 
 ## Build and test
 
-Requires **Go 1.26** (native, or `nix shell nixpkgs#go`)
+Requires **Go 1.26** (native, or `nix develop`)
 and `git` on the `PATH`.
 
 ```sh
@@ -24,7 +24,11 @@ go build -o git-work .   # ~/.local/bin/git-work is a symlink to it; rebuild aft
 go test ./...
 gofmt -l .               # must print nothing
 go generate              # after a command or flag changes: doc/md, doc/man, misc/completion
+nix build                # after go.sum changes: update flake.nix's vendorHash (CONTRIBUTING.md, "The flake")
 ```
+
+The team installs git-work from `flake.nix`;
+a version is a tag on the commit that sets `VERSION` (CONTRIBUTING.md, "Versions").
 
 ## Layout
 

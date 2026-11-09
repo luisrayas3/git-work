@@ -5,7 +5,7 @@
 !/misc/completion/powershell/git-work
 !/misc/completion/zsh/git-work
 .gitkeep
-dist
+/result
 coverage.txt
 .idea/
 .git_bak*

@@ -8,8 +8,8 @@ import (
 	"golang.org/x/mod/semver"
 )
 
-// version is injected at build time with `-X main.version=<version>`. See
-// //:.goreleaser.yaml for releases, and //:Makefile for local builds.
+// version is injected at build time with `-X main.version=<version>`: from
+// //:VERSION by //:flake.nix, and from `git describe` by //:Makefile.
 var version = "undefined"
 
 // getVersion returns the version information embedded in the binary, in the

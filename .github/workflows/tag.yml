@@ -1,0 +1,28 @@
+---
+name: tag
+
+# A version is a tag on the commit that sets //:VERSION; the flake stamps the
+# binary from that file, since a Nix build has no tags to read. This fails a
+# tag whose name differs from it.
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+jobs:
+  matches-version:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Tag matches VERSION
+        run: |
+          want="v$(tr -d '[:space:]' < VERSION)"
+          if [ "$GITHUB_REF_NAME" != "$want" ]; then
+            echo "::error::tag $GITHUB_REF_NAME, but VERSION says $want"
+            exit 1
+          fi

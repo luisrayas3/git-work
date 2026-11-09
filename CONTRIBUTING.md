@@ -12,9 +12,8 @@ without an explicit decision.
 
 git-work is Go only; there is no JavaScript toolchain.
 You need `git` and the Go version `go.mod` names.
-[`.tool-versions`](./.tool-versions) pins what development uses,
-for [asdf](https://asdf-vm.com) (`asdf install` in the repository).
-`goreleaser` there is only for building release artifacts locally.
+`nix develop` gives a shell with both, from [`flake.nix`](./flake.nix);
+[`.tool-versions`](./.tool-versions) pins Go for [asdf](https://asdf-vm.com) instead.
 
 ## Building and testing
 
@@ -53,10 +52,24 @@ The change that builds it updates the design documents in
 which are organized by aspect
 and say what holds now and why.
 
-## Releases
+## Versions
 
-Releases are cut by [GoReleaser](https://goreleaser.com) when a `v*` tag is
-pushed; see [`.goreleaser.yaml`](./.goreleaser.yaml) and
-[`.github/workflows/release.yml`](./.github/workflows/release.yml).
-`goreleaser release --snapshot --clean` builds one locally into `dist/`
-without publishing anything.
+A version is a `v*` tag on the commit that sets [`VERSION`](./VERSION).
+A Nix build has no `.git` to read tags from,
+so the flake stamps the binary from that file, with the commit:
+`v0.1.0+664ae8d`.
+`make` stamps it with `git describe` instead.
+To release, set `VERSION` in a commit on `trunk`, tag that commit `v<VERSION>`,
+and push the tag;
+CI fails a tag whose name differs from `VERSION`.
+There are no release artifacts: devenv and Nix build from the tag.
+
+## The flake
+
+[`flake.nix`](./flake.nix) is how the team installs git-work
+([`INSTALLATION.md`](./INSTALLATION.md)).
+Its `vendorHash` is a hash of the Go dependencies,
+and goes stale whenever `go.sum` changes;
+CI runs `nix build` and fails when it has.
+To update it, set it to `pkgs.lib.fakeHash`, run `nix build`,
+and copy the hash it reports.

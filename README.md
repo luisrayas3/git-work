@@ -37,21 +37,28 @@ the issue model, the schema, the command line, the views and the Jira bridge.
 
 ## Install
 
-`git-work` is a single Go binary.
-It needs `git` on your `PATH`,
-and Go (see `go.mod`) to build:
+`git-work` is a single Go binary, and needs `git` on your `PATH`.
+The repository is a Nix flake,
+so a [devenv](https://devenv.sh) project takes it as an input
+and nobody needs Go installed:
 
-```sh
-git clone https://github.com/luisrayas3/git-work
-cd git-work
-go build -o git-work .
+```yaml
+# devenv.yaml
+inputs:
+  git-work:
+    url: github:chef-robotics/git-work
 ```
 
-Put `git-work` anywhere on your `PATH`;
-git then dispatches `git work <command>` to it.
-`make install` builds and installs into `$GOPATH/bin` instead.
-Shell completions are in [`misc/completion`](misc/completion),
-man pages in [`doc/man`](doc/man).
+```nix
+# devenv.nix
+{ pkgs, inputs, ... }:
+{
+  packages = [ inputs.git-work.packages.${pkgs.stdenv.system}.default ];
+}
+```
+
+With Go, `go build -o git-work .` in a clone builds it.
+git dispatches `git work <command>` to any `git-work` on the `PATH`.
 [`INSTALLATION.md`](INSTALLATION.md) has the details.
 
 ## Getting started
