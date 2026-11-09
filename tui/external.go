@@ -51,18 +51,19 @@ type externalTextMsg struct {
 	followed bool
 	base     string
 	// rewritten says git-work wrote over the file while it was open, or
-	// opened it on a merge; reverted, that the editor left the file as
-	// git-work last wrote it, so text is the tracker's, base
-	// (doc/design/views.md, "An untouched refresh is reverted").
-	rewritten, reverted bool
+	// opened it on a merge; the file is the draft either way
+	// (doc/design/views.md, "A merge is the draft").
+	rewritten bool
 	// followErr is what kept the file from following, if anything did.
 	followErr error
 }
 
 // changed says the editor left a text the box does not already hold. An
-// editor that adds the newline a file ends with has changed nothing.
+// editor that adds the newline a file ends with has changed nothing; a file
+// git-work wrote over, or opened on a merge, holds a text the box does not,
+// touched or not (doc/design/views.md, "A merge is the draft").
 func (m externalTextMsg) changed() bool {
-	return trimEnd(m.text) != trimEnd(m.before)
+	return m.rewritten || trimEnd(m.text) != trimEnd(m.before)
 }
 
 // trimEnd is a text as it goes back into a box: the trailing whitespace an
@@ -113,16 +114,15 @@ func editExternally(repo *cache.RepoCache, target textTarget, text string, follo
 			return readBack(target, text, path, err, nil)
 		}), nil
 	}
-	follow.path, follow.written = path, text
+	follow.path = path
 	return tea.Exec(followedEditor{cmd: cmd, follow: follow}, func(err error) tea.Msg {
 		return readBack(target, text, path, err, follow)
 	}), nil
 }
 
 // readBack is the editor's exit as the box hears of it; the file goes
-// whatever happened. A file that followed the tracker and was left as
-// git-work last wrote it is the tracker's text, not the file's
-// (doc/design/views.md, "An untouched refresh is reverted").
+// whatever happened. What the file holds is the draft, git-work's merge
+// included, touched or not (doc/design/views.md, "A merge is the draft").
 func readBack(target textTarget, before, path string, ran error, follow *following) externalTextMsg {
 	defer os.Remove(path)
 	msg := externalTextMsg{target: target, before: before}
@@ -141,9 +141,6 @@ func readBack(target textTarget, before, path string, ran error, follow *followi
 		defer follow.mu.Unlock()
 		msg.followed, msg.base = true, follow.base
 		msg.rewritten, msg.followErr = follow.rewritten, follow.err
-		if follow.rewritten && trimEnd(msg.text) == trimEnd(follow.written) {
-			msg.text, msg.reverted = follow.base, true
-		}
 	}
 	return msg
 }
@@ -172,11 +169,9 @@ type following struct {
 	mu sync.Mutex
 	// base is the tracker text last put in the file.
 	base string
-	// written is the file as git-work last wrote it.
-	written string
 	// rewritten says git-work has written over the text the file opened
-	// with, or opened it on a merge (doc/design/views.md, "An untouched
-	// refresh is reverted").
+	// with, or opened it on a merge (doc/design/views.md, "A merge is the
+	// draft").
 	rewritten bool
 	// err is the first thing that kept the file from following.
 	err error
@@ -266,7 +261,7 @@ func (f *following) refresh() {
 		f.failLocked(err)
 		return
 	}
-	f.base, f.written, f.rewritten = theirs, merged, true
+	f.base, f.rewritten = theirs, true
 }
 
 func (f *following) fail(err error) {

@@ -654,14 +654,14 @@ It is a shell command, as git's is, run through `sh` with the file as its one ar
 so one with arguments of its own (`code --wait`) runs, and a path with a space in it is one argument.
 The text goes to a temporary `.md` file and the screen is suspended while the editor runs;
 on its exit the file's text, less its trailing whitespace, is the draft, and the cursor is in the text,
-except where the description's file was rewritten from the tracker and left as rewritten
-([an untouched refresh is reverted](#an-untouched-refresh-is-reverted)).
+a merge git-work wrote into the description's file included
+([a merge is the draft](#a-merge-is-the-draft)).
 Trailing whitespace is dropped because an editor ends a file with a newline the person never typed.
 While the editor has the description, its file [follows the tracker](#the-editors-file-follows-the-tracker).
 Nothing is sent or written on the editor's exit: `Enter` sends or writes, as in the box.
 Not *saving sends*, because on new `Enter` accepts the draft rather than creating,
 so one exit would mean two things.
-The editor failing, or the file left as it was written out, leaves the draft as it was, a failure said in the status line.
+The editor failing, or a file that is no merge left as it was written out, leaves the draft as it was, a failure said in the status line.
 Its letter is a text command, so it works from inside the text
 ([the palette over a text](tui.md#the-palette-over-a-text)),
 and anywhere on show or new but a text box it rings.
@@ -750,16 +750,19 @@ so the newline an editor adds is no conflict.
 The merge is git's, run as a command where go-git has none,
 because its markers are the ones a git user already reads.
 
-### An untouched refresh is reverted
+### A merge is the draft
 
-If the editor exits with the file, less its trailing whitespace, exactly as git-work last wrote it,
-by a refresh or a merge,
-the person left nothing of their own after it:
-the draft is the tracker's text the file was last given,
-as if the merge had not been made,
-and there is nothing to write.
-The status line says the description changed in the tracker.
-A file git-work did not write over once the editor had it is the draft, as on every box.
+When the editor exits, the file is the draft, whether or not the person touched it after git-work last wrote it.
+A merge holds the person's text, saved before it or the box's draft it was made from,
+so that text stays in the draft.
+A refresh of a file that held none of theirs,
+the file still holding its base,
+is the tracker's text exactly ([a refresh is a merge](#a-refresh-is-a-merge)),
+so the draft is the tracker's text and there is nothing to write.
+Where git-work wrote over the file, the status line says the description changed in the tracker,
+and whether the draft is its text or the merge.
+Taking the tracker's text over one's own is abandoning the edit in the view:
+leaving the page drops the draft.
 
 ### The description box names its base
 
@@ -775,8 +778,8 @@ the draft kept and the status line saying the description changed since it was o
 `esc e` then opens the editor on the merge of the box's base, its draft and the tracker's current text,
 [as a refresh merges](#a-refresh-is-a-merge),
 with that text as the new base;
-the merge is git-work's write,
-so one left untouched [is reverted](#an-untouched-refresh-is-reverted).
+the merge holds the draft,
+so one left untouched [is the draft](#a-merge-is-the-draft).
 
 Not a write over whatever the description holds:
 a change made while the box was open would be replaced unseen.

@@ -950,18 +950,19 @@ func (p *showPage) descForEditor() (string, *following, error) {
 }
 
 // followStatus says what following the tracker did to the file, where it
-// did anything: the tracker's text taken back, a merge kept, or why the file
-// could not follow.
+// did anything: the draft is the tracker's text, or a merge holding the
+// person's, or the file could not follow (doc/design/views.md, "A merge is
+// the draft").
 func followStatus(msg externalTextMsg) string {
 	switch {
 	case msg.followErr != nil:
 		return "the file stopped following the tracker: " + msg.followErr.Error()
-	case msg.reverted:
+	case !msg.rewritten || !msg.changed():
+		return ""
+	case trimEnd(msg.text) == trimEnd(msg.base):
 		return "the description changed in the tracker: the draft is its text"
-	case msg.rewritten && msg.changed():
-		return "the description changed in the tracker: the draft is the merge"
 	}
-	return ""
+	return "the description changed in the tracker: the draft is the merge"
 }
 
 // textBack is the editor's exit: what it left goes into the box it was

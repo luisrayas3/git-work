@@ -62,31 +62,30 @@ func TestARefreshIsAMerge(t *testing.T) {
 	require.Contains(t, merged, "<<<<<<< yours\nmine\n=======\ntheirs\n>>>>>>> tracker\n")
 }
 
-// TestAnUntouchedRefreshIsReverted: a file the editor left as git-work last
-// wrote it, by a refresh or a merge, is the tracker's text; one the person
-// saved over is theirs, and a file git-work never wrote over is the draft as
-// ever (doc/design/views.md, "An untouched refresh is reverted").
-func TestAnUntouchedRefreshIsReverted(t *testing.T) {
+// TestAMergeIsTheDraft: the file is the draft on the editor's exit, a merge
+// git-work wrote and the person left untouched included; a file git-work
+// never wrote over is the draft as ever (doc/design/views.md, "A merge is the
+// draft").
+func TestAMergeIsTheDraft(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "description.md")
 	exit := func(file string, follow *following) externalTextMsg {
 		require.NoError(t, os.WriteFile(path, []byte(file), 0o600))
 		return readBack(targetDescription, "the draft", path, nil, follow)
 	}
 
-	msg := exit("a merge\n", &following{base: "tracker", written: "a merge", rewritten: true})
-	require.True(t, msg.reverted)
-	require.Equal(t, "tracker", msg.text)
-	require.Equal(t, "tracker", msg.base)
-
-	msg = exit("saved over it", &following{base: "tracker", written: "a merge", rewritten: true})
-	require.False(t, msg.reverted)
-	require.Equal(t, "saved over it", msg.text)
+	msg := exit("a merge\n", &following{base: "tracker", rewritten: true})
+	require.Equal(t, "a merge\n", msg.text)
 	require.Equal(t, "tracker", msg.base, "the base is the text last given")
+	require.Equal(t, "the description changed in the tracker: the draft is the merge", followStatus(msg))
 
-	msg = exit("the draft", &following{base: "base", written: "the draft"})
-	require.False(t, msg.reverted)
+	msg = exit("tracker\n", &following{base: "tracker", rewritten: true})
+	require.Equal(t, "tracker\n", msg.text)
+	require.Equal(t, "the description changed in the tracker: the draft is its text", followStatus(msg))
+
+	msg = exit("the draft", &following{base: "base"})
 	require.Equal(t, "the draft", msg.text)
 	require.False(t, msg.changed())
+	require.Empty(t, followStatus(msg))
 }
 
 // twoProcesses is a store open twice, holding issues tasks: a writer, and a
@@ -128,7 +127,7 @@ func TestTheEditorsFileFollowsTheTracker(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "description.md")
 	require.NoError(t, os.WriteFile(path, []byte("the body"), 0o600))
 	follow := newFollowing(repo, entity.Id(id), "the body", false)
-	follow.path, follow.written = path, "the body"
+	follow.path = path
 	follow.start()
 	stopped := false
 	defer func() {
@@ -153,8 +152,8 @@ func TestTheEditorsFileFollowsTheTracker(t *testing.T) {
 	msg := readBack(targetDescription, "one\ntwo\nthree", path, nil, follow)
 	require.True(t, msg.followed)
 	require.Equal(t, "one\ntwo\nthree\nfour\nfive", msg.base)
-	require.True(t, msg.reverted, "left as the merge was written")
-	require.Equal(t, "one\ntwo\nthree\nfour\nfive", msg.text)
+	require.Equal(t, "ONE\ntwo\nthree\nfour\nfive", trimEnd(msg.text),
+		"left as the merge was written, it is the draft, with what they saved")
 }
 
 // TestTheFileFollowsWhileTheEditorRuns: with the editor's process running
@@ -167,7 +166,7 @@ func TestTheFileFollowsWhileTheEditorRuns(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "description.md")
 	require.NoError(t, os.WriteFile(path, []byte("the body"), 0o600))
 	follow := newFollowing(viewer, entity.Id(id), "the body", false)
-	follow.path, follow.written = path, "the body"
+	follow.path = path
 
 	// an editor that exits once its file holds the other process's text, and
 	// fails if it never does
@@ -187,8 +186,40 @@ func TestTheFileFollowsWhileTheEditorRuns(t *testing.T) {
 
 	msg := readBack(targetDescription, "the body", path, nil, follow)
 	require.Equal(t, "written elsewhere", msg.base)
-	require.True(t, msg.reverted)
-	require.Equal(t, "written elsewhere", msg.text)
+	require.Equal(t, "written elsewhere", msg.text, "a refresh of the person's nothing is the tracker's text")
+}
+
+// TestAnUntouchedRefreshIsTheTrackersText: a file that held none of the
+// person's text, refreshed and left untouched, comes back as the tracker's
+// text, and the page has nothing to write (doc/design/views.md, "A merge is
+// the draft").
+func TestAnUntouchedRefreshIsTheTrackersText(t *testing.T) {
+	t.Setenv("GIT_EDITOR", "true")
+	repo := testRepo(t)
+	id := newIssue(t, repo, map[string]any{"title": "one"})
+	setDescription(t, repo, id, "the body")
+
+	page := show(t, repo, id, nil)
+	page = send(page, "tab", "tab").(*showPage)
+	text, follow, err := page.descForEditor()
+	require.NoError(t, err)
+	require.Equal(t, "the body", text)
+	require.False(t, follow.rewritten)
+
+	// the editor runs; the tracker changes and the file is refreshed
+	path := filepath.Join(t.TempDir(), "description.md")
+	require.NoError(t, os.WriteFile(path, []byte(text), 0o600))
+	follow.path = path
+	setDescription(t, repo, id, "the body, changed")
+	follow.start()
+	fileHolds(t, path, "the body, changed")
+	follow.stop()
+
+	updated, _ := page.Update(readBack(targetDescription, text, path, nil, follow))
+	page = updated.(*showPage)
+	require.Equal(t, "the body, changed", page.desc.draft())
+	require.Equal(t, "the description changed in the tracker: the draft is its text", page.status)
+	require.False(t, page.descDirty(), "nothing to write")
 }
 
 // TestTheDescriptionBoxNamesItsBase: enter on a draft made on a text the
@@ -222,24 +253,20 @@ func TestTheDescriptionBoxNamesItsBase(t *testing.T) {
 	require.True(t, follow.rewritten, "the merge is git-work's")
 	opensTheEditor(t, page, "alt+e")
 
-	// left as it opened, the merge is undone: the draft is the tracker's
+	// left as it opened, the merge is the draft, the box's text in it, on
+	// the tracker's text as its base
 	path := filepath.Join(t.TempDir(), "description.md")
 	require.NoError(t, os.WriteFile(path, []byte(text), 0o600))
-	follow.written = text
 	updated, _ = page.Update(readBack(targetDescription, text, path, nil, follow))
 	page = updated.(*showPage)
-	require.Equal(t, "one\ntwo\nthree\nfour", page.desc.draft())
-	require.Equal(t, "the description changed in the tracker: the draft is its text", page.status)
+	require.Equal(t, "ONE\ntwo\nthree\nfour", page.desc.draft())
+	require.Equal(t, "the description changed in the tracker: the draft is the merge", page.status)
+	require.Equal(t, "one\ntwo\nthree\nfour", page.descBase)
 
-	// saved, it is the draft, on the new base, and enter writes it
+	// the base is current, and enter writes it
 	_, follow, err = page.descForEditor()
 	require.NoError(t, err)
 	require.False(t, follow.rewritten, "the base is current")
-	require.NoError(t, os.WriteFile(path, []byte("ONE\ntwo\nthree\nfour\n"), 0o600))
-	follow.written = "one\ntwo\nthree\nfour"
-	updated, _ = page.Update(readBack(targetDescription, "one\ntwo\nthree\nfour", path, nil, follow))
-	page = updated.(*showPage)
-	require.Equal(t, "ONE\ntwo\nthree\nfour", page.desc.draft())
 	page = send(page, "enter").(*showPage)
 	require.Equal(t, "description written", page.status)
 	require.Equal(t, "ONE\ntwo\nthree\nfour", description(t, repo, id))

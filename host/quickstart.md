@@ -328,7 +328,7 @@ and an `optional` one is off until it is named.
   on exit the text is the box's draft, and `Enter` sends or writes it.
   While the editor has the description, a change to it in the tracker is merged into the file
   (`git merge-file`, conflicts marked `yours` and `tracker`), so the editor reports the file changed;
-  a file left as git-work rewrote it comes back as the tracker's text.
+  on exit the merge is the draft, touched or not, and leaving the page drops it.
   `Enter` on the description refuses, keeping the draft, when the tracker changed it since the box opened;
   `esc e` then opens the merge.
   Typing in one of those boxes, `Esc` opens the palette with only the text's commands
