@@ -326,6 +326,11 @@ and an `optional` one is off until it is named.
   on the box or typing in it, writes the text in git's editor
   (`GIT_EDITOR`, `core.editor`, `VISUAL`, `EDITOR`, then a common one on the `PATH`);
   on exit the text is the box's draft, and `Enter` sends or writes it.
+  While the editor has the description, a change to it in the tracker is merged into the file
+  (`git merge-file`, conflicts marked `yours` and `tracker`), so the editor reports the file changed;
+  a file left as git-work rewrote it comes back as the tracker's text.
+  `Enter` on the description refuses, keeping the draft, when the tracker changed it since the box opened;
+  `esc e` then opens the merge.
   Typing in one of those boxes, `Esc` opens the palette with only the text's commands
   (`e`, and `g` back to the text), and a second `Esc` leaves the text, keeping the draft.
 - On a list and a gantt a row the query makes may carry a top-level `key`,

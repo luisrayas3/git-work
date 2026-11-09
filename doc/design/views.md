@@ -653,12 +653,15 @@ because a tracker kept in git uses the editor git does.
 It is a shell command, as git's is, run through `sh` with the file as its one argument,
 so one with arguments of its own (`code --wait`) runs, and a path with a space in it is one argument.
 The text goes to a temporary `.md` file and the screen is suspended while the editor runs;
-on its exit the file's text, less its trailing whitespace, is the draft, and the cursor is in the text.
+on its exit the file's text, less its trailing whitespace, is the draft, and the cursor is in the text,
+except where the description's file was rewritten from the tracker and left as rewritten
+([an untouched refresh is reverted](#an-untouched-refresh-is-reverted)).
 Trailing whitespace is dropped because an editor ends a file with a newline the person never typed.
+While the editor has the description, its file [follows the tracker](#the-editors-file-follows-the-tracker).
 Nothing is sent or written on the editor's exit: `Enter` sends or writes, as in the box.
 Not *saving sends*, because on new `Enter` accepts the draft rather than creating,
 so one exit would mean two things.
-The editor failing, or the file left as it was, leaves the draft as it was, a failure said in the status line.
+The editor failing, or the file left as it was written out, leaves the draft as it was, a failure said in the status line.
 Its letter is a text command, so it works from inside the text
 ([the palette over a text](tui.md#the-palette-over-a-text)),
 and anywhere on show or new but a text box it rings.
@@ -681,7 +684,8 @@ They are two tabs, not one timeline, because reading a discussion and reading wh
 
 `Space` on the description tab edits it:
 the comment box over the body's current text, with the box's keys,
-and `Enter` writes an edit of the first comment.
+and `Enter` writes an edit of the first comment, on the text the box opened on
+([the description box names its base](#the-description-box-names-its-base)).
 An empty body is refused with the bell: the model has no issue without one.
 The editor stands where the text was read and is drawn there, blurred, while it holds an unwritten draft;
 `Esc` opens the palette over it, as in the box, and a second `Esc` leaves it;
@@ -700,6 +704,82 @@ Its keys are on the bottom line, as the box's are
 The text is written in [the external editor](#the-external-editor) as on the comment box:
 the editor's draft, or the body the store has when none is open;
 on exit the editor is open on what came back, and `Enter` writes it.
+
+### The editor's file follows the tracker
+
+While the description is open in [the external editor](#the-external-editor),
+its file follows the tracker,
+so a change made elsewhere (another process, a pull, a Jira sync) is seen in the editor,
+and the person's write never silently replaces it.
+A watcher belonging to the editor's run,
+an observer of the cache's issues on a goroutine of its own,
+re-reads the issue on each change to it,
+and when the description's message hash differs from that of the text last put in the file,
+rewrites the file ([a refresh is a merge](#a-refresh-is-a-merge)).
+It is not the page's: the page's event loop is blocked while the editor runs,
+and the ref watcher goes on reconciling the cache and telling its observers.
+The file is written as a temporary file renamed over its path,
+so an editor never reads half of it.
+The watcher starts with the editor's process, reading the issue once,
+and stops when it exits, before the file is read back.
+The editor's own handling of a file changed on disk
+(vim's "changed since reading it", emacs's, nano's, VS Code's compare)
+is the conflict interface, git-work drawing none of its own.
+Only the description follows:
+the comment box's text writes a new comment, and has nothing in the tracker to follow.
+
+Not the file overwritten with the tracker's text whatever it holds:
+an editor that reloads a clean buffer silently would drop a draft the person had saved.
+Not only an untouched file overwritten:
+once the person had saved, they would hear nothing of the change,
+and their write would replace it unseen.
+
+### A refresh is a merge
+
+What the file is given is `git merge-file`'s merge:
+the base is the tracker text last put in the file,
+ours is the file as it is on disk,
+and theirs is the tracker's new text.
+A file still holding the base becomes the tracker's text exactly;
+one the person has saved over is merged,
+edits apart cleanly and an overlap with conflict markers labelled `yours`, `base` and `tracker`,
+so nothing they saved is lost even where the editor reloads a clean buffer silently.
+Each side is merged less its trailing whitespace and ending in one newline,
+as the draft drops it ([the external editor](#the-external-editor)),
+so the newline an editor adds is no conflict.
+The merge is git's, run as a command where go-git has none,
+because its markers are the ones a git user already reads.
+
+### An untouched refresh is reverted
+
+If the editor exits with the file, less its trailing whitespace, exactly as git-work last wrote it,
+by a refresh or a merge,
+the person left nothing of their own after it:
+the draft is the tracker's text the file was last given,
+as if the merge had not been made,
+and there is nothing to write.
+The status line says the description changed in the tracker.
+A file git-work did not write over once the editor had it is the draft, as on every box.
+
+### The description box names its base
+
+The description box keeps the tracker text it opened on,
+and `Enter` writes with that text's hash as its base
+([issue](issue.md#an-edit-can-name-its-base)).
+When the editor's text comes back,
+the base is the tracker text the file was last given:
+a person who saved over a refreshed file did so after their editor warned them,
+and their text wins.
+`Enter` on a base the tracker has moved on from is refused with the bell, writing nothing,
+the draft kept and the status line saying the description changed since it was opened.
+`esc e` then opens the editor on the merge of the box's base, its draft and the tracker's current text,
+[as a refresh merges](#a-refresh-is-a-merge),
+with that text as the new base;
+the merge is git-work's write,
+so one left untouched [is reverted](#an-untouched-refresh-is-reverted).
+
+Not a write over whatever the description holds:
+a change made while the box was open would be replaced unseen.
 
 ### The fields table
 

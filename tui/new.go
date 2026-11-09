@@ -524,7 +524,7 @@ func (p *newPage) external(here position) tea.Cmd {
 		p.status = "no text here"
 		return bell()
 	}
-	cmd, err := editExternally(p.repo, targetComment, p.body.area.Value())
+	cmd, err := editExternally(p.repo, targetComment, p.body.area.Value(), nil)
 	if err != nil {
 		p.status = err.Error()
 		return bell()

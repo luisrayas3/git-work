@@ -35,7 +35,7 @@ func TestTheEditorIsGitsShellCommand(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "a draft.txt")
 	require.NoError(t, os.WriteFile(path, []byte("before"), 0o600))
 	require.NoError(t, editorCommand(`printf 'after\n' >`, path).Run())
-	msg := readBack(targetComment, "before", path, nil)
+	msg := readBack(targetComment, "before", path, nil, nil)
 	require.NoError(t, msg.err)
 	require.Equal(t, "after\n", msg.text)
 	require.True(t, msg.changed())
@@ -47,7 +47,7 @@ func TestTheEditorIsGitsShellCommand(t *testing.T) {
 
 	// an editor that failed is the error, the file removed all the same
 	require.NoError(t, os.WriteFile(path, []byte("before"), 0o600))
-	msg = readBack(targetComment, "before", path, errors.New("exit status 1"))
+	msg = readBack(targetComment, "before", path, errors.New("exit status 1"), nil)
 	require.ErrorContains(t, msg.err, "editor")
 	_, err = os.Stat(path)
 	require.True(t, os.IsNotExist(err))

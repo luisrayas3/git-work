@@ -2,6 +2,7 @@ package tui
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -75,6 +76,10 @@ type showPage struct {
 	// comment, opened by space on the description tab and kept — its draft
 	// with it — until the write lands or the page is left.
 	desc *commentBox
+	// descBase is the tracker text the description's draft was made on,
+	// whose hash its write names as its base (doc/design/views.md, "The
+	// description box names its base").
+	descBase string
 	// editingDesc says the cursor is in that editor, where keys are text.
 	editingDesc bool
 
@@ -761,6 +766,7 @@ func (p *showPage) editDescription() tea.Cmd {
 		p.desc = newCommentBox(p.width)
 		p.desc.area.Placeholder = "the description"
 		p.desc.area.SetValue(p.snapshot.Comments[0].Message)
+		p.descBase = p.snapshot.Comments[0].Message
 	}
 	p.editingDesc = true
 	p.desc.focus(true)
@@ -772,7 +778,10 @@ func (p *showPage) editDescription() tea.Cmd {
 // which is its description, and reads the page back from the store.
 //
 // An empty body is refused: an issue's description is its first comment, and
-// the model has no issue without one, so there is nothing to write.
+// the model has no issue without one, so there is nothing to write. The
+// write names the text the draft was made on as its base, and a description
+// changed since is refused, the draft kept (doc/design/views.md, "The
+// description box names its base").
 func (p *showPage) submitDescription() tea.Cmd {
 	body := p.desc.draft()
 	if body == "" {
@@ -781,7 +790,12 @@ func (p *showPage) submitDescription() tea.Cmd {
 	}
 
 	id := p.snapshot.Comments[0].CombinedId().String()
-	if err := host.IssueCommentEdit(p.repo, id, body, ""); err != nil {
+	err := host.IssueCommentEdit(p.repo, id, body, cache.MessageHash(p.descBase))
+	if errors.Is(err, cache.ErrCommentChanged) {
+		p.status = "the description changed since it was opened: esc e merges"
+		return bell()
+	}
+	if err != nil {
 		p.status = err.Error()
 		return bell()
 	}
@@ -878,24 +892,24 @@ func (p *showPage) edit(here position) tea.Cmd {
 // external is `esc e`: the text of the box under the cursor, or the one the
 // cursor is in, written in git's editor (doc/design/views.md, "The external
 // editor"). The description goes as
-// its editor's draft, or as the body the store has when no editor is open;
-// anywhere else rings.
+// its editor's draft, or as the body the store has when no editor is open,
+// and its file follows the tracker while the editor has it
+// (doc/design/views.md, "The editor's file follows the tracker"); a draft
+// made on a text the tracker has since changed goes as the merge of the two
+// (doc/design/views.md, "The description box names its base").
+// Anywhere else rings.
 func (p *showPage) external(here position) tea.Cmd {
 	var cmd tea.Cmd
 	var err error
 	switch {
 	case p.editingDesc || (here.stop == stopTabs && p.tab == tabDescription):
-		if len(p.snapshot.Comments) == 0 {
-			p.status = "no description"
-			return bell()
+		var text string
+		var follow *following
+		if text, follow, err = p.descForEditor(); err == nil {
+			cmd, err = editExternally(p.repo, targetDescription, text, follow)
 		}
-		text := p.snapshot.Comments[0].Message
-		if p.desc != nil {
-			text = p.desc.area.Value()
-		}
-		cmd, err = editExternally(p.repo, targetDescription, text)
 	case here.stop == stopBox:
-		cmd, err = editExternally(p.repo, targetComment, p.box.area.Value())
+		cmd, err = editExternally(p.repo, targetComment, p.box.area.Value(), nil)
 	default:
 		p.status = "no text here"
 		return bell()
@@ -905,6 +919,49 @@ func (p *showPage) external(here position) tea.Cmd {
 		return bell()
 	}
 	return cmd
+}
+
+// descForEditor is the description's text as the editor opens on it, and
+// the following its file is given: the store's body, read now, or the
+// draft; a draft whose base the store has moved on from is merged with the
+// store's text, which becomes the base (doc/design/views.md, "The
+// description box names its base").
+func (p *showPage) descForEditor() (string, *following, error) {
+	snapshot, err := host.IssueSnapshot(p.repo, p.id)
+	if err != nil {
+		return "", nil, err
+	}
+	if len(snapshot.Comments) == 0 {
+		return "", nil, errors.New("no description")
+	}
+	current := snapshot.Comments[0].Message
+	if p.desc == nil {
+		return current, newFollowing(p.repo, snapshot.Id(), current, false), nil
+	}
+	draft := p.desc.area.Value()
+	if cache.MessageHash(current) == cache.MessageHash(p.descBase) {
+		return draft, newFollowing(p.repo, snapshot.Id(), p.descBase, false), nil
+	}
+	merged, err := mergeDescription(p.descBase, draft, current)
+	if err != nil {
+		return "", nil, err
+	}
+	return merged, newFollowing(p.repo, snapshot.Id(), current, true), nil
+}
+
+// followStatus says what following the tracker did to the file, where it
+// did anything: the tracker's text taken back, a merge kept, or why the file
+// could not follow.
+func followStatus(msg externalTextMsg) string {
+	switch {
+	case msg.followErr != nil:
+		return "the file stopped following the tracker: " + msg.followErr.Error()
+	case msg.reverted:
+		return "the description changed in the tracker: the draft is its text"
+	case msg.rewritten && msg.changed():
+		return "the description changed in the tracker: the draft is the merge"
+	}
+	return ""
 }
 
 // textBack is the editor's exit: what it left goes into the box it was
@@ -926,6 +983,13 @@ func (p *showPage) textBack(msg externalTextMsg) tea.Cmd {
 			return cmd
 		}
 		keepText(p.desc, msg)
+		if msg.followed {
+			p.descBase = msg.base
+		}
+		if status := followStatus(msg); status != "" {
+			p.status = status
+			return nil
+		}
 	default:
 		p.focusStop(stopBox)
 		p.setTyping(true)

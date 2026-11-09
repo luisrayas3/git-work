@@ -3,7 +3,7 @@
 //
 // go-git is an excellent object database
 // but an incomplete reimplementation of git's environment,
-// and the two places it falls short are the two it owns here:
+// and the places it falls short are the ones it owns here:
 //
 //   - Configuration. go-git (as of v5.19) does not evaluate `[include]` or
 //     `[includeIf]`, so any value behind one — commonly user.name and
@@ -25,6 +25,10 @@
 //     comes from `git credential fill`, so the user's own credential helper —
 //     osxkeychain, libsecret, a password manager's — keeps it, as it keeps
 //     their remotes' (doc/design/jira.md, "Binding and credentials").
+//
+//   - Merging a text. go-git has no text merge; MergeFile is
+//     `git merge-file`, whose conflict markers a git user already reads
+//     (doc/design/views.md, "A refresh is a merge").
 //
 // Everything else — objects, trees, refs, clocks, browsing — is local object
 // access, where go-git is both fast and correct, and is left to it.
