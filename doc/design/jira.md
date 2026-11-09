@@ -1521,8 +1521,9 @@ the closure on the fresh snapshot, its operations checked as one change
 against the type they set, committed behind one ref update;
 the closure calls no cache writer and no network),
 `NewRawShape`, `issue.NewNoOpOp`,
-`FirstReached` and `SetReach`, the store's rule for the canonical copy and its hook,
-which `commands/execenv` gives Jira's `Reach` where it opens the store,
+`FirstReached` and `RegisterReach`, the store's rule for the canonical copy and its hook,
+which package `jira` gives its `Reach` from an `init` function, before any store opens
+([store](store.md#the-excerpt-carries-the-reach)),
 the reserved `alias_` attributes in `schema`,
 `gitcli.CredentialHelper`,
 and `host.JiraSchema` and `host.JiraSync`, the one path for commands.

@@ -19,7 +19,8 @@ import (
 // 3: no more legacy identity
 // 4: entities make their IDs from data, not git commit
 // 5: the issue excerpt carries the description (134423f)
-const formatVersion = 5
+// 6: the issue excerpt carries each reach hook's answer (935e97d)
+const formatVersion = 6
 
 // The maximum number of bugs loaded in memory. After that, eviction will be done.
 const defaultMaxLoadedBugs = 1000

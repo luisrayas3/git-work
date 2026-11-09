@@ -221,6 +221,48 @@ and open views update within a second, without a daemon.
 
 Listing, showing, querying and the renderer's whole read path lock nothing.
 
+### Readers use the excerpts
+
+Anything built over the issues reads the cache's excerpts and loads no entity:
+a listing, a view's rows, a search, the drawn ids and alias resolution,
+and any index derived from many issues.
+An excerpt is rebuilt on every write and every ref change
+([below](#the-cache-records-the-hash-behind-each-excerpt)),
+so it is as current as the entity,
+and a reader that reads the entity instead pays the disk on every row for nothing:
+a ref lookup and a replay of the issue's whole history.
+So what such a reader needs goes on the excerpt.
+An entity is read whole for one issue's history,
+which an excerpt of the present does not hold
+(`issue get`, `issue show`, `log`, and a replay `--at` a past time,
+[query](query.md#--at-is-a-replay)),
+and by a write, which reads it again under the lock
+([below](#re-read-under-the-lock)).
+
+### The excerpt carries the reach
+
+Each issue excerpt carries,
+for every alias namespace with an ordering hook,
+the copy's reach: the hook's answer for its history
+([cli](cli.md#the-copy-that-reached-the-system-first-is-canonical)).
+So alias resolution, the drawn ids and the Jira sync's consolidation
+order the copies of one issue from the excerpts.
+A hook is registered from an `init` function (`cache.RegisterReach`),
+before any store opens,
+because the excerpts are built while it opens;
+it carries a version,
+and the issue cache file records the hooks and versions its excerpts were built with,
+so a file built with others is rebuilt, as one of another format version is.
+A hook reads only the copy's immutable history,
+so the excerpt, rebuilt whenever the copy changes, carries its answer current.
+
+Not the raw metadata a hook reads, kept on the excerpt for the hook to run over:
+Jira's reads every sync marker, each a whole base,
+which would put every base of every issue in the cache file.
+Not a hook given to an open store:
+its excerpts are already built, and could not carry the hook's answer
+without reading every entity again.
+
 ### A writer locks one read-modify-commit
 
 A writer takes an advisory `flock` on `.git/git-work/write.lock`

@@ -59,6 +59,11 @@ Do not extend them;
   `dag.Entity.Commit` ends in an unconditional `UpdateRef`,
   so anything else writing entity refs silently erases concurrent work.
   Reads take no lock.
+- **Readers use the excerpts.**
+  Anything built over many issues (a listing, a view's rows, an index, the drawn ids)
+  reads the cache's excerpts and loads no entity;
+  an entity is read whole only for one issue's history and for a write
+  (doc/design/store.md, "Readers use the excerpts").
 - **One entity per commit.**
   There is no atomic multi-entity commit,
   so a relationship between issues is a field holding the other issue's full id:

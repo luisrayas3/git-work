@@ -12,7 +12,7 @@ import (
 
 // newSchemaTestCache gives a repository with one type and two fields,
 // which is enough for every rule the write path applies.
-func newSchemaTestCache(t *testing.T) *RepoCache {
+func newSchemaTestCache(t testing.TB) *RepoCache {
 	t.Helper()
 
 	c, _ := newConfigTestCache(t)

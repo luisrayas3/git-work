@@ -301,17 +301,20 @@ an ordering hook per alias namespace that reads a copy's own history
 and says which external issue it is linked to, when it first reached the system, and its rank.
 Jira's hook is the sync's first-contact order
 ([jira](jira.md#consolidation-keeps-the-copy-that-reached-jira-first)),
-registered where a command opens the store;
-the sync's consolidation passes the same hook itself.
+registered with the store before any store opens,
+and the sync's consolidation orders by the same hook.
 Every input is an immutable fact of a copy's history,
-so every clone holding the copies agrees.
+so every clone holding the copies agrees,
+and each issue excerpt carries the hook's answer
+([store](store.md#the-excerpt-carries-the-reach)).
 An alias is ambiguous, an error naming every carrier,
 when the rule cannot order its carriers:
 when none reached the system and not exactly one is unarchived,
 when its namespace has no hook,
 when the copies that reached it are linked to two external issues (a key moved or reused),
 or when it is carried in two namespaces.
-Only an alias two issues carry loads their entities; any other resolves from the excerpts.
+An alias resolves from the excerpts, however many issues carry it
+([store](store.md#readers-use-the-excerpts)).
 
 ### Archiving breaks a tie nothing else orders
 
@@ -391,7 +394,7 @@ One rule covers every case where the two could disagree:
 The rule is what makes copying what is drawn safe:
 anything drawn as an id can be pasted back.
 It costs one index of aliases, rebuilt when the excerpts change,
-from the create metadata the excerpts already carry.
+from the create metadata and the reach the excerpts carry.
 
 ### A duplicate is drawn by its hash
 

@@ -82,7 +82,8 @@ func (c *RepoCache) IssueHumanId(id entity.Id) string {
 //
 // One pass over the excerpts, under the read lock, with the generation they
 // were read at, so the index is current exactly as long as the generation is;
-// an alias two issues carry loads them after it, as aliasId does.
+// an alias two issues carry is ordered after it, from their excerpts, as
+// aliasId orders it (doc/design/store.md, "Readers use the excerpts").
 func (c *RepoCacheIssue) drawnAliases(namespace string) (uint64, map[entity.Id]string) {
 	key := AliasMetadataPrefix + namespace
 

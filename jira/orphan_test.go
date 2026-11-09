@@ -405,7 +405,6 @@ func TestConsolidatedStamp(t *testing.T) {
 // (doc/design/cli.md, "The copy that reached the system first is canonical").
 func TestKeyNamesTheKeptCopy(t *testing.T) {
 	b, x, y, _ := twoCopies(t)
-	jira.Register(b.c)
 	pkey := jiraKeyOf(t, mustIssue(t, b.c, y))
 	require.Equal(t, pkey, jiraKeyOf(t, mustIssue(t, b.c, x)))
 
@@ -434,7 +433,6 @@ func TestKeyNamesTheKeptCopy(t *testing.T) {
 // (doc/design/jira.md, "Copies the rule cannot order are skipped").
 func TestUnorderableCopiesAreSkipped(t *testing.T) {
 	w := newWorld(t)
-	jira.Register(w.c)
 	key := w.srv.CreateIssue(jiratest.IssueSpec{Project: "PROJ", Type: "Task", Summary: "Twice"})
 	jid := w.srv.Issue(key).ID
 	newCopy := func() entity.Id {

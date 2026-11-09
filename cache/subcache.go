@@ -54,6 +54,11 @@ type SubCache[EntityT entity.Interface, ExcerptT Excerpt, CacheT CacheEntity] st
 	typename  string
 	namespace string
 	version   uint
+	// stamp names what the excerpts are built with besides this code, such
+	// as the issue excerpts' reach hooks: a cache file with another stamp is
+	// rebuilt, as one with another version is
+	// (doc/design/store.md, "The excerpt carries the reach").
+	stamp     string
 	maxLoaded int
 
 	mu       sync.RWMutex
@@ -118,6 +123,7 @@ func (sc *SubCache[EntityT, ExcerptT, CacheT]) Load() error {
 
 	aux := struct {
 		Version  uint
+		Stamp    string
 		Excerpts map[entity.Id]ExcerptT
 		Refs     map[entity.Id]repository.Hash
 	}{}
@@ -139,6 +145,10 @@ func (sc *SubCache[EntityT, ExcerptT, CacheT]) Load() error {
 	if aux.Version != sc.version {
 		sc.mu.Unlock()
 		return fmt.Errorf("unknown %s cache format version %v", sc.namespace, aux.Version)
+	}
+	if aux.Stamp != sc.stamp {
+		sc.mu.Unlock()
+		return fmt.Errorf("%s cache built with %q, not %q", sc.namespace, aux.Stamp, sc.stamp)
 	}
 
 	// the id is not serialized in the excerpt itself (non-exported field in go, long story ...),
@@ -306,10 +316,12 @@ func (sc *SubCache[EntityT, ExcerptT, CacheT]) write() error {
 
 	aux := struct {
 		Version  uint
+		Stamp    string
 		Excerpts map[entity.Id]ExcerptT
 		Refs     map[entity.Id]repository.Hash
 	}{
 		Version:  sc.version,
+		Stamp:    sc.stamp,
 		Excerpts: sc.excerpts,
 		Refs:     sc.refs,
 	}
@@ -488,8 +500,8 @@ func (sc *SubCache[EntityT, ExcerptT, CacheT]) Resolve(id entity.Id) (CacheT, er
 
 	cached = sc.makeCached(e, sc.entityUpdated)
 
-	// loading an entity changes no excerpt, so the generation stays: an index
-	// built from the excerpts loads entities, and must not invalidate itself
+	// loading an entity changes no excerpt, so the generation stays, and an
+	// index built from the excerpts stays current
 	sc.mu.Lock()
 	sc.cached[id] = cached
 	sc.lru.Add(id)

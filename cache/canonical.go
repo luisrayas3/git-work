@@ -2,7 +2,9 @@ package cache
 
 import (
 	"encoding/json"
+	"fmt"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -30,34 +32,83 @@ type Reach struct {
 // every clone holding the copies orders them alike.
 type ReachFunc func(snap *issue.Snapshot) (Reach, bool)
 
-// reaches is the ordering hook of each alias namespace that has one.
-type reaches struct {
+// reachHook is a registered ReachFunc and the version of what it answers.
+type reachHook struct {
+	version int
+	f       ReachFunc
+}
+
+// reachHooks is the ordering hook of each alias namespace that has one,
+// registered before any store opens, because every issue excerpt carries
+// what each of them answers (doc/design/store.md, "The excerpt carries the
+// reach").
+var reachHooks = struct {
 	mu    sync.RWMutex
-	hooks map[string]ReachFunc
-}
+	hooks map[string]reachHook
+}{hooks: map[string]reachHook{}}
 
-// SetReach registers the ordering hook of an alias namespace, the <name> of
-// alias:<name>: what alias resolution orders that namespace's copies by.
-// A namespace with no hook orders nothing, so two of its copies of one alias
-// are ambiguous.
-func (c *RepoCacheIssue) SetReach(namespace string, f ReachFunc) {
-	c.reaches.mu.Lock()
-	defer c.reaches.mu.Unlock()
-	if c.reaches.hooks == nil {
-		c.reaches.hooks = map[string]ReachFunc{}
+// RegisterReach registers the ordering hook of an alias namespace, the <name>
+// of alias:<name>: what alias resolution and FirstReached order that
+// namespace's copies by. A namespace with no hook orders nothing, so two of
+// its copies of one alias are ambiguous.
+//
+// It is called from an init function, before any store opens: every issue
+// excerpt carries each registered hook's answer, and a cache file built under
+// other hooks, or another version of one, is rebuilt. A change to what a hook
+// answers for some history changes its version.
+func RegisterReach(namespace string, version int, f ReachFunc) {
+	reachHooks.mu.Lock()
+	defer reachHooks.mu.Unlock()
+	if _, ok := reachHooks.hooks[namespace]; ok {
+		panic("cache: a second reach hook for alias namespace " + namespace)
 	}
-	c.reaches.hooks[namespace] = f
+	reachHooks.hooks[namespace] = reachHook{version, f}
 }
 
-func (c *RepoCacheIssue) reachOf(namespace string) ReachFunc {
-	c.reaches.mu.RLock()
-	defer c.reaches.mu.RUnlock()
-	return c.reaches.hooks[namespace]
+func hasReach(namespace string) bool {
+	reachHooks.mu.RLock()
+	defer reachHooks.mu.RUnlock()
+	_, ok := reachHooks.hooks[namespace]
+	return ok
+}
+
+// reachesOf is what an excerpt carries of a copy's reach: its Reach in every
+// namespace whose hook says it reached that system, the time in UTC.
+func reachesOf(snap *issue.Snapshot) map[string]Reach {
+	reachHooks.mu.RLock()
+	defer reachHooks.mu.RUnlock()
+	var out map[string]Reach
+	for namespace, hook := range reachHooks.hooks {
+		r, ok := hook.f(snap)
+		if !ok || r.At.IsZero() {
+			continue
+		}
+		r.At = r.At.UTC()
+		if out == nil {
+			out = map[string]Reach{}
+		}
+		out[namespace] = r
+	}
+	return out
+}
+
+// reachStamp names the registered hooks and their versions, which the issue
+// excerpts are built with besides this code: the issue cache file records
+// it, and one recorded under other hooks is rebuilt.
+func reachStamp() string {
+	reachHooks.mu.RLock()
+	defer reachHooks.mu.RUnlock()
+	names := make([]string, 0, len(reachHooks.hooks))
+	for namespace, hook := range reachHooks.hooks {
+		names = append(names, fmt.Sprintf("%s@%d", namespace, hook.version))
+	}
+	sort.Strings(names)
+	return strings.Join(names, ",")
 }
 
 // FirstReached is the canonical one of several local copies of one external
-// issue: the copy that reached the system first, by reach, ties to the lower
-// entity id; a copy that never reached it is never first
+// issue: the copy that reached the system first, by the namespace's hook,
+// ties to the lower entity id; a copy that never reached it is never first
 // (doc/design/cli.md, "The copy that reached the system first is canonical").
 // When none has reached it, the one copy not archived is first
 // (doc/design/cli.md, "Archiving breaks a tie nothing else orders");
@@ -66,9 +117,9 @@ func (c *RepoCacheIssue) reachOf(namespace string) ReachFunc {
 //
 // The caller knows the copies are of one issue: the Jira sync's consolidation
 // calls it with the copies of one Jira id, and alias resolution with the
-// carriers of one alias.
-func (c *RepoCacheIssue) FirstReached(reach ReachFunc, ids []entity.Id) (entity.Id, error) {
-	copies, err := c.reachAll(reach, ids)
+// carriers of one alias. It reads the excerpts and loads no entity.
+func (c *RepoCacheIssue) FirstReached(namespace string, ids []entity.Id) (entity.Id, error) {
+	copies, err := c.reachAll(namespace, ids)
 	if err != nil {
 		return "", err
 	}
@@ -82,20 +133,20 @@ type reached struct {
 	archived bool
 }
 
-// reachAll loads each copy and reads its reach.
-func (c *RepoCacheIssue) reachAll(reach ReachFunc, ids []entity.Id) ([]reached, error) {
+// reachAll reads each copy's reach in the namespace off its excerpt.
+func (c *RepoCacheIssue) reachAll(namespace string, ids []entity.Id) ([]reached, error) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 	copies := make([]reached, 0, len(ids))
 	for _, id := range ids {
-		ic, err := c.Resolve(id)
-		if err != nil {
-			return nil, err
+		excerpt, ok := c.excerpts[id]
+		if !ok {
+			return nil, entity.NewErrNotFound(c.typename)
 		}
-		snap := ic.Snapshot()
-		r, ok := reach(snap)
-		r.At = r.At.UTC()
+		r, ok := excerpt.Reaches[namespace]
 		var archived bool
-		_ = json.Unmarshal(snap.Fields[issue.ArchivedKey], &archived)
-		copies = append(copies, reached{id: id, reach: r, ok: ok && !r.At.IsZero(), archived: archived})
+		_ = json.Unmarshal(excerpt.Fields[issue.ArchivedKey], &archived)
+		copies = append(copies, reached{id: id, reach: r, ok: ok, archived: archived})
 	}
 	return copies, nil
 }
@@ -164,7 +215,7 @@ type carrier struct {
 // when every copy that reached it is linked to one external issue.
 // Anything else is ambiguous, an ErrMultipleMatch naming every carrier.
 //
-// It loads entities only for an alias two issues carry.
+// It reads the excerpts and loads no entity.
 func (c *RepoCacheIssue) aliasNamed(carriers []carrier) (entity.Id, error) {
 	ids := make([]entity.Id, len(carriers))
 	for i, cr := range carriers {
@@ -182,11 +233,10 @@ func (c *RepoCacheIssue) aliasNamed(carriers []carrier) (entity.Id, error) {
 			return "", ambiguous(ids)
 		}
 	}
-	reach := c.reachOf(namespace)
-	if reach == nil {
+	if !hasReach(namespace) {
 		return "", ambiguous(ids)
 	}
-	copies, err := c.reachAll(reach, ids)
+	copies, err := c.reachAll(namespace, ids)
 	if err != nil {
 		return "", err
 	}

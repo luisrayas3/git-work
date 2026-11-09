@@ -19,9 +19,6 @@ type RepoCacheIssue struct {
 	// checker compiles the live schema, which a create is measured against
 	// before the entity is written (bb9e89e).
 	checker checkerFunc
-
-	// reaches orders the copies of one alias (canonical.go).
-	reaches reaches
 }
 
 // AliasMetadataPrefix is the create-op metadata key prefix that holds an
@@ -57,6 +54,10 @@ func NewRepoCacheIssue(repo repository.ClockedRepo,
 		issue.Typename, issue.Namespace,
 		formatVersion, defaultMaxLoadedBugs,
 	)
+	// the excerpts carry each reach hook's answer, so a cache file built
+	// under other hooks is rebuilt
+	// (doc/design/store.md, "The excerpt carries the reach")
+	sc.stamp = reachStamp()
 
 	return &RepoCacheIssue{SubCache: sc, checker: checker}
 }
@@ -110,7 +111,7 @@ func (c *RepoCacheIssue) CheckNew(fields map[string]issue.Value) error {
 //
 // Two local copies of one external issue both carry its alias, which is
 // immutable, so the alias names the copy that reached the system first, by
-// the namespace's ordering hook (SetReach), and is ambiguous when the hook
+// the namespace's ordering hook (RegisterReach), and is ambiguous when the hook
 // cannot order the copies (doc/design/cli.md, "A duplicate is drawn by its
 // hash"; doc/design/cli.md, "The copy that reached the system first is
 // canonical").
@@ -122,8 +123,8 @@ func (c *RepoCacheIssue) ResolveAlias(alias string) (*IssueCache, error) {
 	return c.Resolve(id)
 }
 
-// ResolveExcerptAlias is ResolveAlias over the excerpts, which loads an
-// entity only for an alias two issues carry.
+// ResolveExcerptAlias is ResolveAlias over the excerpts, which loads no
+// entity.
 func (c *RepoCacheIssue) ResolveExcerptAlias(alias string) (*IssueExcerpt, error) {
 	id, err := c.aliasId(alias)
 	if err != nil {

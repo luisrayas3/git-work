@@ -48,7 +48,7 @@ func NewIndex(repo *cache.RepoCache) (*Index, error) {
 		// winner, and scan consolidates the others; copies the rule cannot
 		// order are left to a person
 		// (doc/design/jira.md, "Copies the rule cannot order are skipped")
-		winner, err := repo.Issues().FirstReached(Reach, ids)
+		winner, err := repo.Issues().FirstReached(Namespace, ids)
 		switch {
 		case entity.IsErrMultipleMatch(err):
 			sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
@@ -179,12 +179,17 @@ func (ix *Index) waiting(jiraId, key string) string {
 // the <name> of MetaAlias.
 const Namespace = "jira"
 
-// Register gives the store Jira's ordering hook, so that a Jira key names
-// the copy consolidation keeps (doc/design/cli.md, "The copy that reached
-// the system first is canonical"). Whatever opens a store for a command
-// calls it; the sync's own consolidation passes Reach itself.
-func Register(repo *cache.RepoCache) {
-	repo.Issues().SetReach(Namespace, Reach)
+// reachVersion is the version of what Reach answers for a history: a change
+// to it changes this, and every store's issue cache is rebuilt with it
+// (doc/design/store.md, "The excerpt carries the reach").
+const reachVersion = 1
+
+// The store gets Jira's ordering hook before any store opens, so that a Jira
+// key names the copy consolidation keeps (doc/design/cli.md, "The copy that
+// reached the system first is canonical") and every issue excerpt carries
+// its copy's reach (doc/design/store.md, "The excerpt carries the reach").
+func init() {
+	cache.RegisterReach(Namespace, reachVersion, Reach)
 }
 
 // Reach is Jira's ordering hook: a copy's first contact with Jira, on
@@ -210,7 +215,7 @@ func Reach(snap *issue.Snapshot) (cache.Reach, bool) {
 // firstToSync is the winner of two issues naming one Jira id: the store's
 // rule over Reach, which breaks a tie by the lower entity id.
 func firstToSync(repo *cache.RepoCache, a, b entity.Id) (entity.Id, error) {
-	return repo.Issues().FirstReached(Reach, []entity.Id{a, b})
+	return repo.Issues().FirstReached(Namespace, []entity.Id{a, b})
 }
 
 // contact is an issue's first contact with Jira:

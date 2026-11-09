@@ -3,6 +3,7 @@ package cache
 import (
 	"os/exec"
 	"path/filepath"
+	"sync/atomic"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -52,7 +53,6 @@ func TestIssueHumanId(t *testing.T) {
 	// key, the other its hash, before consolidation and after it
 	// (doc/design/cli.md, "A duplicate is drawn by its hash"); the index
 	// follows each write without anything being told
-	c.Issues().SetReach("jira", testReach)
 	later := newCopy(t, c, "PROJ-3", "10003", 200)
 	require.Equal(t, "PROJ-3", c.IssueHumanId(later.Id()))
 	first := newCopy(t, c, "PROJ-3", "10003", 100)
@@ -125,13 +125,13 @@ func TestDisplayNamespaceThroughGit(t *testing.T) {
 	require.Equal(t, "linear", open(t, raw).DisplayNamespace())
 }
 
-// TestIssueHumanIdBuildsOnce: drawing every issue builds the alias index once.
-// Building it loads the copies of a shared alias, and loading an issue
-// changes no excerpt, so the generation the index was built at stays current
-// (doc/design/cli.md, "An alias is drawn only where it names that issue").
+// TestIssueHumanIdBuildsOnce: drawing every issue builds the alias index once,
+// from the excerpts, reading no entity, so the generation the index was built
+// at stays current
+// (doc/design/cli.md, "An alias is drawn only where it names that issue";
+// doc/design/store.md, "Readers use the excerpts").
 func TestIssueHumanIdBuildsOnce(t *testing.T) {
 	c := newDisplayTestCache(t, "jira")
-	c.Issues().SetReach("jira", testReach)
 
 	var all []*IssueCache
 	for i := int64(0); i < 4; i++ {
@@ -143,11 +143,13 @@ func TestIssueHumanIdBuildsOnce(t *testing.T) {
 		require.NoError(t, err)
 		all = append(all, plain)
 	}
-	// a cache smaller than the copies of one alias, so building the index
-	// reads them from disk and evicts as it goes
-	c.Issues().SetCacheSize(1)
+	// nothing in memory, so any entity the index needed would be read
+	c.Issues().SetCacheSize(0)
+	var loads atomic.Int64
+	countLoads(c, &loads)
 
 	require.Equal(t, "PROJ-1", c.IssueHumanId(all[0].Id()))
+	require.Zero(t, loads.Load())
 	gen := c.Issues().Generation()
 	for _, i := range all {
 		c.IssueHumanId(i.Id())

@@ -9,7 +9,7 @@ import (
 	"github.com/git-bug/git-bug/repository"
 )
 
-func newConfigTestCache(t *testing.T) (*RepoCache, repository.ClockedRepo) {
+func newConfigTestCache(t testing.TB) (*RepoCache, repository.ClockedRepo) {
 	t.Helper()
 
 	repo := repository.CreateGoGitTestRepo(t, false)

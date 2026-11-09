@@ -45,6 +45,12 @@ type IssueExcerpt struct {
 	Participants []entity.Id
 
 	CreateMetadata map[string]string
+
+	// Reaches is the issue's first contact with each external system whose
+	// alias namespace has a reach hook, by namespace, where it has one: what
+	// orders the copies of one alias with no entity loaded
+	// (doc/design/store.md, "The excerpt carries the reach").
+	Reaches map[string]Reach
 }
 
 func NewIssueExcerpt(i *IssueCache) *IssueExcerpt {
@@ -82,6 +88,7 @@ func NewIssueExcerpt(i *IssueCache) *IssueExcerpt {
 		LenComments:       len(snap.Comments),
 		Description:       description,
 		CreateMetadata:    snap.Operations[0].AllMetadata(),
+		Reaches:           reachesOf(snap),
 	}
 
 	return e

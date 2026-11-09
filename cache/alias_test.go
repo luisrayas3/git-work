@@ -32,6 +32,11 @@ func testReach(snap *issue.Snapshot) (Reach, bool) {
 	return Reach{Issue: linked, At: time.Unix(sec, 0)}, true
 }
 
+// The test system is the jira namespace's; no other namespace has a hook.
+func init() {
+	RegisterReach("jira", 1, testReach)
+}
+
 // newAliased creates a task carrying alias:jira = key, with no contact.
 func newAliased(t *testing.T, c *RepoCache, key string) *IssueCache {
 	t.Helper()
@@ -40,9 +45,15 @@ func newAliased(t *testing.T, c *RepoCache, key string) *IssueCache {
 
 // newCopy creates a task carrying alias:jira = key, linked to the external
 // issue linked and first reaching it at the second reached, when not zero.
-func newCopy(t *testing.T, c *RepoCache, key, linked string, reached int64) *IssueCache {
+func newCopy(t testing.TB, c *RepoCache, key, linked string, reached int64) *IssueCache {
 	t.Helper()
-	md := map[string]string{AliasMetadataPrefix + "jira": key}
+	return newCopyIn(t, c, "jira", key, linked, reached)
+}
+
+// newCopyIn is newCopy in an alias namespace of its own.
+func newCopyIn(t testing.TB, c *RepoCache, namespace, key, linked string, reached int64) *IssueCache {
+	t.Helper()
+	md := map[string]string{AliasMetadataPrefix + namespace: key}
 	if reached != 0 {
 		md[testLinked] = linked
 		md[testReached] = strconv.FormatInt(reached, 10)
@@ -86,7 +97,6 @@ func requireAmbiguous(t *testing.T, err error, ids ...entity.Id) {
 // (doc/design/cli.md, "The copy that reached the system first is canonical").
 func TestAliasNamesTheFirstToReach(t *testing.T) {
 	c := newSchemaTestCache(t)
-	c.Issues().SetReach("jira", testReach)
 	later := newCopy(t, c, "PROJ-7", "10007", 200)
 	first := newCopy(t, c, "PROJ-7", "10007", 100)
 
@@ -103,7 +113,7 @@ func TestAliasNamesTheFirstToReach(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, first.Id(), excerpt.Id())
 
-		id, err := c.Issues().FirstReached(testReach, []entity.Id{later.Id(), first.Id()})
+		id, err := c.Issues().FirstReached("jira", []entity.Id{later.Id(), first.Id()})
 		require.NoError(t, err)
 		require.Equal(t, first.Id(), id, "the rule consolidation calls")
 	}
@@ -121,7 +131,6 @@ func TestAliasNamesTheFirstToReach(t *testing.T) {
 // second, at one rank, are ordered by entity id.
 func TestAliasTieGoesToTheLowerId(t *testing.T) {
 	c := newSchemaTestCache(t)
-	c.Issues().SetReach("jira", testReach)
 	a := newCopy(t, c, "PROJ-9", "10009", 100)
 	b := newCopy(t, c, "PROJ-9", "10009", 100)
 
@@ -136,7 +145,6 @@ func TestAliasTieGoesToTheLowerId(t *testing.T) {
 func TestAliasUnorderable(t *testing.T) {
 	t.Run("never reached", func(t *testing.T) {
 		c := newSchemaTestCache(t)
-		c.Issues().SetReach("jira", testReach)
 		a := newAliased(t, c, "PROJ-7")
 		b := newAliased(t, c, "PROJ-7")
 		_, err := c.Issues().ResolvePrefixOrAlias("PROJ-7")
@@ -146,14 +154,13 @@ func TestAliasUnorderable(t *testing.T) {
 	})
 	t.Run("no hook", func(t *testing.T) {
 		c := newSchemaTestCache(t)
-		a := newCopy(t, c, "PROJ-7", "10007", 100)
-		b := newCopy(t, c, "PROJ-7", "10007", 200)
-		_, err := c.Issues().ResolveAlias("PROJ-7")
+		a := newCopyIn(t, c, "linear", "ENG-7", "10007", 100)
+		b := newCopyIn(t, c, "linear", "ENG-7", "10007", 200)
+		_, err := c.Issues().ResolveAlias("ENG-7")
 		requireAmbiguous(t, err, a.Id(), b.Id())
 	})
 	t.Run("two external issues", func(t *testing.T) {
 		c := newSchemaTestCache(t)
-		c.Issues().SetReach("jira", testReach)
 		a := newCopy(t, c, "PROJ-7", "10007", 100)
 		b := newCopy(t, c, "PROJ-7", "10070", 200)
 		_, err := c.Issues().ResolveAlias("PROJ-7")
@@ -167,7 +174,6 @@ func TestAliasUnorderable(t *testing.T) {
 // (doc/design/cli.md, "Archiving breaks a tie nothing else orders").
 func TestAliasArchiveBreaksATie(t *testing.T) {
 	c := newSchemaTestCache(t)
-	c.Issues().SetReach("jira", testReach)
 	a := newAliased(t, c, "PROJ-7")
 	b := newAliased(t, c, "PROJ-7")
 	d := newAliased(t, c, "PROJ-7")
@@ -176,14 +182,14 @@ func TestAliasArchiveBreaksATie(t *testing.T) {
 	archive(t, c, b)
 	_, err := c.Issues().ResolveAlias("PROJ-7")
 	requireAmbiguous(t, err, ids...)
-	_, err = c.Issues().FirstReached(testReach, ids)
+	_, err = c.Issues().FirstReached("jira", ids)
 	requireAmbiguous(t, err, ids...)
 
 	archive(t, c, d)
 	i, err := c.Issues().ResolveAlias("PROJ-7")
 	require.NoError(t, err)
 	require.Equal(t, a.Id(), i.Id())
-	first, err := c.Issues().FirstReached(testReach, ids)
+	first, err := c.Issues().FirstReached("jira", ids)
 	require.NoError(t, err)
 	require.Equal(t, a.Id(), first)
 
@@ -196,7 +202,6 @@ func TestAliasArchiveBreaksATie(t *testing.T) {
 // reached the system loses to the copy that did.
 func TestAliasReachedBeatsHandSet(t *testing.T) {
 	c := newSchemaTestCache(t)
-	c.Issues().SetReach("jira", testReach)
 	newAliased(t, c, "PROJ-7")
 	synced := newCopy(t, c, "PROJ-7", "10007", 100)
 
@@ -209,7 +214,6 @@ func TestAliasReachedBeatsHandSet(t *testing.T) {
 // (a local rm) is what its key names.
 func TestAliasOfTheOnlyCopy(t *testing.T) {
 	c := newSchemaTestCache(t)
-	c.Issues().SetReach("jira", testReach)
 	first := newCopy(t, c, "PROJ-8", "10008", 100)
 	later := newCopy(t, c, "PROJ-8", "10008", 200)
 	archive(t, c, later)
